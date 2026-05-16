@@ -24,9 +24,64 @@ def pf(v, lo, hi):
     try: return max(0.0, min(100.0, (float(v)-lo)/(hi-lo)*100))
     except: return 50.0
 
-def score_stock(ticker: str, price_history: list = None) -> dict:
-    """Score a stock using available data."""
-    f = FUNDAMENTALS.get(ticker, {})
+def _score_volume_real(vol_ratio: float, price_history: list) -> float:
+    """
+    Real volume pillar (replaces the math proxy).
+    Uses relative volume + OBV direction + price-volume divergence check.
+    Returns 0-100.
+    """
+    scores = []
+
+    # 1. Relative volume (40% weight)
+    if vol_ratio is not None:
+        if   vol_ratio >= 2.0:  rv = 90
+        elif vol_ratio >= 1.5:  rv = 75
+        elif vol_ratio >= 1.0:  rv = 55
+        elif vol_ratio >= 0.5:  rv = 40
+        else:                    rv = 20
+        scores.append((rv, 0.4))
+
+    # 2. OBV direction via up-day ratio (40% weight)
+    if price_history and len(price_history) >= 10:
+        recent   = price_history[-20:]
+        up_days  = sum(1 for i in range(1, len(recent)) if recent[i] > recent[i-1])
+        obv_pct  = up_days / (len(recent) - 1) * 100 if len(recent) > 1 else 50
+        scores.append((obv_pct, 0.4))
+
+        # 3. Price-volume confirmation / divergence (20% weight)
+        price_up = price_history[-1] > price_history[-10]
+        if price_up and vol_ratio is not None and vol_ratio >= 1.0:
+            div = 70   # confirmed uptrend
+        elif price_up and vol_ratio is not None and vol_ratio < 0.7:
+            div = 35   # divergence — weak hands
+        elif not price_up and vol_ratio is not None and vol_ratio >= 1.5:
+            div = 30   # distribution
+        else:
+            div = 50
+        scores.append((div, 0.2))
+
+    if not scores:
+        return 50.0
+
+    total_w  = sum(w for _, w in scores)
+    weighted = sum(s * w for s, w in scores) / total_w
+    return round(max(0.0, min(100.0, weighted)), 1)
+
+
+def score_stock(ticker: str, price_history: list = None,
+                live_fundamentals: dict = None, vol_ratio: float = None) -> dict:
+    """
+    Score a stock using available data.
+
+    Args:
+        ticker:            Stock ticker symbol
+        price_history:     List of closing prices (oldest → newest)
+        live_fundamentals: Fresh fundamentals dict from data_refresh (overrides static)
+        vol_ratio:         Current volume / 30-day avg volume (from data_refresh)
+    """
+    # Merge: live fundamentals take precedence over static universe data
+    static_f = FUNDAMENTALS.get(ticker, {})
+    f = {**static_f, **(live_fundamentals or {})}
 
     # Momentum from price history
     if price_history and len(price_history) >= 5:
@@ -52,8 +107,13 @@ def score_stock(ticker: str, price_history: list = None) -> dict:
           f.get("br",50) or 50]
     quality = np.mean(qa)
 
-    # Volume proxy
-    volume = max(0, min(100, 50 + (mom-50)*0.6))
+    # Volume — real score if vol_ratio available, otherwise price-momentum proxy
+    if vol_ratio is not None:
+        # Real volume pillar: relative volume + OBV direction from price history
+        volume = _score_volume_real(vol_ratio, price_history or [])
+    else:
+        # Legacy proxy (used when no live data available)
+        volume = max(0, min(100, 50 + (mom-50)*0.6))
 
     # Value
     fpe = f.get("fpe")
@@ -162,19 +222,65 @@ def get_current_price(ticker: str) -> float:
 
 # ── FULL UNIVERSE SCAN ────────────────────────────────────────────────────────
 def run_full_scan(use_live_prices: bool = True) -> list:
-    """Score all stocks in universe. Returns sorted list."""
+    """
+    Score all stocks in universe. Returns sorted list.
+
+    Priority order:
+      1. Today's pre-computed scores from Supabase signal_log (fastest, most accurate)
+      2. Live fundamentals from Supabase fundamentals_cache + yfinance price histories
+      3. Static fundamentals from universe_data.py (fallback, no external calls)
+    """
     tickers = list(SECTORS.keys())
-    prices  = fetch_price_data(tickers) if use_live_prices else {}
-    scores  = []
+
+    # ── Try Supabase cached scores first ────────────────────────────────────
+    try:
+        from data_refresh import load_cached_scores, load_cached_fundamentals, cache_is_fresh
+        if cache_is_fresh():
+            cached = load_cached_scores()
+            if cached and len(cached) >= len(tickers) * 0.5:
+                # Cache has at least 50% of universe — good enough to use
+                # Fill in sector from SECTORS map (signal_log doesn't store it)
+                for s in cached:
+                    s.setdefault("sector", SECTORS.get(s["ticker"], "Unknown"))
+                # Add any tickers not in cache using static scoring
+                cached_tickers = {s["ticker"] for s in cached}
+                for tk in tickers:
+                    if tk not in cached_tickers:
+                        s = score_stock(tk)
+                        s["has_live_price"] = False
+                        s["pct_rank"] = 50.0
+                        cached.append(s)
+                cached.sort(key=lambda x: x.get("adj_composite", x["composite"]), reverse=True)
+                return cached
+    except ImportError:
+        pass  # data_refresh not available yet
+    except Exception:
+        pass  # cache unavailable — fall through
+
+    # ── Load live fundamentals from cache if available ───────────────────────
+    live_fundamentals = {}
+    try:
+        from data_refresh import load_cached_fundamentals
+        live_fundamentals = load_cached_fundamentals()
+    except Exception:
+        pass
+
+    # ── Fetch price histories (rate-limited) ─────────────────────────────────
+    prices = fetch_price_data(tickers) if use_live_prices else {}
+
+    # ── Score each ticker ────────────────────────────────────────────────────
+    scores = []
     for tk in tickers:
-        hist   = prices.get(tk, [])
-        s      = score_stock(tk, hist)
+        hist     = prices.get(tk, [])
+        live_f   = live_fundamentals.get(tk, {})
+        vol_ratio = live_f.get("vol_ratio")
+        s        = score_stock(tk, hist, live_fundamentals=live_f, vol_ratio=vol_ratio)
         s["has_live_price"] = len(hist) > 0
         scores.append(s)
 
     # Cross-sectional percentile ranking
     composites = [s["composite"] for s in scores]
-    for i, s in enumerate(scores):
+    for s in scores:
         rank = sum(1 for c in composites if c <= s["composite"]) / len(composites) * 100
         s["pct_rank"] = round(rank, 1)
 
@@ -310,7 +416,7 @@ MACRO_EVENT_INFO = {
 }
 
 
-def fetch_macro_overlay(use_live_feeds: bool = False) -> dict:
+def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
     Fetch macro events and compute sector overlays.
     Live mode: scans RSS feeds (requires feedparser + internet).
