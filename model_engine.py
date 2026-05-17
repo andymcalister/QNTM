@@ -211,89 +211,95 @@ def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
         if tk in mega_caps:
             continue
 
-        # Use macro-adjusted composite (primary signal)
-        adj = s.get("adj_composite", s["composite"])
-        mom = s.get("momentum", 0)
-        qua = s.get("quality",  0)
+        # Defensive float conversion — values from Supabase cache can be strings
+        try:
+            adj = float(s.get("adj_composite") or s.get("composite") or 0)
+            mom = float(s.get("momentum") or 0)
+            qua = float(s.get("quality")  or 0)
+        except (TypeError, ValueError):
+            continue
 
         if adj < threshold_composite: continue
         if qua < threshold_quality:   continue
         if mom < threshold_momentum:  continue
 
         # Use live fundamentals from score dict if available, else static
-        live_f  = s.get("live_fundamentals", {})
+        live_f   = s.get("live_fundamentals") or {}
         static_f = FUNDAMENTALS.get(tk, {})
         f = {**static_f, **live_f}
 
         reasons = []
 
-        # Revenue growth
-        rg = f.get("rg")
-        if rg and rg > 20:
-            reasons.append(f"Revenue growing {rg:.0f}% YoY")
-        elif rg and rg > 10:
-            reasons.append(f"Revenue +{rg:.0f}% YoY")
+        try:
+            rg = f.get("rg")
+            if rg and rg > 20:
+                reasons.append(f"Revenue growing {rg:.0f}% YoY")
+            elif rg and rg > 10:
+                reasons.append(f"Revenue +{rg:.0f}% YoY")
 
-        # Earnings growth
-        eg = f.get("eg")
-        if eg and eg > 40:
-            reasons.append(f"Earnings accelerating {eg:.0f}% YoY")
-        elif eg and eg > 20:
-            reasons.append(f"Earnings +{eg:.0f}% YoY")
+            # Earnings growth
+            eg = f.get("eg")
+            if eg and eg > 40:
+                reasons.append(f"Earnings accelerating {eg:.0f}% YoY")
+            elif eg and eg > 20:
+                reasons.append(f"Earnings +{eg:.0f}% YoY")
 
-        # Insider buying
-        ib = f.get("ib")
-        if ib and ib > 50:
-            reasons.append(f"Strong insider buying ({ib:.0f}% buy ratio)")
-        elif ib and ib > 35:
-            reasons.append(f"Insider buying elevated ({ib:.0f}%)")
+            # Insider buying
+            ib = f.get("ib")
+            if ib and ib > 50:
+                reasons.append(f"Strong insider buying ({ib:.0f}% buy ratio)")
+            elif ib and ib > 35:
+                reasons.append(f"Insider buying elevated ({ib:.0f}%)")
 
-        # Low short interest
-        sp = f.get("sp")
-        if sp is not None and sp < 3:
-            reasons.append(f"Low short interest ({sp:.1f}%)")
-        elif sp is not None and sp < 5:
-            reasons.append(f"Modest short interest ({sp:.1f}%)")
+            # Low short interest
+            sp = f.get("sp")
+            if sp is not None and sp < 3:
+                reasons.append(f"Low short interest ({sp:.1f}%)")
+            elif sp is not None and sp < 5:
+                reasons.append(f"Modest short interest ({sp:.1f}%)")
 
-        # Beat rate
-        br = f.get("br")
-        if br and br == 100:
-            reasons.append("Beat estimates all 4 quarters")
-        elif br and br >= 75:
-            reasons.append(f"Beat estimates {br:.0f}% of quarters")
+            # Beat rate
+            br = f.get("br")
+            if br and br == 100:
+                reasons.append("Beat estimates all 4 quarters")
+            elif br and br >= 75:
+                reasons.append(f"Beat estimates {br:.0f}% of quarters")
 
-        # FCF yield
-        fcf = f.get("fcf")
-        if fcf and fcf > 5:
-            reasons.append(f"Strong FCF yield ({fcf:.1f}%)")
+            # FCF yield
+            fcf = f.get("fcf")
+            if fcf and fcf > 5:
+                reasons.append(f"Strong FCF yield ({fcf:.1f}%)")
 
-        # Pillar-based reasons (when fundamentals are thin)
-        if len(reasons) < 2:
-            if mom >= 70:
-                reasons.append(f"Strong price momentum (score {mom:.0f})")
-            if qua >= 70:
-                reasons.append(f"High quality fundamentals (score {qua:.0f})")
-            vol = s.get("volume", 0)
-            if vol >= 65:
-                reasons.append(f"Elevated institutional volume (score {vol:.0f})")
+            # Pillar-based reasons (when fundamentals are thin)
+            if len(reasons) < 2:
+                if mom >= 70:
+                    reasons.append(f"Strong price momentum (score {mom:.0f})")
+                if qua >= 70:
+                    reasons.append(f"High quality fundamentals (score {qua:.0f})")
+                vol = float(s.get("volume") or 0)
+                if vol >= 65:
+                    reasons.append(f"Elevated institutional volume (score {vol:.0f})")
 
-        # Macro context
-        if regime == "RISK_OFF":
-            reasons.append("Surfaced in RISK-OFF screen — high-conviction filter applied")
-        elif regime == "RISK_ON":
-            reasons.append("Strong signal in risk-on environment")
+                # Macro context
+                if regime == "RISK_OFF":
+                    reasons.append("Surfaced in RISK-OFF screen — high-conviction filter applied")
+                elif regime == "RISK_ON":
+                    reasons.append("Strong signal in risk-on environment")
+
+        except Exception:
+            pass  # skip this stock if any field causes an error
 
         if not reasons:
-            continue  # skip gems with no explainability
+            continue
 
         s["is_hidden_gem"] = True
-        s["gem_reasons"]   = reasons[:4]  # cap at 4 reasons for UI
+        s["gem_reasons"]   = reasons[:4]
         s["gem_regime"]    = regime
         s["gem_adj_score"] = adj
         gems.append(s)
 
     # Sort by adj_composite descending
-    gems.sort(key=lambda x: x.get("adj_composite", x["composite"]), reverse=True)
+    gems.sort(key=lambda x: float(x.get("adj_composite") or x.get("composite") or 0), reverse=True)
     return gems
 
 
