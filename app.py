@@ -2532,56 +2532,45 @@ def platform_nav():
         f'font-size:11px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
 
-    # Logo col + right info col
-    logo_col, right_col = st.columns([1, 6])
-    with logo_col:
-        st.markdown("""
-        <style>
-        div[data-testid="stColumn"]:first-child button {
-            background:transparent!important;border:none!important;padding:0!important;
-            font-family:'Syne',sans-serif!important;font-size:20px!important;
-            font-weight:800!important;letter-spacing:.15em!important;
-            color:#e2e4f0!important;box-shadow:none!important;
-        }
-        div[data-testid="stColumn"]:first-child button:hover {
-            color:#00ff87!important;background:transparent!important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        if st.button("QNTM", key="nav_logo"):
+    st.markdown(
+        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        f'border-bottom:1px solid rgba(255,255,255,.06);'
+        f'padding:0 32px;height:56px;display:flex;align-items:center;'
+        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
+        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;">'
+        f'Q<span style="color:#00ff87;">NTM</span></div>'
+        f'<div style="display:flex;align-items:center;gap:16px;">'
+        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
+        f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
+        f'{plan.upper()}</span>'
+        f'{notif_html}'
+        f'<span style="font-size:13px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
+
+    # Nav tabs row — logo button first, then nav items, sign out last
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
+
+    tabs = st.columns([2] + [1]*len(nav_options) + [1, 1])
+
+    # Logo button — col 0
+    with tabs[0]:
+        if st.button("⌂ Home", key="nav_logo_btn", use_container_width=True):
             if st.session_state.logged_in:
                 nav("screener")
             else:
                 go("landing")
-
-    with right_col:
-        st.markdown(
-            f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
-            f'border-bottom:1px solid rgba(255,255,255,.06);'
-            f'padding:0 32px;height:56px;display:flex;align-items:center;'
-            f'justify-content:flex-end;gap:16px;">'
-            f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-            f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
-            f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
-            f'{plan.upper()}</span>'
-            f'{notif_html}'
-            f'<span style="font-size:13px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-    # Nav tabs row
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
-
-    tabs = st.columns(len(nav_options) + 2)
+    # Nav tab buttons — cols 1 through N
     for i,(label,key) in enumerate(zip(nav_options,nav_keys)):
         with tabs[i+1]:
             active = st.session_state.nav == key
             border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
             color  = "#00ff87" if active else "#475569"
             st.markdown(f"""
-            <div style="{border}padding:8px 0;cursor:pointer;" id="nav_{key}">
+            <div style="{border}padding:8px 0;cursor:pointer;">
               <span style="font-family:'Syne',sans-serif;font-size:11px;letter-spacing:.08em;color:{color};">{label}</span>
             </div>
             """, unsafe_allow_html=True)
