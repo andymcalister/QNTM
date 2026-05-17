@@ -333,6 +333,7 @@ def write_signal_snapshot(scored_list: list) -> bool:
             "signal":        s.get("signal"),
             "macro_overlay": s.get("macro_overlay"),
             "adj_composite": s.get("adj_composite"),
+            "price":         s.get("price"),
             "is_hidden_gem": s.get("is_hidden_gem", False),
             "hidden_gem_reason": (
                 ", ".join(s.get("gem_reasons", [])) if s.get("gem_reasons") else None
@@ -414,6 +415,7 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
                 "signal":        row.get("signal", "MODERATE"),
                 "macro_overlay": float(row["macro_overlay"] or 0),
                 "adj_composite": float(row["adj_composite"] or 50),
+                "price":         float(row["price"]) if row.get("price") else None,
                 "is_hidden_gem": row.get("is_hidden_gem", False),
                 "has_live_price": True,
             })
