@@ -417,12 +417,7 @@ MACRO_EVENT_INFO = {
 
 
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
-    """
-    Fetch macro events and compute sector overlays.
-    Note: RSS live feeds are disabled — Streamlit Cloud blocks outbound RSS URLs.
-    Always returns estimated regime from _CURRENT_REGIME. Update _CURRENT_REGIME
-    manually when macro conditions change, or wire to a permitted data source.
-    """
+    """Static macro overlay — RSS disabled on Streamlit Cloud."""
     sector_overlays = {}
     for event_type in _CURRENT_REGIME["active_events"]:
         impacts = SECTOR_EVENT_MAP.get(event_type, {})
@@ -436,7 +431,6 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         "source":          "estimated",
         "live":            False,
     }
-
 
 
 def apply_macro_overlay(scores: list, macro_data: dict,
