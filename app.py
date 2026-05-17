@@ -2713,32 +2713,51 @@ def platform_nav():
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
-    tabs_html = ""
-    for label, key in zip(nav_options, nav_keys):
-        active = st.session_state.nav == key
-        border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
-        color  = "#00ff87" if active else "#475569"
-        tabs_html += (
-            f'<a href="?nav_tab={key}" style="flex-shrink:0;text-decoration:none;padding:10px 14px;{border}">'
-            f'<span style="font-family:Syne,sans-serif;font-size:11px;letter-spacing:.06em;color:{color};white-space:nowrap;">{label}</span>'
-            f'</a>'
-        )
-    st.markdown(f"""
-    <div style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;
-         border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:8px;
-         scrollbar-width:none;">
-      {tabs_html}
-    </div>
+    # Nav tab CSS — force buttons to display horizontally, no vertical text
+    st.markdown("""
+    <style>
+    div[data-testid="stHorizontalBlock"]:has(button[key="nav_screener_btn"]) {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        gap: 2px !important;
+        padding-bottom: 2px !important;
+        border-bottom: 1px solid rgba(255,255,255,.06) !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key="nav_screener_btn"]) > div[data-testid="stColumn"] {
+        min-width: fit-content !important;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        overflow: visible !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key="nav_screener_btn"]) button {
+        white-space: nowrap !important;
+        width: auto !important;
+        min-width: fit-content !important;
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        height: auto !important;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
-    # Handle nav_tab query param routing
-    if st.query_params.get("nav_tab") in nav_keys:
-        nav(st.query_params.get("nav_tab"))
-        st.rerun()
+    tabs = st.columns(len(nav_options) + 1)
+    for i, (label, key) in enumerate(zip(nav_options, nav_keys)):
+        with tabs[i]:
+            active = st.session_state.nav == key
+            border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
+            color  = "#00ff87" if active else "#475569"
+            st.markdown(
+                f'<div style="{border}padding:2px 0;">'
+                f'<span style="font-family:Syne,sans-serif;font-size:11px;letter-spacing:.06em;color:{color};">{label}</span>'
+                f'</div>',
+                unsafe_allow_html=True)
+            if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
+                nav(key)
 
-    # Sign out button — full width, standalone
-    so_col, _ = st.columns([1, 4])
-    with so_col:
+    with tabs[-1]:
         if st.button("Sign Out", key="signout"):
             for k in ["logged_in","user","mfa_verified","scan_results",
                       "macro_data","mfa_recovery_mode","live_refresh_running"]:
