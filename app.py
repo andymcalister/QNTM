@@ -39,6 +39,54 @@ from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
                            ENTRY_THRESHOLD, EXIT_THRESHOLD, SECTORS,
                            fetch_macro_overlay, apply_macro_overlay)
 
+# ── SIGNED JWT HELPERS ────────────────────────────────────────────────────────
+import hmac, hashlib, base64, json as _json, time as _time
+
+def _jwt_secret() -> str:
+    """Use ENCRYPTION_KEY as JWT signing secret, fall back to a fixed dev key."""
+    try:
+        import streamlit as _st
+        return _st.secrets.get("ENCRYPTION_KEY", "dev-secret-qntm-2025")
+    except Exception:
+        return "dev-secret-qntm-2025"
+
+def _sign_token(uid: str, plan: str, days: int = 30) -> str:
+    """Create a signed token: base64(payload).base64(sig)"""
+    payload = _json.dumps({
+        "uid":     uid,
+        "plan":    plan,
+        "expires": int(_time.time()) + days * 86400,
+    })
+    sig = hmac.new(
+        _jwt_secret().encode(),
+        payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    b64p = base64.urlsafe_b64encode(payload.encode()).decode()
+    return f"{b64p}.{sig}"
+
+def _verify_token(token: str):
+    """Verify signed token. Returns (uid, plan) or (None, None)."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 2:
+            return None, None
+        b64p, sig = parts
+        payload = base64.urlsafe_b64decode(b64p + "==").decode()
+        expected = hmac.new(
+            _jwt_secret().encode(),
+            payload.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None, None
+        data = _json.loads(payload)
+        if _time.time() > data["expires"]:
+            return None, None
+        return data["uid"], data["plan"]
+    except Exception:
+        return None, None
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -471,6 +519,8 @@ for k, v in {
     "live_refresh_running": False,
     "mfa_recovery_mode": False,
     "signed_out": False,
+    "onboarding_done": False,
+    "onboarding_step": 0,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -513,15 +563,13 @@ def _inject_localstorage_reader():
 
 
 def _write_localstorage_token(uid: str, plan: str):
-    """Write a 30-day auth token to localStorage."""
+    """Write a signed 30-day auth token to localStorage."""
     import streamlit.components.v1 as _cv1
-    import json
-    expires = int(__import__('time').time() * 1000) + 30 * 24 * 60 * 60 * 1000
-    token   = json.dumps({"uid": uid, "plan": plan, "expires": expires})
+    token = _sign_token(uid, plan, days=30)
     _cv1.html(f"""
     <script>
     try {{
-        localStorage.setItem('qntm_auth', {json.dumps(token)});
+        localStorage.setItem('qntm_auth', {_json.dumps(token)});
     }} catch(e) {{}}
     </script>
     """, height=0)
@@ -539,21 +587,26 @@ def _clear_localstorage_token():
 
 # ── Auto-restore session from localStorage or query params ────────────────────
 if not st.session_state.logged_in and not st.session_state.get("signed_out"):
-    # Read localStorage token (redirects via URL param if token found)
     _inject_localstorage_reader()
 
-    # Restore from query params (set by localStorage reader above, or old remember-me)
     params = st.query_params
     if "uid" in params and "plan" in params:
         try:
             saved_uid  = params["uid"]
             saved_plan = params["plan"]
-            user = get_user_by_id(saved_uid)
-            if user and user.get("plan") == saved_plan:
-                st.session_state.logged_in    = True
-                st.session_state.user         = user
-                st.session_state.mfa_verified = True
-                st.session_state.page         = "platform"
+            # Check if it's a signed token in uid field
+            if "." in saved_uid:
+                verified_uid, verified_plan = _verify_token(saved_uid)
+            else:
+                # Legacy plain uid — still support but will be replaced on next login
+                verified_uid, verified_plan = saved_uid, saved_plan
+            if verified_uid:
+                user = get_user_by_id(verified_uid)
+                if user:
+                    st.session_state.logged_in    = True
+                    st.session_state.user         = user
+                    st.session_state.mfa_verified = True
+                    st.session_state.page         = "platform"
         except Exception:
             pass
 
@@ -566,12 +619,156 @@ def is_pro():
 
 def go(page):
     st.session_state.page = page
-    # Preserve uid/plan in URL so session survives page transitions
     if st.session_state.get("logged_in") and st.session_state.get("user"):
         u = st.session_state.user
-        st.query_params["uid"]  = u["id"]
+        signed = _sign_token(u["id"], u.get("plan", "free"))
+        st.query_params["uid"]  = signed
         st.query_params["plan"] = u.get("plan", "free")
     st.rerun()
+
+# ── ONBOARDING MODAL ──────────────────────────────────────────────────────────
+def show_onboarding():
+    """3-step onboarding for new users. Shown once per session after first login."""
+    if st.session_state.get("onboarding_done"):
+        return
+    user = st.session_state.get("user") or {}
+    # Only show for users with no holdings yet
+    try:
+        holdings = get_holdings(user.get("id",""))
+        if holdings:
+            st.session_state.onboarding_done = True
+            return
+    except Exception:
+        pass
+
+    step = st.session_state.get("onboarding_step", 0)
+
+    steps = [
+        {
+            "icon": "⚡",
+            "title": "Welcome to QNTM",
+            "body": (
+                "QNTM scores 963 stocks across 5 research-backed pillars — "
+                "Momentum, Quality, Volume, Value, and Sentiment — then blends "
+                "in a live macro overlay to tell you exactly what to buy, hold, or exit. "
+                "One conviction score. No noise."
+            ),
+            "cta": "Next →",
+        },
+        {
+            "icon": "💼",
+            "title": "Track your positions",
+            "body": (
+                "Add any stock you own to your Portfolio. QNTM will run the model "
+                "against your positions every scan and flag any signal changes — "
+                "BUY conviction strengthening, or an EXIT signal before a drawdown."
+            ),
+            "cta": "Next →",
+        },
+        {
+            "icon": "📊",
+            "title": "Run your first scan",
+            "body": (
+                "Head to the Screener and hit Rescan to score all 963 stocks live. "
+                "The model ranks everything from strongest conviction to weakest. "
+                "Filter by sector, signal, or strength — or search any ticker instantly."
+            ),
+            "cta": "Go to Screener →",
+        },
+    ]
+
+    s = steps[step]
+    progress = f"{step + 1} of {len(steps)}"
+    dots = "".join(
+        f'<div style="width:8px;height:8px;border-radius:50%;background:{"#00ff87" if i==step else "rgba(255,255,255,.15)"};"></div>'
+        for i in range(len(steps))
+    )
+
+    st.markdown(f"""
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99998;
+         display:flex;align-items:center;justify-content:center;padding:24px;">
+      <div style="background:#0e0f1a;border:1px solid rgba(0,255,135,.2);border-radius:14px;
+           padding:40px 36px;max-width:480px;width:100%;position:relative;
+           box-shadow:0 24px 80px rgba(0,0,0,.8);">
+        <div style="font-size:48px;text-align:center;margin-bottom:16px;">{s["icon"]}</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;
+             color:#e2e8f0;text-align:center;margin-bottom:14px;">{s["title"]}</div>
+        <div style="font-size:14px;color:#94a3b8;line-height:1.8;text-align:center;
+             margin-bottom:28px;">{s["body"]}</div>
+        <div style="display:flex;justify-content:center;gap:6px;margin-bottom:24px;">{dots}</div>
+        <div style="font-size:11px;color:#334155;text-align:center;margin-bottom:16px;">{progress}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_skip, col_cta = st.columns([1, 2])
+    with col_skip:
+        if st.button("Skip", key="onboard_skip"):
+            st.session_state.onboarding_done = True
+            st.rerun()
+    with col_cta:
+        if st.button(s["cta"], key=f"onboard_step_{step}", use_container_width=True):
+            if step < len(steps) - 1:
+                st.session_state.onboarding_step = step + 1
+                st.rerun()
+            else:
+                st.session_state.onboarding_done = True
+                nav("screener")
+
+# ── DATA FRESHNESS ────────────────────────────────────────────────────────────
+def data_freshness_banner():
+    """Show data age and auto-refresh prompt if stale."""
+    try:
+        from data_refresh import cache_is_fresh, get_cache_age_hours
+        fresh = cache_is_fresh()
+        try:
+            age_h = get_cache_age_hours()
+            age_str = f"{age_h:.0f}h ago" if age_h < 24 else f"{age_h/24:.0f}d ago"
+        except Exception:
+            age_str = "unknown"
+
+        if fresh:
+            st.markdown(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;'
+                f'background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.15);'
+                f'border-radius:20px;padding:4px 12px;font-size:11px;color:#00ff87;'
+                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+                f'<span style="width:6px;height:6px;border-radius:50%;background:#00ff87;display:inline-block;"></span>'
+                f'Data fresh · updated {age_str}</div>',
+                unsafe_allow_html=True)
+        else:
+            st.markdown(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;'
+                f'background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);'
+                f'border-radius:20px;padding:4px 12px;font-size:11px;color:#f59e0b;'
+                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+                f'<span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>'
+                f'Estimated data · last updated {age_str} · hit Rescan for live scores</div>',
+                unsafe_allow_html=True)
+    except Exception:
+        pass
+
+# ── PAGE SUMMARY BANNERS ──────────────────────────────────────────────────────
+def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
+    """Consistent page header with summary and optional stat pills."""
+    pills_html = ""
+    if pills:
+        pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + "".join(
+            f'<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);'
+            f'border-radius:20px;padding:4px 12px;font-size:11px;color:#64748b;'
+            f'font-family:DM Mono,monospace;">{p}</div>'
+            for p in pills
+        ) + '</div>'
+    st.markdown(f"""
+    <div style="padding:24px 32px 16px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <span style="font-size:24px;">{icon}</span>
+        <h1 style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#e2e8f0;margin:0;">{title}</h1>
+      </div>
+      <p style="color:#475569;font-size:13px;line-height:1.6;max-width:640px;margin:0;">{subtitle}</p>
+      {pills_html}
+    </div>
+    """, unsafe_allow_html=True)
 
 def nav(section):
     st.session_state.nav = section
@@ -2753,27 +2950,16 @@ def platform_nav():
 def page_screener():
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
-    try:
-        from data_refresh import cache_is_fresh
-        cache_fresh = cache_is_fresh()
-    except Exception:
-        cache_fresh = False
-    data_badge  = (
-        '<span style="font-size:10px;color:#00ff87;margin-left:8px;">⚡ Live Data</span>'
-        if cache_fresh else
-        '<span style="font-size:10px;color:#475569;margin-left:8px;">Est. Data · Run refresh for live</span>'
+
+    page_summary(
+        "📊", "Market Screener",
+        "963 stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
+        "then blended with a live macro overlay. Every score tells you exactly what to buy, hold, or exit, and why. "
+        "Search any ticker for an instant live score, or run a full universe rescan.",
+        pills=["963 tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
     )
-    st.markdown(f"""
-    <div style="padding:32px 32px 0;">
-      <h1 style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">
-        Market Screener{data_badge}
-      </h1>
-      <p style="color:#475569;margin-top:4px;font-size:13px;">
-        S&P 500 + Russell 1000 universe · 5 pillars · 75/25 quant/macro blend
-      </p>
-    </div>
-    """, unsafe_allow_html=True)
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    data_freshness_banner()
 
     # ── Stock search box ──────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
@@ -2806,7 +2992,15 @@ def page_screener():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if st.session_state.scan_results is None:
-        with st.spinner("Loading universe scores..."):
+        # Auto-trigger if data is old
+        stale_msg = "Loading universe scores..."
+        try:
+            from data_refresh import cache_is_fresh
+            if not cache_is_fresh():
+                stale_msg = "Data is stale — loading estimated scores. Hit Rescan for live data."
+        except Exception:
+            pass
+        with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
             st.session_state.scan_results = apply_macro_overlay(raw, macro)
@@ -3139,17 +3333,13 @@ def page_screener():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def page_gems():
-    st.markdown("""
-    <div style="padding:32px;">
-      <h1 style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">
-        💎 Hidden Gems
-      </h1>
-      <p style="color:#475569;margin-top:4px;font-size:13px;">
-        Mid-cap stocks with strong factor alignment and low analyst coverage.
-        Under the radar. Not in every portfolio.
-      </p>
-    </div>
-    """, unsafe_allow_html=True)
+    page_summary(
+        "💎", "Hidden Gems",
+        "Mid-cap stocks with institutional-grade factor scores that fly under Wall Street's radar. "
+        "QNTM screens for revenue acceleration, earnings beats, low short interest, and low analyst coverage — "
+        "the stocks that show up before the crowd notices. Regime-adjusted thresholds mean the bar rises in volatile markets.",
+        pills=["Mid-cap focus", "Revenue + earnings screen", "Low analyst coverage", "Regime-adjusted threshold"]
+    )
 
     if not is_pro():
         st.markdown("""
@@ -3272,13 +3462,14 @@ def page_gems():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_backtest():
     bt = BACKTEST_DATA
-    st.markdown("""
-    <div style="padding:32px 32px 0;">
-      <h1 style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">Backtest Performance</h1>
-      <p style="color:#475569;margin-top:4px;font-size:13px;">5-year conviction buy-and-hold · May 2020 – May 2025 · 6 market regimes · 50 stocks</p>
-    </div>
-    """, unsafe_allow_html=True)
-
+    page_summary(
+        "📈", "Backtest Performance",
+        f"Walk-forward validation across 5 years and 6 market regimes — COVID recovery, post-COVID bull, "
+        f"bear/rate hike, AI boom, concentration rally, and tariff correction. Same rules every year, no tuning between regimes. "
+        f"Real prices, 10bps transaction costs, 124 tickers × 20 quarters. "
+        f"Result: +{bt['model_total_ret']:.0f}% cumulative vs SPY +{bt['spy_total_ret']:.0f}% over the same period.",
+        pills=[f"+{bt['model_total_ret']:.0f}% cumulative", f"Sharpe {bt['sharpe']:.2f}", f"Max DD {bt['max_dd_model']:.1f}%", "6 market regimes", "No look-ahead bias"]
+    )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
@@ -3703,14 +3894,13 @@ def page_portfolio():
     max_h = plan_limit(plan, "max_holdings")
     has_notifs = plan_limit(plan, "notifications")
 
-    st.markdown("""
-    <div style="padding:32px 32px 0;">
-      <h1 style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">My Portfolio</h1>
-      <p style="color:#475569;margin-top:4px;font-size:13px;">
-        Model signals run against your positions every scan. Signal changes trigger alerts on Pro.
-      </p>
-    </div>
-    """, unsafe_allow_html=True)
+    page_summary(
+        "💼", "My Portfolio",
+        "Add your positions and QNTM applies the full conviction model to each one every scan. "
+        "See your blended score, pillar breakdown, and whether the signal has changed since you entered. "
+        "Free accounts track up to 10 positions. Pro unlocks unlimited holdings and real-time signal alerts.",
+        pills=[f"Up to {'∞' if max_h == 999 else max_h} positions", "Live model signals", "P&L tracking", "Signal change detection"]
+    )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Ensure scan results ────────────────────────────────────────────────────
@@ -3888,14 +4078,31 @@ def page_portfolio():
     # ── Empty state ────────────────────────────────────────────────────────────
     if not holdings:
         st.markdown("""
-        <div style="text-align:center;padding:64px 0;color:#334155;">
-          <div style="font-size:48px;margin-bottom:16px;">📊</div>
-          <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#475569;">
-            No positions yet
+        <div style="text-align:center;padding:48px 24px;max-width:480px;margin:0 auto;">
+          <div style="font-size:52px;margin-bottom:16px;">💼</div>
+          <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">
+            Add your first position
           </div>
-          <div style="font-size:13px;margin-top:8px;color:#334155;">
-            Add your first position above — the model will score it immediately
+          <div style="font-size:14px;color:#64748b;line-height:1.8;margin-bottom:28px;">
+            QNTM will run the full conviction model against every stock you add —
+            showing your blended score, pillar breakdown, and whether the signal
+            has changed since you entered.
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:28px;">
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 10px;">
+              <div style="font-size:20px;margin-bottom:6px;">📊</div>
+              <div style="font-size:11px;color:#64748b;line-height:1.5;">Conviction<br>score</div>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 10px;">
+              <div style="font-size:20px;margin-bottom:6px;">🎯</div>
+              <div style="font-size:11px;color:#64748b;line-height:1.5;">Signal<br>changes</div>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 10px;">
+              <div style="font-size:20px;margin-bottom:6px;">💰</div>
+              <div style="font-size:11px;color:#64748b;line-height:1.5;">P&L<br>tracking</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#334155;">Use the ＋ Add Position button above to get started</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -3942,21 +4149,20 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle — st.radio matching nav style
+        # Period toggle row — real st.buttons, session state only, no URL
         st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
-        period_labels = [p[0] for p in PERIOD_DATA]
-        cur_period_idx = next((i for i,p in enumerate(PERIOD_DATA) if p[0]==st.session_state.port_period), 2)
-        selected_period = st.radio(
-            "period",
-            period_labels,
-            index=cur_period_idx,
-            horizontal=True,
-            label_visibility="collapsed",
-            key="period_radio"
-        )
-        if selected_period != st.session_state.port_period:
-            st.session_state.port_period = selected_period
-            st.rerun()
+        period_cols = st.columns(len(PERIOD_DATA))
+        for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
+            with col:
+                active = st.session_state.port_period == pkey
+                st.markdown(
+                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.04)"};'
+                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.1)"};'
+                    f'border-radius:4px;padding:1px;">', unsafe_allow_html=True)
+                if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
+                    st.session_state.port_period = pkey
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
         # Compute return for selected period
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
@@ -4209,14 +4415,13 @@ def page_alerts():
     plan = user.get("plan", "free")
     has_alerts = plan_limit(plan, "notifications")
 
-    st.markdown("""
-    <div style="padding:32px 32px 0;">
-      <h1 style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">🔔 Alerts</h1>
-      <p style="color:#475569;margin-top:4px;font-size:13px;">
-        Signal changes on your holdings and market-wide macro events
-      </p>
-    </div>
-    """, unsafe_allow_html=True)
+    page_summary(
+        "🔔", "Alerts",
+        "Signal changes on your holdings — the moment the model issues a BUY or EXIT signal, you'll know. "
+        "Macro regime shifts (war, oil spikes, rate changes) trigger alerts too. "
+        "Pro members get email notifications on every signal change across their portfolio.",
+        pills=["BUY/SELL signal changes", "Macro regime alerts", "Portfolio-level monitoring", "Pro: email notifications"]
+    )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Free tier gate ─────────────────────────────────────────────────────────
@@ -4286,14 +4491,17 @@ def page_alerts():
 
     if not notifs:
         st.markdown("""
-        <div style="text-align:center;padding:64px;color:#334155;">
-          <div style="font-size:40px;margin-bottom:16px;">🔔</div>
-          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#475569;">
+        <div style="text-align:center;padding:48px 24px;max-width:440px;margin:0 auto;">
+          <div style="font-size:48px;margin-bottom:16px;">🔔</div>
+          <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">
             No alerts yet
           </div>
-          <div style="font-size:13px;margin-top:8px;">
-            Add holdings in Portfolio — the model will alert you when signals change
+          <div style="font-size:13px;color:#64748b;line-height:1.8;margin-bottom:20px;">
+            Alerts fire when the model issues a signal change on one of your holdings,
+            or when a macro regime shift affects the market. Add positions in Portfolio
+            and the model will watch them every scan.
           </div>
+          <div style="font-size:11px;color:#334155;">Macro alerts are always active — portfolio alerts require holdings</div>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -4363,11 +4571,13 @@ def page_account():
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
 
-    st.markdown("""
-    <div style="padding:32px 32px 0;">
-      <h1 style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">Account</h1>
-    </div>
-    """, unsafe_allow_html=True)
+    page_summary(
+        "⚙️", "Account",
+        "Manage your profile, secure your account with two-factor authentication, and upgrade your plan. "
+        "Founding Member gives you full Pro access free — unlimited holdings, Hidden Gems, and signal alerts — "
+        "locked in for the first 50 users.",
+        pills=[f"Plan: {plan.upper()}", "2FA security", "Notification prefs"]
+    )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     tab_profile, tab_security, tab_plan, tab_notifs = st.tabs([
@@ -4713,6 +4923,7 @@ def page_platform():
         st.session_state.last_refresh = now
         st.session_state.scan_results = None  # force rescan
     platform_nav()
+    show_onboarding()
 
     nav_map = {
         "screener":  page_screener,
