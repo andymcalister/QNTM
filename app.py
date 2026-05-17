@@ -1302,7 +1302,7 @@ def page_model_portfolio():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-
+def page_landing():
     bt = BACKTEST_DATA
 
     # ── Global landing CSS — overrides Streamlit defaults completely ─────────────
