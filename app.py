@@ -2710,11 +2710,7 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    # Nav tabs row — equal columns, no extra home button
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
-
-    # Nav tabs — pure HTML horizontal scroll, no st.columns
+    # Nav tabs — st.columns + st.button with active highlight
     nav_options = ["📊 Screener","💎 Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","↩ Out"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
     cur         = st.session_state.get("nav", "screener")
@@ -3938,16 +3934,17 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row — real st.buttons, session state only, no URL
+        # Period toggle row — matches nav button style
         st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
         period_cols = st.columns(len(PERIOD_DATA))
         for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
             with col:
                 active = st.session_state.port_period == pkey
                 st.markdown(
-                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.04)"};'
-                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.1)"};'
-                    f'border-radius:4px;padding:1px;">', unsafe_allow_html=True)
+                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.03)"};'
+                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.08)"};'
+                    f'border-radius:4px;padding:1px;">',
+                    unsafe_allow_html=True)
                 if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
                     st.session_state.port_period = pkey
                     st.rerun()
