@@ -2625,7 +2625,8 @@ new Chart(document.getElementById('gc'), {{
         border: {{ color: 'rgba(255,255,255,0.05)' }},
       }},
       y: {{
-        min: 80000,
+        min: 90000,
+        max: 480000,
         grid: {{ color: 'rgba(255,255,255,0.03)' }},
         ticks: {{
           color: '#334155',
