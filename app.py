@@ -2002,42 +2002,26 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    # Real Streamlit buttons — positioned by CSS to appear in nav
-    # We use a columns row right below the nav HTML
+    # Nav buttons — pure HTML links, no st.columns, no layout issues
     st.markdown("""
     <style>
-    div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]) {
-        position: fixed !important;
-        top: 10px !important;
-        right: 16px !important;
-        z-index: 1000 !important;
-        width: auto !important;
-        max-width: 240px !important;
-        display: flex !important;
-        gap: 6px !important;
-        background: transparent !important;
+    .qntm-nav-btns { display:flex; gap:8px; align-items:center; }
+    .qntm-nav-btns a {
+        font-family:'Syne',sans-serif; font-size:11px; font-weight:700;
+        letter-spacing:.12em; text-transform:uppercase; text-decoration:none;
+        padding:8px 14px; border-radius:6px; white-space:nowrap;
     }
-    @media (max-width: 600px) {
-        div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]) {
-            display: none !important;
-        }
-    }
+    .qntm-nav-btn-ghost { color:#d4a843 !important; border:1px solid rgba(212,168,67,.4); background:rgba(212,168,67,.04); }
+    .qntm-nav-btn-primary { color:#000 !important; background:#d4a843; }
+    @media (max-width:600px) { .qntm-nav-btns { display:none !important; } }
     </style>
+    <div style="display:flex;justify-content:flex-end;padding:0 16px;margin-top:-52px;position:relative;z-index:1000;height:52px;align-items:center;">
+      <div class="qntm-nav-btns">
+        <a href="?nav=signin" class="qntm-nav-btn-ghost">Sign In</a>
+        <a href="?nav=register" class="qntm-nav-btn-primary">Get Started</a>
+      </div>
+    </div>
     """, unsafe_allow_html=True)
-
-    _, nav_r1, nav_r2 = st.columns([7, 1, 1])
-    with nav_r1:
-        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
-        if st.button("Sign In", key="nav_signin", use_container_width=True):
-            st.session_state.auth_tab = "signin"
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
-    with nav_r2:
-        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Get Started", key="nav_register", use_container_width=True):
-            st.session_state.auth_tab = "register"
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # ── HERO ──────────────────────────────────────────────────────────────────
     st.markdown(f"""
@@ -2332,7 +2316,7 @@ def page_landing():
     inst_card = f"""
       <div style="{card_style()}">
         <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">INSTITUTIONAL</div>
-        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">Custom</div>
+        <div style="font-family:Syne,sans-serif;font-size:clamp(16px,3.5vw,26px);font-weight:800;color:#e2e4f0;line-height:1;white-space:nowrap;">Custom</div>
         <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">contact us</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Pro", True)}
@@ -4787,6 +4771,14 @@ def main():
     if st.query_params.get("legal") in ("privacy","terms","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
         st.session_state.page = "legal"
+
+    # ── Nav link routing ──────────────────────────────────────────────────────
+    if st.query_params.get("nav") == "signin":
+        st.session_state.auth_tab = "signin"
+        st.session_state.page = "auth"
+    if st.query_params.get("nav") == "register":
+        st.session_state.auth_tab = "register"
+        st.session_state.page = "auth"
 
     # ── Public model portfolio — bypass cookie gate ───────────────────────────
     if st.query_params.get("page") == "model":
