@@ -595,12 +595,19 @@ def macro_regime_banner_html(macro: dict) -> str:
     regime = macro.get("regime","NEUTRAL")
     events = macro.get("active_events",[])
     source = macro.get("source","estimated")
+    vix    = macro.get("vix")
+    oil    = macro.get("oil_price")
+    n_hdl  = macro.get("headlines_scanned", 0)
+
+    # Regime-scaled macro weight (matches apply_macro_overlay)
+    macro_w = {"RISK_OFF":35,"HIGH VOLATILITY":35,"RISK_ON":15,"MILDLY BULLISH":15,"NEUTRAL":10}.get(regime,25)
+    quant_w = 100 - macro_w
 
     cfg = {
-        "RISK-ON":          ("#1D9E75","rgba(29,158,117,.08)","rgba(29,158,117,.25)","●","Macro overlay amplifying high-conviction signals"),
+        "RISK_ON":          ("#1D9E75","rgba(29,158,117,.08)","rgba(29,158,117,.25)","●","Macro overlay amplifying high-conviction signals"),
         "MILDLY BULLISH":   ("#4ade80","rgba(74,222,128,.06)","rgba(74,222,128,.2)","◕","Mildly bullish environment — quant signals favoured"),
-        "NEUTRAL":          ("#d4a843","rgba(212,168,67,.07)","rgba(212,168,67,.2)","◐","Macro overlay at baseline — quant signals unmodified"),
-        "RISK-OFF":         ("#ef4444","rgba(239,68,68,.07)","rgba(239,68,68,.2)","●","Macro dampening active — signals reduced by 25% overlay"),
+        "NEUTRAL":          ("#d4a843","rgba(212,168,67,.07)","rgba(212,168,67,.2)","◐","Macro overlay at baseline — minimal sector adjustment"),
+        "RISK_OFF":         ("#ef4444","rgba(239,68,68,.07)","rgba(239,68,68,.2)","●","Macro dampening active — high-beta exposure reduced"),
         "HIGH VOLATILITY":  ("#f97316","rgba(249,115,22,.07)","rgba(249,115,22,.2)","⚡","High volatility — macro overlay at maximum dampening"),
     }.get(regime, ("#d4a843","rgba(212,168,67,.07)","rgba(212,168,67,.2)","◐","Macro overlay at baseline"))
 
@@ -612,37 +619,57 @@ def macro_regime_banner_html(macro: dict) -> str:
                 "fed_hawkish":"Fed Hawkish","fed_dovish":"Fed Dovish",
                 "recession_signal":"Recession Signal","war_escalation":"War Escalation",
                 "chip_export_ban":"Chip Export Ban","oil_spike":"Oil Spike"}
-        for e in events[:3]:
-            events_html += f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">{nice.get(e,e.replace("_"," ").title())}</span>'
+        for e in events[:4]:
+            events_html += (f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
+                           f'border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">'
+                           f'{nice.get(e,e.replace("_"," ").title())}</span>')
 
-    src_badge = (f'<span style="font-size:10px;color:#1D9E75;margin-left:8px;">⚡ Live</span>'
-                 if source=="live"
-                 else '<span style="font-size:10px;color:#475569;margin-left:8px;">Est.</span>')
+    # Source badge
+    if macro.get("live"):
+        src_parts = [f'⚡ Live']
+        if n_hdl:  src_parts.append(f'{n_hdl} headlines')
+        src_badge = f'<span style="font-size:10px;color:#1D9E75;margin-left:8px;">{" · ".join(src_parts)}</span>'
+    else:
+        src_badge = '<span style="font-size:10px;color:#475569;margin-left:8px;">Est. · no live feeds</span>'
+
+    # VIX / oil indicators
+    indicators_html = ""
+    if vix is not None:
+        vix_col = "#ef4444" if vix >= 30 else "#fbbf24" if vix >= 20 else "#1D9E75"
+        indicators_html += (f'<div style="text-align:center;">'
+                           f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{vix_col};">{vix:.1f}</div>'
+                           f'<div style="font-size:11px;color:#475569;">VIX</div></div>')
+    if oil is not None:
+        oil_col = "#ef4444" if oil >= 90 else "#fbbf24" if oil >= 75 else "#1D9E75"
+        indicators_html += (f'<div style="text-align:center;">'
+                           f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{oil_col};">${oil:.0f}</div>'
+                           f'<div style="font-size:11px;color:#475569;">WTI Crude</div></div>')
 
     return (
         f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
         f'padding:14px 20px;margin-bottom:16px;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">'
         f'<div style="display:flex;align-items:center;gap:10px;">'
-        f'<span style="color:{color};font-size:10px;animation:pulse 2s infinite;">{icon}</span>'
+        f'<span style="color:{color};font-size:10px;">{icon}</span>'
         f'<div>'
         f'<div style="display:flex;align-items:center;gap:6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;'
         f'color:{color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>'
         f'{src_badge}</div>'
-        f'<div style="font-size:13px;color:#64748b;margin-top:2px;">{desc}</div>'
+        f'<div style="font-size:12px;color:#64748b;margin-top:2px;">{desc}</div>'
         f'<div style="margin-top:6px;">{events_html}</div>'
         f'</div></div>'
         f'<div style="display:flex;gap:20px;flex-wrap:wrap;">'
         f'<div style="text-align:center;">'
-        f'<div style="font-size:16px;font-weight:500;color:#e2e8f0;">75%</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:#e2e8f0;">{quant_w}%</div>'
         f'<div style="font-size:11px;color:#475569;">Quant weight</div></div>'
         f'<div style="text-align:center;">'
-        f'<div style="font-size:16px;font-weight:500;color:{color};">25%</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{color};">{macro_w}%</div>'
         f'<div style="font-size:11px;color:#475569;">Macro weight</div></div>'
         f'<div style="text-align:center;">'
-        f'<div style="font-size:16px;font-weight:500;color:#e2e8f0;">{len(events)}</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:#e2e8f0;">{len(events)}</div>'
         f'<div style="font-size:11px;color:#475569;">Active events</div></div>'
+        f'{indicators_html}'
         f'</div></div>'
         f'</div>'
     )
