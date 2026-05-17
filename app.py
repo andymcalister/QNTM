@@ -2011,12 +2011,20 @@ def page_landing():
     div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]) {
         position: fixed !important;
         top: 10px !important;
-        right: clamp(8px,3vw,48px) !important;
+        right: 16px !important;
         z-index: 1000 !important;
         width: auto !important;
+        max-width: 240px !important;
         display: flex !important;
-        gap: 8px !important;
+        gap: 6px !important;
         background: transparent !important;
+    }
+    /* Hide nav buttons on small screens — hero has same CTAs */
+    @media (max-width: 480px) {
+        div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]),
+        div[data-testid="stHorizontalBlock"]:has(button[data-testid*="nav_signin"]) {
+            display: none !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -2143,24 +2151,24 @@ def page_landing():
     st.markdown(f"""
     <div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
           <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL 5-YR TOTAL</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(20px,5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
           <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bt['model_final_100k']:,} from $100K</div>
         </div>
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
           <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SPY SAME PERIOD</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(20px,5vw,28px);font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
           <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bt['spy_final_100k']:,} from $100K</div>
         </div>
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
           <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL CAGR</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(20px,5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
           <div style="font-size:10px;color:#94a3b8;margin-top:4px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
           <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">5-YR ADVANTAGE</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(16px,3.5vw,24px);font-weight:800;color:#1D9E75;line-height:1;word-break:break-all;">+${bt['model_advantage_usd']:,}</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(13px,3vw,22px);font-weight:800;color:#1D9E75;line-height:1;">+${bt['model_advantage_usd']:,}</div>
           <div style="font-size:10px;color:#94a3b8;margin-top:4px;">on $100,000 invested</div>
         </div>
       </div>
@@ -2242,7 +2250,9 @@ def page_landing():
             f'</div>'
         )
     st.markdown(
-        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">{pillars_html}</div></div>',
+        f'<div style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 16px;box-sizing:border-box;">'
+        f'<div style="display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:10px;min-width:600px;">'
+        f'{pillars_html}</div></div>',
         unsafe_allow_html=True)
 
     # Signal boxes — pure CSS grid, no st.columns
@@ -2335,8 +2345,8 @@ def page_landing():
       </div>"""
 
     st.markdown(
-        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:16px;">'
-        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
+        f'<div style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 16px;box-sizing:border-box;margin-bottom:16px;">'
+        f'<div style="display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px;min-width:580px;">'
         f'{free_card}{founding_card}{inst_card}'
         f'</div></div>',
         unsafe_allow_html=True)
