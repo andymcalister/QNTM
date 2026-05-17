@@ -2104,72 +2104,76 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    # Big 4 stats
-    p1, p2, p3, p4 = st.columns(4)
-    for col, label, val, sub, color in [
-        (p1, "MODEL 5-YR TOTAL",  f"+{bt['model_total_ret']:.1f}%", f"${bt['model_final_100k']:,} from $100K", "#d4a843"),
-        (p2, "SPY SAME PERIOD",   f"+{bt['spy_total_ret']:.1f}%",   f"${bt['spy_final_100k']:,} from $100K",   "#64748b"),
-        (p3, "MODEL CAGR",        f"+{bt['model_cagr']:.1f}%",      f"vs SPY +{bt['spy_cagr']:.1f}%",          "#d4a843"),
-        (p4, "5-YR ADVANTAGE",    f"+${bt['model_advantage_usd']:,}","on $100,000 invested",                     "#1D9E75"),
-    ]:
-        with col:
-            st.markdown(f"""
-            <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);
-                 border-radius:8px;padding:22px 18px;margin:0 24px 16px;">
-              <div style="font-family:'DM Mono',monospace;font-size:10px;color:#94a3b8;
-                   letter-spacing:.12em;margin-bottom:10px;">{label}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;
-                   color:{color};line-height:1;">{val}</div>
-              <div style="font-size:12px;color:#94a3b8;margin-top:8px;">{sub}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Big 4 stats — 2x2 HTML grid (works on mobile and desktop)
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 24px;margin-bottom:24px;">
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">MODEL 5-YR TOTAL</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">${bt['model_final_100k']:,} from $100K</div>
+      </div>
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">SPY SAME PERIOD</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">${bt['spy_final_100k']:,} from $100K</div>
+      </div>
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">MODEL CAGR</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
+      </div>
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">5-YR ADVANTAGE</div>
+        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#1D9E75;line-height:1;">+${bt['model_advantage_usd']:,}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">on $100,000 invested</div>
+      </div>
+    </div>
+    <div style="padding:0 24px;font-size:13px;color:#94a3b8;margin-bottom:14px;">Same rules every year — no tuning between regimes:</div>
+    """, unsafe_allow_html=True)
 
-    # Regime cards
-    st.markdown('<div style="padding:0 24px;font-size:13px;color:#94a3b8;margin-bottom:14px;">Same rules every year — no tuning between regimes:</div>', unsafe_allow_html=True)
-    rc = st.columns(6)
-    for col, p in zip(rc, bt["periods"]):
-        beat = p["beat"]
-        bc   = "rgba(29,158,117,.35)" if beat else "rgba(226,75,74,.25)"
-        ic   = "#1D9E75" if beat else "#E24B4A"
-        mc   = "#1D9E75" if p["model_ret"] >= 0 else "#E24B4A"
-        sc_c = "#4ade80" if p["spy_ret"] >= 0 else "#E24B4A"
-        with col:
-            st.markdown(f"""
-            <div style="background:#0e0f1a;border:1px solid {bc};border-radius:8px;padding:14px 10px;margin:0 0 0 24px;">
-              <div style="font-family:'DM Mono',monospace;font-size:10px;color:#94a3b8;margin-bottom:4px;">{p['key']}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;line-height:1.3;">{p['label']}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:{ic};">{'&#10003;' if beat else '&#10007;'}</div>
-              <div style="margin-top:6px;">
-                <div style="font-family:'DM Mono',monospace;font-size:12px;color:{mc};font-weight:500;">QNTM {p['model_ret']:+.1f}%</div>
-                <div style="font-family:'DM Mono',monospace;font-size:11px;color:{sc_c};margin-top:2px;">SPY {p['spy_ret']:+.1f}%</div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Regime + risk metrics via HTML grids
+    regime_cards = ""
+    for p in bt["periods"]:
+        bc  = "rgba(29,158,117,.35)" if p["beat"] else "rgba(226,75,74,.25)"
+        ic  = "#1D9E75" if p["beat"] else "#E24B4A"
+        mc  = "#1D9E75" if p["model_ret"] >= 0 else "#E24B4A"
+        sc  = "#4ade80" if p["spy_ret"]  >= 0 else "#E24B4A"
+        chk = "&#10003;" if p["beat"] else "&#10007;"
+        regime_cards += (
+            f'<div style="background:#0e0f1a;border:1px solid {bc};border-radius:8px;padding:12px 10px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;margin-bottom:3px;">{p["key"]}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:6px;line-height:1.3;">{p["label"]}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{ic};">{chk}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{mc};margin-top:4px;">QNTM {p["model_ret"]:+.1f}%</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{sc};margin-top:2px;">SPY {p["spy_ret"]:+.1f}%</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 24px;margin-bottom:24px;">{regime_cards}</div>',
+        unsafe_allow_html=True)
 
-    # Risk metrics row — pull from BACKTEST_DATA
-    st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
-    rm = st.columns(6)
-    spy_dd  = bt.get("max_dd_spy", -25.4)
-    for col, (label, val, sub) in zip(rm, [
-        ("SHARPE",     f"{bt['sharpe']:.2f}",                ">1.0 excellent"),
-        ("SORTINO",    f"{bt['sortino']:.2f}",               ">1.5 strong"),
-        ("INFO RATIO", f"{bt.get('information_ratio',1.25):.2f}", ">0.5 signal"),
-        ("MAX DD",     f"{bt['max_dd_model']:.1f}%",         f"SPY hit {spy_dd:.1f}%"),
-        ("WIN RATE",   f"{bt['win_rate']:.1f}%",             f"{bt['n_quarters']} quarters"),
-        ("CAGR ALPHA", f"+{bt['cagr_alpha']:.1f}pp",         "/yr vs index"),
-    ]):
-        with col:
-            st.markdown(f"""
-            <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);
-                 border-radius:6px;padding:14px;text-align:center;margin:0 0 0 24px;">
-              <div style="font-family:'DM Mono',monospace;font-size:9px;color:#94a3b8;
-                   letter-spacing:.1em;margin-bottom:6px;">{label}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#d4a843;">{val}</div>
-              <div style="font-size:10px;color:#94a3b8;margin-top:4px;">{sub}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    spy_dd = bt.get("max_dd_spy", -25.4)
+    risk_items = [
+        ("SHARPE",     f"{bt['sharpe']:.2f}",                     "&gt;1.0 excellent"),
+        ("SORTINO",    f"{bt['sortino']:.2f}",                    "&gt;1.5 strong"),
+        ("INFO RATIO", f"{bt.get('information_ratio',1.25):.2f}", "&gt;0.5 signal"),
+        ("MAX DD",     f"{bt['max_dd_model']:.1f}%",              f"SPY {spy_dd:.1f}%"),
+        ("WIN RATE",   f"{bt['win_rate']:.1f}%",                  f"{bt['n_quarters']} quarters"),
+        ("CAGR ALPHA", f"+{bt['cagr_alpha']:.1f}pp",              "/yr vs index"),
+    ]
+    risk_html = "".join([
+        f'<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);'
+        f'border-radius:6px;padding:12px;text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">{l}</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#d4a843;">{v}</div>'
+        f'<div style="font-size:10px;color:#94a3b8;margin-top:4px;">{s}</div></div>'
+        for l,v,s in risk_items
+    ])
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 24px;margin-bottom:16px;">{risk_html}</div>',
+        unsafe_allow_html=True)
 
-    # ── THE MODEL ─────────────────────────────────────────────────────────────
+        # ── THE MODEL ─────────────────────────────────────────────────────────────
     st.markdown("""
     <div class="land-divider" style="margin-top:32px;"></div>
     <div class="land-section">
@@ -2351,9 +2355,9 @@ def page_landing():
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;letter-spacing:.12em;margin-bottom:12px;">LEGAL</div>
             <div style="font-size:13px;color:#475569;line-height:2.2;">
-              <span style="color:#94a3b8;cursor:pointer;" id="lnk_privacy">Privacy Policy</span><br>
-              <span style="color:#94a3b8;cursor:pointer;" id="lnk_terms">Terms of Service</span><br>
-              <span style="color:#94a3b8;cursor:pointer;" id="lnk_cookies">Cookie Policy</span>
+              <a href="?legal=privacy" style="color:#94a3b8;text-decoration:none;display:block;">Privacy Policy</a>
+              <a href="?legal=terms" style="color:#94a3b8;text-decoration:none;display:block;">Terms of Service</a>
+              <a href="?legal=cookies" style="color:#94a3b8;text-decoration:none;display:block;">Cookie Policy</a>
             </div>
           </div>
           <div>
@@ -2878,22 +2882,25 @@ def page_screener():
     holds = sum(1 for r in results if r.get("adj_action",r.get("action"))=="HOLD")
     sells = sum(1 for r in results if r.get("adj_action",r.get("action"))=="SELL")
 
-    m1,m2,m3,m4,m5 = st.columns(5)
-    for col,label,val,color in [
-        (m1,"BUY Signals",str(buys),"#00ff87"),
-        (m2,"HOLD",str(holds),"#fbbf24"),
-        (m3,"SELL Signals",str(sells),"#ef4444"),
-        (m4,"Hidden Gems",str(len(gems)),"#00ff87"),
-        (m5,"Universe",f"{len(results)} stocks","#475569"),
-    ]:
-        with col:
-            st.markdown(f"""
-            <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-                 border-radius:4px;padding:14px 16px;margin-bottom:16px;">
-              <div style="font-family:'DM Mono',monospace;font-size:10px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">{label}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:{color};">{val}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Summary strip — single HTML row, no Streamlit columns
+    stat_items = [
+        ("BUY","#00ff87",str(buys)),
+        ("HOLD","#fbbf24",str(holds)),
+        ("SELL","#ef4444",str(sells)),
+        ("GEMS","#00ff87",str(len(gems))),
+        ("UNIVERSE","#475569",f"{len(results)}"),
+    ]
+    stats_html = "".join(
+        f'<div style="flex:1;min-width:60px;background:rgba(255,255,255,.02);'
+        f'border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:10px 8px;text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:4px;">{l}</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{c};">{v}</div>'
+        f'</div>'
+        for l,c,v in stat_items
+    )
+    st.markdown(
+        f'<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:nowrap;">{stats_html}</div>',
+        unsafe_allow_html=True)
 
     # ── Screener tabs: Top 10 / Full Universe / Sector Breakdown ──────────────
     buys_ranked  = sorted([r for r in results if r.get("adj_action",r.get("action"))=="BUY"],
@@ -3274,48 +3281,71 @@ def page_backtest():
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     # Hero numbers
-    st.markdown("""
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:24px 0;">
+    # Hero stats — 2x2 HTML grid works on all screen sizes
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:24px 0;">
+      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
+           border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR TOTAL RETURN</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
+        <div style="font-size:12px;color:#475569;margin-top:6px;">${'100K'} → ${bt['model_final_100k']:,}</div>
+      </div>
+      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
+           border-radius:6px;padding:16px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">SPY SAME PERIOD</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#fbbf24;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
+        <div style="font-size:12px;color:#475569;margin-top:6px;">${'100K'} → ${bt['spy_final_100k']:,}</div>
+      </div>
+      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
+           border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">MODEL CAGR</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">+{bt['model_cagr']:.1f}%</div>
+        <div style="font-size:12px;color:#475569;margin-top:6px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
+      </div>
+      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
+           border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR ADVANTAGE</div>
+        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#00ff87;line-height:1;">+${bt['model_advantage_usd']:,}</div>
+        <div style="font-size:12px;color:#475569;margin-top:6px;">on $100,000 invested</div>
+      </div>
+    </div>
     """, unsafe_allow_html=True)
-    hero_cols = st.columns(4)
-    heroes = [
-        (hero_cols[0],"5-Yr Total Return",f"+{bt['model_total_ret']:.1f}%",f"$100K → ${bt['model_final_100k']:,}","#00ff87","qe-card-green"),
-        (hero_cols[1],"SPY Same Period",  f"+{bt['spy_total_ret']:.1f}%",  f"$100K → ${bt['spy_final_100k']:,}","#fbbf24",""),
-        (hero_cols[2],"Model CAGR",       f"+{bt['model_cagr']:.1f}%",    f"vs SPY +{bt['spy_cagr']:.1f}% CAGR","#00ff87",""),
-        (hero_cols[3],"Advantage vs SPY", f"+${bt['model_advantage_usd']:,}","on $100,000 invested","#00ff87",""),
-    ]
-    for col,label,val,sub,color,_ in heroes:
-        with col:
-            st.markdown(f"""
-            <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-                 border-radius:6px;padding:20px;{'border-left:2px solid #00ff87;' if color=='#00ff87' else ''}">
-              <div style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;letter-spacing:.1em;margin-bottom:10px;">{label}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:{color};line-height:1;">{val}</div>
-              <div style="font-size:13px;color:#475569;margin-top:8px;">{sub}</div>
-            </div>
-            """, unsafe_allow_html=True)
 
-    # Risk metrics — pull from BACKTEST_DATA
-    st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
-    risk_cols = st.columns(6)
-    risk_data = [
-        ("Sharpe",     f"{bt['sharpe']:.2f}",                    ">1.0 excellent"),
-        ("Sortino",    f"{bt['sortino']:.2f}",                   ">1.5 strong"),
-        ("Info Ratio", f"{bt.get('information_ratio',1.25):.2f}",">0.5 signal"),
-        ("Max DD",     f"{bt['max_dd_model']:.1f}%",             f"SPY {bt.get('max_dd_spy',-25.4):.1f}%"),
-        ("Win Rate",   f"{bt['win_rate']:.1f}%",                 f"{bt['n_quarters']} quarters"),
-        ("CAGR Alpha", f"+{bt['cagr_alpha']:.1f}pp",             "/yr vs index"),
-    ]
-    for col,(label,val,sub) in zip(risk_cols,risk_data):
-        with col:
-            st.markdown(
-                f'<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);'
-                f'border-radius:6px;padding:16px;text-align:center;">'
-                f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
-                f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#00ff87;">{val}</div>'
-                f'<div style="font-size:12px;color:#64748b;margin-top:6px;">{sub}</div>'
-                f'</div>',
-                unsafe_allow_html=True)
+    # Risk metrics — 3x2 HTML grid
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">SHARPE</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['sharpe']:.2f}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">&gt;1.0 excellent</div>
+      </div>
+      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">SORTINO</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['sortino']:.2f}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">&gt;1.5 strong</div>
+      </div>
+      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">INFO RATIO</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt.get('information_ratio',1.25):.2f}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">&gt;0.5 signal</div>
+      </div>
+      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">MAX DD</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['max_dd_model']:.1f}%</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">SPY {bt.get('max_dd_spy',-25.4):.1f}%</div>
+      </div>
+      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">WIN RATE</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['win_rate']:.1f}%</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">{bt['n_quarters']} quarters</div>
+      </div>
+      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">CAGR ALPHA</div>
+        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">+{bt['cagr_alpha']:.1f}pp</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">/yr vs index</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Growth chart — compute from real quarterly returns for accuracy
     import streamlit.components.v1 as _components
@@ -4725,6 +4755,11 @@ def page_platform():
 # ROUTER
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
+    # ── Legal page via footer links ───────────────────────────────────────────
+    if st.query_params.get("legal") in ("privacy","terms","cookies","disclaimer"):
+        st.session_state.legal_doc = st.query_params.get("legal")
+        st.session_state.page = "legal"
+
     # ── Public model portfolio — bypass cookie gate ───────────────────────────
     if st.query_params.get("page") == "model":
         st.session_state.page = "model"
