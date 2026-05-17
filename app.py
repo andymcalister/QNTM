@@ -438,12 +438,77 @@ for k, v in {
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ── PERSISTENT LOGIN (remember me) ───────────────────────────────────────────
+
+# ── PERSISTENT LOGIN — 7-day localStorage token ───────────────────────────────
+# Stores {uid, plan, expires} in browser localStorage on remember-me login.
+# Reads it back on every load. Falls back to query params for old sessions.
+
+def _inject_localstorage_reader():
+    """
+    Inject a component that reads the QNTM auth token from localStorage
+    and writes it to a query param so Streamlit can see it.
+    Only runs if not already logged in.
+    """
+    import streamlit.components.v1 as _cv1
+    _cv1.html("""
+    <script>
+    (function() {
+        try {
+            var raw = localStorage.getItem('qntm_auth');
+            if (!raw) return;
+            var tok = JSON.parse(raw);
+            if (!tok.uid || !tok.plan || !tok.expires) return;
+            if (Date.now() > tok.expires) {
+                localStorage.removeItem('qntm_auth');
+                return;
+            }
+            // Write to parent URL as query params so Streamlit detects them
+            var url = new URL(window.parent.location.href);
+            if (!url.searchParams.get('uid')) {
+                url.searchParams.set('uid', tok.uid);
+                url.searchParams.set('plan', tok.plan);
+                window.parent.location.replace(url.toString());
+            }
+        } catch(e) {}
+    })();
+    </script>
+    """, height=0)
+
+
+def _write_localstorage_token(uid: str, plan: str):
+    """Write a 7-day auth token to localStorage."""
+    import streamlit.components.v1 as _cv1
+    import json
+    expires = int(__import__('time').time() * 1000) + 7 * 24 * 60 * 60 * 1000
+    token   = json.dumps({"uid": uid, "plan": plan, "expires": expires})
+    _cv1.html(f"""
+    <script>
+    try {{
+        localStorage.setItem('qntm_auth', {json.dumps(token)});
+    }} catch(e) {{}}
+    </script>
+    """, height=0)
+
+
+def _clear_localstorage_token():
+    """Clear the auth token from localStorage on sign out."""
+    import streamlit.components.v1 as _cv1
+    _cv1.html("""
+    <script>
+    try { localStorage.removeItem('qntm_auth'); } catch(e) {}
+    </script>
+    """, height=0)
+
+
+# ── Auto-restore session from localStorage or query params ────────────────────
 if not st.session_state.logged_in and not st.session_state.get("signed_out"):
+    # Read localStorage token (redirects via URL param if token found)
+    _inject_localstorage_reader()
+
+    # Restore from query params (set by localStorage reader above, or old remember-me)
     params = st.query_params
     if "uid" in params and "plan" in params:
         try:
-            from db import get_user_by_id
             saved_uid  = params["uid"]
             saved_plan = params["plan"]
             user = get_user_by_id(saved_uid)
@@ -656,19 +721,60 @@ def macro_regime_banner_html(macro: dict) -> str:
         f'<div style="font-size:12px;color:#64748b;margin-top:2px;">{desc}</div>'
         f'<div style="margin-top:6px;">{events_html}</div>'
         f'</div></div>'
-        f'<div style="display:flex;gap:20px;flex-wrap:wrap;">'
-        f'<div style="text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:#e2e8f0;">{quant_w}%</div>'
-        f'<div style="font-size:11px;color:#475569;">Quant weight</div></div>'
-        f'<div style="text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{color};">{macro_w}%</div>'
-        f'<div style="font-size:11px;color:#475569;">Macro weight</div></div>'
-        f'<div style="text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:#e2e8f0;">{len(events)}</div>'
-        f'<div style="font-size:11px;color:#475569;">Active events</div></div>'
-        f'{indicators_html}'
-        f'</div></div>'
-        f'</div>'
+        f'<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">'
+
+        # Quant weight
+        f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#e2e8f0;">{quant_w}%</div>'
+        f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Quant Weight</div>'
+        f'<span class="tip-box" style="width:260px;left:0;right:auto;">'
+        f'<div class="tip-title">Quant Weight</div>'
+        f'<div class="tip-body">The percentage of each stock\'s final score driven purely by the 5-pillar factor model — momentum, quality, volume, value, and sentiment. Higher quant weight = model is doing the heavy lifting.</div>'
+        f'</span></div>'
+
+        # Macro weight
+        f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{color};">{macro_w}%</div>'
+        f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Macro Weight</div>'
+        f'<span class="tip-box" style="width:260px;">'
+        f'<div class="tip-title">Macro Weight</div>'
+        f'<div class="tip-body">The percentage of each score adjusted by the current macro regime. In RISK_OFF this rises to 35% — dampening high-beta exposure. In NEUTRAL it drops to 10% to let quant signals dominate.</div>'
+        f'</span></div>'
+
+        # Active events
+        f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#e2e8f0;">{len(events)}</div>'
+        f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Active Events</div>'
+        f'<span class="tip-box" style="width:260px;">'
+        f'<div class="tip-title">Active Macro Events</div>'
+        f'<div class="tip-body">Number of macro events currently detected — tariffs, Fed stance, geopolitical risk, oil shocks. Each event applies sector-level adjustments to scores. More events = stronger regime signal.</div>'
+        f'</span></div>'
+
+        + (
+            f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
+            f'color:{"#ef4444" if vix_level>=30 else "#fbbf24" if vix_level>=20 else "#1D9E75"};">{vix_level:.1f}</div>'
+            f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">VIX</div>'
+            f'<span class="tip-box" style="width:260px;">'
+            f'<div class="tip-title">VIX — Fear Index</div>'
+            f'<div class="tip-body">CBOE Volatility Index. Below 15 = calm market (RISK_ON). 15–25 = elevated uncertainty. Above 30 = fear/panic (forces RISK_OFF regime). VIX above 35 overrides all other regime signals.</div>'
+            f'</span></div>'
+            if vix_level is not None else ""
+        )
+
+        + (
+            f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
+            f'color:{"#ef4444" if oil_price>=90 else "#fbbf24" if oil_price>=75 else "#1D9E75"};">${oil_price:.0f}</div>'
+            f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">WTI Crude</div>'
+            f'<span class="tip-box" style="width:260px;right:0;left:auto;">'
+            f'<div class="tip-title">WTI Crude Oil Price</div>'
+            f'<div class="tip-body">West Texas Intermediate crude price per barrel. Above $90 triggers an oil_spike macro event — bullish for Energy, bearish for Consumer Discretionary and Industrials. Below $65 signals weak demand.</div>'
+            f'</span></div>'
+            if oil_price is not None else ""
+        )
+
+        + f'</div></div></div>'
     )
 
 
@@ -2327,9 +2433,9 @@ def page_auth():
                             # Force MFA setup on first login if not yet configured
                             st.session_state.force_mfa_setup = True
                             if si_remember:
-                                # Persist session via query params
                                 st.query_params["uid"]  = user["id"]
                                 st.query_params["plan"] = user.get("plan","free")
+                                _write_localstorage_token(user["id"], user.get("plan","free"))
                             go("platform")
                     else:
                         st.error(res.get("error", "Invalid email or password"))
@@ -2460,9 +2566,14 @@ def page_mfa():
             code = st.text_input("Authentication Code", max_chars=6, placeholder="000000", key="mfa_code")
             if st.button("Verify & Enter →", key="mfa_verify", use_container_width=True):
                 if verify_totp(st.session_state.pending_mfa_secret, code):
+                    user = st.session_state.pending_mfa_user
                     st.session_state.logged_in    = True
-                    st.session_state.user         = st.session_state.pending_mfa_user
-                    st.session_state.mfa_verified  = True
+                    st.session_state.user         = user
+                    st.session_state.mfa_verified = True
+                    if st.session_state.get("remember_me"):
+                        st.query_params["uid"]  = user["id"]
+                        st.query_params["plan"] = user.get("plan","free")
+                        _write_localstorage_token(user["id"], user.get("plan","free"))
                     go("platform")
                 else:
                     st.error("Invalid code — check your app and try again")
@@ -2594,6 +2705,7 @@ def platform_nav():
             st.session_state.signed_out = True
             for qp in ["uid","plan"]:
                 st.query_params.pop(qp, None)
+            _clear_localstorage_token()
             go("landing")
             st.rerun()
 
