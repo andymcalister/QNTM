@@ -370,42 +370,108 @@ hr{border-color:rgba(255,255,255,.07)!important;}
 
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 768px) {
-    /* Full-width layout on mobile */
+    /* ── Layout ── */
     .main .block-container,[data-testid="stMainBlockContainer"]{
         padding:0!important;max-width:100%!important;
     }
-    /* Stack columns vertically */
+    /* Stack all columns vertically on mobile */
     [data-testid="stHorizontalBlock"]{
-        flex-direction:column!important;
-        gap:8px!important;
+        flex-direction:column!important;gap:8px!important;
     }
     [data-testid="stHorizontalBlock"] > div {
-        min-width:100%!important;width:100%!important;
-        flex:none!important;
+        min-width:100%!important;width:100%!important;flex:none!important;
     }
-    /* Larger touch targets */
+
+    /* ── Touch targets ── */
     .stButton>button {
-        padding:14px 20px!important;
-        font-size:14px!important;
+        padding:14px 16px!important;font-size:13px!important;
         min-height:48px!important;
     }
-    /* Readable text */
     .stTextInput input,[data-baseweb="input"] input {
-        font-size:16px!important;  /* prevents iOS zoom */
+        font-size:16px!important;padding:14px!important; /* prevents iOS zoom */
+    }
+
+    /* ── Nav bar ── */
+    /* Collapse nav to icon-only on small screens */
+    [data-testid="stHorizontalBlock"] .stButton>button {
+        font-size:11px!important;padding:10px 4px!important;min-height:40px!important;
+    }
+
+    /* ── Landing page ── */
+    h1 { font-size:32px!important; }
+    .land-section { padding:40px 20px!important; }
+
+    /* ── Factor cards ── */
+    div[style*="display:flex"][style*="gap:8px"] {
+        flex-wrap:wrap!important;
+    }
+
+    /* ── Macro banner ── */
+    /* Stack regime info and stats vertically */
+    div[style*="display:flex"][style*="justify-content:space-between"] {
+        flex-direction:column!important;gap:12px!important;
+    }
+
+    /* ── Tables / grids ── */
+    /* Screener table — hide rank and signal columns, compress */
+    div[style*="grid-template-columns:40px"] {
+        grid-template-columns:50px 1fr 70px 70px!important;
+    }
+    div[style*="grid-template-columns:50px 110px"] {
+        grid-template-columns:40px 90px 1fr 70px 70px!important;
+    }
+
+    /* ── Top 10 summary ── */
+    div[style*="grid-template-columns:90px"] {
+        grid-template-columns:70px 1fr 50px 50px!important;
+    }
+
+    /* ── Backtest chart ── */
+    iframe { max-width:100%!important; }
+
+    /* ── Gem cards ── */
+    div[style*="border:1px solid rgba(0,255,135"] {
+        padding:16px!important;
+    }
+
+    /* ── Portfolio cards ── */
+    div[style*="border-radius:10px"][style*="padding:20px"] {
         padding:14px!important;
     }
-    /* Nav tabs stack */
-    .platform-nav-tabs { flex-wrap:wrap!important; gap:4px!important; }
-    /* Landing hero */
-    h1 { font-size:36px!important; }
-    /* Cards stack full-width */
+
+    /* ── Hide less important columns on mobile ── */
+    /* Tooltip boxes wider than screen — constrain */
+    .qntm-tip .tip-box {
+        width:220px!important;max-width:80vw!important;
+        left:0!important;transform:none!important;
+    }
+
+    /* ── Text size adjustments ── */
+    div[style*="font-size:34px"] { font-size:24px!important; }
+    div[style*="font-size:28px"] { font-size:20px!important; }
+    div[style*="font-size:36px"] { font-size:26px!important; }
+    div[style*="font-size:22px"] { font-size:18px!important; }
+}
+
+@media (max-width: 480px) {
+    h1 { font-size:24px!important; }
+    .land-section { padding:28px 16px!important; }
+    [data-testid="stHorizontalBlock"] { gap:6px!important; }
+
+    /* Single column everything */
     div[style*="grid-template-columns"] {
         grid-template-columns:1fr!important;
     }
-}
-@media (max-width: 480px) {
-    h1 { font-size:28px!important; }
-    [data-testid="stHorizontalBlock"] { gap:6px!important; }
+
+    /* Screener search full width */
+    .stTextInput { width:100%!important; }
+
+    /* Macro banner stats — wrap to 2x2 grid */
+    div[style*="display:flex;gap:20px;flex-wrap:wrap"] {
+        display:grid!important;
+        grid-template-columns:1fr 1fr!important;
+        gap:12px!important;
+    }
 }
 /* Viewport meta (Streamlit adds this but ensure scale=1) */
 </style>
