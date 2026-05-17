@@ -432,6 +432,7 @@ for k, v in {
     "force_mfa_setup": False,   # True after first login if MFA not set up
     "port_period":  "1M",
     "live_refresh_running": False,
+    "mfa_recovery_mode": False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -1850,17 +1851,72 @@ def page_mfa():
           <p style="color:#64748b;margin-top:8px;">Enter the 6-digit code from your authenticator app</p>
         </div>
         """, unsafe_allow_html=True)
-        code = st.text_input("Authentication Code", max_chars=6, placeholder="000000", key="mfa_code")
-        if st.button("Verify & Enter →", key="mfa_verify", use_container_width=True):
-            if verify_totp(st.session_state.pending_mfa_secret, code):
-                st.session_state.logged_in    = True
-                st.session_state.user         = st.session_state.pending_mfa_user
-                st.session_state.mfa_verified  = True
-                go("platform")
-            else:
-                st.error("Invalid code — check your app and try again")
-        if st.button("← Back to sign in", key="mfa_back"):
-            go("auth")
+
+        # ── Normal MFA verification ───────────────────────────────────────────
+        if not st.session_state.get("mfa_recovery_mode"):
+            code = st.text_input("Authentication Code", max_chars=6, placeholder="000000", key="mfa_code")
+            if st.button("Verify & Enter →", key="mfa_verify", use_container_width=True):
+                if verify_totp(st.session_state.pending_mfa_secret, code):
+                    st.session_state.logged_in    = True
+                    st.session_state.user         = st.session_state.pending_mfa_user
+                    st.session_state.mfa_verified  = True
+                    go("platform")
+                else:
+                    st.error("Invalid code — check your app and try again")
+
+            st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+            if st.button("← Back to sign in", key="mfa_back"):
+                go("auth")
+
+            # Recovery option
+            st.markdown("""
+            <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06);
+                 text-align:center;">
+              <p style="font-size:12px;color:#475569;">Lost access to your authenticator app?</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Reset 2FA with password →", key="mfa_recovery_btn", use_container_width=True):
+                st.session_state.mfa_recovery_mode = True
+                st.rerun()
+
+        # ── MFA Recovery — verify password, then re-enroll ───────────────────
+        else:
+            st.markdown("""
+            <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);
+                 border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#94a3b8;">
+              Verify your password to disable 2FA and set up a new authenticator.
+            </div>
+            """, unsafe_allow_html=True)
+
+            recovery_pw = st.text_input("Your Password", type="password", key="mfa_recovery_pw")
+
+            if st.button("Verify Password & Reset 2FA", key="mfa_recovery_verify", use_container_width=True):
+                if recovery_pw:
+                    # Re-authenticate with password
+                    user_data = st.session_state.get("pending_mfa_user", {})
+                    email     = user_data.get("email", "")
+                    result    = login_user(email, recovery_pw)
+                    if result.get("success"):
+                        # Disable MFA so they can re-enroll
+                        disable_mfa(user_data.get("id",""))
+                        # Log them in
+                        st.session_state.logged_in          = True
+                        st.session_state.user               = user_data
+                        st.session_state.mfa_verified       = True
+                        st.session_state.mfa_recovery_mode  = False
+                        st.session_state.show_mfa_setup     = True   # trigger re-enroll flow
+                        st.success("2FA reset. Setting up new authenticator...")
+                        import time; time.sleep(1)
+                        go("platform")
+                    else:
+                        st.error("Incorrect password — try again")
+                else:
+                    st.warning("Enter your password to continue")
+
+            st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+            if st.button("← Back", key="mfa_recovery_back"):
+                st.session_state.mfa_recovery_mode = False
+                st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
