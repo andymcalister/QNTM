@@ -288,21 +288,22 @@ div[data-baseweb="select"] span,
 .qntm-tip .tip-box {
     visibility: hidden;
     opacity: 0;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    position: fixed;
     background: #0d1117;
     border: 1px solid rgba(212,168,67,.3);
     border-radius: 8px;
     padding: 12px 16px;
     width: 260px;
-    max-width: 85vw;
+    max-width: calc(100vw - 24px);
     z-index: 99999;
     transition: opacity .15s;
     pointer-events: none;
     box-shadow: 0 12px 40px rgba(0,0,0,.8);
     white-space: normal;
+    /* Mobile safe default — center of screen */
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
 }
 .qntm-tip .tip-box .tip-title {
     font-family: 'Syne', sans-serif;
@@ -328,25 +329,24 @@ div[data-baseweb="select"] span,
 }
 </style>
 <script>
-// Position tooltips above their trigger element, clamped to viewport
+// Position tooltips using fixed coords, clamped to viewport
 document.addEventListener('mouseover', function(e) {
     var tip = e.target.closest('.qntm-tip');
     if (!tip) return;
     var box = tip.querySelector('.tip-box');
     if (!box) return;
     var rect = tip.getBoundingClientRect();
-    var bw   = 260;  // fixed width matches CSS
+    var bw   = 260;
     var bh   = box.offsetHeight || 130;
-    // Position above the element, centered horizontally on trigger
     var top  = rect.top - bh - 12;
     var left = rect.left + (rect.width / 2) - (bw / 2);
-    // Flip below if not enough room above
     if (top < 8) top = rect.bottom + 8;
-    // Clamp horizontal — keep 12px from each edge
     if (left < 12) left = 12;
     if (left + bw > window.innerWidth - 12) left = window.innerWidth - bw - 12;
-    box.style.top  = top  + 'px';
-    box.style.left = left + 'px';
+    if (top + bh > window.innerHeight - 12) top = window.innerHeight - bh - 12;
+    box.style.top       = top  + 'px';
+    box.style.left      = left + 'px';
+    box.style.transform = 'none';
 });
 </script>
 <style>
@@ -2715,36 +2715,32 @@ def platform_nav():
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
     # Nav tabs — pure HTML horizontal scroll, no st.columns
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
+    nav_options = ["📊 Screener","💎 Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","↩ Out"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
+    cur         = st.session_state.get("nav", "screener")
 
-    # Map current nav to tab index
-    cur = st.session_state.get("nav","screener")
-    cur_idx = nav_keys.index(cur) if cur in nav_keys else 0
-
-    selected_tab = st.radio(
-        "nav",
-        nav_options,
-        index=cur_idx,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="nav_radio"
-    )
-
-    selected_key = nav_keys[nav_options.index(selected_tab)]
-
-    if selected_key == "signout":
-        for k in ["logged_in","user","mfa_verified","scan_results",
-                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
-            st.session_state[k] = False if k == "logged_in" else None
-        st.session_state.signed_out = True
-        for qp in ["uid","plan"]:
-            st.query_params.pop(qp, None)
-        _clear_localstorage_token()
-        go("landing")
-        st.rerun()
-    elif selected_key != cur:
-        nav(selected_key)
+    nav_cols = st.columns(len(nav_options))
+    for col, label, key in zip(nav_cols, nav_options, nav_keys):
+        with col:
+            active = (key == cur)
+            st.markdown(
+                f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.03)"};'
+                f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.08)"};'
+                f'border-radius:4px;padding:1px;">',
+                unsafe_allow_html=True)
+            if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
+                if key == "signout":
+                    for k in ["logged_in","user","mfa_verified","scan_results",
+                              "macro_data","mfa_recovery_mode","live_refresh_running"]:
+                        st.session_state[k] = False if k == "logged_in" else None
+                    st.session_state.signed_out = True
+                    for qp in ["uid","plan"]:
+                        st.query_params.pop(qp, None)
+                    _clear_localstorage_token()
+                    go("landing")
+                else:
+                    nav(key)
+            st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
