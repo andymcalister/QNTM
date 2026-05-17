@@ -535,41 +535,139 @@ def check_and_notify_signal_changes(user_id: str, plan: str,
                                      current_scores: dict,
                                      prev_signals: dict = None) -> list:
     """
-    Detect BUY/HOLD/SELL changes on held positions and create notifications.
-    current_scores: {ticker: score_dict}
-    prev_signals:   {ticker: "BUY"|"HOLD"|"SELL"}
-    Returns list of change dicts.
+    Detect signal changes and score deterioration on held positions.
+    Fires notifications for:
+      - BUY/HOLD/SELL action changes on held stocks
+      - Score deterioration ≥10 points within HOLD (early warning)
+      - Score recovery ≥10 points (re-entry signal)
+      - Hidden gem detection on held stocks
     """
     if plan == "free" or not plan_limit(plan, "notifications"):
         return []
     if not prev_signals:
         return []
-    holdings  = get_holdings(user_id)
-    held      = {h["ticker"] for h in holdings}
-    changes   = []
+
+    holdings = get_holdings(user_id)
+    held     = {h["ticker"] for h in holdings}
+    changes  = []
+
     for ticker in held:
         curr = current_scores.get(ticker)
         if not curr:
             continue
+
         curr_action = curr.get("adj_action", curr.get("action", "HOLD"))
-        prev_action = prev_signals.get(ticker)
+        curr_score  = float(curr.get("adj_composite", curr.get("composite", 0)) or 0)
+        curr_mom    = float(curr.get("momentum", 0) or 0)
+        curr_qual   = float(curr.get("quality",  0) or 0)
+
+        prev        = prev_signals.get(ticker, {})
+        prev_action = prev.get("action", "HOLD") if isinstance(prev, dict) else str(prev)
+        prev_score  = float(prev.get("score", curr_score) if isinstance(prev, dict) else curr_score)
+
+        score_delta = curr_score - prev_score
+
+        # ── Action change alert ───────────────────────────────────────────────
         if prev_action and curr_action != prev_action:
-            ntype = {"BUY":"buy_signal","SELL":"sell_signal","HOLD":"hold_signal"}.get(curr_action,"system")
-            score = curr.get("adj_composite", curr.get("composite", 0))
-            create_notification(user_id, ticker, ntype,
-                f"{ticker}: {prev_action} → {curr_action}",
-                f"Score {score:.0f} | Mom {curr.get('momentum',0):.0f} | "
-                f"Qual {curr.get('quality',0):.0f} | Signal changed from {prev_action} to {curr_action}.")
-            changes.append({"ticker": ticker, "from": prev_action, "to": curr_action})
+            ntype = {"BUY": "buy_signal", "SELL": "sell_signal"}.get(curr_action, "system")
+            arrow = "▲" if curr_action == "BUY" else "▼" if curr_action == "SELL" else "─"
+            create_notification(
+                user_id, ticker, ntype,
+                f"{arrow} {ticker}: {prev_action} → {curr_action}",
+                f"Score {curr_score:.0f} (was {prev_score:.0f}) · "
+                f"Momentum {curr_mom:.0f} · Quality {curr_qual:.0f}. "
+                f"Model signal changed from {prev_action} to {curr_action}."
+            )
+            changes.append({"ticker": ticker, "from": prev_action, "to": curr_action, "type": "action_change"})
+
+        # ── Score deterioration alert (≥10pt drop, still HOLD) ───────────────
+        elif curr_action == "HOLD" and score_delta <= -10:
+            create_notification(
+                user_id, ticker, "sell_signal",
+                f"⚠ {ticker}: Score deteriorating ({prev_score:.0f} → {curr_score:.0f})",
+                f"Score dropped {abs(score_delta):.0f} points. Still HOLD but approaching exit threshold. "
+                f"Momentum {curr_mom:.0f} · Quality {curr_qual:.0f}. Monitor closely."
+            )
+            changes.append({"ticker": ticker, "from": prev_action, "to": curr_action,
+                           "type": "deterioration", "delta": score_delta})
+
+        # ── Score recovery alert (≥10pt gain back into BUY territory) ────────
+        elif curr_action == "BUY" and prev_action == "HOLD" and score_delta >= 10:
+            create_notification(
+                user_id, ticker, "buy_signal",
+                f"▲ {ticker}: Signal strengthening ({prev_score:.0f} → {curr_score:.0f})",
+                f"Score recovered {score_delta:.0f} points. Strong BUY signal reinforced. "
+                f"Momentum {curr_mom:.0f} · Quality {curr_qual:.0f}."
+            )
+            changes.append({"ticker": ticker, "from": prev_action, "to": curr_action,
+                           "type": "recovery", "delta": score_delta})
+
+        # ── Hidden gem detection on held stocks ───────────────────────────────
+        if curr.get("is_hidden_gem") and not prev.get("was_gem"):
+            create_notification(
+                user_id, ticker, "hidden_gem",
+                f"💎 {ticker}: Now a Hidden Gem",
+                f"Score {curr_score:.0f} · {', '.join(curr.get('gem_reasons', [])[:2])}"
+            )
+            changes.append({"ticker": ticker, "type": "gem_detected"})
+
     return changes
 
 
 def save_signal_snapshot(user_id: str, scores: list):
-    snapshot = {s["ticker"]: s.get("adj_action", s.get("action", "HOLD")) for s in scores}
+    """
+    Persist signal snapshot to Supabase so deterioration is detected
+    across sessions — not just within a single session.
+    Falls back to session state if Supabase unavailable.
+    """
+    snapshot = {}
+    for s in scores:
+        snapshot[s["ticker"]] = {
+            "action":  s.get("adj_action", s.get("action", "HOLD")),
+            "score":   float(s.get("adj_composite", s.get("composite", 0)) or 0),
+            "was_gem": bool(s.get("is_hidden_gem", False)),
+        }
+
+    # Try to persist to Supabase signal_snapshot table
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("signal_snapshots").upsert({
+                "user_id":    user_id,
+                "snapshot":   json.dumps(snapshot),
+                "updated_at": datetime.now().isoformat(),
+            }, on_conflict="user_id").execute()
+        except Exception:
+            pass  # fall through to session state
+
+    # Always keep in session state as fast cache
     if "qntm_signal_snapshots" not in st.session_state:
         st.session_state.qntm_signal_snapshots = {}
     st.session_state.qntm_signal_snapshots[user_id] = snapshot
 
 
 def get_signal_snapshot(user_id: str) -> dict:
-    return (st.session_state.get("qntm_signal_snapshots") or {}).get(user_id, {})
+    """
+    Load signal snapshot — session state first (fast), then Supabase.
+    Returns {ticker: {action, score, was_gem}} or {} if no snapshot.
+    """
+    # Session state cache
+    cached = (st.session_state.get("qntm_signal_snapshots") or {}).get(user_id)
+    if cached:
+        return cached
+
+    # Load from Supabase
+    sb = get_supabase()
+    if sb:
+        try:
+            res = sb.table("signal_snapshots").select("snapshot").eq("user_id", user_id).execute()
+            if res.data:
+                snapshot = json.loads(res.data[0]["snapshot"])
+                # Cache in session state
+                if "qntm_signal_snapshots" not in st.session_state:
+                    st.session_state.qntm_signal_snapshots = {}
+                st.session_state.qntm_signal_snapshots[user_id] = snapshot
+                return snapshot
+        except Exception:
+            pass
+    return {}

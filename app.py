@@ -3043,20 +3043,41 @@ def page_portfolio():
         prev_signals = get_signal_snapshot(uid())
         signal_changes = check_and_notify_signal_changes(uid(), plan, score_map, prev_signals)
         save_signal_snapshot(uid(), st.session_state.scan_results)
+
         if signal_changes:
             for chg in signal_changes:
-                if chg["to"] == "SELL":
-                    st.markdown(f"""
-                    <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);
-                         border-radius:6px;padding:12px 16px;margin-bottom:8px;
-                         animation:borderAnim 3s ease infinite;">
-                      <span style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-                            color:#ef4444;letter-spacing:.1em;">▼ EXIT SIGNAL FIRED: {chg['ticker']}</span>
-                      <span style="font-size:12px;color:#94a3b8;margin-left:12px;">
-                        was {chg['from']} → now SELL
-                      </span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                change_type = chg.get("type", "action_change")
+
+                if change_type == "action_change" and chg["to"] == "SELL":
+                    st.markdown(
+                        f'<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);'
+                        f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
+                        f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+                        f'color:#ef4444;letter-spacing:.1em;">▼ EXIT SIGNAL: {chg["ticker"]}</span>'
+                        f'<span style="font-size:12px;color:#94a3b8;margin-left:12px;">'
+                        f'{chg["from"]} → SELL · Check Alerts tab for details</span></div>',
+                        unsafe_allow_html=True)
+
+                elif change_type == "action_change" and chg["to"] == "BUY":
+                    st.markdown(
+                        f'<div style="background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.3);'
+                        f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
+                        f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+                        f'color:#00ff87;letter-spacing:.1em;">▲ BUY SIGNAL: {chg["ticker"]}</span>'
+                        f'<span style="font-size:12px;color:#94a3b8;margin-left:12px;">'
+                        f'{chg["from"]} → BUY · Conviction strengthening</span></div>',
+                        unsafe_allow_html=True)
+
+                elif change_type == "deterioration":
+                    delta = chg.get("delta", 0)
+                    st.markdown(
+                        f'<div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.3);'
+                        f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
+                        f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+                        f'color:#fbbf24;letter-spacing:.1em;">⚠ DETERIORATING: {chg["ticker"]}</span>'
+                        f'<span style="font-size:12px;color:#94a3b8;margin-left:12px;">'
+                        f'Score dropped {abs(delta):.0f} pts · Still HOLD but monitor closely</span></div>',
+                        unsafe_allow_html=True)
 
     # ── SELL / EXIT signals across portfolio ───────────────────────────────────
     exit_signals = []
