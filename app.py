@@ -46,6 +46,12 @@ st.markdown("""
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
+/* ── Kill all horizontal overflow everywhere ── */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
 /* ── Dark background — covers all Streamlit containers, old and new selectors */
 html, body, [class*="css"],
 [data-testid="stAppViewContainer"],
@@ -57,12 +63,27 @@ section[data-testid="stMain"] > div,
   font-family: 'Outfit', sans-serif !important;
   background: #0a0b14 !important;
   color: #e2e8f0 !important;
+  overflow-x: hidden !important;
+  max-width: 100% !important;
 }
 .main .block-container,
 [data-testid="stMainBlockContainer"] {
   padding: 0 !important;
   max-width: 100% !important;
+  width: 100% !important;
   background: #0a0b14 !important;
+  overflow-x: hidden !important;
+}
+/* Clamp Streamlit column containers */
+[data-testid="stHorizontalBlock"] {
+  max-width: 100% !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+  flex-wrap: wrap !important;
+}
+[data-testid="stColumn"] {
+  min-width: 0 !important;
+  overflow-x: hidden !important;
 }
 
 /* Hide all Streamlit chrome */
@@ -2118,31 +2139,33 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    # Big 4 stats — 2x2 HTML grid (works on mobile and desktop)
+    # Big 4 stats — 2x2 HTML grid
     st.markdown(f"""
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 24px;margin-bottom:24px;">
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">MODEL 5-YR TOTAL</div>
-        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">${bt['model_final_100k']:,} from $100K</div>
-      </div>
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">SPY SAME PERIOD</div>
-        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">${bt['spy_final_100k']:,} from $100K</div>
-      </div>
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">MODEL CAGR</div>
-        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
-      </div>
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">5-YR ADVANTAGE</div>
-        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#1D9E75;line-height:1;">+${bt['model_advantage_usd']:,}</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">on $100,000 invested</div>
+    <div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL 5-YR TOTAL</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(20px,5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bt['model_final_100k']:,} from $100K</div>
+        </div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SPY SAME PERIOD</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(20px,5vw,28px);font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bt['spy_final_100k']:,} from $100K</div>
+        </div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL CAGR</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(20px,5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
+        </div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">5-YR ADVANTAGE</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(16px,3.5vw,24px);font-weight:800;color:#1D9E75;line-height:1;word-break:break-all;">+${bt['model_advantage_usd']:,}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">on $100,000 invested</div>
+        </div>
       </div>
     </div>
-    <div style="padding:0 24px;font-size:13px;color:#94a3b8;margin-bottom:14px;">Same rules every year — no tuning between regimes:</div>
+    <div style="width:100%;box-sizing:border-box;padding:0 16px;font-size:13px;color:#94a3b8;margin-bottom:14px;">Same rules every year — no tuning between regimes:</div>
     """, unsafe_allow_html=True)
 
     # Regime + risk metrics via HTML grids
@@ -2154,7 +2177,7 @@ def page_landing():
         sc  = "#4ade80" if p["spy_ret"]  >= 0 else "#E24B4A"
         chk = "&#10003;" if p["beat"] else "&#10007;"
         regime_cards += (
-            f'<div style="background:#0e0f1a;border:1px solid {bc};border-radius:8px;padding:12px 10px;">'
+            f'<div style="background:#0e0f1a;border:1px solid {bc};border-radius:8px;padding:12px 10px;min-width:0;">'
             f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;margin-bottom:3px;">{p["key"]}</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:6px;line-height:1.3;">{p["label"]}</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{ic};">{chk}</div>'
@@ -2163,7 +2186,7 @@ def page_landing():
             f'</div>'
         )
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 24px;margin-bottom:24px;">{regime_cards}</div>',
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">{regime_cards}</div></div>',
         unsafe_allow_html=True)
 
     spy_dd = bt.get("max_dd_spy", -25.4)
@@ -2177,14 +2200,14 @@ def page_landing():
     ]
     risk_html = "".join([
         f'<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);'
-        f'border-radius:6px;padding:12px;text-align:center;">'
+        f'border-radius:6px;padding:12px;text-align:center;min-width:0;">'
         f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">{l}</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#d4a843;">{v}</div>'
         f'<div style="font-size:10px;color:#94a3b8;margin-top:4px;">{s}</div></div>'
         for l,v,s in risk_items
     ])
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 24px;margin-bottom:16px;">{risk_html}</div>',
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:16px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">{risk_html}</div></div>',
         unsafe_allow_html=True)
 
         # ── THE MODEL ─────────────────────────────────────────────────────────────
@@ -2219,7 +2242,7 @@ def page_landing():
             f'</div>'
         )
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:0 clamp(16px,4vw,48px);">{pillars_html}</div>',
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">{pillars_html}</div></div>',
         unsafe_allow_html=True)
 
     # Signal boxes — pure CSS grid, no st.columns
@@ -2238,7 +2261,7 @@ def page_landing():
             f'</div>'
         )
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:0 clamp(16px,4vw,48px);">{signals_html}</div>',
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">{signals_html}</div></div>',
         unsafe_allow_html=True)
 
     # ── PRICING ───────────────────────────────────────────────────────────────
@@ -2260,10 +2283,11 @@ def page_landing():
         tc  = "#e2e4f0" if highlight else "#64748b"
         return f'<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;font-size:13px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
 
+    bt_ret_str = f"{bt['model_total_ret']:.0f}"
+
     # Pricing cards — pure CSS grid, no st.columns, no horizontal scroll
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;padding:0 clamp(16px,4vw,48px);margin-bottom:16px;">
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:26px 22px;">
+    free_card = f"""
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:24px 20px;min-width:0;">
         <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FREE</div>
         <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">forever</div>
@@ -2273,12 +2297,13 @@ def page_landing():
           {feat_row("5 pillar scores: Momentum, Quality, Volume, Value, Sentiment")}
           {feat_row("75/25 quant/macro blend")}
           {feat_row("Portfolio tracker — up to 10 positions")}
-          {feat_row(f"5-year walk-forward backtest (+{bt['model_total_ret']:.0f}% cumulative)")}
+          {feat_row("5-year walk-forward backtest (+" + bt_ret_str + "% cumulative)")}
           {feat_row("Macro regime indicator (3 active events)")}
           {feat_row("Search any ticker for instant model score")}
         </div>
-      </div>
-      <div style="background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.5);border-radius:10px;padding:26px 22px;">
+      </div>"""
+    founding_card = f"""
+      <div style="background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.5);border-radius:10px;padding:24px 20px;min-width:0;">
         <div style="background:#d4a843;color:#000;font-family:Syne,sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:10px;">MOST POPULAR</div>
         <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FOUNDING MEMBER</div>
         <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
@@ -2286,15 +2311,16 @@ def page_landing():
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
           {feat_row("Everything in Free", True)}
           {feat_row("Unlimited portfolio positions", True)}
-          {feat_row("💎 Hidden Gem detection across 963 stocks", True)}
+          {feat_row("Hidden Gem detection across 963 stocks", True)}
           {feat_row("Real-time BUY/SELL signal alerts on your holdings", True)}
           {feat_row("Macro regime change alerts (war, oil, tariffs)", True)}
           {feat_row("Portfolio value tracker with period toggles", True)}
           {feat_row("Email signal notifications", True)}
           {feat_row("Founding member badge — locked in at $0", True)}
         </div>
-      </div>
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:26px 22px;">
+      </div>"""
+    inst_card = f"""
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:24px 20px;min-width:0;">
         <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">INSTITUTIONAL</div>
         <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">Custom</div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">contact us</div>
@@ -2306,9 +2332,14 @@ def page_landing():
           {feat_row("Dedicated support & SLA guarantee", True)}
           {feat_row("Multi-user team accounts", True)}
         </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+      </div>"""
+
+    st.markdown(
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:16px;">'
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
+        f'{free_card}{founding_card}{inst_card}'
+        f'</div></div>',
+        unsafe_allow_html=True)
 
     pb1, pb2, pb3 = st.columns(3)
     with pb1:
