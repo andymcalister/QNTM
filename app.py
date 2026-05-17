@@ -1209,12 +1209,10 @@ def page_model_portfolio():
     """, unsafe_allow_html=True)
 
     # ── Header ────────────────────────────────────────────────────────────────
-    # Logo rendered as HTML, hidden button triggered by JS click on logo
     st.markdown("""
     <div style="background:rgba(2,4,8,.98);border-bottom:1px solid rgba(212,168,67,.2);
          padding:20px 40px;display:flex;justify-content:space-between;align-items:center;">
-      <div id="qntm-logo-click" style="cursor:pointer;"
-           onclick="document.getElementById('model-nav-btn').click();">
+      <div>
         <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
              letter-spacing:.15em;color:#e2e4f0;">
           Q<span style="color:#00ff87;">NTM</span>
@@ -1232,28 +1230,13 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
-    # Hidden button — gets clicked by the JS above
-    # Wrapped in visibility:hidden so it doesn't show but still works
-    st.markdown('<div style="position:absolute;visibility:hidden;height:0;overflow:hidden;">', unsafe_allow_html=True)
-    if st.button("nav", key="model_nav_btn"):
-        if st.session_state.logged_in:
-            nav("screener")
-        else:
-            go("landing")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Give the hidden button the id the JS looks for
-    st.markdown("""
-    <script>
-    const btns = window.parent.document.querySelectorAll('button');
-    btns.forEach(b => {
-        if (b.innerText.trim() === 'nav') {
-            b.id = 'model-nav-btn';
-            b.style.display = 'none';
-        }
-    });
-    </script>
-    """, unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 6, 1])
+    with back_col:
+        if st.button("← Back", key="model_back_btn"):
+            if st.session_state.logged_in:
+                nav("screener")
+            else:
+                go("landing")
 
     st.markdown('<div style="padding:32px 40px;">', unsafe_allow_html=True)
 
