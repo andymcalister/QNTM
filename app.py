@@ -489,7 +489,68 @@ PILLAR_TIPS = {
     },
 }
 
-def tip_html(label: str, tip_dict: dict) -> str:
+def get_company_info(ticker: str) -> dict:
+    """
+    Returns {name, description} for a ticker.
+    Common tickers resolve instantly from a built-in map.
+    Others pull from yfinance and cache in session state.
+    """
+    # Instant lookup for most common tickers
+    KNOWN = {
+        "AAPL":"Apple Inc.","MSFT":"Microsoft Corporation","NVDA":"NVIDIA Corporation",
+        "GOOGL":"Alphabet Inc.","GOOG":"Alphabet Inc.","META":"Meta Platforms Inc.",
+        "AMZN":"Amazon.com Inc.","TSLA":"Tesla Inc.","NFLX":"Netflix Inc.",
+        "AMD":"Advanced Micro Devices","INTC":"Intel Corporation","CSCO":"Cisco Systems",
+        "ORCL":"Oracle Corporation","CRM":"Salesforce Inc.","ADBE":"Adobe Inc.",
+        "INTU":"Intuit Inc.","QCOM":"Qualcomm Inc.","TXN":"Texas Instruments",
+        "AVGO":"Broadcom Inc.","MU":"Micron Technology","AMAT":"Applied Materials",
+        "JPM":"JPMorgan Chase & Co.","BAC":"Bank of America","GS":"Goldman Sachs",
+        "MS":"Morgan Stanley","V":"Visa Inc.","MA":"Mastercard Inc.",
+        "BLK":"BlackRock Inc.","AXP":"American Express","PYPL":"PayPal Holdings",
+        "UNH":"UnitedHealth Group","LLY":"Eli Lilly and Company","JNJ":"Johnson & Johnson",
+        "ABBV":"AbbVie Inc.","MRK":"Merck & Co.","PFE":"Pfizer Inc.",
+        "TMO":"Thermo Fisher Scientific","AMGN":"Amgen Inc.","GILD":"Gilead Sciences",
+        "WMT":"Walmart Inc.","COST":"Costco Wholesale","PG":"Procter & Gamble",
+        "KO":"The Coca-Cola Company","PEP":"PepsiCo Inc.","HD":"Home Depot",
+        "MCD":"McDonald's Corporation","NKE":"Nike Inc.","SBUX":"Starbucks Corporation",
+        "XOM":"Exxon Mobil Corporation","CVX":"Chevron Corporation",
+        "BRK":"Berkshire Hathaway","PLTR":"Palantir Technologies",
+        "COIN":"Coinbase Global","HOOD":"Robinhood Markets",
+        "SNOW":"Snowflake Inc.","DDOG":"Datadog Inc.","NET":"Cloudflare Inc.",
+        "ZS":"Zscaler Inc.","CRWD":"CrowdStrike Holdings","PANW":"Palo Alto Networks",
+        "NOW":"ServiceNow Inc.","WDAY":"Workday Inc.","TEAM":"Atlassian Corporation",
+        "UBER":"Uber Technologies","LYFT":"Lyft Inc.","ABNB":"Airbnb Inc.",
+        "DASH":"DoorDash Inc.","SPOT":"Spotify Technology",
+    }
+
+    cache_key = "company_info_cache"
+    if cache_key not in st.session_state:
+        st.session_state[cache_key] = {}
+    cache = st.session_state[cache_key]
+    if ticker in cache:
+        return cache[ticker]
+
+    # Use known name if available, skip yfinance for speed
+    if ticker in KNOWN:
+        result = {"name": KNOWN[ticker], "description": ""}
+        cache[ticker] = result
+        return result
+
+    # Unknown ticker — try yfinance (only for search results, not bulk universe)
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker).info or {}
+        name = info.get("longName") or info.get("shortName") or ticker
+        desc = info.get("longBusinessSummary") or ""
+        if len(desc) > 220:
+            desc = desc[:220].rsplit(" ", 1)[0] + "..."
+        result = {"name": name, "description": desc}
+    except Exception:
+        result = {"name": ticker, "description": ""}
+    cache[ticker] = result
+    return result
+
+
     """Render a term with a hover tooltip info icon."""
     title = tip_dict.get("title", label)
     body  = tip_dict.get("body", "")
@@ -575,7 +636,7 @@ def macro_regime_banner_html(macro: dict) -> str:
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False) -> str:
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) -> str:
     """
     Renders a full factor transparency panel for a single stock.
     Shows: ticker · signal badge · 5-pillar bars · quant vs macro breakdown · factor driver text.
@@ -656,8 +717,21 @@ def factor_panel_html(r: dict, is_gem: bool = False) -> str:
 
         f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">',
         f'<div style="display:flex;align-items:center;gap:10px;">',
-        f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">'
-        f'{r["ticker"]}{gem_badge}</span>',
+        # Ticker with hover tooltip showing company name + description
+        *(
+            [
+                f'<span class="qntm-tip" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;cursor:help;">'
+                f'{r["ticker"]}{gem_badge}'
+                f'<span class="tip-box" style="width:320px;">'
+                f'<div class="tip-title" style="font-size:13px;">{company_info.get("name", r["ticker"])}</div>'
+                f'<div class="tip-body">{company_info.get("description", "") or "No description available."}</div>'
+                f'</span></span>'
+            ] if company_info and company_info.get("name") and company_info["name"] != r["ticker"]
+            else [
+                f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">'
+                f'{r["ticker"]}{gem_badge}</span>'
+            ]
+        ),
         f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
         f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
         f'letter-spacing:.1em;">{action_arrow} {act}</span>',
@@ -1882,7 +1956,8 @@ def page_screener():
                 sr = scored_list[0]
                 sr["pct_rank"] = 50  # unknown rank for ad-hoc search
                 is_gem = False
-                st.markdown(factor_panel_html(sr, is_gem), unsafe_allow_html=True)
+                ci = get_company_info(search_ticker)
+                st.markdown(factor_panel_html(sr, is_gem, company_info=ci), unsafe_allow_html=True)
                 if search_ticker not in ALL_SECTORS:
                     st.markdown('<div style="font-size:12px;color:#475569;margin-bottom:16px;">⚠ Ticker scored from live price data — not in core universe. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception as e:
@@ -2180,7 +2255,8 @@ def page_screener():
             f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM</div>',
             unsafe_allow_html=True)
         for r in filtered:
-            st.markdown(factor_panel_html(r, r["ticker"] in gem_tickers), unsafe_allow_html=True)
+            ci = st.session_state.get("company_info_cache", {}).get(r["ticker"])
+            st.markdown(factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
