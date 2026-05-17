@@ -2559,7 +2559,7 @@ def page_backtest():
     chart_html = f"""<!DOCTYPE html><html>
 <head><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script></head>
 <body style="margin:0;background:#0a0b14;padding:0 0 8px;">
-<canvas id="gc" style="width:100%;"></canvas>
+<canvas id="gc" style="width:100%;height:420px;"></canvas>
 <script>
 const labels = {labels};
 const qntm   = {qntm_pts};
@@ -2573,26 +2573,26 @@ new Chart(document.getElementById('gc'), {{
         label: 'QNTM Model',
         data: qntm,
         borderColor: '#d4a843',
-        backgroundColor: 'rgba(212,168,67,0.08)',
+        backgroundColor: 'rgba(212,168,67,0.06)',
         borderWidth: 2.5,
         pointBackgroundColor: '#d4a843',
-        pointRadius: 4,
-        pointHoverRadius: 7,
+        pointRadius: 3,
+        pointHoverRadius: 6,
         fill: true,
-        tension: 0.35,
+        tension: 0.3,
       }},
       {{
         label: 'S&P 500 (SPY)',
         data: spy,
-        borderColor: 'rgba(100,116,139,0.8)',
-        backgroundColor: 'rgba(100,116,139,0.04)',
+        borderColor: 'rgba(100,116,139,0.9)',
+        backgroundColor: 'rgba(100,116,139,0.03)',
         borderWidth: 1.5,
         pointBackgroundColor: '#64748b',
-        pointRadius: 3,
+        pointRadius: 2,
         pointHoverRadius: 5,
         fill: true,
-        tension: 0.35,
-        borderDash: [4,3],
+        tension: 0.3,
+        borderDash: [5,4],
       }},
     ]
   }},
@@ -2615,23 +2615,28 @@ new Chart(document.getElementById('gc'), {{
     }},
     scales: {{
       x: {{
-        grid: {{ color: 'rgba(255,255,255,0.04)', drawBorder: false }},
-        ticks: {{ color: '#475569', font: {{ family: 'DM Mono, monospace', size: 11 }} }},
-        border: {{ color: 'rgba(255,255,255,0.06)' }},
+        grid: {{ color: 'rgba(255,255,255,0.03)' }},
+        ticks: {{
+          color: '#334155',
+          font: {{ family: 'DM Mono, monospace', size: 10 }},
+          maxTicksLimit: 10,
+          maxRotation: 45,
+        }},
+        border: {{ color: 'rgba(255,255,255,0.05)' }},
       }},
       y: {{
-        grid: {{ color: 'rgba(255,255,255,0.04)', drawBorder: false }},
+        min: 80000,
+        grid: {{ color: 'rgba(255,255,255,0.03)' }},
         ticks: {{
-          color: '#475569',
-          font: {{ family: 'DM Mono, monospace', size: 11 }},
+          color: '#334155',
+          font: {{ family: 'DM Mono, monospace', size: 10 }},
           callback: v => '$' + (v/1000).toFixed(0) + 'K',
         }},
-        border: {{ color: 'rgba(255,255,255,0.06)' }},
+        border: {{ color: 'rgba(255,255,255,0.05)' }},
       }}
     }}
   }}
 }});
-// Custom legend
 const c = document.createElement('div');
 c.style = 'display:flex;gap:20px;padding:8px 0 0 8px;';
 c.innerHTML = `
@@ -2646,7 +2651,7 @@ c.innerHTML = `
 document.body.prepend(c);
 </script>
 </body></html>"""
-    _components.html(chart_html, height=340)
+    _components.html(chart_html, height=480)
 
     # ── Macro Overlay Attribution Section ─────────────────────────────────────
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
