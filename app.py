@@ -420,6 +420,7 @@ for k, v in {
     "legal_doc": "privacy",
     "force_mfa_setup": False,   # True after first login if MFA not set up
     "port_period":  "1M",
+    "live_refresh_running": False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -1931,6 +1932,19 @@ def page_screener():
                     unsafe_allow_html=True)
 
     # ── Differentiator Strip ───────────────────────────────────────────────────
+    # Data freshness note
+    st.markdown("""
+    <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);
+         border-radius:6px;padding:10px 16px;margin-bottom:14px;
+         display:flex;align-items:center;gap:10px;">
+      <span style="font-size:13px;">ℹ️</span>
+      <span style="font-size:12px;color:#64748b;line-height:1.6;">
+        Universe scores are based on model fundamentals updated periodically.
+        <strong style="color:#94a3b8;">Search any ticker above for a live score</strong>
+        pulled fresh from market data.
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
     bt = BACKTEST_DATA
     st.markdown(f"""
     <div style="background:linear-gradient(135deg,rgba(212,168,67,.05) 0%,rgba(29,158,117,.05) 100%);
@@ -2049,7 +2063,7 @@ def page_screener():
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
-        fc1, fc2, fc3, fc4 = st.columns([2,2,2,1])
+        fc1, fc2, fc3, fc4, fc5 = st.columns([2,2,2,1,1])
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
@@ -2061,6 +2075,101 @@ def page_screener():
             if st.button("🔄 Rescan", key="rescan"):
                 st.session_state.scan_results = None
                 st.rerun()
+        with fc5:
+            st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
+            if st.button("⚡ Live Refresh", key="live_refresh"):
+                st.session_state.live_refresh_running = True
+                st.rerun()
+
+        # ── Live Refresh Pipeline ──────────────────────────────────────────────
+        if st.session_state.get("live_refresh_running"):
+            st.markdown("""
+            <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
+                 border-radius:8px;padding:16px 20px;margin:12px 0;">
+              <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
+                   color:#00ff87;letter-spacing:.08em;margin-bottom:6px;">
+                ⚡ LIVE DATA REFRESH
+              </div>
+              <div style="font-size:12px;color:#64748b;margin-bottom:12px;">
+                Fetching live fundamentals from market data for all 963 tickers.
+                This runs once per day and takes 3–4 minutes. All users benefit from the result.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            progress_bar  = st.progress(0, text="Starting live data refresh...")
+            status_text   = st.empty()
+
+            try:
+                from data_refresh import fetch_ticker_fundamentals, write_fundamentals_cache
+                from data_refresh import write_signal_snapshot
+                from universe_data import SECTORS as ALL_SECTORS, FUNDAMENTALS
+                import time as _time
+
+                tickers    = list(ALL_SECTORS.keys())
+                total      = len(tickers)
+                live_data  = {}
+                static_ct  = 0
+
+                for i, ticker in enumerate(tickers):
+                    pct = int((i / total) * 80)  # first 80% = fetching
+                    progress_bar.progress(pct, text=f"Fetching {ticker} ({i+1}/{total})...")
+
+                    data = fetch_ticker_fundamentals(ticker)
+                    if data:
+                        static_f = FUNDAMENTALS.get(ticker, {})
+                        live_data[ticker] = {**static_f, **data}
+                    else:
+                        live_data[ticker] = FUNDAMENTALS.get(ticker, {})
+                        static_ct += 1
+
+                    _time.sleep(0.25)
+
+                status_text.markdown(
+                    '<div style="font-size:12px;color:#64748b;">Writing to cache...</div>',
+                    unsafe_allow_html=True)
+                progress_bar.progress(82, text="Writing fundamentals to Supabase...")
+                write_fundamentals_cache(live_data)
+
+                # Score with live data
+                progress_bar.progress(86, text="Scoring universe with live data...")
+                from model_engine import score_stock, apply_macro_overlay, fetch_macro_overlay
+                scores = []
+                for i, ticker in enumerate(tickers):
+                    f         = live_data.get(ticker, {})
+                    vol_ratio = f.get("vol_ratio")
+                    s         = score_stock(ticker, [], live_fundamentals=f, vol_ratio=vol_ratio)
+                    s["has_live_price"] = bool(f.get("price"))
+                    scores.append(s)
+
+                composites = [s["composite"] for s in scores]
+                for s in scores:
+                    rank = sum(1 for c in composites if c <= s["composite"]) / len(composites) * 100
+                    s["pct_rank"] = round(rank, 1)
+                scores.sort(key=lambda x: x["composite"], reverse=True)
+
+                progress_bar.progress(93, text="Applying macro overlay...")
+                macro  = fetch_macro_overlay(use_live_feeds=True)
+                scored = apply_macro_overlay(scores, macro)
+
+                progress_bar.progress(97, text="Saving signal snapshot...")
+                write_signal_snapshot(scored)
+
+                st.session_state.scan_results          = scored
+                st.session_state.macro_data            = macro
+                st.session_state.live_refresh_running  = False
+
+                progress_bar.progress(100, text="✓ Live refresh complete!")
+                live_ct = total - static_ct
+                st.success(f"✓ Refreshed {live_ct} tickers live · {static_ct} used model estimates · Macro: {macro.get('regime','—')} ({macro.get('source','—')})")
+                _time.sleep(1.5)
+                st.rerun()
+
+            except Exception as e:
+                st.session_state.live_refresh_running = False
+                st.error(f"Live refresh failed: {e}")
+                st.rerun()
+
 
         filtered = results
         if filter_sig != "All": filtered = [r for r in filtered if r["signal"]==filter_sig]
