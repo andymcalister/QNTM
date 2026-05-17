@@ -2710,33 +2710,35 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    # Nav tabs — st.columns + st.button with active highlight
-    nav_options = ["📊 Screener","💎 Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","↩ Out"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
-    cur         = st.session_state.get("nav", "screener")
+    # Nav tabs — original style
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
-    nav_cols = st.columns(len(nav_options))
-    for col, label, key in zip(nav_cols, nav_options, nav_keys):
-        with col:
-            active = (key == cur)
-            st.markdown(
-                f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.03)"};'
-                f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.08)"};'
-                f'border-radius:4px;padding:1px;">',
-                unsafe_allow_html=True)
+    tabs = st.columns(len(nav_options) + 1)
+
+    for i,(label,key) in enumerate(zip(nav_options,nav_keys)):
+        with tabs[i]:
+            active = st.session_state.nav == key
+            border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
+            color  = "#00ff87" if active else "#475569"
+            st.markdown(f'<div style="{border}padding:4px 0;">'
+                       f'<span style="font-family:Syne,sans-serif;font-size:11px;'
+                       f'letter-spacing:.06em;color:{color};">{label}</span></div>',
+                       unsafe_allow_html=True)
             if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
-                if key == "signout":
-                    for k in ["logged_in","user","mfa_verified","scan_results",
-                              "macro_data","mfa_recovery_mode","live_refresh_running"]:
-                        st.session_state[k] = False if k == "logged_in" else None
-                    st.session_state.signed_out = True
-                    for qp in ["uid","plan"]:
-                        st.query_params.pop(qp, None)
-                    _clear_localstorage_token()
-                    go("landing")
-                else:
-                    nav(key)
-            st.markdown('</div>', unsafe_allow_html=True)
+                nav(key)
+
+    with tabs[-1]:
+        if st.button("Sign Out", key="signout"):
+            for k in ["logged_in","user","mfa_verified","scan_results",
+                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
+                st.session_state[k] = False if k == "logged_in" else None
+            st.session_state.signed_out = True
+            for qp in ["uid","plan"]:
+                st.query_params.pop(qp, None)
+            _clear_localstorage_token()
+            go("landing")
+            st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3934,21 +3936,22 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row — matches nav button style
+        # Period toggle — matches nav tab style
         st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
         period_cols = st.columns(len(PERIOD_DATA))
         for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
             with col:
                 active = st.session_state.port_period == pkey
+                border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
+                color  = "#00ff87" if active else "#475569"
                 st.markdown(
-                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.03)"};'
-                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.08)"};'
-                    f'border-radius:4px;padding:1px;">',
+                    f'<div style="{border}padding:4px 0;">'
+                    f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{color};">{pkey}</span>'
+                    f'</div>',
                     unsafe_allow_html=True)
                 if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
                     st.session_state.port_period = pkey
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
 
         # Compute return for selected period
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
