@@ -566,6 +566,11 @@ def is_pro():
 
 def go(page):
     st.session_state.page = page
+    # Preserve uid/plan in URL so session survives page transitions
+    if st.session_state.get("logged_in") and st.session_state.get("user"):
+        u = st.session_state.user
+        st.query_params["uid"]  = u["id"]
+        st.query_params["plan"] = u.get("plan", "free")
     st.rerun()
 
 def nav(section):
@@ -3937,22 +3942,20 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row — CSS grid, no st.columns
-        period_btns_html = "".join([
-            f'<button onclick="window.location.href=\'?period_sel={pkey}\'" '
-            f'style="background:{"rgba(0,255,135,.15)" if pkey==st.session_state.port_period else "rgba(255,255,255,.04)"};'
-            f'border:1px solid {"rgba(0,255,135,.5)" if pkey==st.session_state.port_period else "rgba(255,255,255,.1)"};'
-            f'color:{"#00ff87" if pkey==st.session_state.port_period else "#64748b"};'
-            f'font-family:DM Mono,monospace;font-size:11px;font-weight:700;'
-            f'padding:8px 4px;border-radius:4px;cursor:pointer;width:100%;">{pkey}</button>'
-            for pkey,plbl,pdays in PERIOD_DATA
-        ])
-        st.markdown(
-            f'<div style="display:grid;grid-template-columns:repeat({len(PERIOD_DATA)},1fr);gap:4px;margin-bottom:12px;">{period_btns_html}</div>',
-            unsafe_allow_html=True)
-        if st.query_params.get("period_sel") in [p[0] for p in PERIOD_DATA]:
-            st.session_state.port_period = st.query_params.get("period_sel")
-            st.rerun()
+        # Period toggle row — real st.buttons, session state only, no URL
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
+        period_cols = st.columns(len(PERIOD_DATA))
+        for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
+            with col:
+                active = st.session_state.port_period == pkey
+                st.markdown(
+                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.04)"};'
+                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.1)"};'
+                    f'border-radius:4px;padding:1px;">', unsafe_allow_html=True)
+                if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
+                    st.session_state.port_period = pkey
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
         # Compute return for selected period
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
@@ -4103,12 +4106,12 @@ def page_portfolio():
                 f'{whtml}</span></span>'
             )
             return (
-                f'<div style="flex:1;min-width:100px;">'
-                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
+                f'<div style="min-width:0;">'
+                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
                 f'{lbl}'
-                f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{c};font-weight:700;">{v:.0f}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{c};font-weight:700;">{v:.0f}</div>'
                 f'</div>'
-                f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:7px;overflow:hidden;">'
+                f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:5px;overflow:hidden;">'
                 f'<div style="width:{v}%;height:100%;background:linear-gradient(90deg,{c}99,{c});border-radius:3px;"></div>'
                 f'</div></div>'
             )
@@ -4126,70 +4129,66 @@ def page_portfolio():
 
         delta_c = "#00ff87" if delta >= 0 else "#ef4444"
         delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
-        # Pre-compute display strings to avoid f-string format spec crashes
         quant_disp = f"{sc['composite']:.1f}" if sc and sc.get('composite') is not None else "—"
         delta_disp = delta_str if sc else "—"
         sig_disp   = (sig[:10] if sig else "—") if sig else "—"
 
-        # Build price/position row pieces
         if live_price:
-            price_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div>'
-                          f'<div style="font-family:DM Mono,monospace;font-size:20px;color:#d4a843;font-weight:500;">${live_price:,.2f}</div>'
-                          f'<div style="font-size:9px;color:#334155;margin-top:1px;">indicative · may lag intraday</div></div>')
+            price_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
+                          f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;font-weight:500;">${live_price:,.2f}</div></div>')
         else:
-            price_block = ('<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div>'
-                          '<div style="font-family:DM Mono,monospace;font-size:18px;color:#334155;">—</div></div>')
-
-        shares_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">SHARES</div>'
-                       f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">{shares:.2f}</div></div>')
-
-        cost_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">AVG COST</div>'
-                     f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">${cost:.2f}</div></div>') if cost > 0 else ""
-
-        mv_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">MARKET VALUE</div>'
-                   f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#e2e8f0;">${market_value:,.0f}</div></div>') if market_value else ""
-
-        gl_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">UNREALIZED P&amp;L</div>'
-                   f'<div style="font-family:DM Mono,monospace;font-size:18px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f} ({abs(gl_pct):.1f}%)</div></div>') if unrealized_gl is not None else ""
-
-        entry_block = (f'<div style="font-size:11px;color:#475569;">entry '
+            price_block = ('<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
+                          '<div style="font-family:DM Mono,monospace;font-size:16px;color:#334155;">—</div></div>')
+        shares_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">SHARES</div>'
+                       f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{shares:.2f}</div></div>')
+        cost_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">AVG COST</div>'
+                     f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">${cost:.2f}</div></div>') if cost > 0 else ""
+        mv_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">MKT VALUE</div>'
+                   f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#e2e8f0;">${market_value:,.0f}</div></div>') if market_value else ""
+        gl_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">P&amp;L</div>'
+                   f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f}</div></div>') if unrealized_gl is not None else ""
+        entry_block = (f'<div style="font-size:10px;color:#475569;">entry '
                       f'<span style="color:#94a3b8;font-family:DM Mono,monospace;">{str(entry)[:10]}</span></div>') if entry else ""
 
         card_html = (
-            f'<div style="background:{act_bg};border:{act_brd};border-radius:10px;padding:20px;margin-bottom:10px;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
-            f'<div>'
-            f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
-            f'<span style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;">{tk}</span>'
-            f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
-            f'background:{act_c}18;border:1px solid {act_c}44;padding:3px 10px;border-radius:3px;'
-            f'letter-spacing:.1em;">{arrow} {act}</span>'
-            f'<span style="font-size:13px;color:#475569;">{sector}</span>'
+            f'<div style="background:{act_bg};border:{act_brd};border-radius:10px;padding:16px;margin-bottom:10px;overflow:hidden;">'
+            # Header row
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">'
+            f'<div style="min-width:0;flex:1;">'
+            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">'
+            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{tk}</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:{act_c};'
+            f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;'
+            f'letter-spacing:.1em;white-space:nowrap;">{arrow} {act}</span>'
+            f'<span style="font-size:12px;color:#475569;">{sector}</span>'
             f'</div>'
-            f'<div style="font-size:11px;color:#475569;">{driver}</div>'
+            f'<div style="font-size:10px;color:#475569;">{driver}</div>'
             f'</div>'
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:36px;font-weight:700;color:{act_c};">{comp:.0f}</div>'
-            f'<div style="font-size:12px;color:#475569;margin-top:2px;">blended score</div>'
-            f'<div style="font-size:11px;color:{delta_c};margin-top:2px;">macro {delta_str}</div>'
+            f'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:700;color:{act_c};">{comp:.0f}</div>'
+            f'<div style="font-size:10px;color:#475569;">blended score</div>'
+            f'<div style="font-size:10px;color:{delta_c};">macro {delta_str}</div>'
             f'</div></div>'
-            f'<div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">'
+            # Position data row
+            f'<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end;">'
             f'{price_block}{shares_block}{cost_block}{mv_block}{gl_block}{entry_block}'
             f'</div>'
-            f'<div style="display:flex;gap:8px;margin-bottom:12px;">{pillar_html}</div>'
-            f'<div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);flex-wrap:wrap;">'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
-            f'<div style="font-size:13px;color:#475569;letter-spacing:.06em;margin-bottom:4px;">Quant Score</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">{quant_disp}</div></div>'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
-            f'<div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Macro Adj</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:{delta_c};">{delta_disp}</div></div>'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
-            f'<div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Blend</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#d4a843;">75/25</div></div>'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
-            f'<div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Signal</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#94a3b8;">{sig_disp}</div></div>'
+            # Pillar bars — 2-col grid on mobile
+            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">{pillar_html}</div>'
+            # Score boxes
+            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
+            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">QUANT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{quant_disp}</div></div>'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
+            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">MACRO</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};">{delta_disp}</div></div>'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
+            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">BLEND</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div></div>'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;overflow:hidden;">'
+            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">SIGNAL</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sig_disp}</div></div>'
             f'</div></div>'
         )
         st.markdown(card_html, unsafe_allow_html=True)
