@@ -288,22 +288,21 @@ div[data-baseweb="select"] span,
 .qntm-tip .tip-box {
     visibility: hidden;
     opacity: 0;
-    position: fixed;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
     background: #0d1117;
     border: 1px solid rgba(212,168,67,.3);
     border-radius: 8px;
     padding: 12px 16px;
     width: 260px;
-    max-width: calc(100vw - 24px);
+    max-width: 85vw;
     z-index: 99999;
     transition: opacity .15s;
     pointer-events: none;
     box-shadow: 0 12px 40px rgba(0,0,0,.8);
     white-space: normal;
-    /* Mobile safe default — center of screen */
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
 }
 .qntm-tip .tip-box .tip-title {
     font-family: 'Syne', sans-serif;
@@ -329,24 +328,25 @@ div[data-baseweb="select"] span,
 }
 </style>
 <script>
-// Position tooltips using fixed coords, clamped to viewport
+// Position tooltips above their trigger element, clamped to viewport
 document.addEventListener('mouseover', function(e) {
     var tip = e.target.closest('.qntm-tip');
     if (!tip) return;
     var box = tip.querySelector('.tip-box');
     if (!box) return;
     var rect = tip.getBoundingClientRect();
-    var bw   = 260;
+    var bw   = 260;  // fixed width matches CSS
     var bh   = box.offsetHeight || 130;
+    // Position above the element, centered horizontally on trigger
     var top  = rect.top - bh - 12;
     var left = rect.left + (rect.width / 2) - (bw / 2);
+    // Flip below if not enough room above
     if (top < 8) top = rect.bottom + 8;
+    // Clamp horizontal — keep 12px from each edge
     if (left < 12) left = 12;
     if (left + bw > window.innerWidth - 12) left = window.innerWidth - bw - 12;
-    if (top + bh > window.innerHeight - 12) top = window.innerHeight - bh - 12;
-    box.style.top       = top  + 'px';
-    box.style.left      = left + 'px';
-    box.style.transform = 'none';
+    box.style.top  = top  + 'px';
+    box.style.left = left + 'px';
 });
 </script>
 <style>
@@ -2710,35 +2710,41 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    # Nav tabs — original style
+    # Nav tabs row — equal columns, no extra home button
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
-    tabs = st.columns(len(nav_options) + 1)
+    # Nav tabs — pure HTML horizontal scroll, no st.columns
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
+    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
 
-    for i,(label,key) in enumerate(zip(nav_options,nav_keys)):
-        with tabs[i]:
-            active = st.session_state.nav == key
-            border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
-            color  = "#00ff87" if active else "#475569"
-            st.markdown(f'<div style="{border}padding:4px 0;">'
-                       f'<span style="font-family:Syne,sans-serif;font-size:11px;'
-                       f'letter-spacing:.06em;color:{color};">{label}</span></div>',
-                       unsafe_allow_html=True)
-            if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
-                nav(key)
+    # Map current nav to tab index
+    cur = st.session_state.get("nav","screener")
+    cur_idx = nav_keys.index(cur) if cur in nav_keys else 0
 
-    with tabs[-1]:
-        if st.button("Sign Out", key="signout"):
-            for k in ["logged_in","user","mfa_verified","scan_results",
-                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
-                st.session_state[k] = False if k == "logged_in" else None
-            st.session_state.signed_out = True
-            for qp in ["uid","plan"]:
-                st.query_params.pop(qp, None)
-            _clear_localstorage_token()
-            go("landing")
-            st.rerun()
+    selected_tab = st.radio(
+        "nav",
+        nav_options,
+        index=cur_idx,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="nav_radio"
+    )
+
+    selected_key = nav_keys[nav_options.index(selected_tab)]
+
+    if selected_key == "signout":
+        for k in ["logged_in","user","mfa_verified","scan_results",
+                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
+            st.session_state[k] = False if k == "logged_in" else None
+        st.session_state.signed_out = True
+        for qp in ["uid","plan"]:
+            st.query_params.pop(qp, None)
+        _clear_localstorage_token()
+        go("landing")
+        st.rerun()
+    elif selected_key != cur:
+        nav(selected_key)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3936,32 +3942,21 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle — matches nav tab style
-        st.markdown("""
-        <style>
-        div[data-testid="stHorizontalBlock"]:has(button[key="pp_1D"]) button {
-            white-space: nowrap !important;
-            font-size: 11px !important;
-            padding: 4px 2px !important;
-            min-height: 0 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # Period toggle — st.radio matching nav style
         st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
-        period_cols = st.columns(len(PERIOD_DATA))
-        for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
-            with col:
-                active = st.session_state.port_period == pkey
-                border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
-                color  = "#00ff87" if active else "#475569"
-                st.markdown(
-                    f'<div style="{border}padding:4px 0;">'
-                    f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{color};">{pkey}</span>'
-                    f'</div>',
-                    unsafe_allow_html=True)
-                if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
-                    st.session_state.port_period = pkey
-                    st.rerun()
+        period_labels = [p[0] for p in PERIOD_DATA]
+        cur_period_idx = next((i for i,p in enumerate(PERIOD_DATA) if p[0]==st.session_state.port_period), 2)
+        selected_period = st.radio(
+            "period",
+            period_labels,
+            index=cur_period_idx,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="period_radio"
+        )
+        if selected_period != st.session_state.port_period:
+            st.session_state.port_period = selected_period
+            st.rerun()
 
         # Compute return for selected period
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
