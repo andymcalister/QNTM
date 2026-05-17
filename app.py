@@ -654,12 +654,14 @@ def score_bar_html(val, width=80):
 
 def macro_regime_banner_html(macro: dict) -> str:
     """Renders the macro regime banner with live stats from macro_data."""
-    regime = macro.get("regime","NEUTRAL")
-    events = macro.get("active_events",[])
-    source = macro.get("source","estimated")
-    vix    = macro.get("vix")
-    oil    = macro.get("oil_price")
-    n_hdl  = macro.get("headlines_scanned", 0)
+    regime    = macro.get("regime","NEUTRAL")
+    events    = macro.get("active_events",[])
+    source    = macro.get("source","estimated")
+    vix       = macro.get("vix")
+    oil       = macro.get("oil_price")
+    vix_level = vix    # alias used in stats block
+    oil_price = oil    # alias used in stats block
+    n_hdl     = macro.get("headlines_scanned", 0)
 
     # Regime-scaled macro weight (matches apply_macro_overlay)
     macro_w = {"RISK_OFF":35,"HIGH VOLATILITY":35,"RISK_ON":15,"MILDLY BULLISH":15,"NEUTRAL":10}.get(regime,25)
