@@ -2483,72 +2483,66 @@ def page_gems():
     g_cols = st.columns(min(len(gems), 3))
     for i, g in enumerate(gems):
         with g_cols[i % 3]:
-            adj   = g.get("adj_composite", g["composite"])
-            raw   = g["composite"]
-            price = g.get("price")
-            ci    = get_company_info(g["ticker"])
-            name  = ci.get("name", g["ticker"]) if ci else g["ticker"]
-            name_short = name if len(name) <= 24 else name[:22] + "…"
-            price_html = (f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:2px;">'
-                         f'${price:,.2f} / share</div>') if price else ""
-            delta = adj - raw
-            delta_html = ""
-            if abs(delta) >= 1:
-                d_col = "#ef4444" if delta < 0 else "#00ff87"
-                d_arrow = "▼" if delta < 0 else "▲"
-                delta_html = (f'<span style="font-size:10px;color:{d_col};margin-left:6px;">'
-                             f'{d_arrow} {abs(delta):.0f} macro adj</span>')
+            try:
+                adj   = float(g.get("adj_composite") or g.get("composite") or 0)
+                raw   = float(g.get("composite") or 0)
+                delta = adj - raw
+                price = g.get("price")
+                ci    = get_company_info(g["ticker"])
+                name  = ci.get("name", g["ticker"]) if ci else g["ticker"]
+                name_short = name if len(name) <= 24 else name[:22] + "…"
 
-            reasons_html = "".join([
-                f'<div style="font-size:12px;color:#4ade80;padding:4px 0;'
-                f'border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;">'
-                f'<span style="color:#00ff87;flex-shrink:0;">✓</span>'
-                f'<span>{r}</span></div>'
-                for r in g.get("gem_reasons", [])
-            ])
+                price_html = (
+                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:2px;">'
+                    f'${float(price):,.2f} / share</div>'
+                ) if price else ""
 
-            pillar_items = [
-                ("MOM",  float(g.get("momentum")  or 0)),
-                ("QUAL", float(g.get("quality")   or 0)),
-                ("VAL",  float(g.get("value")     or 0)),
-                ("SENT", float(g.get("sentiment") or 0)),
-            ]
-            pillars_html = "".join([
-                f'<div style="text-align:center;">'
-                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{v:.0f}</div>'
-                f'<div style="font-size:9px;color:#334155;">{n}</div></div>'
-                for n, v in pillar_items
-            ])
+                delta_html = ""
+                if abs(delta) >= 1:
+                    d_col   = "#ef4444" if delta < 0 else "#00ff87"
+                    d_arrow = "▼" if delta < 0 else "▲"
+                    delta_html = f'<span style="font-size:10px;color:{d_col};margin-left:6px;">{d_arrow} {abs(delta):.0f} macro adj</span>'
 
-            st.markdown(f"""
-            <div style="background:rgba(0,255,135,.03);border:1px solid rgba(0,255,135,.2);
-                 border-radius:8px;padding:22px;margin-bottom:16px;">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
-                <div>
-                  <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;">
-                    💎 {g['ticker']}
-                  </div>
-                  <div style="font-size:11px;color:#475569;margin-top:1px;">{name_short}</div>
-                  <div style="font-size:10px;color:#334155;">{g['sector']}</div>
-                  {price_html}
-                </div>
-                <div style="text-align:right;">
-                  <div style="font-family:'DM Mono',monospace;font-size:30px;font-weight:500;color:#00ff87;line-height:1;">
-                    {adj:.0f}
-                  </div>
-                  <div style="font-size:10px;color:#475569;">adj score{delta_html}</div>
-                  <div style="font-size:10px;color:#334155;margin-top:2px;">raw {raw:.0f}</div>
-                </div>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
-                   background:rgba(255,255,255,.03);border-radius:4px;padding:8px;margin-bottom:14px;">
-                {pillars_html}
-              </div>
-              <div style="border-top:1px solid rgba(0,255,135,.12);padding-top:12px;">
-                {reasons_html if reasons_html else '<div style="font-size:12px;color:#334155;">Run Live Refresh for detailed factor reasons</div>'}
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+                reasons_html = "".join(
+                    f'<div style="font-size:12px;color:#4ade80;padding:4px 0;border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;"><span style="color:#00ff87;flex-shrink:0;">✓</span><span>{r}</span></div>'
+                    for r in g.get("gem_reasons", [])
+                ) or '<div style="font-size:12px;color:#334155;">Run Live Refresh for detailed factor reasons</div>'
+
+                mom  = float(g.get("momentum")  or 0)
+                qual = float(g.get("quality")   or 0)
+                val  = float(g.get("value")     or 0)
+                sent = float(g.get("sentiment") or 0)
+                pillars_html = (
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{mom:.0f}</div><div style="font-size:9px;color:#334155;">MOM</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{qual:.0f}</div><div style="font-size:9px;color:#334155;">QUAL</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{val:.0f}</div><div style="font-size:9px;color:#334155;">VAL</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:9px;color:#334155;">SENT</div></div>'
+                )
+
+                card_html = (
+                    '<div style="background:rgba(0,255,135,.03);border:1px solid rgba(0,255,135,.2);border-radius:8px;padding:22px;margin-bottom:16px;">'
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
+                    '<div>'
+                    f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#fff;">💎 {g["ticker"]}</div>'
+                    f'<div style="font-size:11px;color:#475569;margin-top:1px;">{name_short}</div>'
+                    f'<div style="font-size:10px;color:#334155;">{g["sector"]}</div>'
+                    f'{price_html}'
+                    '</div>'
+                    '<div style="text-align:right;">'
+                    f'<div style="font-family:DM Mono,monospace;font-size:30px;font-weight:500;color:#00ff87;line-height:1;">{adj:.0f}</div>'
+                    f'<div style="font-size:10px;color:#475569;">adj score{delta_html}</div>'
+                    f'<div style="font-size:10px;color:#334155;margin-top:2px;">raw {raw:.0f}</div>'
+                    '</div></div>'
+                    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.03);border-radius:4px;padding:8px;margin-bottom:14px;">'
+                    f'{pillars_html}'
+                    '</div>'
+                    '<div style="border-top:1px solid rgba(0,255,135,.12);padding-top:12px;">'
+                    f'{reasons_html}'
+                    '</div></div>'
+                )
+                st.markdown(card_html, unsafe_allow_html=True)
+            except Exception:
+                st.markdown(f'<div style="color:#475569;font-size:12px;padding:8px;">💎 {g.get("ticker","?")} — display error</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
