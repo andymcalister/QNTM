@@ -1837,9 +1837,13 @@ def platform_nav():
 # SCREENER PAGE
 # ══════════════════════════════════════════════════════════════════════════════
 def page_screener():
-    from model_engine import MACRO_EVENT_INFO, score_stock, fetch_price_data, SECTORS as ALL_SECTORS
-    from data_refresh import cache_is_fresh
-    cache_fresh = cache_is_fresh()
+    from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
+                               SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
+    try:
+        from data_refresh import cache_is_fresh
+        cache_fresh = cache_is_fresh()
+    except Exception:
+        cache_fresh = False
     data_badge  = (
         '<span style="font-size:10px;color:#00ff87;margin-left:8px;">⚡ Live Data</span>'
         if cache_fresh else
@@ -1873,9 +1877,8 @@ def page_screener():
                 price_data = fetch_price_data([search_ticker], period="1y")
                 hist = price_data.get(search_ticker, [])
                 scored = score_stock(search_ticker, hist)
-                macro = st.session_state.get("macro_data") or fetch_macro_overlay()
-                from model_engine import apply_macro_overlay as _apply
-                scored_list = _apply([scored], macro)
+                macro = st.session_state.get("macro_data") or fetch_macro_overlay(use_live_feeds=True)
+                scored_list = apply_macro_overlay([scored], macro)
                 sr = scored_list[0]
                 sr["pct_rank"] = 50  # unknown rank for ad-hoc search
                 is_gem = False
