@@ -370,107 +370,93 @@ hr{border-color:rgba(255,255,255,.07)!important;}
 
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 768px) {
-    /* ── Layout ── */
-    .main .block-container,[data-testid="stMainBlockContainer"]{
-        padding:0!important;max-width:100%!important;
-    }
-    /* Stack all columns vertically on mobile */
-    [data-testid="stHorizontalBlock"]{
-        flex-direction:column!important;gap:8px!important;
-    }
-    [data-testid="stHorizontalBlock"] > div {
-        min-width:100%!important;width:100%!important;flex:none!important;
+
+    /* NEVER stack columns — use horizontal scroll instead */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 6px !important;
+        -webkit-overflow-scrolling: touch !important;
     }
 
-    /* ── Touch targets ── */
-    .stButton>button {
-        padding:14px 16px!important;font-size:13px!important;
-        min-height:48px!important;
+    /* Layout base */
+    .main .block-container,[data-testid="stMainBlockContainer"] {
+        padding: 0 !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
     }
+
+    /* Nav — compact single row */
+    [data-testid="stHorizontalBlock"] .stButton > button {
+        font-size: 10px !important;
+        padding: 8px 4px !important;
+        min-height: 36px !important;
+        white-space: nowrap !important;
+    }
+
+    /* Touch inputs — prevent iOS zoom */
     .stTextInput input,[data-baseweb="input"] input {
-        font-size:16px!important;padding:14px!important; /* prevents iOS zoom */
+        font-size: 16px !important;
+        padding: 12px !important;
     }
 
-    /* ── Nav bar ── */
-    /* Collapse nav to icon-only on small screens */
-    [data-testid="stHorizontalBlock"] .stButton>button {
-        font-size:11px!important;padding:10px 4px!important;min-height:40px!important;
+    /* Data grids — horizontal scroll */
+    div[style*="grid-template-columns"] {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
 
-    /* ── Landing page ── */
-    h1 { font-size:32px!important; }
-    .land-section { padding:40px 20px!important; }
-
-    /* ── Factor cards ── */
-    div[style*="display:flex"][style*="gap:8px"] {
-        flex-wrap:wrap!important;
+    /* Pillar bars — horizontal scroll not wrap */
+    div[style*="display:flex;gap:8px;margin-bottom:12px"] {
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
     }
 
-    /* ── Macro banner ── */
-    /* Stack regime info and stats vertically */
-    div[style*="display:flex"][style*="justify-content:space-between"] {
-        flex-direction:column!important;gap:12px!important;
+    /* Macro stats row — scroll not stack */
+    div[style*="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start"] {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        padding-bottom: 4px !important;
     }
 
-    /* ── Tables / grids ── */
-    /* Screener table — hide rank and signal columns, compress */
-    div[style*="grid-template-columns:40px"] {
-        grid-template-columns:50px 1fr 70px 70px!important;
-    }
-    div[style*="grid-template-columns:50px 110px"] {
-        grid-template-columns:40px 90px 1fr 70px 70px!important;
+    /* Portfolio position row — scroll */
+    div[style*="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap"] {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        padding-bottom: 4px !important;
     }
 
-    /* ── Top 10 summary ── */
-    div[style*="grid-template-columns:90px"] {
-        grid-template-columns:70px 1fr 50px 50px!important;
-    }
+    /* Landing hero */
+    h1 { font-size: 28px !important; line-height: 1.2 !important; }
+    .land-section { padding: 32px 16px !important; }
 
-    /* ── Backtest chart ── */
-    iframe { max-width:100%!important; }
+    /* Chart */
+    iframe { max-width: 100% !important; }
 
-    /* ── Gem cards ── */
-    div[style*="border:1px solid rgba(0,255,135"] {
-        padding:16px!important;
-    }
-
-    /* ── Portfolio cards ── */
-    div[style*="border-radius:10px"][style*="padding:20px"] {
-        padding:14px!important;
-    }
-
-    /* ── Hide less important columns on mobile ── */
-    /* Tooltip boxes wider than screen — constrain */
+    /* Tooltips */
     .qntm-tip .tip-box {
-        width:220px!important;max-width:80vw!important;
-        left:0!important;transform:none!important;
+        width: 220px !important;
+        max-width: 80vw !important;
     }
 
-    /* ── Text size adjustments ── */
-    div[style*="font-size:34px"] { font-size:24px!important; }
-    div[style*="font-size:28px"] { font-size:20px!important; }
-    div[style*="font-size:36px"] { font-size:26px!important; }
-    div[style*="font-size:22px"] { font-size:18px!important; }
+    /* Text scale */
+    div[style*="font-size:34px"] { font-size: 22px !important; }
+    div[style*="font-size:28px"] { font-size: 18px !important; }
+    div[style*="font-size:36px"] { font-size: 24px !important; }
 }
 
 @media (max-width: 480px) {
-    h1 { font-size:24px!important; }
-    .land-section { padding:28px 16px!important; }
-    [data-testid="stHorizontalBlock"] { gap:6px!important; }
+    h1 { font-size: 22px !important; }
+    .land-section { padding: 24px 12px !important; }
 
-    /* Single column everything */
-    div[style*="grid-template-columns"] {
-        grid-template-columns:1fr!important;
-    }
+    /* Screener table min-width forces horizontal scroll */
+    div[style*="grid-template-columns:90px"] { min-width: 480px !important; }
+    div[style*="grid-template-columns:40px 110px"] { min-width: 560px !important; }
 
-    /* Screener search full width */
-    .stTextInput { width:100%!important; }
-
-    /* Macro banner stats — wrap to 2x2 grid */
-    div[style*="display:flex;gap:20px;flex-wrap:wrap"] {
-        display:grid!important;
-        grid-template-columns:1fr 1fr!important;
-        gap:12px!important;
+    /* All markdown containers scrollable */
+    [data-testid="stMarkdownContainer"] {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
 }
 /* Viewport meta (Streamlit adds this but ensure scale=1) */
