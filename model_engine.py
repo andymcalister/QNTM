@@ -506,7 +506,20 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "live": True,
         }
     except Exception as e:
-        return fetch_macro_overlay(use_live_feeds=False)
+        # Inline static fallback — never recurse, never fail
+        sector_overlays = {}
+        for event_type in _CURRENT_REGIME["active_events"]:
+            impacts = SECTOR_EVENT_MAP.get(event_type, {})
+            for sector, impact in impacts.items():
+                sector_overlays[sector] = sector_overlays.get(sector, 0.0) + impact * 0.6
+        return {
+            "regime":         _CURRENT_REGIME["label"],
+            "regime_score":   _CURRENT_REGIME["score"],
+            "sector_overlays": sector_overlays,
+            "active_events":  _CURRENT_REGIME["active_events"],
+            "source":         "estimated",
+            "live":           False,
+        }
 
 
 def apply_macro_overlay(scores: list, macro_data: dict,

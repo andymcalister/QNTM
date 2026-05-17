@@ -1889,11 +1889,8 @@ def page_screener():
 
     if st.session_state.scan_results is None:
         with st.spinner("Loading universe scores..."):
-            raw = run_full_scan(use_live_prices=False)
-            try:
-                macro = fetch_macro_overlay(use_live_feeds=True)
-            except Exception:
-                macro = fetch_macro_overlay(use_live_feeds=False)
+            raw   = run_full_scan(use_live_prices=False)
+            macro = fetch_macro_overlay()
             st.session_state.scan_results = apply_macro_overlay(raw, macro)
             st.session_state.macro_data   = macro
 
@@ -2147,10 +2144,7 @@ def page_screener():
                 scores.sort(key=lambda x: x["composite"], reverse=True)
 
                 progress_bar.progress(93, text="Applying macro overlay...")
-                try:
-                    macro = fetch_macro_overlay(use_live_feeds=True)
-                except Exception:
-                    macro = fetch_macro_overlay(use_live_feeds=False)
+                macro  = fetch_macro_overlay()
                 scored = apply_macro_overlay(scores, macro)
 
                 progress_bar.progress(97, text="Saving signal snapshot...")
@@ -2707,11 +2701,8 @@ def page_portfolio():
     # ── Ensure scan results ────────────────────────────────────────────────────
     if st.session_state.scan_results is None:
         with st.spinner("Loading model signals..."):
-            raw = run_full_scan(use_live_prices=False)
-            try:
-                macro = fetch_macro_overlay(use_live_feeds=True)
-            except Exception:
-                macro = fetch_macro_overlay(use_live_feeds=False)
+            raw   = run_full_scan(use_live_prices=False)
+            macro = fetch_macro_overlay()
             st.session_state.scan_results = apply_macro_overlay(raw, macro)
             st.session_state.macro_data   = macro
 
