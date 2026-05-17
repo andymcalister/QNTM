@@ -17,6 +17,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ── DEV ENVIRONMENT BANNER ────────────────────────────────────────────────────
+import os
+if os.getenv("ENVIRONMENT") == "dev":
+    st.markdown("""
+    <div style="background:#7c3aed;color:#fff;text-align:center;padding:6px 0;
+         font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;
+         position:sticky;top:0;z-index:9999;">
+      ⚠ DEV ENVIRONMENT — changes here do not affect production
+    </div>
+    """, unsafe_allow_html=True)
+
 from db import (register_user, login_user, get_holdings, upsert_holding,
                 delete_holding, get_notifications, create_notification,
                 mark_notifications_read, generate_totp_secret, verify_totp,
