@@ -433,21 +433,18 @@ for k, v in {
     "port_period":  "1M",
     "live_refresh_running": False,
     "mfa_recovery_mode": False,
+    "signed_out": False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # ── PERSISTENT LOGIN (remember me) ───────────────────────────────────────────
-# Streamlit doesn't have real cookies, but we can use query params as a
-# signed token to auto-restore sessions within the same browser.
-# For production, use st.experimental_get_query_params with a signed JWT.
-if not st.session_state.logged_in:
+if not st.session_state.logged_in and not st.session_state.get("signed_out"):
     params = st.query_params
     if "uid" in params and "plan" in params:
-        # Restore session from URL param token (simple version)
         try:
             from db import get_user_by_id
-            saved_uid = params["uid"]
+            saved_uid  = params["uid"]
             saved_plan = params["plan"]
             user = get_user_by_id(saved_uid)
             if user and user.get("plan") == saved_plan:
@@ -2229,9 +2226,14 @@ def platform_nav():
 
     with tabs[-1]:
         if st.button("Sign Out", key="signout"):
-            for k in ["logged_in","user","mfa_verified","scan_results"]:
-                st.session_state[k] = False if k=="logged_in" else None
+            for k in ["logged_in","user","mfa_verified","scan_results",
+                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
+                st.session_state[k] = False if k == "logged_in" else None
+            st.session_state.signed_out = True
+            for qp in ["uid","plan"]:
+                st.query_params.pop(qp, None)
             go("landing")
+            st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
