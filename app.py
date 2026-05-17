@@ -784,11 +784,11 @@ def macro_regime_banner_html(macro: dict) -> str:
         f'</span></div>'
 
         + (
-            f'<div class="qntm-tip" style="text-align:center;cursor:help;position:relative;">'
+            f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
             f'color:{"#ef4444" if vix_level>=30 else "#fbbf24" if vix_level>=20 else "#1D9E75"};">{vix_level:.1f}</div>'
             f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">VIX</div>'
-            f'<span class="tip-box" style="width:260px;position:fixed;right:16px;">'
+            f'<span class="tip-box" style="left:auto;right:0;transform:none;">'
             f'<div class="tip-title">VIX — Fear Index</div>'
             f'<div class="tip-body">CBOE Volatility Index. Below 15 = calm market (RISK_ON). 15–25 = elevated uncertainty. Above 30 = fear/panic (forces RISK_OFF regime). VIX above 35 overrides all other regime signals.</div>'
             f'</span></div>'
@@ -796,11 +796,11 @@ def macro_regime_banner_html(macro: dict) -> str:
         )
 
         + (
-            f'<div class="qntm-tip" style="text-align:center;cursor:help;position:relative;">'
+            f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
             f'color:{"#ef4444" if oil_price>=90 else "#fbbf24" if oil_price>=75 else "#1D9E75"};">${oil_price:.0f}</div>'
             f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">WTI Crude</div>'
-            f'<span class="tip-box" style="width:260px;position:fixed;right:16px;">'
+            f'<span class="tip-box" style="left:auto;right:0;transform:none;">'
             f'<div class="tip-title">WTI Crude Oil Price</div>'
             f'<div class="tip-body">West Texas Intermediate crude price per barrel. Above $90 triggers an oil_spike macro event — bullish for Energy, bearish for Consumer Discretionary and Industrials. Below $65 signals weak demand.</div>'
             f'</span></div>'
