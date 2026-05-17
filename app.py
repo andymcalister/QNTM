@@ -306,15 +306,16 @@ document.addEventListener('mouseover', function(e) {
     var box = tip.querySelector('.tip-box');
     if (!box) return;
     var rect = tip.getBoundingClientRect();
-    var bw   = box.offsetWidth || 260;
-    var bh   = box.offsetHeight || 120;
-    // Position above the element
-    var top  = rect.top - bh - 10;
-    var left = rect.left + rect.width/2 - bw/2;
-    // Clamp to viewport
-    if (top < 8) top = rect.bottom + 10;  // flip below if no room above
-    if (left < 8) left = 8;
-    if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+    var bw   = 260;  // fixed width matches CSS
+    var bh   = box.offsetHeight || 130;
+    // Position above the element, centered horizontally on trigger
+    var top  = rect.top - bh - 12;
+    var left = rect.left + (rect.width / 2) - (bw / 2);
+    // Flip below if not enough room above
+    if (top < 8) top = rect.bottom + 8;
+    // Clamp horizontal — keep 12px from each edge
+    if (left < 12) left = 12;
+    if (left + bw > window.innerWidth - 12) left = window.innerWidth - bw - 12;
     box.style.top  = top  + 'px';
     box.style.left = left + 'px';
 });
