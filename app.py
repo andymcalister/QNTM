@@ -734,6 +734,11 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
             f'<div style="font-size:11px;color:#475569;margin-top:1px;">{company_info["name"]}</div>'
             if (company_info and company_info.get("name") and company_info["name"] != r["ticker"])
             else ''
+        )
+        + (
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:3px;">'
+            f'${r["price"]:,.2f} <span style="font-size:10px;color:#334155;">/ share</span></div>'
+            if r.get("price") else ''
         ) +
         f'</div>',
         f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
@@ -2093,6 +2098,12 @@ def page_screener():
 
     # ── TAB 1: TOP 10 ──────────────────────────────────────────────────────────
     with scr_tab1:
+        st.markdown("""
+        <div style="font-size:11px;color:#475569;margin-bottom:12px;">
+          ⚠ Prices are indicative snapshots — may not reflect intraday changes.
+          Search any ticker for a fresh live score.
+        </div>
+        """, unsafe_allow_html=True)
         col_b, col_s = st.columns(2)
         for col, label, color, ranked, action_lbl, act_c, act_bg in [
             (col_b, "▲ TOP 10 BUY SIGNALS",  "#00ff87", buys_ranked[:10],  "▲ BUY",  "#00ff87", "rgba(0,255,135,.12)"),
@@ -2105,27 +2116,44 @@ def page_screener():
                     f'letter-spacing:.1em;margin:16px 0 10px;">{label}</div>',
                     unsafe_allow_html=True)
                 st.markdown(
-                    '<div style="display:grid;grid-template-columns:70px 1fr 54px 54px 70px;'
-                    'gap:6px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
+                    '<div style="display:grid;grid-template-columns:90px 1fr 58px 52px 60px 54px;'
+                    'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
                     'border:1px solid rgba(255,255,255,.07);">'
                     '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">TICKER</div>'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">SECTOR</div>'
+                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">COMPANY</div>'
+                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">PRICE</div>'
                     '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">SCORE</div>'
                     '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">RANK</div>'
                     '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">SIGNAL</div>'
                     '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
-                    score = r.get("adj_composite", r.get("composite",0))
-                    rank  = r.get("pct_rank", 50)
-                    gem   = " 💎" if r["ticker"] in gem_tickers else ""
-                    bg    = f"rgba(255,255,255,.02)" if i%2==0 else "rgba(255,255,255,.008)"
+                    score    = r.get("adj_composite", r.get("composite", 0))
+                    rank     = r.get("pct_rank", 50)
+                    gem      = " 💎" if r["ticker"] in gem_tickers else ""
+                    bg       = "rgba(255,255,255,.02)" if i%2==0 else "rgba(255,255,255,.008)"
+                    ci       = get_company_info(r["ticker"])
+                    name     = ci.get("name", r["ticker"]) if ci else r["ticker"]
+                    # Truncate long names for table display
+                    name_short = name if len(name) <= 22 else name[:20] + "…"
+                    # Price from live fundamentals cache if available
+                    price    = r.get("price") or (
+                        st.session_state.get("company_info_cache", {})
+                        .get(r["ticker"], {}).get("price")
+                    )
+                    price_str = f"${price:,.2f}" if price else "—"
                     st.markdown(
-                        f'<div style="display:grid;grid-template-columns:70px 1fr 54px 54px 70px;'
-                        f'gap:6px;padding:10px 12px;background:{bg};'
+                        f'<div style="display:grid;grid-template-columns:90px 1fr 58px 52px 60px 54px;'
+                        f'gap:4px;padding:10px 12px;background:{bg};'
                         f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
                         f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+                        f'<div>'
                         f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem}</div>'
-                        f'<div style="font-size:11px;color:#475569;">{r.get("sector","")[:13]}</div>'
+                        f'</div>'
+                        f'<div>'
+                        f'<div style="font-size:11px;color:#94a3b8;">{name_short}</div>'
+                        f'<div style="font-size:10px;color:#334155;">{r.get("sector","")[:14]}</div>'
+                        f'</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{price_str}</div>'
                         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{color};font-weight:700;">{score:.0f}</div>'
                         f'<div style="font-size:12px;color:#334155;">{rank:.0f}th</div>'
                         f'<div><span style="font-size:10px;font-weight:700;color:{act_c};background:{act_bg};'
@@ -3060,7 +3088,13 @@ def page_portfolio():
         st.markdown('<div style="font-size:11px;color:#334155;margin:4px 0 20px;">Returns estimated from model signal rates. Add live price integration for real-time values.</div>', unsafe_allow_html=True)
 
     # ── Holdings cards ─────────────────────────────────────────────────────────
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#334155;letter-spacing:.1em;margin-bottom:12px;">YOUR POSITIONS — MODEL SIGNALS APPLIED</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div style="font-family:DM Mono,monospace;font-size:11px;color:#334155;letter-spacing:.1em;margin-bottom:6px;">YOUR POSITIONS — MODEL SIGNALS APPLIED</div>
+    <div style="font-size:11px;color:#475569;margin-bottom:14px;">
+      ⚠ Prices pulled from market data — indicative only, may not reflect real-time intraday changes.
+      Run ⚡ Live Refresh in the Screener for the most current values.
+    </div>
+    """, unsafe_allow_html=True)
 
     for h in holdings:
         tk     = h["ticker"]
@@ -3068,6 +3102,25 @@ def page_portfolio():
         cost   = float(h.get("avg_cost", 0) or 0)
         shares = float(h.get("shares", 0) or 0)
         entry  = h.get("entry_date", "")
+
+        # Price: use score dict first (from fundamentals cache), then yfinance
+        live_price = None
+        if sc and sc.get("price"):
+            live_price = float(sc["price"])
+        else:
+            try:
+                from model_engine import get_current_price
+                p = get_current_price(tk)
+                if p and p > 0:
+                    live_price = p
+            except Exception:
+                pass
+
+        market_value   = live_price * shares if live_price and shares else (cost * shares if cost and shares else None)
+        unrealized_gl  = (live_price - cost) * shares if live_price and cost and shares else None
+        gl_pct         = ((live_price - cost) / cost * 100) if live_price and cost else None
+        gl_c           = "#00ff87" if (unrealized_gl or 0) >= 0 else "#ef4444"
+        gl_arrow       = "▲" if (unrealized_gl or 0) >= 0 else "▼"
 
         if sc:
             comp   = sc.get("adj_composite", sc.get("composite", 50))
@@ -3168,13 +3221,13 @@ def page_portfolio():
             </div>
           </div>
           <!-- Position details row -->
-          <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
-            <div style="font-size:14px;color:#64748b;">
-              {shares:.2f} shares
-            </div>
-            {'<div style="font-size:14px;color:#475569;">avg cost <span style="color:#94a3b8;font-family:DM Mono,monospace;">${:.2f}</span></div>'.format(cost) if cost > 0 else ''}
-            {'<div style="font-size:14px;color:#475569;">est. value <span style="color:#94a3b8;font-family:DM Mono,monospace;">${:,.0f}</span></div>'.format(cost*shares) if cost > 0 and shares > 0 else ''}
-            {'<div style="font-size:14px;color:#475569;">entry <span style="color:#94a3b8;font-family:DM Mono,monospace;">' + str(entry)[:10] + '</span></div>' if entry else ''}
+          <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">
+            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div><div style="font-family:DM Mono,monospace;font-size:20px;color:#d4a843;font-weight:500;">${:,.2f}</div><div style="font-size:9px;color:#334155;margin-top:1px;">indicative · may lag intraday</div></div>'.format(live_price) if live_price else '<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#334155;">—</div></div>'}
+            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">SHARES</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">{:.2f}</div></div>'.format(shares)}
+            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">AVG COST</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">${:.2f}</div></div>'.format(cost) if cost > 0 else ''}
+            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">MARKET VALUE</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#e2e8f0;">${:,.0f}</div></div>'.format(market_value) if market_value else ''}
+            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">UNREALIZED P&L</div><div style="font-family:DM Mono,monospace;font-size:18px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f} ({abs(gl_pct):.1f}%)</div></div>'.format(gl_c=gl_c,gl_arrow=gl_arrow,unrealized_gl=unrealized_gl,gl_pct=gl_pct) if unrealized_gl is not None else ''}
+            {'<div style="font-size:11px;color:#475569;">entry <span style="color:#94a3b8;font-family:DM Mono,monospace;">' + str(entry)[:10] + '</span></div>' if entry else ''}
           </div>
           <!-- Pillar bars -->
           <div style="display:flex;gap:8px;margin-bottom:12px;">
