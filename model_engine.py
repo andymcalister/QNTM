@@ -656,3 +656,4 @@ BACKTEST_DATA = {
         {"q":1,"label":"Bot 20%",   "avg_ret":-2.89,"alpha":-1.69,"hit":37.0,"beat_spy":45.2,"n":400},
     ],
 }
+# cache bust Sat May 16 18:46:09 PDT 2026
