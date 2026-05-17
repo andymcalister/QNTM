@@ -2558,8 +2558,10 @@ def page_backtest():
         spy_pts.append(int(v_s))
     chart_html = f"""<!DOCTYPE html><html>
 <head><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script></head>
-<body style="margin:0;background:#0a0b14;padding:0 0 8px;">
-<canvas id="gc" style="width:100%;height:420px;"></canvas>
+<body style="margin:0;background:#0a0b14;padding:0;">
+<div style="position:relative;height:380px;width:100%;">
+<canvas id="gc"></canvas>
+</div>
 <script>
 const labels = {labels};
 const qntm   = {qntm_pts};
@@ -2625,8 +2627,6 @@ new Chart(document.getElementById('gc'), {{
         border: {{ color: 'rgba(255,255,255,0.05)' }},
       }},
       y: {{
-        min: 90000,
-        max: 480000,
         grid: {{ color: 'rgba(255,255,255,0.03)' }},
         ticks: {{
           color: '#334155',
