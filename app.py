@@ -999,7 +999,7 @@ def page_legal(doc_key: str = "privacy"):
 # COOKIE CONSENT PAGE — full page, 100% reliable buttons
 # ══════════════════════════════════════════════════════════════════════════════
 def page_cookie_consent():
-    """Full-page cookie consent — all Streamlit native, no large HTML blocks."""
+    """Full-page cookie consent — persists via query param so it only shows once."""
     st.markdown(
         "<style>"
         "html,body,[data-testid='stAppViewContainer'],[data-testid='stMain'],"
@@ -1019,7 +1019,6 @@ def page_cookie_consent():
         unsafe_allow_html=True
     )
 
-    # Card border only — no content inside HTML
     st.markdown(
         "<div style='max-width:580px;margin:0 auto;border:1px solid rgba(212,168,67,.4);"
         "border-radius:12px;padding:32px 36px 24px;background:#0d1117;'>",
@@ -1042,19 +1041,21 @@ def page_cookie_consent():
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
+    def _accept():
+        st.session_state.cookies_accepted = True
+        st.query_params["ck"] = "1"   # persists across refreshes
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("✓  Accept All Cookies", key="ck_accept", use_container_width=True):
-            st.session_state.cookies_accepted = True
-            st.rerun()
+            _accept(); st.rerun()
     with col2:
         if st.button("Essential Only", key="ck_essential", use_container_width=True):
-            st.session_state.cookies_accepted = True
-            st.rerun()
+            _accept(); st.rerun()
 
     st.markdown(
         "<div style='text-align:center;margin-top:10px;font-size:11px;color:#334155;'>"
-        "Your choice is saved for this session.</div>",
+        "Your choice is remembered across sessions.</div>",
         unsafe_allow_html=True
     )
 
@@ -3901,10 +3902,12 @@ def page_platform():
 # ROUTER
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
-    # ── Cookie consent gate — must happen before ANYTHING else ────────────────
+    # ── Cookie consent gate — persists via ?ck=1 query param ─────────────────
+    if st.query_params.get("ck") == "1":
+        st.session_state.cookies_accepted = True
     if not st.session_state.cookies_accepted:
         page_cookie_consent()
-        return   # st.stop() not needed — return exits main() cleanly
+        return
 
     # Handle nav button side effects — re-route if needed
     if st.session_state.page == "landing" and st.session_state.logged_in:
