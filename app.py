@@ -2006,8 +2006,6 @@ def page_landing():
     # We use a columns row right below the nav HTML
     st.markdown("""
     <style>
-    /* Float the nav button row up into the sticky nav bar */
-    div[data-testid="stHorizontalBlock"]:has(button[data-testid*="nav_signin"]),
     div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]) {
         position: fixed !important;
         top: 10px !important;
@@ -2019,10 +2017,8 @@ def page_landing():
         gap: 6px !important;
         background: transparent !important;
     }
-    /* Hide nav buttons on small screens — hero has same CTAs */
-    @media (max-width: 480px) {
-        div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]),
-        div[data-testid="stHorizontalBlock"]:has(button[data-testid*="nav_signin"]) {
+    @media (max-width: 600px) {
+        div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]) {
             display: none !important;
         }
     }
@@ -2291,62 +2287,66 @@ def page_landing():
         dot = "●" if highlight else "○"
         dc  = "#1D9E75" if highlight else "#475569"
         tc  = "#e2e4f0" if highlight else "#64748b"
-        return f'<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;font-size:13px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
+        return f'<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;font-size:11px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
 
     bt_ret_str = f"{bt['model_total_ret']:.0f}"
 
-    # Pricing cards — pure CSS grid, no st.columns, no horizontal scroll
+    def card_style(highlight=False):
+        if highlight:
+            return "background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.5);border-radius:10px;padding:16px 12px;min-width:0;overflow:hidden;"
+        return "background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px 12px;min-width:0;overflow:hidden;"
+
     free_card = f"""
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:24px 20px;min-width:0;">
-        <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FREE</div>
-        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">forever</div>
-        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
-          {feat_row("963-stock universe screener")}
-          {feat_row("BUY / HOLD / SELL signals with factor breakdown")}
-          {feat_row("5 pillar scores: Momentum, Quality, Volume, Value, Sentiment")}
-          {feat_row("75/25 quant/macro blend")}
-          {feat_row("Portfolio tracker — up to 10 positions")}
-          {feat_row("5-year walk-forward backtest (+" + bt_ret_str + "% cumulative)")}
-          {feat_row("Macro regime indicator (3 active events)")}
-          {feat_row("Search any ticker for instant model score")}
+      <div style="{card_style()}">
+        <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FREE</div>
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
+        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
+          {feat_row("963-stock screener")}
+          {feat_row("BUY/HOLD/SELL signals")}
+          {feat_row("5 pillar scores")}
+          {feat_row("75/25 quant/macro")}
+          {feat_row("Portfolio — 10 positions")}
+          {feat_row("+" + bt_ret_str + "% backtest")}
+          {feat_row("Macro regime indicator")}
         </div>
       </div>"""
+
     founding_card = f"""
-      <div style="background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.5);border-radius:10px;padding:24px 20px;min-width:0;">
-        <div style="background:#d4a843;color:#000;font-family:Syne,sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:10px;">MOST POPULAR</div>
-        <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FOUNDING MEMBER</div>
-        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">first 50 users &middot; then $29/mo</div>
-        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
+      <div style="{card_style(True)}">
+        <div style="background:#d4a843;color:#000;font-family:Syne,sans-serif;font-size:8px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;">MOST POPULAR</div>
+        <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FOUNDING MEMBER</div>
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">first 50 · then $29/mo</div>
+        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Free", True)}
-          {feat_row("Unlimited portfolio positions", True)}
-          {feat_row("Hidden Gem detection across 963 stocks", True)}
-          {feat_row("Real-time BUY/SELL signal alerts on your holdings", True)}
-          {feat_row("Macro regime change alerts (war, oil, tariffs)", True)}
-          {feat_row("Portfolio value tracker with period toggles", True)}
-          {feat_row("Email signal notifications", True)}
-          {feat_row("Founding member badge — locked in at $0", True)}
+          {feat_row("Unlimited positions", True)}
+          {feat_row("💎 Hidden Gems", True)}
+          {feat_row("Real-time alerts", True)}
+          {feat_row("Macro alerts", True)}
+          {feat_row("Email notifications", True)}
+          {feat_row("Founding badge — $0", True)}
         </div>
       </div>"""
+
     inst_card = f"""
-      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:24px 20px;min-width:0;">
-        <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">INSTITUTIONAL</div>
-        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">Custom</div>
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">contact us</div>
-        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
+      <div style="{card_style()}">
+        <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">INSTITUTIONAL</div>
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">Custom</div>
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">contact us</div>
+        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Pro", True)}
-          {feat_row("Raw API access to all model scores", True)}
-          {feat_row("Custom stock universe upload", True)}
-          {feat_row("White-label branding option", True)}
-          {feat_row("Dedicated support & SLA guarantee", True)}
-          {feat_row("Multi-user team accounts", True)}
+          {feat_row("API access", True)}
+          {feat_row("Custom universe", True)}
+          {feat_row("White-label option", True)}
+          {feat_row("Dedicated support", True)}
+          {feat_row("Multi-user accounts", True)}
         </div>
       </div>"""
 
     st.markdown(
-        f'<div style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 16px;box-sizing:border-box;margin-bottom:16px;">'
-        f'<div style="display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px;min-width:580px;">'
+        f'<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:16px;">'
+        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
         f'{free_card}{founding_card}{inst_card}'
         f'</div></div>',
         unsafe_allow_html=True)
