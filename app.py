@@ -1087,7 +1087,225 @@ def page_cookie_consent():
     )
 
 
-def page_landing():
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC MODEL PORTFOLIO PAGE — no auth required, shareable link
+# URL: /?page=model  or  /model (via query param)
+# ══════════════════════════════════════════════════════════════════════════════
+def page_model_portfolio():
+    """
+    Public read-only page showing the model's current top BUY signals.
+    No login required. Shareable. Designed for X/Twitter posting.
+    """
+    from model_engine import run_full_scan, fetch_macro_overlay, apply_macro_overlay, SECTORS
+
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');
+    html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],
+    [data-testid="stMainBlockContainer"],.main {
+        background:#0a0b14!important; color:#e2e4f0!important;
+        font-family:'DM Mono',monospace!important;
+    }
+    .main .block-container { padding:0!important; max-width:100%!important; }
+    #MainMenu,header,footer,[data-testid="stHeader"] { display:none!important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:rgba(2,4,8,.98);border-bottom:1px solid rgba(212,168,67,.2);
+         padding:20px 40px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;letter-spacing:.15em;">
+          Q<span style="color:#00ff87;">NTM</span>
+        </div>
+        <div style="font-size:10px;color:#475569;letter-spacing:.2em;margin-top:2px;">
+          PUBLIC MODEL PORTFOLIO
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:#475569;">Updated on load · Not investment advice</div>
+        <div style="font-size:10px;color:#334155;margin-top:2px;">
+          963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div style="padding:32px 40px;">', unsafe_allow_html=True)
+
+    # ── Load scores ───────────────────────────────────────────────────────────
+    with st.spinner("Loading model signals..."):
+        raw   = run_full_scan(use_live_prices=False)
+        macro = fetch_macro_overlay()
+        scores = apply_macro_overlay(raw, macro)
+
+    regime     = macro.get("regime", "NEUTRAL")
+    vix        = macro.get("vix")
+    oil        = macro.get("oil_price")
+    events     = macro.get("active_events", [])
+    source     = macro.get("source", "estimated")
+    is_live    = macro.get("live", False)
+
+    regime_colors = {
+        "RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316",
+        "RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"
+    }
+    regime_color = regime_colors.get(regime, "#d4a843")
+
+    # ── Macro strip ───────────────────────────────────────────────────────────
+    nice_events = {
+        "tariff_broad":"Tariff Headwinds","tariff_relief":"Tariff Relief",
+        "fed_hawkish":"Fed Hawkish","fed_dovish":"Fed Dovish",
+        "recession_signal":"Recession Signal","war_escalation":"War Escalation",
+        "chip_export_ban":"Chip Export Ban","oil_spike":"Oil Spike",
+    }
+    event_badges = "".join(
+        f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
+        f'border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">'
+        f'{nice_events.get(e, e.replace("_"," ").title())}</span>'
+        for e in events[:4]
+    )
+    vix_str = f' · VIX {vix:.1f}' if vix else ""
+    oil_str = f' · WTI ${oil:.0f}' if oil else ""
+    live_badge = '⚡ Live' if is_live else 'Est.'
+
+    st.markdown(f"""
+    <div style="background:rgba({('239,68,68' if 'RISK_OFF' in regime or 'VOLATILITY' in regime else '212,168,67' if 'NEUTRAL' in regime else '29,158,117')},.06);
+         border:1px solid {regime_color}33;border-radius:8px;padding:14px 20px;margin-bottom:24px;
+         display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
+              color:{regime_color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>
+        <span style="font-size:10px;color:#475569;margin-left:8px;">{live_badge}{vix_str}{oil_str}</span>
+        <div style="margin-top:8px;">{event_badges}</div>
+      </div>
+      <div style="font-size:11px;color:#334155;text-align:right;">
+        Scores recomputed on page load<br>
+        <span style="color:#475569;">Walk-forward validated · Sharpe 1.72 · Max DD 6.5%</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Top BUY signals ───────────────────────────────────────────────────────
+    buys = [s for s in scores if s.get("adj_action","") == "BUY" or s.get("action","") == "BUY"][:15]
+
+    st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.15em;">
+        ▲ TOP {len(buys)} BUY SIGNALS — CURRENT MODEL OUTPUT
+      </div>
+      <div style="font-size:10px;color:#334155;">Equal-weight · Quarterly rebalance</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Table header
+    st.markdown("""
+    <div style="display:grid;grid-template-columns:50px 120px 1fr 70px 70px 70px 80px 90px;
+         gap:8px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;
+         border:1px solid rgba(255,255,255,.07);">
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">#</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">TICKER</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">SECTOR</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">SCORE</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">MOM</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">QUAL</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">RANK</div>
+      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">SIGNAL</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for i, s in enumerate(buys):
+        adj    = float(s.get("adj_composite", s.get("composite", 0)) or 0)
+        mom    = float(s.get("momentum", 0) or 0)
+        qual   = float(s.get("quality",  0) or 0)
+        rank   = float(s.get("pct_rank", 50) or 50)
+        sector = s.get("sector","Unknown")[:18]
+        sig    = s.get("signal","—")[:12]
+        ci     = get_company_info(s["ticker"])
+        name   = ci.get("name", s["ticker"]) if ci else s["ticker"]
+        name_short = name[:16] + "…" if len(name) > 16 else name
+        bg     = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        score_color = "#00ff87" if adj >= 65 else "#d4a843" if adj >= 60 else "#94a3b8"
+
+        row_html = (
+            f'<div style="display:grid;grid-template-columns:50px 120px 1fr 70px 70px 70px 80px 90px;'
+            f'gap:8px;padding:10px 14px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-size:11px;color:#334155;">{i+1}</div>'
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{s["ticker"]}</div>'
+            f'<div style="font-size:10px;color:#334155;">{name_short}</div>'
+            f'</div>'
+            f'<div style="font-size:11px;color:#475569;">{sector}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:{score_color};font-weight:700;">{adj:.0f}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;">{mom:.0f}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;">{qual:.0f}</div>'
+            f'<div style="font-size:11px;color:#334155;">{rank:.0f}th pct</div>'
+            f'<div><span style="font-size:10px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
+            f'</div>'
+        )
+        st.markdown(row_html, unsafe_allow_html=True)
+
+    # Table footer
+    st.markdown("""
+    <div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);
+         border-radius:0 0 6px 6px;font-size:10px;color:#334155;">
+      Scores update on page load. Signal = adj. composite score after regime-scaled macro overlay.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Methodology strip ─────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="margin-top:32px;padding:20px;background:rgba(255,255,255,.02);
+         border:1px solid rgba(255,255,255,.06);border-radius:8px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
+           letter-spacing:.15em;margin-bottom:12px;">⚡ METHODOLOGY</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:12px;color:#475569;">
+        <div>
+          <div style="color:#94a3b8;margin-bottom:4px;">5-Pillar Factor Model</div>
+          Momentum 30% · Quality 30% · Value 20% · Sentiment 10% · Volume 10%
+        </div>
+        <div>
+          <div style="color:#94a3b8;margin-bottom:4px;">Walk-Forward Backtest</div>
+          +307% adj. cumulative vs SPY +131% · Sharpe 1.72 · Max DD 6.5% · 20 quarters
+        </div>
+        <div>
+          <div style="color:#94a3b8;margin-bottom:4px;">Macro Overlay</div>
+          Regime-scaled: 35% weight RISK_OFF · 15% RISK_ON · 10% NEUTRAL
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Disclaimer + CTA ──────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="margin-top:24px;padding:16px 20px;background:rgba(255,255,255,.01);
+         border:1px solid rgba(255,255,255,.05);border-radius:6px;
+         font-size:11px;color:#334155;line-height:1.7;">
+      ⚠ QNTM is a quantitative research platform for informational purposes only.
+      This is not investment advice. Factor scores are cross-sectional rankings — not buy/sell recommendations.
+      Past model performance does not guarantee future results. Always consult a qualified financial adviser.
+    </div>
+    <div style="margin-top:20px;text-align:center;padding-bottom:40px;">
+      <div style="font-size:12px;color:#475569;margin-bottom:12px;">
+        Track your portfolio against these signals — free account
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _, cta_col, _ = st.columns([1, 2, 1])
+    with cta_col:
+        if st.button("⚡ Create Free Account → Track Your Portfolio", key="model_cta", use_container_width=True):
+            go("auth")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+
     bt = BACKTEST_DATA
 
     # ── Global landing CSS — overrides Streamlit defaults completely ─────────────
@@ -1332,7 +1550,7 @@ def page_landing():
     """, unsafe_allow_html=True)
 
     # Hero CTA buttons — real Streamlit, work immediately
-    hero_gap, hero_b1, hero_b2, _ = st.columns([3, 1, 1, 4])
+    hero_gap, hero_b1, hero_b2, hero_b3, _ = st.columns([3, 1, 1, 1, 3])
     with hero_b1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
         if st.button("⚡ Get Started Free", key="hero_register", use_container_width=True):
@@ -1344,6 +1562,11 @@ def page_landing():
         if st.button("Sign In →", key="hero_signin", use_container_width=True):
             st.session_state.auth_tab = "signin"
             go("auth")
+        st.markdown('</div>', unsafe_allow_html=True)
+    with hero_b3:
+        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
+        if st.button("📊 Live Signals →", key="hero_model", use_container_width=True):
+            go("model")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ── TICKER TAPE — live from model scores ─────────────────────────────────
@@ -4011,10 +4234,14 @@ def page_platform():
 # ROUTER
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
+    # ── Public model portfolio — bypass cookie gate ───────────────────────────
+    if st.query_params.get("page") == "model":
+        st.session_state.page = "model"
+
     # ── Cookie consent gate — persists via ?ck=1 query param ─────────────────
     if st.query_params.get("ck") == "1":
         st.session_state.cookies_accepted = True
-    if not st.session_state.cookies_accepted:
+    if not st.session_state.cookies_accepted and st.session_state.page != "model":
         page_cookie_consent()
         return
 
@@ -4026,6 +4253,7 @@ def main():
     if   route == "landing":  page_landing()
     elif route == "auth":     page_auth()
     elif route == "mfa":      page_mfa()
+    elif route == "model":    page_model_portfolio()
     elif route == "platform": page_platform()
     elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
     else:                     page_landing()
