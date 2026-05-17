@@ -1488,8 +1488,8 @@ def page_model_portfolio():
         <div style="margin-top:8px;">{event_badges}</div>
       </div>
       <div style="font-size:11px;color:#334155;text-align:right;">
-        Walk-forward validated · Sharpe 1.72 · Max DD 6.5%<br>
-        <span style="color:#475569;">+307% adj. cumulative vs SPY +131% (2020–2025)</span>
+        Walk-forward validated · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}%<br>
+        <span style="color:#475569;">+{bt['model_total_ret_adj']:.0f}% adj. cumulative vs SPY +{bt['spy_total_ret']:.0f}% (2020–2025)</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1637,7 +1637,7 @@ def page_model_portfolio():
         <div><div style="color:#94a3b8;margin-bottom:3px;">5-Pillar Factor Model</div>
           Momentum 30% · Quality 30% · Value 20% · Sentiment 10% · Volume 10%</div>
         <div><div style="color:#94a3b8;margin-bottom:3px;">Walk-Forward Backtest</div>
-          +307% adj. cumulative vs SPY +131% · Sharpe 1.72 · Max DD 6.5%</div>
+          +{bt['model_total_ret_adj']:.0f}% adj. cumulative vs SPY +{bt['spy_total_ret']:.0f}% · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}%</div>
         <div><div style="color:#94a3b8;margin-bottom:3px;">Macro Overlay</div>
           Regime-scaled: 35% RISK_OFF · 15% RISK_ON · 10% NEUTRAL</div>
       </div>
@@ -1746,7 +1746,7 @@ def page_model_portfolio():
       </div>
       <div style="font-size:11px;color:#334155;text-align:right;">
         Scores recomputed on page load<br>
-        <span style="color:#475569;">Walk-forward validated · Sharpe 1.72 · Max DD 6.5%</span>
+        <span style="color:#475569;">Walk-forward validated · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}%</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1834,7 +1834,7 @@ def page_model_portfolio():
         </div>
         <div>
           <div style="color:#94a3b8;margin-bottom:4px;">Walk-Forward Backtest</div>
-          +307% adj. cumulative vs SPY +131% · Sharpe 1.72 · Max DD 6.5% · 20 quarters
+          +{bt['model_total_ret_adj']:.0f}% adj. cumulative vs SPY +{bt['spy_total_ret']:.0f}% · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}% · 20 quarters
         </div>
         <div>
           <div style="color:#94a3b8;margin-bottom:4px;">Macro Overlay</div>
@@ -2224,16 +2224,17 @@ def page_landing():
             </div>
             """, unsafe_allow_html=True)
 
-    # Risk metrics row
+    # Risk metrics row — pull from BACKTEST_DATA
     st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
     rm = st.columns(6)
+    spy_dd  = bt.get("max_dd_spy", -25.4)
     for col, (label, val, sub) in zip(rm, [
-        ("SHARPE",    "1.51",  ">1.0 excellent"),
-        ("SORTINO",   "2.52",  ">1.5 strong"),
-        ("INFO RATIO","1.75",  ">0.5 signal"),
-        ("MAX DD",    "-4.8%", "SPY hit -18.2%"),
-        ("WIN RATE",  "83.3%", "5 of 6 regimes"),
-        ("CAGR ALPHA","+27.3pp","/yr vs index"),
+        ("SHARPE",     f"{bt['sharpe']:.2f}",                ">1.0 excellent"),
+        ("SORTINO",    f"{bt['sortino']:.2f}",               ">1.5 strong"),
+        ("INFO RATIO", f"{bt.get('information_ratio',1.25):.2f}", ">0.5 signal"),
+        ("MAX DD",     f"{bt['max_dd_model']:.1f}%",         f"SPY hit {spy_dd:.1f}%"),
+        ("WIN RATE",   f"{bt['win_rate']:.1f}%",             f"{bt['n_quarters']} quarters"),
+        ("CAGR ALPHA", f"+{bt['cagr_alpha']:.1f}pp",         "/yr vs index"),
     ]):
         with col:
             st.markdown(f"""
@@ -2338,7 +2339,7 @@ def page_landing():
             {feat_row("5 pillar scores: Momentum, Quality, Volume, Value, Sentiment")}
             {feat_row("75/25 quant/macro blend")}
             {feat_row("Portfolio tracker — up to 10 positions")}
-            {feat_row("5-year walk-forward backtest (+347% cumulative)")}
+            {feat_row("5-year walk-forward backtest (+{bt['model_total_ret']:.0f}% cumulative)")}
             {feat_row("Macro regime indicator (3 active events)")}
             {feat_row("Search any ticker for instant model score")}
           </div>
@@ -3372,16 +3373,16 @@ def page_backtest():
             </div>
             """, unsafe_allow_html=True)
 
-    # Risk metrics
+    # Risk metrics — pull from BACKTEST_DATA
     st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
     risk_cols = st.columns(6)
     risk_data = [
-        ("Sharpe","1.512",">1.0 excellent"),
-        ("Sortino","2.519",">1.5 strong"),
-        ("Info Ratio","1.746",">0.5 signal"),
-        ("Max DD","-4.8%","SPY -18.2%"),
-        ("Win Rate","83.3%","5 of 6 regimes"),
-        ("CAGR Alpha","+27.3pp","/yr vs index"),
+        ("Sharpe",     f"{bt['sharpe']:.2f}",                    ">1.0 excellent"),
+        ("Sortino",    f"{bt['sortino']:.2f}",                   ">1.5 strong"),
+        ("Info Ratio", f"{bt.get('information_ratio',1.25):.2f}",">0.5 signal"),
+        ("Max DD",     f"{bt['max_dd_model']:.1f}%",             f"SPY {bt.get('max_dd_spy',-25.4):.1f}%"),
+        ("Win Rate",   f"{bt['win_rate']:.1f}%",                 f"{bt['n_quarters']} quarters"),
+        ("CAGR Alpha", f"+{bt['cagr_alpha']:.1f}pp",             "/yr vs index"),
     ]
     for col,(label,val,sub) in zip(risk_cols,risk_data):
         with col:
