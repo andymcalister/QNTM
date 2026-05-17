@@ -46,6 +46,9 @@ st.markdown("""
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
+/* Kill horizontal scroll at root level */
+html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+
 /* ── Dark background — covers all Streamlit containers, old and new selectors */
 html, body, [class*="css"],
 [data-testid="stAppViewContainer"],
@@ -57,12 +60,14 @@ section[data-testid="stMain"] > div,
   font-family: 'Outfit', sans-serif !important;
   background: #0a0b14 !important;
   color: #e2e8f0 !important;
+  overflow-x: hidden !important;
 }
 .main .block-container,
 [data-testid="stMainBlockContainer"] {
   padding: 0 !important;
   max-width: 100% !important;
   background: #0a0b14 !important;
+  overflow-x: hidden !important;
 }
 
 /* Hide all Streamlit chrome */
@@ -1812,7 +1817,7 @@ def page_landing():
     #MainMenu, header[data-testid="stHeader"], footer { display: none !important; }
 
     /* ── Layout helpers ── */
-    .land-section { padding: 72px 48px; max-width: 1200px; margin: 0 auto; }
+    .land-section { padding: 72px clamp(16px,4vw,48px); max-width: 1200px; margin: 0 auto; }
     .land-divider  { border-top: 1px solid rgba(255,255,255,.06); }
 
     /* ── Animations ── */
@@ -2002,7 +2007,7 @@ def page_landing():
 
     # ── HERO ──────────────────────────────────────────────────────────────────
     st.markdown(f"""
-    <div style="padding:80px 48px 60px;max-width:1200px;margin:0 auto;
+    <div style="padding:80px clamp(16px,4vw,48px) 60px;max-width:1200px;margin:0 auto;
          background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(212,168,67,.08) 0%,transparent 70%);">
 
       <div style="display:inline-flex;align-items:center;gap:10px;
@@ -2029,20 +2034,21 @@ def page_landing():
     """, unsafe_allow_html=True)
 
     # Hero CTA buttons — real Streamlit, work immediately
-    hero_gap, hero_b1, hero_b2, hero_b3, _ = st.columns([3, 1, 1, 1, 3])
-    with hero_b1:
+    # Hero CTA buttons — use a 3-col layout just for buttons (narrow, text-only, no overflow risk)
+    hb1, hb2, hb3 = st.columns(3)
+    with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
         if st.button("⚡ Get Started Free", key="hero_register", use_container_width=True):
             st.session_state.auth_tab = "register"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
-    with hero_b2:
+    with hb2:
         st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
         if st.button("Sign In →", key="hero_signin", use_container_width=True):
             st.session_state.auth_tab = "signin"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
-    with hero_b3:
+    with hb3:
         st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
         if st.button("📊 Live Signals →", key="hero_model", use_container_width=True):
             go("model")
@@ -2189,45 +2195,43 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    mc = st.columns(5)
-    for col, (name, weight, desc, color) in zip(mc, [
+    pillars_html = ""
+    for name, weight, desc, color in [
         ("Momentum",  "30%", "Price trend, RSI, MACD, MA crossovers, 52-week proximity",      "#d4a843"),
         ("Quality",   "25%", "ROE, profit margin, revenue growth, EPS beat rate, FCF yield",   "#1D9E75"),
         ("Volume",    "20%", "Relative volume, OBV, Chaikin Money Flow, accumulation/dist.",   "#00ff87"),
         ("Value",     "15%", "Forward P/E, PEG ratio, EV/EBITDA, Price-to-Sales, FCF yield",  "#f59e0b"),
         ("Sentiment", "10%", "Short interest, insider buy ratio, institutional ownership",      "#f97316"),
-    ]):
-        with col:
-            st.markdown(f"""
-            <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;
-                 padding:18px 14px;margin:0 0 0 24px;">
-              <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;
-                   color:{color};margin-bottom:4px;">{weight}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
-                   color:#e2e4f0;margin-bottom:8px;">{name}</div>
-              <div style="font-size:11px;color:#94a3b8;line-height:1.6;">{desc}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    ]:
+        pillars_html += (
+            f'<div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px 14px;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:{color};margin-bottom:4px;">{weight}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#e2e4f0;margin-bottom:8px;">{name}</div>'
+            f'<div style="font-size:11px;color:#94a3b8;line-height:1.6;">{desc}</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:0 24px;">{pillars_html}</div>',
+        unsafe_allow_html=True)
 
-    # Signal boxes
+    # Signal boxes — pure CSS grid, no st.columns
     st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
-    sig1, sig2, sig3 = st.columns(3)
-    for col, (label, score, desc, color, brd) in zip([sig1,sig2,sig3], [
+    signals_html = ""
+    for label, score, desc, color, brd in [
         ("▲ BUY SIGNAL",   "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
         ("─ HOLD",         "Score 45–59","Maintain existing positions. No new capital deployed. Monitor for further deterioration.",            "#f59e0b", "rgba(245,158,11,.25)"),
         ("▼ EXIT SIGNAL",  "Score < 45", "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                  "#E24B4A", "rgba(226,75,74,.25)"),
-    ]):
-        with col:
-            st.markdown(f"""
-            <div style="background:#0e0f1a;border:1px solid {brd};border-radius:8px;
-                 padding:22px;margin:0 0 0 24px;">
-              <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-                   color:{color};letter-spacing:.1em;margin-bottom:8px;">{label}</div>
-              <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:500;
-                   color:{color};margin-bottom:10px;">{score}</div>
-              <div style="font-size:13px;color:#94a3b8;line-height:1.7;">{desc}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    ]:
+        signals_html += (
+            f'<div style="background:#0e0f1a;border:1px solid {brd};border-radius:8px;padding:22px;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:{color};letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:500;color:{color};margin-bottom:10px;">{score}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;line-height:1.7;">{desc}</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;padding:0 24px;">{signals_html}</div>',
+        unsafe_allow_html=True)
 
     # ── PRICING ───────────────────────────────────────────────────────────────
     st.markdown("""
@@ -2242,97 +2246,96 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    pr1, pr2, pr3 = st.columns(3)
-
     def feat_row(text, highlight=False):
-        dot  = "●" if highlight else "○"
-        dc   = "#1D9E75" if highlight else "#475569"
-        tc   = "#e2e4f0" if highlight else "#64748b"
+        dot = "●" if highlight else "○"
+        dc  = "#1D9E75" if highlight else "#475569"
+        tc  = "#e2e4f0" if highlight else "#64748b"
         return f'<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;font-size:13px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
 
-    with pr1:
-        st.markdown(f"""
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);
-             border-radius:10px;padding:26px 22px;margin:0 0 0 24px;">
-          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-               color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FREE</div>
-          <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
-               color:#e2e4f0;line-height:1;">$0</div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">forever</div>
-          <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
-            {feat_row("963-stock universe screener")}
-            {feat_row("BUY / HOLD / SELL signals with factor breakdown")}
-            {feat_row("5 pillar scores: Momentum, Quality, Volume, Value, Sentiment")}
-            {feat_row("75/25 quant/macro blend")}
-            {feat_row("Portfolio tracker — up to 10 positions")}
-            {feat_row("5-year walk-forward backtest (+{bt['model_total_ret']:.0f}% cumulative)")}
-            {feat_row("Macro regime indicator (3 active events)")}
-            {feat_row("Search any ticker for instant model score")}
-          </div>
+    # Pricing cards — pure HTML, no st.columns (avoids mobile horizontal scroll)
+    st.markdown(f"""
+    <style>
+    .pricing-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      padding: 0 24px;
+      margin-bottom: 16px;
+    }}
+    .pricing-btns {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      padding: 0 24px;
+      margin-bottom: 24px;
+    }}
+    </style>
+    <div class="pricing-grid">
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:26px 22px;">
+        <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FREE</div>
+        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">forever</div>
+        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
+          {feat_row("963-stock universe screener")}
+          {feat_row("BUY / HOLD / SELL signals with factor breakdown")}
+          {feat_row("5 pillar scores: Momentum, Quality, Volume, Value, Sentiment")}
+          {feat_row("75/25 quant/macro blend")}
+          {feat_row("Portfolio tracker — up to 10 positions")}
+          {feat_row(f"5-year walk-forward backtest (+{bt['model_total_ret']:.0f}% cumulative)")}
+          {feat_row("Macro regime indicator (3 active events)")}
+          {feat_row("Search any ticker for instant model score")}
         </div>
-        """, unsafe_allow_html=True)
-        st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="land-btn-ghost" style="padding:0 0 0 24px;">', unsafe_allow_html=True)
+      </div>
+      <div style="background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.5);border-radius:10px;padding:26px 22px;">
+        <div style="background:#d4a843;color:#000;font-family:Syne,sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:10px;">MOST POPULAR</div>
+        <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FOUNDING MEMBER</div>
+        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">first 50 users &middot; then $29/mo</div>
+        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
+          {feat_row("Everything in Free", True)}
+          {feat_row("Unlimited portfolio positions", True)}
+          {feat_row("💎 Hidden Gem detection across 963 stocks", True)}
+          {feat_row("Real-time BUY/SELL signal alerts on your holdings", True)}
+          {feat_row("Macro regime change alerts (war, oil, tariffs)", True)}
+          {feat_row("Portfolio value tracker with period toggles", True)}
+          {feat_row("Email signal notifications", True)}
+          {feat_row("Founding member badge — locked in at $0", True)}
+        </div>
+      </div>
+      <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:26px 22px;">
+        <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">INSTITUTIONAL</div>
+        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">Custom</div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">contact us</div>
+        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
+          {feat_row("Everything in Pro", True)}
+          {feat_row("Raw API access to all model scores", True)}
+          {feat_row("Custom stock universe upload", True)}
+          {feat_row("White-label branding option", True)}
+          {feat_row("Dedicated support & SLA guarantee", True)}
+          {feat_row("Multi-user team accounts", True)}
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Buttons — rendered in matching 3-column grid via st.columns only for button layout
+    # Using a single-row 3-col layout just for buttons is safe (no content overflow risk)
+    pb1, pb2, pb3 = st.columns(3)
+    with pb1:
+        st.markdown('<div style="padding:0 8px;">', unsafe_allow_html=True)
         if st.button("Get Started Free", key="price_free", use_container_width=True):
             st.session_state.auth_tab = "register"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
-
-    with pr2:
-        st.markdown(f"""
-        <div style="background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.5);
-             border-radius:10px;padding:26px 22px;margin:0 0 0 8px;">
-          <div style="background:#d4a843;color:#000;font-family:'Syne',sans-serif;font-size:10px;
-               font-weight:700;letter-spacing:.1em;padding:3px 10px;border-radius:2px;
-               display:inline-block;margin-bottom:10px;">MOST POPULAR</div>
-          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-               color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FOUNDING MEMBER</div>
-          <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
-               color:#d4a843;line-height:1;">$0</div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">
-            first 50 users &middot; then $29/mo
-          </div>
-          <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
-            {feat_row("Everything in Free", True)}
-            {feat_row("Unlimited portfolio positions", True)}
-            {feat_row("💎 Hidden Gem detection across 963 stocks", True)}
-            {feat_row("Real-time BUY/SELL signal alerts on your holdings", True)}
-            {feat_row("Macro regime change alerts (war, oil, tariffs)", True)}
-            {feat_row("Portfolio value tracker with period toggles", True)}
-            {feat_row("Email signal notifications", True)}
-            {feat_row("Founding member badge — locked in at $0", True)}
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="land-btn-primary" style="padding:0 0 0 8px;">', unsafe_allow_html=True)
+    with pb2:
+        st.markdown('<div style="padding:0 8px;">', unsafe_allow_html=True)
         if st.button("Join Free — 50 Spots", key="price_founding", use_container_width=True):
             st.session_state.auth_tab = "register"
-            st.session_state.auto_upgrade = True   # flag to upgrade after registration
+            st.session_state.auto_upgrade = True
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
-
-    with pr3:
-        st.markdown(f"""
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);
-             border-radius:10px;padding:26px 22px;margin:0 0 0 8px;">
-          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-               color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">INSTITUTIONAL</div>
-          <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
-               color:#e2e4f0;line-height:1;">Custom</div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;margin-top:4px;">contact us</div>
-          <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px;">
-            {feat_row("Everything in Pro", True)}
-            {feat_row("Raw API access to all model scores", True)}
-            {feat_row("Custom stock universe upload", True)}
-            {feat_row("White-label branding option", True)}
-            {feat_row("Dedicated support & SLA guarantee", True)}
-            {feat_row("Multi-user team accounts", True)}
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="land-btn-ghost" style="padding:0 0 0 8px;">', unsafe_allow_html=True)
+    with pb3:
+        st.markdown('<div style="padding:0 8px;">', unsafe_allow_html=True)
         if st.button("Contact Us", key="price_inst", use_container_width=True):
             st.markdown('<script>window.location.href="mailto:hello@qntm.app"</script>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -2340,7 +2343,7 @@ def page_landing():
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
     <div class="land-divider" style="margin-top:32px;"></div>
-    <div style="background:#080910;padding:48px 48px 40px;">
+    <div style="background:#080910;padding:48px clamp(16px,4vw,48px) 40px;">
       <div style="max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;
            align-items:flex-start;flex-wrap:wrap;gap:32px;margin-bottom:32px;">
         <div>
