@@ -1646,12 +1646,6 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
-    _, cta_col, _ = st.columns([1, 2, 1])
-    with cta_col:
-        if st.button("⚡ Create Free Account → Track Your Portfolio", key="model_cta", use_container_width=True):
-            go("auth")
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def page_landing():
