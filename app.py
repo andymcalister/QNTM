@@ -1230,9 +1230,9 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
-    _, back_col, _ = st.columns([1, 6, 1])
+    back_col, _ = st.columns([1, 5])
     with back_col:
-        if st.button("← Back", key="model_back_btn"):
+        if st.button("← Back", key="model_back_btn", use_container_width=True):
             if st.session_state.logged_in:
                 nav("screener")
             else:
