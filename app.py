@@ -370,94 +370,27 @@ hr{border-color:rgba(255,255,255,.07)!important;}
 
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 768px) {
-
-    /* NEVER stack columns — use horizontal scroll instead */
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        gap: 6px !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-
-    /* Layout base */
-    .main .block-container,[data-testid="stMainBlockContainer"] {
-        padding: 0 !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important;
-    }
-
-    /* Nav — compact single row */
-    [data-testid="stHorizontalBlock"] .stButton > button {
-        font-size: 10px !important;
-        padding: 8px 4px !important;
-        min-height: 36px !important;
-        white-space: nowrap !important;
-    }
-
-    /* Touch inputs — prevent iOS zoom */
+    /* Prevent iOS zoom on inputs */
     .stTextInput input,[data-baseweb="input"] input {
         font-size: 16px !important;
-        padding: 12px !important;
     }
-
-    /* Data grids — horizontal scroll */
-    div[style*="grid-template-columns"] {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-
-    /* Pillar bars — horizontal scroll not wrap */
-    div[style*="display:flex;gap:8px;margin-bottom:12px"] {
-        overflow-x: auto !important;
-        flex-wrap: nowrap !important;
-    }
-
-    /* Macro stats row — scroll not stack */
-    div[style*="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start"] {
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        padding-bottom: 4px !important;
-    }
-
-    /* Portfolio position row — scroll */
-    div[style*="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap"] {
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        padding-bottom: 4px !important;
-    }
-
-    /* Landing hero */
-    h1 { font-size: 28px !important; line-height: 1.2 !important; }
+    /* Scale landing hero text */
+    h1 { font-size: 28px !important; }
     .land-section { padding: 32px 16px !important; }
-
-    /* Chart */
-    iframe { max-width: 100% !important; }
-
-    /* Tooltips */
+    /* Tooltips stay on screen */
     .qntm-tip .tip-box {
         width: 220px !important;
         max-width: 80vw !important;
     }
-
-    /* Text scale */
-    div[style*="font-size:34px"] { font-size: 22px !important; }
-    div[style*="font-size:28px"] { font-size: 18px !important; }
-    div[style*="font-size:36px"] { font-size: 24px !important; }
-}
-
-@media (max-width: 480px) {
-    h1 { font-size: 22px !important; }
-    .land-section { padding: 24px 12px !important; }
-
-    /* Screener table min-width forces horizontal scroll */
-    div[style*="grid-template-columns:90px"] { min-width: 480px !important; }
-    div[style*="grid-template-columns:40px 110px"] { min-width: 560px !important; }
-
-    /* All markdown containers scrollable */
-    [data-testid="stMarkdownContainer"] {
+    /* Our custom HTML data tables — horizontal scroll */
+    .qntm-table-scroll {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch !important;
     }
+}
+@media (max-width: 480px) {
+    h1 { font-size: 22px !important; }
+    .land-section { padding: 24px 12px !important; }
 }
 /* Viewport meta (Streamlit adds this but ensure scale=1) */
 </style>
@@ -1542,8 +1475,10 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
-    # Table header
+    # Table header — wrapped in horizontal scroll container for mobile
     st.markdown("""
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <div style="min-width:680px;">
     <div style="display:grid;grid-template-columns:40px 110px 1fr 80px 80px 80px 90px 90px 80px;
          gap:6px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;
          border:1px solid rgba(255,255,255,.07);">
@@ -1611,6 +1546,7 @@ def page_model_portfolio():
       ● = Entry date from QNTM signal log (verified) · No dot = 90-day fallback estimate ·
       Returns are price-only, not total return · Equal-weight portfolio assumed
     </div>
+    </div></div>
     """, unsafe_allow_html=True)
 
     # ── Methodology + disclaimer ──────────────────────────────────────────────
@@ -3691,8 +3627,10 @@ document.body.prepend(c);
         'letter-spacing:.1em;margin:32px 0 12px;">12-MONTH CONVICTION PORTFOLIO — ACTUAL POSITIONS &amp; RETURNS</div>',
         unsafe_allow_html=True)
 
-    # Table header
+    # Table header — wrapped for mobile horizontal scroll
     st.markdown(
+        '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+        '<div style="min-width:520px;">'
         '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
         'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.07);">'
@@ -3733,7 +3671,7 @@ document.body.prepend(c);
 
     st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:11px;color:#334155;">Stocks avoided: ' +
                 ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
-                ' — exited or never entered on signal</div>',
+                ' — exited or never entered on signal</div></div></div>',
                 unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
