@@ -419,107 +419,24 @@ MACRO_EVENT_INFO = {
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
     Fetch macro events and compute sector overlays.
-    Live mode: scans RSS feeds (requires feedparser + internet).
-    Demo mode: returns estimated current regime from known macro environment.
+    Note: RSS live feeds are disabled — Streamlit Cloud blocks outbound RSS URLs.
+    Always returns estimated regime from _CURRENT_REGIME. Update _CURRENT_REGIME
+    manually when macro conditions change, or wire to a permitted data source.
     """
-    if not use_live_feeds:
-        # Demo mode — use estimated regime
-        sector_overlays = {}
-        for event_type in _CURRENT_REGIME["active_events"]:
-            impacts = SECTOR_EVENT_MAP.get(event_type, {})
-            for sector, impact in impacts.items():
-                sector_overlays[sector] = sector_overlays.get(sector, 0.0) + impact * 0.6
-        return {
-            "regime": _CURRENT_REGIME["label"],
-            "regime_score": _CURRENT_REGIME["score"],
-            "sector_overlays": sector_overlays,
-            "active_events": _CURRENT_REGIME["active_events"],
-            "source": "estimated",
-            "live": False,
-        }
+    sector_overlays = {}
+    for event_type in _CURRENT_REGIME["active_events"]:
+        impacts = SECTOR_EVENT_MAP.get(event_type, {})
+        for sector, impact in impacts.items():
+            sector_overlays[sector] = sector_overlays.get(sector, 0.0) + impact * 0.6
+    return {
+        "regime":          _CURRENT_REGIME["label"],
+        "regime_score":    _CURRENT_REGIME["score"],
+        "sector_overlays": sector_overlays,
+        "active_events":   _CURRENT_REGIME["active_events"],
+        "source":          "estimated",
+        "live":            False,
+    }
 
-    # Live mode — scan RSS feeds
-    try:
-        import feedparser, re
-        from datetime import datetime, timedelta
-        from collections import defaultdict
-
-        feeds = [
-            "https://feeds.reuters.com/reuters/businessNews",
-            "https://feeds.reuters.com/reuters/topNews",
-            "https://www.federalreserve.gov/feeds/press_all.xml",
-        ]
-        headlines = []
-        cutoff = datetime.now() - timedelta(hours=24)
-        for url in feeds:
-            try:
-                feed = feedparser.parse(url)
-                for entry in feed.entries[:20]:
-                    pub = entry.get("published_parsed") or entry.get("updated_parsed")
-                    if pub and datetime(*pub[:6]) < cutoff:
-                        continue
-                    headlines.append((entry.get("title","") + " " + entry.get("summary","")).lower())
-            except:
-                pass
-
-        # Detect events
-        event_counts = defaultdict(int)
-        for event_type, keywords in EVENT_KEYWORDS.items():
-            for h in headlines:
-                if any(k in h for k in keywords):
-                    event_counts[event_type] += 1
-
-        # Build sector overlays
-        sector_overlays = defaultdict(float)
-        active = []
-        for event_type, count in event_counts.items():
-            if count >= 1:
-                active.append(event_type)
-                conf = min(1.0, count / 4)
-                impacts = SECTOR_EVENT_MAP.get(event_type, {})
-                for sector, impact in impacts.items():
-                    sector_overlays[sector] += impact * conf
-
-        # Cap overlays
-        for s in sector_overlays:
-            sector_overlays[s] = max(-0.4, min(0.4, sector_overlays[s]))
-
-        # Regime classification
-        risk_off = {"tariff_broad","tariff_china","war_escalation","recession_signal","chip_export_ban"}
-        risk_on  = {"tariff_relief","fed_dovish","war_deescalation"}
-        regime_score = sum(0.3 if e in risk_on else -0.3 for e in active if e in risk_off | risk_on)
-        regime_score = max(-1.0, min(1.0, regime_score))
-
-        if   regime_score >=  0.4: regime_label = "RISK-ON"
-        elif regime_score >=  0.1: regime_label = "MILDLY BULLISH"
-        elif regime_score >= -0.1: regime_label = "NEUTRAL"
-        elif regime_score >= -0.4: regime_label = "RISK-OFF"
-        else:                       regime_label = "HIGH VOLATILITY"
-
-        return {
-            "regime": regime_label,
-            "regime_score": round(regime_score, 2),
-            "sector_overlays": dict(sector_overlays),
-            "active_events": active,
-            "headlines_scanned": len(headlines),
-            "source": "live",
-            "live": True,
-        }
-    except Exception as e:
-        # Inline static fallback — never recurse, never fail
-        sector_overlays = {}
-        for event_type in _CURRENT_REGIME["active_events"]:
-            impacts = SECTOR_EVENT_MAP.get(event_type, {})
-            for sector, impact in impacts.items():
-                sector_overlays[sector] = sector_overlays.get(sector, 0.0) + impact * 0.6
-        return {
-            "regime":         _CURRENT_REGIME["label"],
-            "regime_score":   _CURRENT_REGIME["score"],
-            "sector_overlays": sector_overlays,
-            "active_events":  _CURRENT_REGIME["active_events"],
-            "source":         "estimated",
-            "live":           False,
-        }
 
 
 def apply_macro_overlay(scores: list, macro_data: dict,
