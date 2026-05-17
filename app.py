@@ -3394,60 +3394,68 @@ def page_portfolio():
         delta_disp = delta_str if sc else "—"
         sig_disp   = (sig[:10] if sig else "—") if sig else "—"
 
-        st.markdown(f"""
-        <div style="background:{act_bg};border:{act_brd};border-radius:10px;padding:20px;margin-bottom:10px;">
-          <!-- Header -->
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
-            <div>
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-                <span style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;">{tk}</span>
-                <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:{act_c};
-                      background:{act_c}18;border:1px solid {act_c}44;padding:3px 10px;border-radius:3px;
-                      letter-spacing:.1em;">{arrow} {act}</span>
-                <span style="font-size:13px;color:#475569;">{sector}</span>
-              </div>
-              <div style="font-size:11px;color:#475569;">{driver}</div>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:{act_c};">{comp:.0f}</div>
-              <div style="font-size:12px;color:#475569;margin-top:2px;">blended score</div>
-              <div style="font-size:11px;color:{delta_c};margin-top:2px;">macro {delta_str}</div>
-            </div>
-          </div>
-          <!-- Position details row -->
-          <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">
-            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div><div style="font-family:DM Mono,monospace;font-size:20px;color:#d4a843;font-weight:500;">${:,.2f}</div><div style="font-size:9px;color:#334155;margin-top:1px;">indicative · may lag intraday</div></div>'.format(live_price) if live_price else '<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#334155;">—</div></div>'}
-            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">SHARES</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">{:.2f}</div></div>'.format(shares)}
-            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">AVG COST</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">${:.2f}</div></div>'.format(cost) if cost > 0 else ''}
-            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">MARKET VALUE</div><div style="font-family:DM Mono,monospace;font-size:18px;color:#e2e8f0;">${:,.0f}</div></div>'.format(market_value) if market_value else ''}
-            {'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">UNREALIZED P&L</div><div style="font-family:DM Mono,monospace;font-size:18px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f} ({abs(gl_pct):.1f}%)</div></div>'.format(gl_c=gl_c,gl_arrow=gl_arrow,unrealized_gl=unrealized_gl,gl_pct=gl_pct) if unrealized_gl is not None else ''}
-            {'<div style="font-size:11px;color:#475569;">entry <span style="color:#94a3b8;font-family:DM Mono,monospace;">' + str(entry)[:10] + '</span></div>' if entry else ''}
-          </div>
-          <!-- Pillar bars -->
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            {pillar_html}
-          </div>
-          <!-- Score chips -->
-          <div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);flex-wrap:wrap;">
-            <div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">
-              <div style="font-size:13px;color:#475569;letter-spacing:.06em;margin-bottom:4px;">Quant Score</div>
-              <div style="font-family:'DM Mono',monospace;font-size:18px;color:#94a3b8;">{quant_disp}</div>
-            </div>
-            <div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">
-              <div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Macro Adj</div>
-              <div style="font-family:'DM Mono',monospace;font-size:18px;color:{delta_c};">{delta_disp}</div>
-            </div>
-            <div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">
-              <div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Blend</div>
-              <div style="font-family:'DM Mono',monospace;font-size:18px;color:#d4a843;">75/25</div>
-            </div>
-            <div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">
-              <div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Signal</div>
-              <div style="font-family:'DM Mono',monospace;font-size:15px;color:#94a3b8;">{sig_disp}</div>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Build price/position row pieces
+        if live_price:
+            price_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div>'
+                          f'<div style="font-family:DM Mono,monospace;font-size:20px;color:#d4a843;font-weight:500;">${live_price:,.2f}</div>'
+                          f'<div style="font-size:9px;color:#334155;margin-top:1px;">indicative · may lag intraday</div></div>')
+        else:
+            price_block = ('<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">CURRENT PRICE</div>'
+                          '<div style="font-family:DM Mono,monospace;font-size:18px;color:#334155;">—</div></div>')
+
+        shares_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">SHARES</div>'
+                       f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">{shares:.2f}</div></div>')
+
+        cost_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">AVG COST</div>'
+                     f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">${cost:.2f}</div></div>') if cost > 0 else ""
+
+        mv_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">MARKET VALUE</div>'
+                   f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#e2e8f0;">${market_value:,.0f}</div></div>') if market_value else ""
+
+        gl_block = (f'<div><div style="font-size:10px;color:#475569;letter-spacing:.07em;margin-bottom:2px;">UNREALIZED P&amp;L</div>'
+                   f'<div style="font-family:DM Mono,monospace;font-size:18px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f} ({abs(gl_pct):.1f}%)</div></div>') if unrealized_gl is not None else ""
+
+        entry_block = (f'<div style="font-size:11px;color:#475569;">entry '
+                      f'<span style="color:#94a3b8;font-family:DM Mono,monospace;">{str(entry)[:10]}</span></div>') if entry else ""
+
+        card_html = (
+            f'<div style="background:{act_bg};border:{act_brd};border-radius:10px;padding:20px;margin-bottom:10px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
+            f'<div>'
+            f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
+            f'<span style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;">{tk}</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
+            f'background:{act_c}18;border:1px solid {act_c}44;padding:3px 10px;border-radius:3px;'
+            f'letter-spacing:.1em;">{arrow} {act}</span>'
+            f'<span style="font-size:13px;color:#475569;">{sector}</span>'
+            f'</div>'
+            f'<div style="font-size:11px;color:#475569;">{driver}</div>'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:36px;font-weight:700;color:{act_c};">{comp:.0f}</div>'
+            f'<div style="font-size:12px;color:#475569;margin-top:2px;">blended score</div>'
+            f'<div style="font-size:11px;color:{delta_c};margin-top:2px;">macro {delta_str}</div>'
+            f'</div></div>'
+            f'<div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">'
+            f'{price_block}{shares_block}{cost_block}{mv_block}{gl_block}{entry_block}'
+            f'</div>'
+            f'<div style="display:flex;gap:8px;margin-bottom:12px;">{pillar_html}</div>'
+            f'<div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);flex-wrap:wrap;">'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
+            f'<div style="font-size:13px;color:#475569;letter-spacing:.06em;margin-bottom:4px;">Quant Score</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#94a3b8;">{quant_disp}</div></div>'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
+            f'<div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Macro Adj</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:{delta_c};">{delta_disp}</div></div>'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
+            f'<div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Blend</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#d4a843;">75/25</div></div>'
+            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 10px;flex:1;min-width:70px;">'
+            f'<div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">Signal</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#94a3b8;">{sig_disp}</div></div>'
+            f'</div></div>'
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
         col_del, col_edit, _ = st.columns([1, 1, 6])
         with col_del:
