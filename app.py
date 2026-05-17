@@ -717,21 +717,25 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
 
         f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">',
         f'<div style="display:flex;align-items:center;gap:10px;">',
-        # Ticker with hover tooltip showing company name + description
-        *(
-            [
-                f'<span class="qntm-tip" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;cursor:help;">'
-                f'{r["ticker"]}{gem_badge}'
-                f'<span class="tip-box" style="width:320px;">'
-                f'<div class="tip-title" style="font-size:13px;">{company_info.get("name", r["ticker"])}</div>'
-                f'<div class="tip-body">{company_info.get("description", "") or "No description available."}</div>'
-                f'</span></span>'
-            ] if company_info and company_info.get("name") and company_info["name"] != r["ticker"]
-            else [
-                f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">'
-                f'{r["ticker"]}{gem_badge}</span>'
-            ]
-        ),
+        f'<div>'
+        f'<div style="display:flex;align-items:center;gap:6px;">'
+        + (
+            f'<span class="qntm-tip" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;cursor:help;">'
+            f'{r["ticker"]}{gem_badge}'
+            f'<span class="tip-box" style="width:320px;">'
+            f'<div class="tip-title" style="font-size:13px;">{company_info["name"]}</div>'
+            f'<div class="tip-body">{company_info.get("description") or "Search this ticker for a full company overview."}</div>'
+            f'</span></span>'
+            if (company_info and company_info.get("name") and company_info["name"] != r["ticker"])
+            else f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem_badge}</span>'
+        ) +
+        f'</div>'
+        + (
+            f'<div style="font-size:11px;color:#475569;margin-top:1px;">{company_info["name"]}</div>'
+            if (company_info and company_info.get("name") and company_info["name"] != r["ticker"])
+            else ''
+        ) +
+        f'</div>',
         f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
         f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
         f'letter-spacing:.1em;">{action_arrow} {act}</span>',
@@ -2255,7 +2259,7 @@ def page_screener():
             f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM</div>',
             unsafe_allow_html=True)
         for r in filtered:
-            ci = st.session_state.get("company_info_cache", {}).get(r["ticker"])
+            ci = get_company_info(r["ticker"])
             st.markdown(factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
