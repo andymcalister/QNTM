@@ -2508,10 +2508,10 @@ def page_gems():
             ])
 
             pillar_items = [
-                ("MOM", g["momentum"]),
-                ("QUAL", g["quality"]),
-                ("VAL", g.get("value",50)),
-                ("SENT", g.get("sentiment",50)),
+                ("MOM",  float(g.get("momentum")  or 0)),
+                ("QUAL", float(g.get("quality")   or 0)),
+                ("VAL",  float(g.get("value")     or 0)),
+                ("SENT", float(g.get("sentiment") or 0)),
             ]
             pillars_html = "".join([
                 f'<div style="text-align:center;">'
@@ -2523,7 +2523,6 @@ def page_gems():
             st.markdown(f"""
             <div style="background:rgba(0,255,135,.03);border:1px solid rgba(0,255,135,.2);
                  border-radius:8px;padding:22px;margin-bottom:16px;">
-              <!-- Header -->
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
                 <div>
                   <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;">
@@ -2541,12 +2540,10 @@ def page_gems():
                   <div style="font-size:10px;color:#334155;margin-top:2px;">raw {raw:.0f}</div>
                 </div>
               </div>
-              <!-- Pillar row -->
               <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
                    background:rgba(255,255,255,.03);border-radius:4px;padding:8px;margin-bottom:14px;">
                 {pillars_html}
               </div>
-              <!-- Reasons -->
               <div style="border-top:1px solid rgba(0,255,135,.12);padding-top:12px;">
                 {reasons_html if reasons_html else '<div style="font-size:12px;color:#334155;">Run Live Refresh for detailed factor reasons</div>'}
               </div>
