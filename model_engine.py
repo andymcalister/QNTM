@@ -166,46 +166,134 @@ def score_stock(ticker: str, price_history: list = None,
 
 
 # ── HIDDEN GEM DETECTION ──────────────────────────────────────────────────────
-def detect_hidden_gems(scores: list) -> list:
+def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
     """
     Hidden gems: stocks scoring well that are under-owned / under-followed.
+
+    v2.0 changes:
+    - Filters on adj_composite (macro-adjusted) not raw composite
+    - Uses live fundamentals from score dict if available, falls back to static
+    - Tightens threshold in RISK_OFF regime (only highest conviction surfaces)
+    - Macro regime context shown in gem reasons
+
     Criteria:
-    1. Composite >= 62 (high alignment)
-    2. Market cap = mid (not mega-cap, so less analyst coverage)
-    3. Short interest relatively low (not a crowded trade)
-    4. Insider buy ratio high (insiders are buying)
-    5. NOT in the top-10 most discussed stocks (off Wall St radar)
-    6. Accelerating revenue growth vs prior period
+    1. adj_composite >= threshold (62 standard, 67 in RISK_OFF/HIGH VOLATILITY)
+    2. Quality >= 55, Momentum >= 58
+    3. Not a mega-cap (less analyst coverage = more alpha opportunity)
+    4. At least one fundamental reason (revenue, earnings, insider, short interest)
     """
-    # Top 30 mega-caps excluded — gems are stocks flying under the radar
+    regime = (macro_data or {}).get("regime", "NEUTRAL") if macro_data else "NEUTRAL"
+
+    # Tighten threshold in risk-off environments
+    if regime in ("RISK_OFF", "HIGH VOLATILITY"):
+        threshold_composite = 67
+        threshold_quality   = 58
+        threshold_momentum  = 62
+    elif regime in ("RISK_ON", "MILDLY BULLISH"):
+        threshold_composite = 60
+        threshold_quality   = 53
+        threshold_momentum  = 56
+    else:
+        threshold_composite = 62
+        threshold_quality   = 55
+        threshold_momentum  = 58
+
+    # Mega-caps excluded — gems are stocks flying under the radar
     mega_caps = {
         "NVDA","MSFT","AAPL","META","GOOGL","GOOG","AMZN","TSLA","NFLX",
         "JPM","V","MA","UNH","JNJ","ABBV","PG","KO","WMT","COST",
         "XOM","CVX","BAC","GS","MS","BLK","LLY","MRK","TMO","HD","LOW"
     }
+
     gems = []
     for s in scores:
         tk = s["ticker"]
-        f  = FUNDAMENTALS.get(tk, {})
-        mc = f.get("mktcap","large")
-        # Mid-caps always gem-eligible; large-caps only if not mega-cap
         if tk in mega_caps:
             continue
-        if (s["composite"] >= 62
-            and s["quality"] >= 55
-            and s["momentum"] >= 58):
 
-            reasons = []
-            if f.get("rg",0) > 20:  reasons.append(f"Revenue growing {f['rg']}% YoY")
-            if f.get("eg",0) > 40:  reasons.append(f"Earnings accelerating {f['eg']}% YoY")
-            if f.get("ib",0) > 50:  reasons.append(f"Strong insider buying ({f['ib']:.0f}% buy ratio)")
-            if f.get("sp",99) < 3:  reasons.append(f"Low short interest ({f['sp']:.1f}%)")
-            if f.get("br",0)==100:  reasons.append("Beat estimates all 4 quarters")
+        # Use macro-adjusted composite (primary signal)
+        adj = s.get("adj_composite", s["composite"])
+        mom = s.get("momentum", 0)
+        qua = s.get("quality",  0)
 
-            if reasons:
-                s["is_hidden_gem"] = True
-                s["gem_reasons"] = reasons
-                gems.append(s)
+        if adj < threshold_composite: continue
+        if qua < threshold_quality:   continue
+        if mom < threshold_momentum:  continue
+
+        # Use live fundamentals from score dict if available, else static
+        live_f  = s.get("live_fundamentals", {})
+        static_f = FUNDAMENTALS.get(tk, {})
+        f = {**static_f, **live_f}
+
+        reasons = []
+
+        # Revenue growth
+        rg = f.get("rg")
+        if rg and rg > 20:
+            reasons.append(f"Revenue growing {rg:.0f}% YoY")
+        elif rg and rg > 10:
+            reasons.append(f"Revenue +{rg:.0f}% YoY")
+
+        # Earnings growth
+        eg = f.get("eg")
+        if eg and eg > 40:
+            reasons.append(f"Earnings accelerating {eg:.0f}% YoY")
+        elif eg and eg > 20:
+            reasons.append(f"Earnings +{eg:.0f}% YoY")
+
+        # Insider buying
+        ib = f.get("ib")
+        if ib and ib > 50:
+            reasons.append(f"Strong insider buying ({ib:.0f}% buy ratio)")
+        elif ib and ib > 35:
+            reasons.append(f"Insider buying elevated ({ib:.0f}%)")
+
+        # Low short interest
+        sp = f.get("sp")
+        if sp is not None and sp < 3:
+            reasons.append(f"Low short interest ({sp:.1f}%)")
+        elif sp is not None and sp < 5:
+            reasons.append(f"Modest short interest ({sp:.1f}%)")
+
+        # Beat rate
+        br = f.get("br")
+        if br and br == 100:
+            reasons.append("Beat estimates all 4 quarters")
+        elif br and br >= 75:
+            reasons.append(f"Beat estimates {br:.0f}% of quarters")
+
+        # FCF yield
+        fcf = f.get("fcf")
+        if fcf and fcf > 5:
+            reasons.append(f"Strong FCF yield ({fcf:.1f}%)")
+
+        # Pillar-based reasons (when fundamentals are thin)
+        if len(reasons) < 2:
+            if mom >= 70:
+                reasons.append(f"Strong price momentum (score {mom:.0f})")
+            if qua >= 70:
+                reasons.append(f"High quality fundamentals (score {qua:.0f})")
+            vol = s.get("volume", 0)
+            if vol >= 65:
+                reasons.append(f"Elevated institutional volume (score {vol:.0f})")
+
+        # Macro context
+        if regime == "RISK_OFF":
+            reasons.append("Surfaced in RISK-OFF screen — high-conviction filter applied")
+        elif regime == "RISK_ON":
+            reasons.append("Strong signal in risk-on environment")
+
+        if not reasons:
+            continue  # skip gems with no explainability
+
+        s["is_hidden_gem"] = True
+        s["gem_reasons"]   = reasons[:4]  # cap at 4 reasons for UI
+        s["gem_regime"]    = regime
+        s["gem_adj_score"] = adj
+        gems.append(s)
+
+    # Sort by adj_composite descending
+    gems.sort(key=lambda x: x.get("adj_composite", x["composite"]), reverse=True)
     return gems
 
 

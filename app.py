@@ -2078,7 +2078,7 @@ def page_screener():
 
     results = st.session_state.scan_results
     macro   = st.session_state.get("macro_data", {})
-    gems = detect_hidden_gems(results)
+    gems = detect_hidden_gems(results, macro_data=st.session_state.get("macro_data"))
     gem_tickers = {g["ticker"] for g in gems}
 
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
@@ -2459,44 +2459,100 @@ def page_gems():
     if st.session_state.scan_results is None:
         st.session_state.scan_results = run_full_scan(use_live_prices=False)
 
-    gems = detect_hidden_gems(st.session_state.scan_results)
+    gems = detect_hidden_gems(st.session_state.scan_results, macro_data=st.session_state.get("macro_data"))
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     if not gems:
         st.markdown('<div style="padding:0 32px;"><div style="color:#475569;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
         return
 
-    st.markdown(f'<div style="padding:0 32px;font-size:13px;color:#475569;margin-bottom:16px;">{len(gems)} hidden gems identified</div>', unsafe_allow_html=True)
-    g_cols = st.columns(min(len(gems),3))
+    regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
+    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316","RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
+    regime_color = regime_colors.get(regime, "#d4a843")
+
+    st.markdown(f'<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:13px;color:#475569;">{len(gems)} hidden gems identified</div>
+      <div style="font-size:11px;color:{regime_color};font-family:DM Mono,monospace;">
+        Regime: {regime} · {"Threshold 67+" if regime in ("RISK_OFF","HIGH VOLATILITY") else "Threshold 60+" if regime in ("RISK_ON","MILDLY BULLISH") else "Threshold 62+"}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    g_cols = st.columns(min(len(gems), 3))
     for i, g in enumerate(gems):
         with g_cols[i % 3]:
-            sig_c = signal_color(g["signal"])
+            adj   = g.get("adj_composite", g["composite"])
+            raw   = g["composite"]
+            price = g.get("price")
+            ci    = get_company_info(g["ticker"])
+            name  = ci.get("name", g["ticker"]) if ci else g["ticker"]
+            name_short = name if len(name) <= 24 else name[:22] + "…"
+            price_html = (f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:2px;">'
+                         f'${price:,.2f} / share</div>') if price else ""
+            delta = adj - raw
+            delta_html = ""
+            if abs(delta) >= 1:
+                d_col = "#ef4444" if delta < 0 else "#00ff87"
+                d_arrow = "▼" if delta < 0 else "▲"
+                delta_html = (f'<span style="font-size:10px;color:{d_col};margin-left:6px;">'
+                             f'{d_arrow} {abs(delta):.0f} macro adj</span>')
+
+            reasons_html = "".join([
+                f'<div style="font-size:12px;color:#4ade80;padding:4px 0;'
+                f'border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;">'
+                f'<span style="color:#00ff87;flex-shrink:0;">✓</span>'
+                f'<span>{r}</span></div>'
+                for r in g.get("gem_reasons", [])
+            ])
+
+            pillar_items = [
+                ("MOM", g["momentum"]),
+                ("QUAL", g["quality"]),
+                ("VAL", g.get("value",50)),
+                ("SENT", g.get("sentiment",50)),
+            ]
+            pillars_html = "".join([
+                f'<div style="text-align:center;">'
+                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{v:.0f}</div>'
+                f'<div style="font-size:9px;color:#334155;">{n}</div></div>'
+                for n, v in pillar_items
+            ])
+
             st.markdown(f"""
-            <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.25);
-                 border-radius:8px;padding:24px;margin-bottom:16px;
-                 animation:glow 4s ease infinite;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div style="background:rgba(0,255,135,.03);border:1px solid rgba(0,255,135,.2);
+                 border-radius:8px;padding:22px;margin-bottom:16px;">
+              <!-- Header -->
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
                 <div>
-                  <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff;">
+                  <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;">
                     💎 {g['ticker']}
                   </div>
-                  <div style="font-size:11px;color:#475569;margin-top:2px;">{g['sector']}</div>
+                  <div style="font-size:11px;color:#475569;margin-top:1px;">{name_short}</div>
+                  <div style="font-size:10px;color:#334155;">{g['sector']}</div>
+                  {price_html}
                 </div>
                 <div style="text-align:right;">
-                  <div style="font-family:'DM Mono',monospace;font-size:28px;font-weight:500;color:#00ff87;">
-                    {g['composite']:.0f}
+                  <div style="font-family:'DM Mono',monospace;font-size:30px;font-weight:500;color:#00ff87;line-height:1;">
+                    {adj:.0f}
                   </div>
-                  <div style="font-size:10px;color:#475569;">composite</div>
+                  <div style="font-size:10px;color:#475569;">adj score{delta_html}</div>
+                  <div style="font-size:10px;color:#334155;margin-top:2px;">raw {raw:.0f}</div>
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
-                {(lambda items: ''.join(['<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:8px;"><div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-bottom:2px;">' + n + '</div><div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:#00ff87;">' + v + '</div></div>' for n,v in items]))([("MOMENTUM",f"{g['momentum']:.0f}"),("QUALITY",f"{g['quality']:.0f}"),("VOLUME",f"{g['volume']:.0f}"),("SIGNAL",g['signal'][:8])])}
+              <!-- Pillar row -->
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
+                   background:rgba(255,255,255,.03);border-radius:4px;padding:8px;margin-bottom:14px;">
+                {pillars_html}
               </div>
-              <div style="border-top:1px solid rgba(0,255,135,.15);padding-top:12px;">
-                {''.join([f'<div style="font-size:12px;color:#4ade80;padding:3px 0;">✓ {r}</div>' for r in g.get('gem_reasons',[])])}
+              <!-- Reasons -->
+              <div style="border-top:1px solid rgba(0,255,135,.12);padding-top:12px;">
+                {reasons_html if reasons_html else '<div style="font-size:12px;color:#334155;">Run Live Refresh for detailed factor reasons</div>'}
               </div>
             </div>
             """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
