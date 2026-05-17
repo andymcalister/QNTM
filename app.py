@@ -1209,30 +1209,45 @@ def page_model_portfolio():
     """, unsafe_allow_html=True)
 
     # ── Header ────────────────────────────────────────────────────────────────
-    h_logo, h_right = st.columns([1, 4])
-    with h_logo:
-        st.markdown("""
-        <div style="background:rgba(2,4,8,.98);border-bottom:1px solid rgba(212,168,67,.2);
-             padding:20px 0 20px 20px;">
+    st.markdown("""
+    <style>
+    div[data-testid="stButton"][id="model_home_btn"] button,
+    button[kind="secondary"]:has(p:contains("← QNTM")) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        color: #e2e4f0 !important;
+        font-family: 'Syne', sans-serif !important;
+        font-size: 24px !important;
+        font-weight: 800 !important;
+        letter-spacing: .15em !important;
+        text-align: left !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background:rgba(2,4,8,.98);border-bottom:1px solid rgba(212,168,67,.2);
+         padding:16px 40px;display:flex;justify-content:space-between;align-items:center;">
+      <div id="qntm-logo-slot"></div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:#475569;">Returns measured from signal entry · Not investment advice</div>
+        <div style="font-size:10px;color:#334155;margin-top:2px;">
+          963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
-        """, unsafe_allow_html=True)
-        if st.button("← QNTM", key="model_home_btn", use_container_width=True):
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Render logo as button in its own row, minimal footprint
+    logo_col, _ = st.columns([1, 5])
+    with logo_col:
+        if st.button("QNTM", key="model_home_btn"):
             if st.session_state.logged_in:
                 nav("screener")
             else:
                 go("landing")
-    with h_right:
-        st.markdown("""
-        <div style="background:rgba(2,4,8,.98);border-bottom:1px solid rgba(212,168,67,.2);
-             padding:20px 40px 20px 0;display:flex;justify-content:flex-end;align-items:center;">
-          <div style="text-align:right;">
-            <div style="font-size:11px;color:#475569;">Returns measured from signal entry · Not investment advice</div>
-            <div style="font-size:10px;color:#334155;margin-top:2px;">
-              963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
 
     st.markdown('<div style="padding:32px 40px;">', unsafe_allow_html=True)
 
