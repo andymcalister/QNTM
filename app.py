@@ -46,9 +46,6 @@ st.markdown("""
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
-/* Kill horizontal scroll at root level */
-html, body { overflow-x: hidden !important; max-width: 100vw !important; }
-
 /* ── Dark background — covers all Streamlit containers, old and new selectors */
 html, body, [class*="css"],
 [data-testid="stAppViewContainer"],
@@ -60,14 +57,12 @@ section[data-testid="stMain"] > div,
   font-family: 'Outfit', sans-serif !important;
   background: #0a0b14 !important;
   color: #e2e8f0 !important;
-  overflow-x: hidden !important;
 }
 .main .block-container,
 [data-testid="stMainBlockContainer"] {
   padding: 0 !important;
   max-width: 100% !important;
   background: #0a0b14 !important;
-  overflow-x: hidden !important;
 }
 
 /* Hide all Streamlit chrome */
@@ -1797,21 +1792,31 @@ def page_landing():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap');
 
-    /* ── Hard reset Streamlit to dark theme ── */
+    /* ── Hard reset Streamlit to dark theme + kill all horizontal scroll ── */
+    html, body { overflow-x: hidden !important; max-width: 100vw !important; }
     html, body, [class*="css"], .main, .block-container,
     [data-testid="stAppViewContainer"], [data-testid="stMain"],
     [data-testid="stMainBlockContainer"] {
         background-color: #0a0b14 !important;
         color: #e2e4f0 !important;
         font-family: 'Outfit', sans-serif !important;
+        overflow-x: hidden !important;
+        max-width: 100% !important;
     }
     [data-testid="stAppViewContainer"] > section > div {
         background-color: #0a0b14 !important;
+        overflow-x: hidden !important;
     }
     /* Remove Streamlit default padding */
     .main .block-container {
         padding: 0 !important;
         max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+    /* Clamp all Streamlit column blocks to viewport */
+    [data-testid="stHorizontalBlock"] {
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
     }
     /* Hide hamburger, header, footer */
     #MainMenu, header[data-testid="stHeader"], footer { display: none !important; }
@@ -1828,6 +1833,8 @@ def page_landing():
     section[data-testid="stMain"] [data-testid="stHorizontalBlock"] {
         gap: 6px !important;
         background: transparent !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
     }
 
     /* ── CTA button styles — liquid gold primary, glass ghost ── */
@@ -1948,11 +1955,13 @@ def page_landing():
         background: rgba(10,11,20,.97);
         backdrop-filter: blur(12px);
         border-bottom: 1px solid rgba(255,255,255,.06);
-        padding: 0 48px;
+        padding: 0 clamp(16px,4vw,48px);
         height: 60px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        width: 100%;
+        box-sizing: border-box;
     }
     .qntm-nav-logo {
         font-family: 'Syne', sans-serif;
@@ -1981,7 +1990,7 @@ def page_landing():
     div[data-testid="stHorizontalBlock"]:has(button[key="nav_signin"]) {
         position: fixed !important;
         top: 10px !important;
-        right: 48px !important;
+        right: clamp(8px,3vw,48px) !important;
         z-index: 1000 !important;
         width: auto !important;
         display: flex !important;
@@ -2034,7 +2043,6 @@ def page_landing():
     """, unsafe_allow_html=True)
 
     # Hero CTA buttons — real Streamlit, work immediately
-    # Hero CTA buttons — use a 3-col layout just for buttons (narrow, text-only, no overflow risk)
     hb1, hb2, hb3 = st.columns(3)
     with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
@@ -2083,10 +2091,10 @@ def page_landing():
     tape_html = "".join(tape_span(*i) for i in tape_items).rstrip(" &middot; ")
     # Duplicate for seamless scroll
     st.markdown(f"""
-    <div style="overflow:hidden;background:rgba(0,255,135,.04);
+    <div style="overflow:hidden;max-width:100vw;background:rgba(0,255,135,.04);
          border-top:1px solid rgba(0,255,135,.12);border-bottom:1px solid rgba(0,255,135,.12);
          padding:13px 0;margin-top:8px;">
-      <div style="display:inline-flex;animation:land-ticker 45s linear infinite;white-space:nowrap;">
+      <div style="display:inline-flex;animation:land-ticker 45s linear infinite;white-space:nowrap;will-change:transform;">
         <span style="font-family:'DM Mono',monospace;font-size:12px;padding:0 24px;">
           {tape_html}
         </span>
@@ -2211,16 +2219,16 @@ def page_landing():
             f'</div>'
         )
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:0 24px;">{pillars_html}</div>',
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:0 clamp(16px,4vw,48px);">{pillars_html}</div>',
         unsafe_allow_html=True)
 
     # Signal boxes — pure CSS grid, no st.columns
     st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
     signals_html = ""
     for label, score, desc, color, brd in [
-        ("▲ BUY SIGNAL",   "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
-        ("─ HOLD",         "Score 45–59","Maintain existing positions. No new capital deployed. Monitor for further deterioration.",            "#f59e0b", "rgba(245,158,11,.25)"),
-        ("▼ EXIT SIGNAL",  "Score < 45", "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                  "#E24B4A", "rgba(226,75,74,.25)"),
+        ("▲ BUY SIGNAL",  "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
+        ("─ HOLD",        "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
+        ("▼ EXIT SIGNAL", "Score < 45",  "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                "#E24B4A", "rgba(226,75,74,.25)"),
     ]:
         signals_html += (
             f'<div style="background:#0e0f1a;border:1px solid {brd};border-radius:8px;padding:22px;">'
@@ -2230,7 +2238,7 @@ def page_landing():
             f'</div>'
         )
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;padding:0 24px;">{signals_html}</div>',
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:0 clamp(16px,4vw,48px);">{signals_html}</div>',
         unsafe_allow_html=True)
 
     # ── PRICING ───────────────────────────────────────────────────────────────
@@ -2252,25 +2260,9 @@ def page_landing():
         tc  = "#e2e4f0" if highlight else "#64748b"
         return f'<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;font-size:13px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
 
-    # Pricing cards — pure HTML, no st.columns (avoids mobile horizontal scroll)
+    # Pricing cards — pure CSS grid, no st.columns, no horizontal scroll
     st.markdown(f"""
-    <style>
-    .pricing-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-      padding: 0 24px;
-      margin-bottom: 16px;
-    }}
-    .pricing-btns {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-      padding: 0 24px;
-      margin-bottom: 24px;
-    }}
-    </style>
-    <div class="pricing-grid">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;padding:0 clamp(16px,4vw,48px);margin-bottom:16px;">
       <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:26px 22px;">
         <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:10px;">FREE</div>
         <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
@@ -2318,27 +2310,19 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    # Buttons — rendered in matching 3-column grid via st.columns only for button layout
-    # Using a single-row 3-col layout just for buttons is safe (no content overflow risk)
     pb1, pb2, pb3 = st.columns(3)
     with pb1:
-        st.markdown('<div style="padding:0 8px;">', unsafe_allow_html=True)
         if st.button("Get Started Free", key="price_free", use_container_width=True):
             st.session_state.auth_tab = "register"
             go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
     with pb2:
-        st.markdown('<div style="padding:0 8px;">', unsafe_allow_html=True)
         if st.button("Join Free — 50 Spots", key="price_founding", use_container_width=True):
             st.session_state.auth_tab = "register"
             st.session_state.auto_upgrade = True
             go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
     with pb3:
-        st.markdown('<div style="padding:0 8px;">', unsafe_allow_html=True)
         if st.button("Contact Us", key="price_inst", use_container_width=True):
-            st.markdown('<script>window.location.href="mailto:hello@qntm.app"</script>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+            pass
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
