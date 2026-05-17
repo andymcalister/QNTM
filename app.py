@@ -2710,64 +2710,36 @@ def platform_nav():
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
     # Nav tabs — pure HTML horizontal scroll, no st.columns
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
+    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
 
-    # Nav tab CSS — force buttons to display horizontally, no vertical text
-    st.markdown("""
-    <style>
-    div[data-testid="stHorizontalBlock"]:has(button[key="nav_screener_btn"]) {
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        flex-wrap: nowrap !important;
-        -webkit-overflow-scrolling: touch !important;
-        scrollbar-width: none !important;
-        gap: 2px !important;
-        padding-bottom: 2px !important;
-        border-bottom: 1px solid rgba(255,255,255,.06) !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key="nav_screener_btn"]) > div[data-testid="stColumn"] {
-        min-width: fit-content !important;
-        flex: 0 0 auto !important;
-        width: auto !important;
-        overflow: visible !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key="nav_screener_btn"]) button {
-        white-space: nowrap !important;
-        width: auto !important;
-        min-width: fit-content !important;
-        padding: 6px 10px !important;
-        font-size: 11px !important;
-        height: auto !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Map current nav to tab index
+    cur = st.session_state.get("nav","screener")
+    cur_idx = nav_keys.index(cur) if cur in nav_keys else 0
 
-    tabs = st.columns(len(nav_options) + 1)
-    for i, (label, key) in enumerate(zip(nav_options, nav_keys)):
-        with tabs[i]:
-            active = st.session_state.nav == key
-            border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
-            color  = "#00ff87" if active else "#475569"
-            st.markdown(
-                f'<div style="{border}padding:2px 0;">'
-                f'<span style="font-family:Syne,sans-serif;font-size:11px;letter-spacing:.06em;color:{color};">{label}</span>'
-                f'</div>',
-                unsafe_allow_html=True)
-            if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
-                nav(key)
+    selected_tab = st.radio(
+        "nav",
+        nav_options,
+        index=cur_idx,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="nav_radio"
+    )
 
-    with tabs[-1]:
-        if st.button("Sign Out", key="signout"):
-            for k in ["logged_in","user","mfa_verified","scan_results",
-                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
-                st.session_state[k] = False if k == "logged_in" else None
-            st.session_state.signed_out = True
-            for qp in ["uid","plan"]:
-                st.query_params.pop(qp, None)
-            _clear_localstorage_token()
-            go("landing")
-            st.rerun()
+    selected_key = nav_keys[nav_options.index(selected_tab)]
+
+    if selected_key == "signout":
+        for k in ["logged_in","user","mfa_verified","scan_results",
+                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
+            st.session_state[k] = False if k == "logged_in" else None
+        st.session_state.signed_out = True
+        for qp in ["uid","plan"]:
+            st.query_params.pop(qp, None)
+        _clear_localstorage_token()
+        go("landing")
+        st.rerun()
+    elif selected_key != cur:
+        nav(selected_key)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2927,22 +2899,22 @@ def page_screener():
 
     # Summary strip — single HTML row, no Streamlit columns
     stat_items = [
-        ("BUY","#00ff87",str(buys)),
-        ("HOLD","#fbbf24",str(holds)),
-        ("SELL","#ef4444",str(sells)),
-        ("GEMS","#00ff87",str(len(gems))),
-        ("UNIVERSE","#475569",f"{len(results)}"),
+        ("BUY",   "#00ff87", str(buys)),
+        ("HOLD",  "#fbbf24", str(holds)),
+        ("SELL",  "#ef4444", str(sells)),
+        ("GEMS",  "#00ff87", str(len(gems))),
+        ("UNIV",  "#475569", f"{len(results)}"),
     ]
     stats_html = "".join(
-        f'<div style="flex:1;min-width:60px;background:rgba(255,255,255,.02);'
-        f'border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:10px 8px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:4px;">{l}</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{c};">{v}</div>'
+        f'<div style="flex:1;min-width:0;background:rgba(255,255,255,.02);'
+        f'border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:8px 4px;text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:8px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">{l}</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{c};line-height:1;">{v}</div>'
         f'</div>'
         for l,c,v in stat_items
     )
     st.markdown(
-        f'<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:nowrap;">{stats_html}</div>',
+        f'<div style="display:flex;gap:5px;margin-bottom:16px;">{stats_html}</div>',
         unsafe_allow_html=True)
 
     # ── Screener tabs: Top 10 / Full Universe / Sector Breakdown ──────────────
@@ -2973,48 +2945,31 @@ def page_screener():
                     f'letter-spacing:.1em;margin:16px 0 10px;">{label}</div>',
                     unsafe_allow_html=True)
                 st.markdown(
-                    '<div style="display:grid;grid-template-columns:90px 1fr 58px 52px 60px 54px;'
-                    'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
+                    '<div style="display:grid;grid-template-columns:70px 1fr 44px;'
+                    'gap:4px;padding:8px 10px;background:#050a0f;border-radius:6px 6px 0 0;'
                     'border:1px solid rgba(255,255,255,.07);">'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">TICKER</div>'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">COMPANY</div>'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">PRICE</div>'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">SCORE</div>'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">RANK</div>'
-                    '<div style="font-size:10px;color:#334155;letter-spacing:.08em;">SIGNAL</div>'
+                    '<div style="font-size:9px;color:#334155;letter-spacing:.08em;">TICKER</div>'
+                    '<div style="font-size:9px;color:#334155;letter-spacing:.08em;">COMPANY</div>'
+                    '<div style="font-size:9px;color:#334155;letter-spacing:.08em;">SCORE</div>'
                     '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
                     score    = r.get("adj_composite", r.get("composite", 0))
-                    rank     = r.get("pct_rank", 50)
                     gem      = " 💎" if r["ticker"] in gem_tickers else ""
                     bg       = "rgba(255,255,255,.02)" if i%2==0 else "rgba(255,255,255,.008)"
                     ci       = get_company_info(r["ticker"])
                     name     = ci.get("name", r["ticker"]) if ci else r["ticker"]
-                    # Truncate long names for table display
-                    name_short = name if len(name) <= 22 else name[:20] + "…"
-                    # Price from live fundamentals cache if available
-                    price    = r.get("price") or (
-                        st.session_state.get("company_info_cache", {})
-                        .get(r["ticker"], {}).get("price")
-                    )
-                    price_str = f"${price:,.2f}" if price else "—"
+                    name_short = name if len(name) <= 18 else name[:16] + "…"
                     st.markdown(
-                        f'<div style="display:grid;grid-template-columns:90px 1fr 58px 52px 60px 54px;'
-                        f'gap:4px;padding:10px 12px;background:{bg};'
+                        f'<div style="display:grid;grid-template-columns:70px 1fr 44px;'
+                        f'gap:4px;padding:8px 10px;background:{bg};'
                         f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
                         f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+                        f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem}</div>'
                         f'<div>'
-                        f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem}</div>'
+                        f'<div style="font-size:10px;color:#94a3b8;">{name_short}</div>'
+                        f'<div style="font-size:9px;color:#334155;">{r.get("sector","")[:14]}</div>'
                         f'</div>'
-                        f'<div>'
-                        f'<div style="font-size:11px;color:#94a3b8;">{name_short}</div>'
-                        f'<div style="font-size:10px;color:#334155;">{r.get("sector","")[:14]}</div>'
-                        f'</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{price_str}</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{color};font-weight:700;">{score:.0f}</div>'
-                        f'<div style="font-size:12px;color:#334155;">{rank:.0f}th</div>'
-                        f'<div><span style="font-size:10px;font-weight:700;color:{act_c};background:{act_bg};'
-                        f'border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">{action_lbl}</span></div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{color};font-weight:700;">{score:.0f}</div>'
                         f'</div>',
                         unsafe_allow_html=True)
                 st.markdown(
@@ -4239,11 +4194,9 @@ def page_portfolio():
         )
         st.markdown(card_html, unsafe_allow_html=True)
 
-        col_del, col_edit, _ = st.columns([1, 1, 6])
-        with col_del:
-            if st.button(f"Remove", key=f"del_{tk}"):
-                delete_holding(uid(), tk)
-                st.rerun()
+        if st.button(f"🗑 Remove {tk}", key=f"del_{tk}"):
+            delete_holding(uid(), tk)
+            st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
