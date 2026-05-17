@@ -513,10 +513,10 @@ def _inject_localstorage_reader():
 
 
 def _write_localstorage_token(uid: str, plan: str):
-    """Write a 7-day auth token to localStorage."""
+    """Write a 30-day auth token to localStorage."""
     import streamlit.components.v1 as _cv1
     import json
-    expires = int(__import__('time').time() * 1000) + 7 * 24 * 60 * 60 * 1000
+    expires = int(__import__('time').time() * 1000) + 30 * 24 * 60 * 60 * 1000
     token   = json.dumps({"uid": uid, "plan": plan, "expires": expires})
     _cv1.html(f"""
     <script>
@@ -2448,9 +2448,6 @@ def page_auth():
                                      placeholder="••••••••")
             st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
 
-            si_remember = st.checkbox("Remember me on this device", key="si_remember", value=False)
-            st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
-
             if st.button("Sign In →", key="si_btn", use_container_width=True):
                 if not si_email or not si_pass:
                     st.error("Enter your email and password")
@@ -2463,19 +2460,17 @@ def page_auth():
                         if mfa.get("mfa_enabled") and mfa.get("totp_secret"):
                             st.session_state.pending_mfa_user   = user
                             st.session_state.pending_mfa_secret = mfa["totp_secret"]
-                            st.session_state.remember_me        = si_remember
                             go("mfa")
                         else:
                             st.session_state.logged_in    = True
                             st.session_state.user         = user
                             st.session_state.mfa_verified = True
                             st.session_state.scan_results = None
-                            # Force MFA setup on first login if not yet configured
                             st.session_state.force_mfa_setup = True
-                            if si_remember:
-                                st.query_params["uid"]  = user["id"]
-                                st.query_params["plan"] = user.get("plan","free")
-                                _write_localstorage_token(user["id"], user.get("plan","free"))
+                            # Always persist — 30-day token
+                            st.query_params["uid"]  = user["id"]
+                            st.query_params["plan"] = user.get("plan","free")
+                            _write_localstorage_token(user["id"], user.get("plan","free"))
                             go("platform")
                     else:
                         st.error(res.get("error", "Invalid email or password"))
@@ -2610,10 +2605,10 @@ def page_mfa():
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
-                    if st.session_state.get("remember_me"):
-                        st.query_params["uid"]  = user["id"]
-                        st.query_params["plan"] = user.get("plan","free")
-                        _write_localstorage_token(user["id"], user.get("plan","free"))
+                    # Always persist — 30-day token
+                    st.query_params["uid"]  = user["id"]
+                    st.query_params["plan"] = user.get("plan","free")
+                    _write_localstorage_token(user["id"], user.get("plan","free"))
                     go("platform")
                 else:
                     st.error("Invalid code — check your app and try again")
