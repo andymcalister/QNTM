@@ -1873,7 +1873,7 @@ def page_screener():
                 price_data = fetch_price_data([search_ticker], period="1y")
                 hist = price_data.get(search_ticker, [])
                 scored = score_stock(search_ticker, hist)
-                macro = st.session_state.get("macro_data") or fetch_macro_overlay(use_live_feeds=True)
+                macro = st.session_state.get("macro_data") or fetch_macro_overlay()
                 from model_engine import apply_macro_overlay as _apply
                 scored_list = _apply([scored], macro)
                 sr = scored_list[0]
