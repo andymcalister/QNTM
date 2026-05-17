@@ -1087,14 +1087,366 @@ def page_cookie_consent():
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PUBLIC MODEL PORTFOLIO PAGE — no auth required, shareable link
-# URL: /?page=model  or  /model (via query param)
+# URL: /?page=model
 # ══════════════════════════════════════════════════════════════════════════════
+
+def _get_signal_entry_data(tickers: list) -> dict:
+    """
+    For each ticker, find the earliest BUY signal date from signal_log.
+    Returns {ticker: {entry_date, entry_price, current_price, return_pct}}
+    Falls back to yfinance 6-month price if no signal_log data.
+    """
+    import yfinance as yf
+    from datetime import date, timedelta
+
+    result = {}
+
+    # Try Supabase signal_log first
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if sb:
+            resp = sb.table("signal_log").select(
+                "ticker,signal_date,price,adj_composite"
+            ).in_("ticker", tickers).eq("signal", "BUY").order(
+                "signal_date", desc=False
+            ).execute()
+
+            # Get earliest BUY date per ticker
+            earliest = {}
+            for row in (resp.data or []):
+                tk = row["ticker"]
+                if tk not in earliest:
+                    earliest[tk] = row
+            result = {tk: {"entry_date": r["signal_date"],
+                           "entry_price": r.get("price")}
+                      for tk, r in earliest.items()}
+    except Exception:
+        pass
+
+    # Fetch current prices + fill missing entry prices via yfinance
+    today = date.today()
+    fallback_date = (today - timedelta(days=90)).isoformat()  # 90-day default
+
+    for ticker in tickers:
+        try:
+            hist = yf.Ticker(ticker).history(period="1y", auto_adjust=True)
+            if hist.empty:
+                continue
+            current_price = float(hist["Close"].iloc[-1])
+
+            if ticker in result and result[ticker].get("entry_price"):
+                entry_price = float(result[ticker]["entry_price"])
+                entry_date  = result[ticker]["entry_date"]
+            elif ticker in result:
+                # Have entry date but no price — look it up
+                entry_date = result[ticker]["entry_date"]
+                try:
+                    ed = date.fromisoformat(str(entry_date)[:10])
+                    window = hist[hist.index.date >= ed]
+                    entry_price = float(window["Close"].iloc[0]) if not window.empty else float(hist["Close"].iloc[0])
+                except Exception:
+                    entry_price = float(hist["Close"].iloc[0])
+            else:
+                # No signal_log data — use 90 days ago as fallback
+                entry_date  = fallback_date
+                try:
+                    fd = date.fromisoformat(fallback_date)
+                    window = hist[hist.index.date >= fd]
+                    entry_price = float(window["Close"].iloc[0]) if not window.empty else float(hist["Close"].iloc[0])
+                except Exception:
+                    entry_price = float(hist["Close"].iloc[0])
+
+            ret_pct = ((current_price - entry_price) / entry_price * 100) if entry_price > 0 else None
+
+            result[ticker] = {
+                "entry_date":    str(entry_date)[:10],
+                "entry_price":   round(entry_price, 2),
+                "current_price": round(current_price, 2),
+                "return_pct":    round(ret_pct, 1) if ret_pct is not None else None,
+                "from_log":      ticker in result,
+            }
+        except Exception:
+            result[ticker] = {"entry_date": fallback_date, "entry_price": None,
+                              "current_price": None, "return_pct": None, "from_log": False}
+
+    return result
+
+
+def _get_spy_return(start_date: str) -> float:
+    """Get SPY return from start_date to today."""
+    try:
+        import yfinance as yf
+        from datetime import date, timedelta
+        hist = yf.Ticker("SPY").history(period="1y", auto_adjust=True)
+        if hist.empty:
+            return 0.0
+        ed = date.fromisoformat(str(start_date)[:10])
+        window = hist[hist.index.date >= ed]
+        if window.empty:
+            return 0.0
+        entry = float(window["Close"].iloc[0])
+        current = float(hist["Close"].iloc[-1])
+        return round((current - entry) / entry * 100, 1)
+    except Exception:
+        return 0.0
+
+
 def page_model_portfolio():
-    """
-    Public read-only page showing the model's current top BUY signals.
-    No login required. Shareable. Designed for X/Twitter posting.
-    """
-    from model_engine import run_full_scan, fetch_macro_overlay, apply_macro_overlay, SECTORS
+    from model_engine import run_full_scan, fetch_macro_overlay, apply_macro_overlay
+
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');
+    html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],
+    [data-testid="stMainBlockContainer"],.main {
+        background:#0a0b14!important;color:#e2e4f0!important;
+        font-family:'DM Mono',monospace!important;
+    }
+    .main .block-container{padding:0!important;max-width:100%!important;}
+    #MainMenu,header,footer,[data-testid="stHeader"]{display:none!important;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:rgba(2,4,8,.98);border-bottom:1px solid rgba(212,168,67,.2);
+         padding:20px 40px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;letter-spacing:.15em;">
+          Q<span style="color:#00ff87;">NTM</span>
+        </div>
+        <div style="font-size:10px;color:#475569;letter-spacing:.2em;margin-top:2px;">
+          LIVE MODEL TRACK RECORD
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:#475569;">Returns measured from signal entry · Not investment advice</div>
+        <div style="font-size:10px;color:#334155;margin-top:2px;">
+          963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div style="padding:32px 40px;">', unsafe_allow_html=True)
+
+    # ── Load scores ───────────────────────────────────────────────────────────
+    with st.spinner("Loading model signals..."):
+        raw    = run_full_scan(use_live_prices=False)
+        macro  = fetch_macro_overlay()
+        scores = apply_macro_overlay(raw, macro)
+
+    regime      = macro.get("regime", "NEUTRAL")
+    vix         = macro.get("vix")
+    oil         = macro.get("oil_price")
+    events      = macro.get("active_events", [])
+    is_live     = macro.get("live", False)
+    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316",
+                     "RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
+    regime_color = regime_colors.get(regime, "#d4a843")
+
+    # ── Macro strip ───────────────────────────────────────────────────────────
+    nice_events = {"tariff_broad":"Tariff Headwinds","tariff_relief":"Tariff Relief",
+                   "fed_hawkish":"Fed Hawkish","fed_dovish":"Fed Dovish",
+                   "recession_signal":"Recession Signal","war_escalation":"War Escalation",
+                   "chip_export_ban":"Chip Export Ban","oil_spike":"Oil Spike"}
+    event_badges = "".join(
+        f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
+        f'border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">'
+        f'{nice_events.get(e,e.replace("_"," ").title())}</span>'
+        for e in events[:4]
+    )
+    vix_str  = f' · VIX {vix:.1f}' if vix else ""
+    oil_str  = f' · WTI ${oil:.0f}' if oil else ""
+    live_txt = '⚡ Live' if is_live else 'Est.'
+
+    regime_rgb = {'RISK_OFF':'239,68,68','HIGH VOLATILITY':'249,115,22',
+                  'NEUTRAL':'212,168,67'}.get(regime,'29,158,117')
+    st.markdown(f"""
+    <div style="background:rgba({regime_rgb},.06);border:1px solid {regime_color}33;
+         border-radius:8px;padding:14px 20px;margin-bottom:24px;
+         display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
+              color:{regime_color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>
+        <span style="font-size:10px;color:#475569;margin-left:8px;">{live_txt}{vix_str}{oil_str}</span>
+        <div style="margin-top:8px;">{event_badges}</div>
+      </div>
+      <div style="font-size:11px;color:#334155;text-align:right;">
+        Walk-forward validated · Sharpe 1.72 · Max DD 6.5%<br>
+        <span style="color:#475569;">+307% adj. cumulative vs SPY +131% (2020–2025)</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Get top 15 BUYs and fetch track record data ───────────────────────────
+    buys = [s for s in scores
+            if s.get("adj_action","") == "BUY" or s.get("action","") == "BUY"][:15]
+    tickers = [s["ticker"] for s in buys]
+
+    with st.spinner("Fetching signal entry prices and returns..."):
+        track = _get_signal_entry_data(tickers)
+
+    # ── Portfolio summary stats ───────────────────────────────────────────────
+    returns = [track[tk]["return_pct"] for tk in tickers
+               if tk in track and track[tk].get("return_pct") is not None]
+    avg_return = sum(returns) / len(returns) if returns else None
+
+    # SPY return from earliest signal date
+    all_entry_dates = [track[tk]["entry_date"] for tk in tickers
+                       if tk in track and track[tk].get("entry_date")]
+    earliest_date = min(all_entry_dates) if all_entry_dates else None
+    spy_ret = _get_spy_return(earliest_date) if earliest_date else None
+    alpha   = round(avg_return - spy_ret, 1) if avg_return is not None and spy_ret is not None else None
+
+    # Hero stats
+    stat_cols = st.columns(4)
+    stats = [
+        ("Portfolio Avg Return", f"+{avg_return:.1f}%" if avg_return and avg_return >= 0
+          else f"{avg_return:.1f}%" if avg_return else "—",
+         "Equal-weight BUY signals", "#00ff87" if (avg_return or 0) >= 0 else "#ef4444"),
+        ("SPY Same Period", f"+{spy_ret:.1f}%" if spy_ret and spy_ret >= 0
+          else f"{spy_ret:.1f}%" if spy_ret else "—",
+         f"From {earliest_date or '—'}", "#475569"),
+        ("Alpha vs SPY", f"+{alpha:.1f}pp" if alpha and alpha >= 0
+          else f"{alpha:.1f}pp" if alpha else "—",
+         "Outperformance", "#d4a843" if (alpha or 0) >= 0 else "#ef4444"),
+        ("Signals Active", str(len(buys)),
+         f"{len(returns)} with return data", "#94a3b8"),
+    ]
+    for col, (label, val, sub, color) in zip(stat_cols, stats):
+        with col:
+            st.markdown(
+                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+                f'border-left:2px solid {color};border-radius:6px;padding:16px 20px;">'
+                f'<div style="font-size:10px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
+                f'<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:{color};line-height:1;">{val}</div>'
+                f'<div style="font-size:11px;color:#334155;margin-top:6px;">{sub}</div>'
+                f'</div>',
+                unsafe_allow_html=True)
+
+    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+
+    # ── Track record table ────────────────────────────────────────────────────
+    from_log_count = sum(1 for tk in tickers if track.get(tk,{}).get("from_log"))
+    data_note = (f"⚡ {from_log_count} entry dates from model signal log · "
+                 f"{len(tickers)-from_log_count} using 90-day fallback")
+
+    st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.15em;">
+        ▲ ACTIVE BUY SIGNALS — LIVE TRACK RECORD
+      </div>
+      <div style="font-size:10px;color:#334155;">{data_note}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Table header
+    st.markdown("""
+    <div style="display:grid;grid-template-columns:40px 110px 1fr 80px 80px 80px 90px 90px 80px;
+         gap:6px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;
+         border:1px solid rgba(255,255,255,.07);">
+      <div style="font-size:10px;color:#334155;">#</div>
+      <div style="font-size:10px;color:#334155;">TICKER</div>
+      <div style="font-size:10px;color:#334155;">SECTOR</div>
+      <div style="font-size:10px;color:#334155;">ENTRY DATE</div>
+      <div style="font-size:10px;color:#334155;">ENTRY $</div>
+      <div style="font-size:10px;color:#334155;">NOW $</div>
+      <div style="font-size:10px;color:#334155;">RETURN</div>
+      <div style="font-size:10px;color:#334155;">SCORE</div>
+      <div style="font-size:10px;color:#334155;">SIGNAL</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for i, s in enumerate(buys):
+        tk   = s["ticker"]
+        t    = track.get(tk, {})
+        adj  = float(s.get("adj_composite", s.get("composite", 0)) or 0)
+        sect = s.get("sector","Unknown")[:16]
+        ci   = get_company_info(tk)
+        name = (ci.get("name", tk) if ci else tk)[:14] + ("…" if len(ci.get("name",tk) if ci else tk) > 14 else "")
+
+        entry_date    = t.get("entry_date","—")[:10]
+        entry_price   = t.get("entry_price")
+        current_price = t.get("current_price")
+        ret_pct       = t.get("return_pct")
+        from_log      = t.get("from_log", False)
+
+        ret_color  = "#00ff87" if (ret_pct or 0) >= 0 else "#ef4444"
+        ret_str    = (f"+{ret_pct:.1f}%" if ret_pct and ret_pct >= 0
+                      else f"{ret_pct:.1f}%" if ret_pct is not None else "—")
+        score_col  = "#00ff87" if adj >= 65 else "#d4a843" if adj >= 60 else "#94a3b8"
+        bg         = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        log_dot    = '<span style="color:#00ff87;font-size:8px;" title="From signal log">●</span> ' if from_log else ""
+
+        row = (
+            f'<div style="display:grid;grid-template-columns:40px 110px 1fr 80px 80px 80px 90px 90px 80px;'
+            f'gap:6px;padding:10px 14px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-size:11px;color:#334155;">{i+1}</div>'
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{tk}</div>'
+            f'<div style="font-size:9px;color:#334155;">{name}</div>'
+            f'</div>'
+            f'<div style="font-size:11px;color:#475569;">{sect}</div>'
+            f'<div style="font-size:11px;color:#475569;font-family:DM Mono,monospace;">{log_dot}{entry_date}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">'
+            f'{"$"+f"{entry_price:,.0f}" if entry_price else "—"}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">'
+            f'{"$"+f"{current_price:,.0f}" if current_price else "—"}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{ret_color};">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
+            f'<div><span style="font-size:10px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
+            f'</div>'
+        )
+        st.markdown(row, unsafe_allow_html=True)
+
+    # Table footer
+    st.markdown(f"""
+    <div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);
+         border-radius:0 0 6px 6px;font-size:10px;color:#334155;">
+      ● = Entry date from QNTM signal log (verified) · No dot = 90-day fallback estimate ·
+      Returns are price-only, not total return · Equal-weight portfolio assumed
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Methodology + disclaimer ──────────────────────────────────────────────
+    st.markdown("""
+    <div style="margin-top:28px;padding:18px;background:rgba(255,255,255,.02);
+         border:1px solid rgba(255,255,255,.06);border-radius:8px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
+           letter-spacing:.15em;margin-bottom:10px;">⚡ METHODOLOGY</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:11px;color:#475569;">
+        <div><div style="color:#94a3b8;margin-bottom:3px;">5-Pillar Factor Model</div>
+          Momentum 30% · Quality 30% · Value 20% · Sentiment 10% · Volume 10%</div>
+        <div><div style="color:#94a3b8;margin-bottom:3px;">Walk-Forward Backtest</div>
+          +307% adj. cumulative vs SPY +131% · Sharpe 1.72 · Max DD 6.5%</div>
+        <div><div style="color:#94a3b8;margin-bottom:3px;">Macro Overlay</div>
+          Regime-scaled: 35% RISK_OFF · 15% RISK_ON · 10% NEUTRAL</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:14px 18px;background:rgba(255,255,255,.01);
+         border:1px solid rgba(255,255,255,.05);border-radius:6px;
+         font-size:10px;color:#334155;line-height:1.7;">
+      ⚠ Not investment advice. Factor scores are cross-sectional rankings only.
+      Past model performance does not guarantee future results.
+      Returns shown are indicative price returns from signal date — not audited.
+      Always consult a qualified financial adviser before making investment decisions.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
+    _, cta_col, _ = st.columns([1, 2, 1])
+    with cta_col:
+        if st.button("⚡ Track Your Portfolio Against These Signals — Free", key="model_cta", use_container_width=True):
+            go("auth")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 
     st.markdown("""
     <style>
