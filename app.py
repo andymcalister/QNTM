@@ -1154,10 +1154,12 @@ def page_legal(doc_key: str = "privacy"):
     </style>
     """, unsafe_allow_html=True)
 
-    bc1, bc2 = st.columns([1, 8])
-    with bc1:
-        if st.button("← Back", key="legal_back"):
-            go("landing")
+    st.markdown("""
+    <a href="/" style="display:inline-flex;align-items:center;gap:6px;
+       font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#00ff87;
+       text-decoration:none;padding:10px 16px;border:1px solid rgba(0,255,135,.3);
+       border-radius:6px;margin:16px 16px 0;">← Back</a>
+    """, unsafe_allow_html=True)
 
     st.markdown('<div class="legal-body">', unsafe_allow_html=True)
     st.markdown(text)
@@ -2712,21 +2714,36 @@ def platform_nav():
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
-    tabs = st.columns(len(nav_options) + 1)
+    # Nav tabs — pure HTML horizontal scroll, no st.columns
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
-    for i,(label,key) in enumerate(zip(nav_options,nav_keys)):
-        with tabs[i]:
-            active = st.session_state.nav == key
-            border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
-            color  = "#00ff87" if active else "#475569"
-            st.markdown(f'<div style="{border}padding:4px 0;">'
-                       f'<span style="font-family:Syne,sans-serif;font-size:11px;'
-                       f'letter-spacing:.06em;color:{color};">{label}</span></div>',
-                       unsafe_allow_html=True)
-            if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
-                nav(key)
+    tabs_html = ""
+    for label, key in zip(nav_options, nav_keys):
+        active = st.session_state.nav == key
+        border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
+        color  = "#00ff87" if active else "#475569"
+        tabs_html += (
+            f'<a href="?nav_tab={key}" style="flex-shrink:0;text-decoration:none;padding:10px 14px;{border}">'
+            f'<span style="font-family:Syne,sans-serif;font-size:11px;letter-spacing:.06em;color:{color};white-space:nowrap;">{label}</span>'
+            f'</a>'
+        )
+    st.markdown(f"""
+    <div style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;
+         border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:8px;
+         scrollbar-width:none;">
+      {tabs_html}
+    </div>
+    """, unsafe_allow_html=True)
 
-    with tabs[-1]:
+    # Handle nav_tab query param routing
+    if st.query_params.get("nav_tab") in nav_keys:
+        nav(st.query_params.get("nav_tab"))
+        st.rerun()
+
+    # Sign out button — full width, standalone
+    so_col, _ = st.columns([1, 4])
+    with so_col:
         if st.button("Sign Out", key="signout"):
             for k in ["logged_in","user","mfa_verified","scan_results",
                       "macro_data","mfa_recovery_mode","live_refresh_running"]:
@@ -2994,21 +3011,20 @@ def page_screener():
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
-        fc1, fc2, fc3, fc4, fc5 = st.columns([2,2,2,1,1])
+        fc1, fc2, fc3 = st.columns(3)
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
             filter_act = st.selectbox("Action", ["All","BUY","HOLD","SELL"], key="f_act")
         with fc3:
             filter_sig = st.selectbox("Signal Strength", ["All","STRONG ALIGN","HIGH ALIGN","MODERATE","LOW ALIGN","WEAK/NEG"], key="f_sig")
-        with fc4:
-            st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
-            if st.button("🔄 Rescan", key="rescan"):
+        rb1, rb2 = st.columns(2)
+        with rb1:
+            if st.button("🔄 Rescan", key="rescan", use_container_width=True):
                 st.session_state.scan_results = None
                 st.rerun()
-        with fc5:
-            st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
-            if st.button("⚡ Live Refresh", key="live_refresh"):
+        with rb2:
+            if st.button("⚡ Live Refresh", key="live_refresh", use_container_width=True):
                 st.session_state.live_refresh_running = True
                 st.rerun()
 
@@ -3499,25 +3515,24 @@ document.body.prepend(c);
     </div>
     """, unsafe_allow_html=True)
 
-    mac_cols = st.columns(4)
     mac_stats = [
         ("75/25 Blended Return",f"+{bt['macro_cumulative_return']:.1f}%",f"${bt['macro_final_100k']:,} from $100K","#d4a843"),
         ("Pure Quant Return",f"+{bt['pure_quant_cumulative']:.1f}%","No macro overlay","#94a3b8"),
         ("Blended vs SPY",f"+{bt['blended_vs_spy_pp']:.0f}pp","Cumulative outperformance","#1D9E75"),
         ("Macro: Drawdown Saved",f"-{bt['macro_drawdown_improvement_pp']:.1f}pp","vs pure quant max DD","#1D9E75"),
     ]
-    for col,(label,val,sub,color) in zip(mac_cols,mac_stats):
-        with col:
-            st.markdown(f"""
-            <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-                 border-top:2px solid {color};border-radius:6px;padding:16px;text-align:center;">
-              <div style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;
-                   letter-spacing:.1em;margin-bottom:10px;">{label}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;
-                   color:{color};line-height:1;">{val}</div>
-              <div style="font-size:13px;color:#475569;margin-top:8px;">{sub}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    mac_html = "".join([
+        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+        f'border-top:2px solid {color};border-radius:6px;padding:16px;text-align:center;min-width:0;overflow:hidden;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:10px;">{label}</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:clamp(18px,4vw,26px);font-weight:800;color:{color};line-height:1;">{val}</div>'
+        f'<div style="font-size:11px;color:#475569;margin-top:8px;">{sub}</div>'
+        f'</div>'
+        for label,val,sub,color in mac_stats
+    ])
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">{mac_html}</div>',
+        unsafe_allow_html=True)
 
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
@@ -3527,7 +3542,6 @@ document.body.prepend(c);
          letter-spacing:.1em;margin:8px 0 8px;">SIDE-BY-SIDE: BLENDED vs PURE QUANT vs SPY</div>
     """, unsafe_allow_html=True)
 
-    comp_cols = st.columns(3)
     comparison = [
         ("75/25 Blended","#d4a843",
          bt['macro_cumulative_return'], bt['macro_annualized_return'],
@@ -3541,40 +3555,27 @@ document.body.prepend(c);
          bt['benchmark_cumulative'], bt['benchmark_annualized'],
          bt['benchmark_sharpe'], None, bt['benchmark_max_drawdown'], None, None, None),
     ]
-    for col,(name,color,cum,ann,sharpe,sortino,mdd,wr,ir,adj) in zip(comp_cols,comparison):
-        with col:
-            sortino_row = f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:11px;color:#334155;">Sortino</span><span style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{sortino:.2f}</span></div>' if sortino else ""
-            wr_row = f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:11px;color:#334155;">Win Rate</span><span style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{wr:.1f}%</span></div>' if wr else ""
-            ir_row = f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:11px;color:#334155;">Info Ratio</span><span style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{ir:.2f}</span></div>' if ir else ""
-            adj_row = f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:11px;color:#334155;">Adj. Return*</span><span style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">+{adj:.1f}%</span></div>' if adj else ""
-            st.markdown(f"""
-            <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-                 border-left:3px solid {color};border-radius:6px;padding:14px 16px;">
-              <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-                   color:{color};letter-spacing:.08em;margin-bottom:12px;">{name}</div>
-              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);">
-                <span style="font-size:11px;color:#334155;">Cumulative</span>
-                <span style="font-family:'DM Mono',monospace;font-size:12px;color:{color};">+{cum:.1f}%</span>
-              </div>
-              {adj_row}
-              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);">
-                <span style="font-size:11px;color:#334155;">Annualized</span>
-                <span style="font-family:'DM Mono',monospace;font-size:12px;color:{color};">+{ann:.1f}%</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);">
-                <span style="font-size:11px;color:#334155;">Sharpe</span>
-                <span style="font-family:'DM Mono',monospace;font-size:12px;color:#94a3b8;">{sharpe:.2f}</span>
-              </div>
-              {sortino_row}
-              {ir_row}
-              {wr_row}
-              <div style="display:flex;justify-content:space-between;padding:6px 0;">
-                <span style="font-size:11px;color:#334155;">Max Drawdown</span>
-                <span style="font-family:'DM Mono',monospace;font-size:12px;color:#ef4444;">-{mdd:.1f}%</span>
-              </div>
-            </div>
-            <div style="font-size:10px;color:#334155;margin-top:4px;">* Adj. for survivorship bias</div>
-            """, unsafe_allow_html=True)
+    comp_html = ""
+    for name,color,cum,ann,sharpe,sortino,mdd,wr,ir,adj in comparison:
+        sortino_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Sortino</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{sortino:.2f}</span></div>' if sortino else ""
+        wr_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Win Rate</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{wr:.1f}%</span></div>' if wr else ""
+        ir_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Info Ratio</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{ir:.2f}</span></div>' if ir else ""
+        adj_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Adj. Return*</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;">+{adj:.1f}%</span></div>' if adj else ""
+        comp_html += (
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            f'border-left:3px solid {color};border-radius:6px;padding:12px;min-width:0;overflow:hidden;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{color};letter-spacing:.06em;margin-bottom:10px;">{name}</div>'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Cumulative</span><span style="font-family:DM Mono,monospace;font-size:11px;color:{color};">+{cum:.1f}%</span></div>'
+            f'{adj_row}'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Annualized</span><span style="font-family:DM Mono,monospace;font-size:11px;color:{color};">+{ann:.1f}%</span></div>'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Sharpe</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{sharpe:.2f}</span></div>'
+            f'{sortino_row}{ir_row}{wr_row}'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="font-size:10px;color:#334155;">Max Drawdown</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#ef4444;">-{mdd:.1f}%</span></div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">{comp_html}</div>',
+        unsafe_allow_html=True)
 
     # Regime breakdown
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
@@ -3932,23 +3933,24 @@ def page_portfolio():
     port_sells = sum(1 for h in holdings if score_map.get(h["ticker"],{}).get("adj_action", score_map.get(h["ticker"],{}).get("action")) == "SELL")
     port_na    = n_holdings - port_buys - port_holds - port_sells
 
-    s1, s2, s3, s4 = st.columns(4)
     port_summary_data = [
-        (s1, "▲ BUY Signals",     port_buys,  "#00ff87"),
-        (s2, "─ Hold",            port_holds, "#fbbf24"),
-        (s3, "▼ Sell / Exit",     port_sells, "#ef4444"),
-        (s4, "Outside Universe",  port_na,    "#475569"),
+        ("▲ BUY Signals",     port_buys,  "#00ff87"),
+        ("─ Hold",            port_holds, "#fbbf24"),
+        ("▼ Sell / Exit",     port_sells, "#ef4444"),
+        ("Outside Universe",  port_na,    "#475569"),
     ]
-    for col, label, val, color in port_summary_data:
-        with col:
-            st.markdown(
-                '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-                'border-radius:6px;padding:16px;margin-bottom:16px;">'
-                f'<div style="font-size:11px;color:#475569;letter-spacing:.08em;margin-bottom:8px;font-family:DM Mono,monospace;">{label}</div>'
-                f'<div style="font-size:36px;font-weight:800;color:{color};font-family:Syne,sans-serif;line-height:1;">{int(val)}</div>'
-                f'<div style="font-size:12px;color:#334155;margin-top:4px;">position{"s" if val!=1 else ""}</div>'
-                '</div>',
-                unsafe_allow_html=True)
+    ps_html = "".join([
+        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:6px;padding:14px;min-width:0;">'
+        f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:6px;font-family:DM Mono,monospace;">{label}</div>'
+        f'<div style="font-size:28px;font-weight:800;color:{color};font-family:Syne,sans-serif;line-height:1;">{int(val)}</div>'
+        f'<div style="font-size:11px;color:#334155;margin-top:3px;">position{"s" if val!=1 else ""}</div>'
+        f'</div>'
+        for label,val,color in port_summary_data
+    ])
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">{ps_html}</div>',
+        unsafe_allow_html=True)
 
     # ── Portfolio Value Tracker ───────────────────────────────────────────────
     SIGNAL_ANNUAL_RATE = {"BUY": 0.409, "HOLD": 0.12, "SELL": -0.05, "N/A": 0.10}
@@ -3966,14 +3968,22 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
-        period_btn_cols = st.columns(len(PERIOD_DATA))
-        for col, (pkey, plbl, pdays) in zip(period_btn_cols, PERIOD_DATA):
-            with col:
-                if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
-                    st.session_state.port_period = pkey
-                    st.rerun()
+        # Period toggle row — CSS grid, no st.columns
+        period_btns_html = "".join([
+            f'<button onclick="window.location.href=\'?period_sel={pkey}\'" '
+            f'style="background:{"rgba(0,255,135,.15)" if pkey==st.session_state.port_period else "rgba(255,255,255,.04)"};'
+            f'border:1px solid {"rgba(0,255,135,.5)" if pkey==st.session_state.port_period else "rgba(255,255,255,.1)"};'
+            f'color:{"#00ff87" if pkey==st.session_state.port_period else "#64748b"};'
+            f'font-family:DM Mono,monospace;font-size:11px;font-weight:700;'
+            f'padding:8px 4px;border-radius:4px;cursor:pointer;width:100%;">{pkey}</button>'
+            for pkey,plbl,pdays in PERIOD_DATA
+        ])
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:repeat({len(PERIOD_DATA)},1fr);gap:4px;margin-bottom:12px;">{period_btns_html}</div>',
+            unsafe_allow_html=True)
+        if st.query_params.get("period_sel") in [p[0] for p in PERIOD_DATA]:
+            st.session_state.port_period = st.query_params.get("period_sel")
+            st.rerun()
 
         # Compute return for selected period
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
@@ -4001,39 +4011,41 @@ def page_portfolio():
         change_c         = "#00ff87" if total_change >= 0 else "#ef4444"
         arrow            = "▲" if total_change >= 0 else "▼"
 
-        vc1, vc2, vc3, vc4 = st.columns([3,2,2,2])
-        for col, label, value_str, color, sub in [
-            (vc1, "TOTAL VALUE",        f"${total_current:,.0f}",              "#e2e8f0", f"Cost basis ${total_cost_basis:,.0f}"),
-            (vc2, "$ CHANGE",           f"{arrow} ${abs(total_change):,.0f}",  change_c,  plbl),
-            (vc3, "% CHANGE",           f"{arrow} {abs(chg_pct):.1f}%",        change_c,  plbl),
-        ]:
-            with col:
-                st.markdown(
-                    f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-                    f'border-left:3px solid {color};border-radius:8px;padding:16px 18px;margin-bottom:4px;">'
-                    f'<div style="font-size:12px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">{label}</div>'
-                    f'<div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;color:{color};line-height:1;">{value_str}</div>'
-                    f'<div style="font-size:12px;color:#475569;margin-top:5px;">{sub}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True)
+        b2    = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="BUY")
+        hold2 = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="HOLD")
+        sell2 = len(holdings) - b2 - hold2
 
-        with vc4:
-            b2    = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="BUY")
-            hold2 = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="HOLD")
-            sell2 = len(holdings) - b2 - hold2
-            st.markdown(
-                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-                f'border-radius:8px;padding:16px 18px;margin-bottom:4px;">'
-                f'<div style="font-size:12px;color:#475569;letter-spacing:.08em;margin-bottom:8px;">SIGNAL MIX</div>'
-                f'<div style="display:flex;gap:16px;">'
-                f'<div><div style="font-size:26px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div>'
-                f'<div style="font-size:12px;color:#475569;">BUY</div></div>'
-                f'<div><div style="font-size:26px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div>'
-                f'<div style="font-size:12px;color:#475569;">HOLD</div></div>'
-                f'<div><div style="font-size:26px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div>'
-                f'<div style="font-size:12px;color:#475569;">SELL</div></div>'
-                f'</div></div>',
-                unsafe_allow_html=True)
+        vc_html = (
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            f'border-left:3px solid #e2e8f0;border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
+            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:5px;">TOTAL VALUE</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:clamp(18px,4vw,28px);font-weight:800;color:#e2e8f0;line-height:1;">${total_current:,.0f}</div>'
+            f'<div style="font-size:10px;color:#475569;margin-top:4px;">Cost basis ${total_cost_basis:,.0f}</div></div>'
+
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            f'border-left:3px solid {change_c};border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
+            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:5px;">$ CHANGE</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:clamp(16px,4vw,26px);font-weight:800;color:{change_c};line-height:1;">{arrow} ${abs(total_change):,.0f}</div>'
+            f'<div style="font-size:10px;color:#475569;margin-top:4px;">{plbl}</div></div>'
+
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            f'border-left:3px solid {change_c};border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
+            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:5px;">% CHANGE</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:clamp(16px,4vw,26px);font-weight:800;color:{change_c};line-height:1;">{arrow} {abs(chg_pct):.1f}%</div>'
+            f'<div style="font-size:10px;color:#475569;margin-top:4px;">{plbl}</div></div>'
+
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            f'border-radius:8px;padding:14px;min-width:0;">'
+            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">SIGNAL MIX</div>'
+            f'<div style="display:flex;gap:10px;">'
+            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:10px;color:#475569;">BUY</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:10px;color:#475569;">HOLD</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:10px;color:#475569;">SELL</div></div>'
+            f'</div></div>'
+        )
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:4px;">{vc_html}</div>',
+            unsafe_allow_html=True)
 
         st.markdown('<div style="font-size:11px;color:#334155;margin:4px 0 20px;">Returns estimated from model signal rates. Add live price integration for real-time values.</div>', unsafe_allow_html=True)
 
@@ -4787,7 +4799,7 @@ def main():
     # ── Cookie consent gate — persists via ?ck=1 query param ─────────────────
     if st.query_params.get("ck") == "1":
         st.session_state.cookies_accepted = True
-    if not st.session_state.cookies_accepted and st.session_state.page != "model":
+    if not st.session_state.cookies_accepted and st.session_state.page not in ("model", "legal"):
         page_cookie_consent()
         return
 
