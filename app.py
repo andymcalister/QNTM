@@ -2522,35 +2522,53 @@ def platform_nav():
     n_count = get_unread_count(uid()) if plan in ("pro","institutional") else 0
     plan_color = "#00ff87" if plan in ("pro","institutional") else "#475569"
     plan_rgb = "0,255,135" if plan=="pro" else "249,115,22" if plan=="institutional" else "71,85,105"
-    # Pre-compute display name — never inline in f-string
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
         display_name = em[:20] + ("…" if len(em) > 20 else "")
-    # Notification badge — build as plain string, not conditional in f-string
     notif_html = (
         f'<span style="background:rgba(239,68,68,.15);color:#ef4444;border-radius:50%;'
         f'width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;'
         f'font-size:11px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
 
-    st.markdown(
-        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
-        f'border-bottom:1px solid rgba(255,255,255,.06);'
-        f'padding:0 32px;height:56px;display:flex;align-items:center;'
-        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
-        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;">'
-        f'Q<span style="color:#00ff87;">NTM</span></div>'
-        f'<div style="display:flex;align-items:center;gap:16px;">'
-        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
-        f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
-        f'{plan.upper()}</span>'
-        f'{notif_html}'
-        f'<span style="font-size:13px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
-        f'</div></div>',
-        unsafe_allow_html=True
-    )
+    # Logo col + right info col
+    logo_col, right_col = st.columns([1, 6])
+    with logo_col:
+        st.markdown("""
+        <style>
+        div[data-testid="stColumn"]:first-child button {
+            background:transparent!important;border:none!important;padding:0!important;
+            font-family:'Syne',sans-serif!important;font-size:20px!important;
+            font-weight:800!important;letter-spacing:.15em!important;
+            color:#e2e4f0!important;box-shadow:none!important;
+        }
+        div[data-testid="stColumn"]:first-child button:hover {
+            color:#00ff87!important;background:transparent!important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        if st.button("QNTM", key="nav_logo"):
+            if st.session_state.logged_in:
+                nav("screener")
+            else:
+                go("landing")
+
+    with right_col:
+        st.markdown(
+            f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+            f'border-bottom:1px solid rgba(255,255,255,.06);'
+            f'padding:0 32px;height:56px;display:flex;align-items:center;'
+            f'justify-content:flex-end;gap:16px;">'
+            f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+            f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
+            f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
+            f'{plan.upper()}</span>'
+            f'{notif_html}'
+            f'<span style="font-size:13px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
     # Nav tabs row
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
