@@ -268,13 +268,12 @@ div[data-baseweb="select"] span,
     border: 1px solid rgba(212,168,67,.3);
     border-radius: 8px;
     padding: 12px 16px;
-    width: 280px;
+    width: 260px;
     max-width: 85vw;
     z-index: 99999;
     transition: opacity .15s;
     pointer-events: none;
     box-shadow: 0 12px 40px rgba(0,0,0,.8);
-    top: 0; left: 0;
 }
 .qntm-tip .tip-box .tip-title {
     font-family: 'Syne', sans-serif;
@@ -298,6 +297,29 @@ div[data-baseweb="select"] span,
     visibility: visible;
     opacity: 1;
 }
+</style>
+<script>
+// Position tooltips above their trigger element, clamped to viewport
+document.addEventListener('mouseover', function(e) {
+    var tip = e.target.closest('.qntm-tip');
+    if (!tip) return;
+    var box = tip.querySelector('.tip-box');
+    if (!box) return;
+    var rect = tip.getBoundingClientRect();
+    var bw   = box.offsetWidth || 260;
+    var bh   = box.offsetHeight || 120;
+    // Position above the element
+    var top  = rect.top - bh - 10;
+    var left = rect.left + rect.width/2 - bw/2;
+    // Clamp to viewport
+    if (top < 8) top = rect.bottom + 10;  // flip below if no room above
+    if (left < 8) left = 8;
+    if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+    box.style.top  = top  + 'px';
+    box.style.left = left + 'px';
+});
+</script>
+<style>
 
 /* Metrics */
 [data-testid="metric-container"]{
@@ -729,7 +751,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
         f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#e2e8f0;">{quant_w}%</div>'
         f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Quant Weight</div>'
-        f'<span class="tip-box" style="width:260px;left:0;right:auto;">'
+        f'<span class="tip-box" style="width:260px;">'
         f'<div class="tip-title">Quant Weight</div>'
         f'<div class="tip-body">The percentage of each stock\'s final score driven purely by the 5-pillar factor model — momentum, quality, volume, value, and sentiment. Higher quant weight = model is doing the heavy lifting.</div>'
         f'</span></div>'
@@ -769,7 +791,7 @@ def macro_regime_banner_html(macro: dict) -> str:
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
             f'color:{"#ef4444" if oil_price>=90 else "#fbbf24" if oil_price>=75 else "#1D9E75"};">${oil_price:.0f}</div>'
             f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">WTI Crude</div>'
-            f'<span class="tip-box" style="width:260px;right:0;left:auto;">'
+            f'<span class="tip-box" style="width:260px;">'
             f'<div class="tip-title">WTI Crude Oil Price</div>'
             f'<div class="tip-body">West Texas Intermediate crude price per barrel. Above $90 triggers an oil_spike macro event — bullish for Energy, bearish for Consumer Discretionary and Industrials. Below $65 signals weak demand.</div>'
             f'</span></div>'
@@ -2672,30 +2694,21 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    # Nav tabs row — logo button first, then nav items, sign out last
+    # Nav tabs row — equal columns, no extra home button
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
 
-    tabs = st.columns([2] + [1]*len(nav_options) + [1, 1])
+    tabs = st.columns(len(nav_options) + 1)
 
-    # Logo button — col 0
-    with tabs[0]:
-        if st.button("⌂ Home", key="nav_logo_btn", use_container_width=True):
-            if st.session_state.logged_in:
-                nav("screener")
-            else:
-                go("landing")
-    # Nav tab buttons — cols 1 through N
     for i,(label,key) in enumerate(zip(nav_options,nav_keys)):
-        with tabs[i+1]:
+        with tabs[i]:
             active = st.session_state.nav == key
             border = "border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
             color  = "#00ff87" if active else "#475569"
-            st.markdown(f"""
-            <div style="{border}padding:8px 0;cursor:pointer;">
-              <span style="font-family:'Syne',sans-serif;font-size:11px;letter-spacing:.08em;color:{color};">{label}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f'<div style="{border}padding:4px 0;">'
+                       f'<span style="font-family:Syne,sans-serif;font-size:11px;'
+                       f'letter-spacing:.06em;color:{color};">{label}</span></div>',
+                       unsafe_allow_html=True)
             if st.button(label, key=f"nav_{key}_btn", use_container_width=True):
                 nav(key)
 
