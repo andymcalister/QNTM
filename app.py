@@ -999,7 +999,7 @@ def page_legal(doc_key: str = "privacy"):
 # COOKIE CONSENT PAGE — full page, 100% reliable buttons
 # ══════════════════════════════════════════════════════════════════════════════
 def page_cookie_consent():
-    """Full-page cookie consent — all Streamlit native, no large HTML blocks."""
+    """Full-page cookie consent — persists via query param so it only shows once."""
     st.markdown(
         "<style>"
         "html,body,[data-testid='stAppViewContainer'],[data-testid='stMain'],"
@@ -1019,7 +1019,6 @@ def page_cookie_consent():
         unsafe_allow_html=True
     )
 
-    # Card border only — no content inside HTML
     st.markdown(
         "<div style='max-width:580px;margin:0 auto;border:1px solid rgba(212,168,67,.4);"
         "border-radius:12px;padding:32px 36px 24px;background:#0d1117;'>",
@@ -1042,19 +1041,21 @@ def page_cookie_consent():
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
+    def _accept():
+        st.session_state.cookies_accepted = True
+        st.query_params["ck"] = "1"   # persists across refreshes
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("✓  Accept All Cookies", key="ck_accept", use_container_width=True):
-            st.session_state.cookies_accepted = True
-            st.rerun()
+            _accept(); st.rerun()
     with col2:
         if st.button("Essential Only", key="ck_essential", use_container_width=True):
-            st.session_state.cookies_accepted = True
-            st.rerun()
+            _accept(); st.rerun()
 
     st.markdown(
         "<div style='text-align:center;margin-top:10px;font-size:11px;color:#334155;'>"
-        "Your choice is saved for this session.</div>",
+        "Your choice is remembered across sessions.</div>",
         unsafe_allow_html=True
     )
 
@@ -1318,44 +1319,44 @@ def page_landing():
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── TICKER TAPE ───────────────────────────────────────────────────────────
-    st.markdown("""
+    # ── TICKER TAPE — live from model scores ─────────────────────────────────
+    # Pull top BUYs and bottom SELLs from scan results if available
+    tape_scores = st.session_state.get("scan_results") or []
+    if tape_scores:
+        buys  = [s for s in tape_scores if s.get("adj_action","") == "BUY"  or s.get("action","") == "BUY"][:8]
+        sells = [s for s in tape_scores if s.get("adj_action","") == "SELL" or s.get("action","") == "SELL"][:5]
+        tape_items = (
+            [(s["ticker"],"BUY","#00ff87")  for s in buys] +
+            [(s["ticker"],"SELL","#E24B4A") for s in sells]
+        )
+    else:
+        # Static fallback — updated to current model signals
+        tape_items = [
+            ("NVDA","BUY","#00ff87"),("META","BUY","#00ff87"),
+            ("AVGO","BUY","#00ff87"),("JPM","BUY","#00ff87"),
+            ("NFLX","BUY","#00ff87"),("COST","BUY","#00ff87"),
+            ("GS","BUY","#00ff87"),("WMT","BUY","#00ff87"),
+            ("MA","BUY","#00ff87"),("MSFT","BUY","#00ff87"),
+            ("TSLA","HOLD","#d4a843"),
+            ("UNH","SELL","#E24B4A"),("NKE","SELL","#E24B4A"),
+            ("PFE","SELL","#E24B4A"),("SNAP","SELL","#E24B4A"),
+        ]
+
+    def tape_span(ticker, action, color):
+        return f'<span style="color:{color};">{ticker} {action}</span> &middot; '
+
+    tape_html = "".join(tape_span(*i) for i in tape_items).rstrip(" &middot; ")
+    # Duplicate for seamless scroll
+    st.markdown(f"""
     <div style="overflow:hidden;background:rgba(0,255,135,.04);
          border-top:1px solid rgba(0,255,135,.12);border-bottom:1px solid rgba(0,255,135,.12);
          padding:13px 0;margin-top:8px;">
       <div style="display:inline-flex;animation:land-ticker 45s linear infinite;white-space:nowrap;">
         <span style="font-family:'DM Mono',monospace;font-size:12px;padding:0 24px;">
-          <span style="color:#00ff87;">NVDA BUY</span> &middot;
-          <span style="color:#00ff87;">META BUY</span> &middot;
-          <span style="color:#00ff87;">AVGO BUY</span> &middot;
-          <span style="color:#E24B4A;">UNH SELL</span> &middot;
-          <span style="color:#00ff87;">JPM BUY</span> &middot;
-          <span style="color:#E24B4A;">SNAP SELL</span> &middot;
-          <span style="color:#00ff87;">NFLX BUY</span> &middot;
-          <span style="color:#E24B4A;">NKE SELL</span> &middot;
-          <span style="color:#00ff87;">COST BUY</span> &middot;
-          <span style="color:#00ff87;">GS BUY</span> &middot;
-          <span style="color:#E24B4A;">TSLA SELL</span> &middot;
-          <span style="color:#00ff87;">WMT BUY</span> &middot;
-          <span style="color:#00ff87;">MA BUY</span> &middot;
-          <span style="color:#E24B4A;">PFE SELL</span> &middot;
-          <span style="color:#00ff87;">MSFT BUY</span> &middot;
-          <span style="color:#00ff87;">NVDA BUY</span> &middot;
-          <span style="color:#00ff87;">META BUY</span> &middot;
-          <span style="color:#00ff87;">AVGO BUY</span> &middot;
-          <span style="color:#E24B4A;">UNH SELL</span> &middot;
-          <span style="color:#00ff87;">JPM BUY</span> &middot;
-          <span style="color:#E24B4A;">SNAP SELL</span> &middot;
-          <span style="color:#00ff87;">NFLX BUY</span>
+          {tape_html}
         </span>
         <span style="font-family:'DM Mono',monospace;font-size:12px;padding:0 24px;">
-          <span style="color:#00ff87;">NVDA BUY</span> &middot;
-          <span style="color:#00ff87;">META BUY</span> &middot;
-          <span style="color:#00ff87;">AVGO BUY</span> &middot;
-          <span style="color:#E24B4A;">UNH SELL</span> &middot;
-          <span style="color:#00ff87;">JPM BUY</span> &middot;
-          <span style="color:#E24B4A;">SNAP SELL</span> &middot;
-          <span style="color:#00ff87;">NFLX BUY</span>
+          {tape_html}
         </span>
       </div>
     </div>
@@ -2530,13 +2531,31 @@ def page_backtest():
                 f'</div>',
                 unsafe_allow_html=True)
 
-    # Growth chart — Chart.js for full styling control
+    # Growth chart — compute from real quarterly returns for accuracy
     import streamlit.components.v1 as _components
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — MAY 2020 TO MAY 2025</div>', unsafe_allow_html=True)
-    labels   = bt["growth_labels"]
-    qntm_pts = bt["growth_model"]
-    spy_pts  = bt["growth_spy"]
+    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — Q2 2020 TO Q1 2025</div>', unsafe_allow_html=True)
+
+    # Build growth curves from quarterly returns (most accurate)
+    qr = bt.get("macro_quarterly_returns", {})
+    quarters_ordered = [
+        "2020-Q2","2020-Q3","2020-Q4",
+        "2021-Q1","2021-Q2","2021-Q3","2021-Q4",
+        "2022-Q1","2022-Q2","2022-Q3","2022-Q4",
+        "2023-Q1","2023-Q2","2023-Q3","2023-Q4",
+        "2024-Q1","2024-Q2","2024-Q3","2024-Q4",
+        "2025-Q1",
+    ]
+    labels   = ["Start"] + quarters_ordered
+    qntm_pts = [100000]
+    spy_pts  = [100000]
+    v_q, v_s = 100000.0, 100000.0
+    for q in quarters_ordered:
+        if q in qr:
+            v_q = round(v_q * (1 + qr[q]["blended"]), 0)
+            v_s = round(v_s * (1 + qr[q]["spy"]), 0)
+        qntm_pts.append(int(v_q))
+        spy_pts.append(int(v_s))
     chart_html = f"""<!DOCTYPE html><html>
 <head><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script></head>
 <body style="margin:0;background:#0a0b14;padding:0 0 8px;">
@@ -3883,10 +3902,12 @@ def page_platform():
 # ROUTER
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
-    # ── Cookie consent gate — must happen before ANYTHING else ────────────────
+    # ── Cookie consent gate — persists via ?ck=1 query param ─────────────────
+    if st.query_params.get("ck") == "1":
+        st.session_state.cookies_accepted = True
     if not st.session_state.cookies_accepted:
         page_cookie_consent()
-        return   # st.stop() not needed — return exits main() cleanly
+        return
 
     # Handle nav button side effects — re-route if needed
     if st.session_state.page == "landing" and st.session_state.logged_in:
