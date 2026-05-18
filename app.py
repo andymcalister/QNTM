@@ -270,7 +270,7 @@ div[data-baseweb="select"] span,
   border:1px solid rgba(255,255,255,.07);padding:3px;gap:2px;
 }
 .stTabs [data-baseweb="tab"]{
-  color:#475569;font-family:'Syne',sans-serif;font-size:12px;
+  color:#94a3b8;font-family:'Syne',sans-serif;font-size:12px;
   letter-spacing:.08em;text-transform:uppercase;border-radius:2px;padding:8px 18px;
 }
 .stTabs [aria-selected="true"]{
@@ -671,7 +671,7 @@ def show_onboarding():
              color:#ffffff;margin-bottom:18px;">{s["title"]}</div>
         <div style="font-size:16px;color:#cbd5e1;line-height:1.9;margin-bottom:36px;">{s["body"]}</div>
         <div style="margin-bottom:16px;">{dots}</div>
-        <div style="font-size:12px;color:#64748b;margin-bottom:32px;">Step {step+1} of {len(steps)}</div>
+        <div style="font-size:14px;color:#94a3b8;margin-bottom:32px;">Step {step+1} of {len(steps)}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -735,7 +735,7 @@ def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
     if pills:
         pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + "".join(
             f'<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);'
-            f'border-radius:20px;padding:4px 12px;font-size:12px;color:#94a3b8;'
+            f'border-radius:20px;padding:4px 12px;font-size:14px;color:#94a3b8;'
             f'font-family:DM Mono,monospace;">{p}</div>'
             for p in pills
         ) + '</div>'
@@ -865,7 +865,7 @@ def action_badge(action):
               "SELL":("#ef4444","rgba(239,68,68,.12)")}
     c, bg = colors.get(action, ("#64748b","rgba(100,116,139,.1)"))
     font_style = "font-family:'Syne',sans-serif;"
-    return f'<span style="color:{c};background:{bg};border:1px solid {c}44;padding:2px 10px;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:.08em;{font_style}">{action}</span>'
+    return f'<span style="color:{c};background:{bg};border:1px solid {c}44;padding:2px 10px;border-radius:3px;font-size:13px;font-weight:600;letter-spacing:.08em;{font_style}">{action}</span>'
 
 def score_bar_html(val, width=80):
     col = "#00ff87" if val>=65 else "#fbbf24" if val>=50 else "#ef4444"
@@ -904,16 +904,16 @@ def macro_regime_banner_html(macro: dict) -> str:
                 "chip_export_ban":"Chip Export Ban","oil_spike":"Oil Spike"}
         for e in events[:4]:
             events_html += (f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
-                           f'border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">'
+                           f'border-radius:3px;padding:2px 8px;font-size:13px;color:#94a3b8;margin-right:6px;">'
                            f'{nice.get(e,e.replace("_"," ").title())}</span>')
 
     # Source badge
     if macro.get("live"):
         src_parts = [f'⚡ Live']
         if n_hdl:  src_parts.append(f'{n_hdl} headlines')
-        src_badge = f'<span style="font-size:10px;color:#1D9E75;margin-left:8px;">{" · ".join(src_parts)}</span>'
+        src_badge = f'<span style="font-size:13px;color:#1D9E75;margin-left:8px;">{" · ".join(src_parts)}</span>'
     else:
-        src_badge = '<span style="font-size:10px;color:#475569;margin-left:8px;">Est. · no live feeds</span>'
+        src_badge = '<span style="font-size:13px;color:#94a3b8;margin-left:8px;">Est. · no live feeds</span>'
 
     # VIX / oil indicators
     indicators_html = ""
@@ -921,25 +921,25 @@ def macro_regime_banner_html(macro: dict) -> str:
         vix_col = "#ef4444" if vix >= 30 else "#fbbf24" if vix >= 20 else "#1D9E75"
         indicators_html += (f'<div style="text-align:center;">'
                            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{vix_col};">{vix:.1f}</div>'
-                           f'<div style="font-size:11px;color:#475569;">VIX</div></div>')
+                           f'<div style="font-size:13px;color:#94a3b8;">VIX</div></div>')
     if oil is not None:
         oil_col = "#ef4444" if oil >= 90 else "#fbbf24" if oil >= 75 else "#1D9E75"
         indicators_html += (f'<div style="text-align:center;">'
                            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{oil_col};">${oil:.0f}</div>'
-                           f'<div style="font-size:11px;color:#475569;">WTI Crude</div></div>')
+                           f'<div style="font-size:13px;color:#94a3b8;">WTI Crude</div></div>')
 
     return (
         f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
         f'padding:14px 20px;margin-bottom:16px;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">'
         f'<div style="display:flex;align-items:center;gap:10px;">'
-        f'<span style="color:{color};font-size:10px;">{icon}</span>'
+        f'<span style="color:{color};font-size:13px;">{icon}</span>'
         f'<div>'
         f'<div style="display:flex;align-items:center;gap:6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;'
         f'color:{color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>'
         f'{src_badge}</div>'
-        f'<div style="font-size:12px;color:#64748b;margin-top:2px;">{desc}</div>'
+        f'<div style="font-size:14px;color:#94a3b8;margin-top:2px;">{desc}</div>'
         f'<div style="margin-top:6px;">{events_html}</div>'
         f'</div></div>'
         f'<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">'
@@ -947,7 +947,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         # Quant weight
         f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
         f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#e2e8f0;">{quant_w}%</div>'
-        f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Quant Weight</div>'
+        f'<div style="font-size:14px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Quant Weight</div>'
         f'<span class="tip-box" style="width:260px;">'
         f'<div class="tip-title">Quant Weight</div>'
         f'<div class="tip-body">The percentage of each stock\'s final score driven purely by the 5-pillar factor model — momentum, quality, volume, value, and sentiment. Higher quant weight = model is doing the heavy lifting.</div>'
@@ -956,7 +956,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         # Macro weight
         f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
         f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{color};">{macro_w}%</div>'
-        f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Macro Weight</div>'
+        f'<div style="font-size:14px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Macro Weight</div>'
         f'<span class="tip-box" style="width:260px;">'
         f'<div class="tip-title">Macro Weight</div>'
         f'<div class="tip-body">The percentage of each score adjusted by the current macro regime. In RISK_OFF this rises to 35% — dampening high-beta exposure. In NEUTRAL it drops to 10% to let quant signals dominate.</div>'
@@ -965,7 +965,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         # Active events
         f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
         f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#e2e8f0;">{len(events)}</div>'
-        f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Active Events</div>'
+        f'<div style="font-size:14px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">Active Events</div>'
         f'<span class="tip-box" style="width:260px;">'
         f'<div class="tip-title">Active Macro Events</div>'
         f'<div class="tip-body">Number of macro events currently detected — tariffs, Fed stance, geopolitical risk, oil shocks. Each event applies sector-level adjustments to scores. More events = stronger regime signal.</div>'
@@ -975,7 +975,7 @@ def macro_regime_banner_html(macro: dict) -> str:
             f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
             f'color:{"#ef4444" if vix_level>=30 else "#fbbf24" if vix_level>=20 else "#1D9E75"};">{vix_level:.1f}</div>'
-            f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">VIX</div>'
+            f'<div style="font-size:14px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">VIX</div>'
             f'<span class="tip-box" style="left:auto;right:0;transform:none;">'
             f'<div class="tip-title">VIX — Fear Index</div>'
             f'<div class="tip-body">CBOE Volatility Index. Below 15 = calm market (RISK_ON). 15–25 = elevated uncertainty. Above 30 = fear/panic (forces RISK_OFF regime). VIX above 35 overrides all other regime signals.</div>'
@@ -987,7 +987,7 @@ def macro_regime_banner_html(macro: dict) -> str:
             f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
             f'color:{"#ef4444" if oil_price>=90 else "#fbbf24" if oil_price>=75 else "#1D9E75"};">${oil_price:.0f}</div>'
-            f'<div style="font-size:12px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">WTI Crude</div>'
+            f'<div style="font-size:14px;color:#94a3b8;margin-top:3px;letter-spacing:.04em;">WTI Crude</div>'
             f'<span class="tip-box" style="left:auto;right:0;transform:none;">'
             f'<div class="tip-title">WTI Crude Oil Price</div>'
             f'<div class="tip-body">West Texas Intermediate crude price per barrel. Above $90 triggers an oil_spike macro event — bullish for Energy, bearish for Consumer Discretionary and Industrials. Below $65 signals weak demand.</div>'
@@ -1070,7 +1070,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
 
-    gem_badge = '<span style="font-size:11px;margin-left:6px;">💎</span>' if is_gem else ""
+    gem_badge = '<span style="font-size:13px;margin-left:6px;">💎</span>' if is_gem else ""
     action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
 
     # Build HTML as a variable first — no comments, no risk of comment stripping
@@ -1094,40 +1094,40 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         ) +
         f'</div>'
         + (
-            f'<div style="font-size:11px;color:#475569;margin-top:1px;">{company_info["name"]}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{company_info["name"]}</div>'
             if (company_info and company_info.get("name") and company_info["name"] != r["ticker"])
             else ''
         )
         + (
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:3px;">'
-            f'${r["price"]:,.2f} <span style="font-size:10px;color:#334155;">/ share</span></div>'
+            f'${r["price"]:,.2f} <span style="font-size:13px;color:#94a3b8;">/ share</span></div>'
             if r.get("price") else ''
         ) +
         f'</div>',
-        f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
+        f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{act_c};'
         f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
         f'letter-spacing:.1em;">{action_arrow} {act}</span>',
-        f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:16]}</span>',
+        f'<span style="font-size:13px;color:#94a3b8;">{r.get("sector","")[:16]}</span>',
         f'</div>',
         f'<div style="text-align:right;">',
         f'<div style="font-family:DM Mono,monospace;font-size:26px;font-weight:500;color:{act_c};">{score:.0f}</div>',
-        f'<div style="font-size:12px;color:#475569;margin-top:2px;">blended score</div>',
+        f'<div style="font-size:14px;color:#94a3b8;margin-top:2px;">blended score</div>',
         f'</div></div>',
 
         f'<div style="display:flex;gap:10px;margin-bottom:12px;">{pillar_bars}</div>',
 
         f'<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">',
         f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:11px;color:#475569;letter-spacing:.07em;margin-bottom:4px;">QUANT</div>'
+        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">QUANT</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;font-weight:500;">{quant:.1f}</div></div>',
         f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:11px;color:#475569;letter-spacing:.07em;margin-bottom:4px;">MACRO</div>'
+        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">MACRO</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};font-weight:500;">{delta_str}</div></div>',
         f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:11px;color:#475569;letter-spacing:.07em;margin-bottom:4px;">BLEND</div>'
+        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">BLEND</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;font-weight:500;">75/25</div></div>',
         f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:11px;color:#475569;letter-spacing:.07em;margin-bottom:4px;">RANK</div>'
+        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">RANK</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;font-weight:500;">{r.get("pct_rank",50):.0f}th</div></div>',
         f'</div></div>',
     ]
@@ -1140,7 +1140,7 @@ def cookie_banner():
 
 # ── DISCLAIMER ────────────────────────────────────────────────────────────────
 DISCLAIMER = """<div style="background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);
-border-radius:4px;padding:12px 16px;font-size:11px;color:#64748b;line-height:1.7;margin:1rem 0;">
+border-radius:4px;padding:12px 16px;font-size:13px;color:#64748b;line-height:1.7;margin:1rem 0;">
 ⚠ <strong style="color:#fbbf24;">Disclaimer:</strong>
 QNTM is a quantitative research and factor analysis tool for informational and educational
 purposes only. It does not constitute investment advice, a recommendation to buy or sell
@@ -1329,7 +1329,7 @@ def page_legal(doc_key: str = "privacy"):
     .legal-body p,.legal-body li { font-size:14px;color:#94a3b8;line-height:1.8; }
     .legal-body strong { color:#e2e8f0; }
     .legal-body table { width:100%;border-collapse:collapse;margin:12px 0; }
-    .legal-body th { font-size:12px;color:#475569;text-align:left;padding:8px 12px;
+    .legal-body th { font-size:14px;color:#94a3b8;text-align:left;padding:8px 12px;
                      border-bottom:1px solid rgba(255,255,255,.08); }
     .legal-body td { font-size:13px;color:#94a3b8;padding:8px 12px;
                      border-bottom:1px solid rgba(255,255,255,.04); }
@@ -1367,7 +1367,7 @@ def page_cookie_consent():
         "<div style='text-align:center;font-family:Syne,sans-serif;font-size:30px;"
         "font-weight:800;color:#e2e4f0;margin-bottom:4px;'>Q"
         "<span style='color:#d4a843;'>NTM</span></div>"
-        "<div style='text-align:center;font-size:11px;color:#475569;"
+        "<div style='text-align:center;font-size:13px;color:#94a3b8;"
         "letter-spacing:.2em;margin-bottom:28px;'>CONVICTION FACTOR MODEL</div>",
         unsafe_allow_html=True
     )
@@ -1407,7 +1407,7 @@ def page_cookie_consent():
             _accept(); st.rerun()
 
     st.markdown(
-        "<div style='text-align:center;margin-top:10px;font-size:11px;color:#334155;'>"
+        "<div style='text-align:center;margin-top:10px;font-size:13px;color:#64748b;'>"
         "Your choice is remembered across sessions.</div>",
         unsafe_allow_html=True
     )
@@ -1546,13 +1546,13 @@ def page_model_portfolio():
              letter-spacing:.15em;color:#e2e4f0;">
           Q<span style="color:#00ff87;">NTM</span>
         </div>
-        <div style="font-size:10px;color:#475569;letter-spacing:.2em;margin-top:2px;">
+        <div style="font-size:13px;color:#94a3b8;letter-spacing:.2em;margin-top:2px;">
           LIVE MODEL TRACK RECORD
         </div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:11px;color:#475569;">Returns measured from signal entry · Not investment advice</div>
-        <div style="font-size:10px;color:#334155;margin-top:2px;">
+        <div style="font-size:13px;color:#94a3b8;">Returns measured from signal entry · Not investment advice</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
           963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
@@ -1591,7 +1591,7 @@ def page_model_portfolio():
                    "chip_export_ban":"Chip Export Ban","oil_spike":"Oil Spike"}
     event_badges = "".join(
         f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
-        f'border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">'
+        f'border-radius:3px;padding:2px 8px;font-size:13px;color:#94a3b8;margin-right:6px;">'
         f'{nice_events.get(e,e.replace("_"," ").title())}</span>'
         for e in events[:4]
     )
@@ -1608,12 +1608,12 @@ def page_model_portfolio():
       <div>
         <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
               color:{regime_color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>
-        <span style="font-size:10px;color:#475569;margin-left:8px;">{live_txt}{vix_str}{oil_str}</span>
+        <span style="font-size:13px;color:#94a3b8;margin-left:8px;">{live_txt}{vix_str}{oil_str}</span>
         <div style="margin-top:8px;">{event_badges}</div>
       </div>
-      <div style="font-size:11px;color:#334155;text-align:right;">
+      <div style="font-size:13px;color:#64748b;text-align:right;">
         Walk-forward validated · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}%<br>
-        <span style="color:#475569;">+{bt['model_total_ret_adj']:.0f}% adj. cumulative vs SPY +{bt['spy_total_ret']:.0f}% (2020–2025)</span>
+        <span style="color:#94a3b8;">+{bt['model_total_ret_adj']:.0f}% adj. cumulative vs SPY +{bt['spy_total_ret']:.0f}% (2020–2025)</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1658,9 +1658,9 @@ def page_model_portfolio():
             st.markdown(
                 f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
                 f'border-left:2px solid {color};border-radius:6px;padding:16px 20px;">'
-                f'<div style="font-size:10px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
+                f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
                 f'<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:{color};line-height:1;">{val}</div>'
-                f'<div style="font-size:11px;color:#334155;margin-top:6px;">{sub}</div>'
+                f'<div style="font-size:13px;color:#94a3b8;margin-top:6px;">{sub}</div>'
                 f'</div>',
                 unsafe_allow_html=True)
 
@@ -1673,10 +1673,10 @@ def page_model_portfolio():
 
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.15em;">
+      <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
         ▲ ACTIVE BUY SIGNALS — LIVE TRACK RECORD
       </div>
-      <div style="font-size:10px;color:#334155;">{data_note}</div>
+      <div style="font-size:13px;color:#94a3b8;">{data_note}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1687,15 +1687,15 @@ def page_model_portfolio():
     <div style="display:grid;grid-template-columns:40px 110px 1fr 80px 80px 80px 90px 90px 80px;
          gap:6px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;
          border:1px solid rgba(255,255,255,.07);">
-      <div style="font-size:10px;color:#334155;">#</div>
-      <div style="font-size:10px;color:#334155;">TICKER</div>
-      <div style="font-size:10px;color:#334155;">SECTOR</div>
-      <div style="font-size:10px;color:#334155;">ENTRY DATE</div>
-      <div style="font-size:10px;color:#334155;">ENTRY $</div>
-      <div style="font-size:10px;color:#334155;">NOW $</div>
-      <div style="font-size:10px;color:#334155;">RETURN</div>
-      <div style="font-size:10px;color:#334155;">SCORE</div>
-      <div style="font-size:10px;color:#334155;">SIGNAL</div>
+      <div style="font-size:13px;color:#94a3b8;">#</div>
+      <div style="font-size:13px;color:#94a3b8;">TICKER</div>
+      <div style="font-size:13px;color:#94a3b8;">SECTOR</div>
+      <div style="font-size:13px;color:#94a3b8;">ENTRY DATE</div>
+      <div style="font-size:13px;color:#94a3b8;">ENTRY $</div>
+      <div style="font-size:13px;color:#94a3b8;">NOW $</div>
+      <div style="font-size:13px;color:#94a3b8;">RETURN</div>
+      <div style="font-size:13px;color:#94a3b8;">SCORE</div>
+      <div style="font-size:13px;color:#94a3b8;">SIGNAL</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1725,20 +1725,20 @@ def page_model_portfolio():
             f'gap:6px;padding:10px 14px;background:{bg};'
             f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-size:11px;color:#334155;">{i+1}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{i+1}</div>'
             f'<div>'
             f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{tk}</div>'
-            f'<div style="font-size:9px;color:#334155;">{name}</div>'
+            f'<div style="font-size:14px;color:#94a3b8;">{name}</div>'
             f'</div>'
-            f'<div style="font-size:11px;color:#475569;">{sect}</div>'
-            f'<div style="font-size:11px;color:#475569;font-family:DM Mono,monospace;">{log_dot}{entry_date}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">'
+            f'<div style="font-size:13px;color:#94a3b8;">{sect}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{log_dot}{entry_date}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;">'
             f'{"$"+f"{entry_price:,.0f}" if entry_price else "—"}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">'
             f'{"$"+f"{current_price:,.0f}" if current_price else "—"}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{ret_color};">{ret_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
-            f'<div><span style="font-size:10px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
+            f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
             f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
             f'</div>'
         )
@@ -1747,7 +1747,7 @@ def page_model_portfolio():
     # Table footer
     st.markdown(f"""
     <div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);
-         border-radius:0 0 6px 6px;font-size:10px;color:#334155;">
+         border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">
       ● = Entry date from QNTM signal log (verified) · No dot = 90-day fallback estimate ·
       Returns are price-only, not total return · Equal-weight portfolio assumed
     </div>
@@ -1758,9 +1758,9 @@ def page_model_portfolio():
     st.markdown("""
     <div style="margin-top:28px;padding:18px;background:rgba(255,255,255,.02);
          border:1px solid rgba(255,255,255,.06);border-radius:8px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
+      <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;
            letter-spacing:.15em;margin-bottom:10px;">⚡ METHODOLOGY</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:11px;color:#475569;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:13px;color:#94a3b8;">
         <div><div style="color:#94a3b8;margin-bottom:3px;">5-Pillar Factor Model</div>
           Momentum 30% · Quality 30% · Value 20% · Sentiment 10% · Volume 10%</div>
         <div><div style="color:#94a3b8;margin-bottom:3px;">Walk-Forward Backtest</div>
@@ -1771,7 +1771,7 @@ def page_model_portfolio():
     </div>
     <div style="margin-top:16px;padding:14px 18px;background:rgba(255,255,255,.01);
          border:1px solid rgba(255,255,255,.05);border-radius:6px;
-         font-size:10px;color:#334155;line-height:1.7;">
+         font-size:13px;color:#64748b;line-height:1.7;">
       ⚠ Not investment advice. Factor scores are cross-sectional rankings only.
       Past model performance does not guarantee future results.
       Returns shown are indicative price returns from signal date — not audited.
@@ -1810,13 +1810,13 @@ def page_model_portfolio():
         <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;letter-spacing:.15em;">
           Q<span style="color:#00ff87;">NTM</span>
         </div>
-        <div style="font-size:10px;color:#475569;letter-spacing:.2em;margin-top:2px;">
+        <div style="font-size:13px;color:#94a3b8;letter-spacing:.2em;margin-top:2px;">
           PUBLIC MODEL PORTFOLIO
         </div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:11px;color:#475569;">Updated on load · Not investment advice</div>
-        <div style="font-size:10px;color:#334155;margin-top:2px;">
+        <div style="font-size:13px;color:#94a3b8;">Updated on load · Not investment advice</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
           963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
@@ -1853,7 +1853,7 @@ def page_model_portfolio():
     }
     event_badges = "".join(
         f'<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
-        f'border-radius:3px;padding:2px 8px;font-size:10px;color:#94a3b8;margin-right:6px;">'
+        f'border-radius:3px;padding:2px 8px;font-size:13px;color:#94a3b8;margin-right:6px;">'
         f'{nice_events.get(e, e.replace("_"," ").title())}</span>'
         for e in events[:4]
     )
@@ -1868,12 +1868,12 @@ def page_model_portfolio():
       <div>
         <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
               color:{regime_color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>
-        <span style="font-size:10px;color:#475569;margin-left:8px;">{live_badge}{vix_str}{oil_str}</span>
+        <span style="font-size:13px;color:#94a3b8;margin-left:8px;">{live_badge}{vix_str}{oil_str}</span>
         <div style="margin-top:8px;">{event_badges}</div>
       </div>
-      <div style="font-size:11px;color:#334155;text-align:right;">
+      <div style="font-size:13px;color:#64748b;text-align:right;">
         Scores recomputed on page load<br>
-        <span style="color:#475569;">Walk-forward validated · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}%</span>
+        <span style="color:#94a3b8;">Walk-forward validated · Sharpe {bt['sharpe']:.2f} · Max DD {bt['max_dd_model']:.1f}%</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1883,10 +1883,10 @@ def page_model_portfolio():
 
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.15em;">
+      <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
         ▲ TOP {len(buys)} BUY SIGNALS — CURRENT MODEL OUTPUT
       </div>
-      <div style="font-size:10px;color:#334155;">Equal-weight · Quarterly rebalance</div>
+      <div style="font-size:13px;color:#94a3b8;">Equal-weight · Quarterly rebalance</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1895,14 +1895,14 @@ def page_model_portfolio():
     <div style="display:grid;grid-template-columns:50px 120px 1fr 70px 70px 70px 80px 90px;
          gap:8px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;
          border:1px solid rgba(255,255,255,.07);">
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">#</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">TICKER</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">SECTOR</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">SCORE</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">MOM</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">QUAL</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">RANK</div>
-      <div style="font-size:10px;color:#334155;letter-spacing:.08em;">SIGNAL</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">#</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">TICKER</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">SECTOR</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">SCORE</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">MOM</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">QUAL</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">RANK</div>
+      <div style="font-size:13px;color:#64748b;letter-spacing:.08em;">SIGNAL</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1924,17 +1924,17 @@ def page_model_portfolio():
             f'gap:8px;padding:10px 14px;background:{bg};'
             f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-size:11px;color:#334155;">{i+1}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{i+1}</div>'
             f'<div>'
             f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{s["ticker"]}</div>'
-            f'<div style="font-size:10px;color:#334155;">{name_short}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{name_short}</div>'
             f'</div>'
-            f'<div style="font-size:11px;color:#475569;">{sector}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{sector}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:18px;color:{score_color};font-weight:700;">{adj:.0f}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;">{mom:.0f}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;">{qual:.0f}</div>'
-            f'<div style="font-size:11px;color:#334155;">{rank:.0f}th pct</div>'
-            f'<div><span style="font-size:10px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{mom:.0f}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{qual:.0f}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{rank:.0f}th pct</div>'
+            f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
             f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
             f'</div>'
         )
@@ -1943,7 +1943,7 @@ def page_model_portfolio():
     # Table footer
     st.markdown("""
     <div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);
-         border-radius:0 0 6px 6px;font-size:10px;color:#334155;">
+         border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">
       Scores update on page load. Signal = adj. composite score after regime-scaled macro overlay.
     </div>
     """, unsafe_allow_html=True)
@@ -1952,9 +1952,9 @@ def page_model_portfolio():
     st.markdown("""
     <div style="margin-top:32px;padding:20px;background:rgba(255,255,255,.02);
          border:1px solid rgba(255,255,255,.06);border-radius:8px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
+      <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;
            letter-spacing:.15em;margin-bottom:12px;">⚡ METHODOLOGY</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:12px;color:#475569;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:14px;color:#94a3b8;">
         <div>
           <div style="color:#94a3b8;margin-bottom:4px;">5-Pillar Factor Model</div>
           Momentum 30% · Quality 30% · Value 20% · Sentiment 10% · Volume 10%
@@ -1975,13 +1975,13 @@ def page_model_portfolio():
     st.markdown("""
     <div style="margin-top:24px;padding:16px 20px;background:rgba(255,255,255,.01);
          border:1px solid rgba(255,255,255,.05);border-radius:6px;
-         font-size:11px;color:#334155;line-height:1.7;">
+         font-size:13px;color:#64748b;line-height:1.7;">
       ⚠ QNTM is a quantitative research platform for informational purposes only.
       This is not investment advice. Factor scores are cross-sectional rankings — not buy/sell recommendations.
       Past model performance does not guarantee future results. Always consult a qualified financial adviser.
     </div>
     <div style="margin-top:20px;text-align:center;padding-bottom:40px;">
-      <div style="font-size:12px;color:#475569;margin-bottom:12px;">
+      <div style="font-size:14px;color:#94a3b8;margin-bottom:12px;">
         Track your portfolio against these signals — free account
       </div>
     </div>
@@ -2191,7 +2191,7 @@ def page_landing():
     <style>
     .qntm-nav-btns { display:flex; gap:8px; align-items:center; }
     .qntm-nav-btns a {
-        font-family:'Syne',sans-serif; font-size:11px; font-weight:700;
+        font-family:'Syne',sans-serif; font-size:13px; font-weight:700;
         letter-spacing:.12em; text-transform:uppercase; text-decoration:none;
         padding:8px 14px; border-radius:6px; white-space:nowrap;
     }
@@ -2217,7 +2217,7 @@ def page_landing():
            border-radius:100px;padding:6px 16px;margin-bottom:28px;">
         <div style="width:7px;height:7px;background:#00ff87;border-radius:50%;
              animation:land-pulse 2s infinite;flex-shrink:0;"></div>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">
+        <span style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;">
           MODEL LIVE &middot; 5-YR VALIDATED &middot; 963 STOCKS &middot; RISK-OFF REGIME
         </span>
       </div>
@@ -2302,7 +2302,7 @@ def page_landing():
     st.markdown("""
     <div class="land-divider"></div>
     <div class="land-section">
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; PERFORMANCE</div>
+      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; PERFORMANCE</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
            color:#fff;margin-bottom:10px;line-height:1.1;">
         5 years. 6 regimes.<br><span style="color:#d4a843;">Proven in every market.</span>
@@ -2316,24 +2316,24 @@ def page_landing():
     <div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL 5-YR TOTAL</div>
+          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL 5-YR TOTAL</div>
           <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bt['model_final_100k']:,} from $100K</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">${bt['model_final_100k']:,} from $100K</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SPY SAME PERIOD</div>
+          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SPY SAME PERIOD</div>
           <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bt['spy_final_100k']:,} from $100K</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">${bt['spy_final_100k']:,} from $100K</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL CAGR</div>
+          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL CAGR</div>
           <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">5-YR ADVANTAGE</div>
+          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">5-YR ADVANTAGE</div>
           <div style="font-family:Syne,sans-serif;font-size:clamp(13px,3vw,22px);font-weight:800;color:#1D9E75;line-height:1;">+${bt['model_advantage_usd']:,}</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">on $100,000 invested</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">on $100,000 invested</div>
         </div>
       </div>
     </div>
@@ -2350,11 +2350,11 @@ def page_landing():
         chk = "&#10003;" if p["beat"] else "&#10007;"
         regime_cards += (
             f'<div style="background:#0e0f1a;border:1px solid {bc};border-radius:8px;padding:12px 10px;min-width:0;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;margin-bottom:3px;">{p["key"]}</div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:6px;line-height:1.3;">{p["label"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;margin-bottom:3px;">{p["key"]}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:6px;line-height:1.3;">{p["label"]}</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{ic};">{chk}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{mc};margin-top:4px;">QNTM {p["model_ret"]:+.1f}%</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{sc};margin-top:2px;">SPY {p["spy_ret"]:+.1f}%</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{mc};margin-top:4px;">QNTM {p["model_ret"]:+.1f}%</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{sc};margin-top:2px;">SPY {p["spy_ret"]:+.1f}%</div>'
             f'</div>'
         )
     st.markdown(
@@ -2373,9 +2373,9 @@ def page_landing():
     risk_html = "".join([
         f'<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);'
         f'border-radius:6px;padding:12px;text-align:center;min-width:0;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">{l}</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">{l}</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#d4a843;">{v}</div>'
-        f'<div style="font-size:10px;color:#94a3b8;margin-top:4px;">{s}</div></div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{s}</div></div>'
         for l,v,s in risk_items
     ])
     st.markdown(
@@ -2386,7 +2386,7 @@ def page_landing():
     st.markdown("""
     <div class="land-divider" style="margin-top:32px;"></div>
     <div class="land-section">
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; THE MODEL</div>
+      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; THE MODEL</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
            color:#fff;margin-bottom:12px;line-height:1.1;">
         Five pillars.<br><span style="color:#d4a843;">One conviction score.</span>
@@ -2410,7 +2410,7 @@ def page_landing():
             f'<div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:18px 14px;">'
             f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:{color};margin-bottom:4px;">{weight}</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#e2e4f0;margin-bottom:8px;">{name}</div>'
-            f'<div style="font-size:11px;color:#94a3b8;line-height:1.6;">{desc}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;line-height:1.6;">{desc}</div>'
             f'</div>'
         )
     st.markdown(
@@ -2431,7 +2431,7 @@ def page_landing():
             f'<div style="background:#0e0f1a;border:1px solid {brd};border-radius:8px;padding:22px;">'
             f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:{color};letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:500;color:{color};margin-bottom:10px;">{score}</div>'
-            f'<div style="font-size:13px;color:#94a3b8;line-height:1.7;">{desc}</div>'
+            f'<div style="font-size:15px;color:#cbd5e1;line-height:1.8;">{desc}</div>'
             f'</div>'
         )
     st.markdown(
@@ -2442,7 +2442,7 @@ def page_landing():
     st.markdown("""
     <div class="land-divider" style="margin-top:32px;"></div>
     <div class="land-section">
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; PRICING</div>
+      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; PRICING</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
            color:#fff;margin-bottom:10px;line-height:1.1;">
         Two tiers.<br><span style="color:#d4a843;">Both built for serious investors.</span>
@@ -2455,7 +2455,7 @@ def page_landing():
         dot = "●" if highlight else "○"
         dc  = "#1D9E75" if highlight else "#475569"
         tc  = "#e2e4f0" if highlight else "#64748b"
-        return f'<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;font-size:11px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
+        return f'<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;font-size:13px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
 
     bt_ret_str = f"{bt['model_total_ret']:.0f}"
 
@@ -2466,9 +2466,9 @@ def page_landing():
 
     free_card = f"""
       <div style="{card_style()}">
-        <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FREE</div>
+        <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FREE</div>
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
-        <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("963-stock screener")}
           {feat_row("BUY/HOLD/SELL signals")}
@@ -2483,9 +2483,9 @@ def page_landing():
     founding_card = f"""
       <div style="{card_style(True)}">
         <div style="background:#d4a843;color:#000;font-family:Syne,sans-serif;font-size:8px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;">MOST POPULAR</div>
-        <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FOUNDING MEMBER</div>
+        <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FOUNDING MEMBER</div>
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
-        <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">first 50 · then $29/mo</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">first 50 · then $29/mo</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Free", True)}
           {feat_row("Unlimited positions", True)}
@@ -2499,9 +2499,9 @@ def page_landing():
 
     inst_card = f"""
       <div style="{card_style()}">
-        <div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">INSTITUTIONAL</div>
+        <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">INSTITUTIONAL</div>
         <div style="font-family:Syne,sans-serif;font-size:clamp(16px,3.5vw,26px);font-weight:800;color:#e2e4f0;line-height:1;white-space:nowrap;">Custom</div>
-        <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">contact us</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">contact us</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Pro", True)}
           {feat_row("API access", True)}
@@ -2542,23 +2542,23 @@ def page_landing():
         <div>
           <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;
                color:#e2e4f0;margin-bottom:6px;">Q<span style="color:#d4a843;">NTM</span></div>
-          <div style="font-size:12px;color:#475569;line-height:1.7;max-width:280px;">
+          <div style="font-size:14px;color:#94a3b8;line-height:1.7;max-width:280px;">
             Quantitative conviction factor model platform.<br>
             Institutional-grade research for retail investors.
           </div>
         </div>
         <div style="display:flex;gap:48px;flex-wrap:wrap;">
           <div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;letter-spacing:.12em;margin-bottom:12px;">LEGAL</div>
-            <div style="font-size:13px;color:#475569;line-height:2.2;">
+            <div style="font-family:'DM Mono',monospace;font-size:13px;color:#64748b;letter-spacing:.12em;margin-bottom:12px;">LEGAL</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:2.2;">
               <a href="?legal=privacy" style="color:#94a3b8;text-decoration:none;display:block;">Privacy Policy</a>
               <a href="?legal=terms" style="color:#94a3b8;text-decoration:none;display:block;">Terms of Service</a>
               <a href="?legal=cookies" style="color:#94a3b8;text-decoration:none;display:block;">Cookie Policy</a>
             </div>
           </div>
           <div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;letter-spacing:.12em;margin-bottom:12px;">CONTACT</div>
-            <div style="font-size:13px;color:#475569;line-height:2.2;">
+            <div style="font-family:'DM Mono',monospace;font-size:13px;color:#64748b;letter-spacing:.12em;margin-bottom:12px;">CONTACT</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:2.2;">
               <a href="mailto:hello@qntm.app" style="color:#94a3b8;text-decoration:none;display:block;">hello@qntm.app</a>
             </div>
           </div>
@@ -2566,7 +2566,7 @@ def page_landing():
       </div>
       <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);
            border-radius:8px;padding:18px 22px;margin-bottom:28px;max-width:1200px;margin-left:auto;margin-right:auto;">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#d4a843;letter-spacing:.12em;margin-bottom:8px;">IMPORTANT DISCLAIMER</div>
+        <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.12em;margin-bottom:8px;">IMPORTANT DISCLAIMER</div>
         <div style="font-size:12px;color:#64748b;line-height:1.8;">
           QNTM is a <strong style="color:#94a3b8;">quantitative research and factor analysis tool</strong>
           for informational and educational purposes only. It does <strong style="color:#94a3b8;">not</strong>
@@ -2578,8 +2578,8 @@ def page_landing():
       <div style="max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;
            align-items:center;flex-wrap:wrap;gap:12px;padding-top:20px;
            border-top:1px solid rgba(255,255,255,.05);">
-        <div style="font-size:11px;color:#334155;">&copy; 2025 QNTM. All rights reserved.</div>
-        <div style="font-size:11px;color:#334155;">
+        <div style="font-size:13px;color:#94a3b8;">&copy; 2025 QNTM. All rights reserved.</div>
+        <div style="font-size:13px;color:#94a3b8;">
           Not investment advice &middot; Quantitative research tool only
         </div>
       </div>
@@ -2608,7 +2608,7 @@ def page_auth():
         <div style="text-align:center;padding:48px 0 36px;">
           <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;
                letter-spacing:.15em;color:#e2e4f0;">Q<span style="color:#00ff87;">NTM</span></div>
-          <div style="font-size:11px;color:#334155;letter-spacing:.2em;margin-top:6px;">
+          <div style="font-size:13px;color:#64748b;letter-spacing:.2em;margin-top:6px;">
             CONVICTION FACTOR MODEL
           </div>
         </div>
@@ -2660,7 +2660,7 @@ def page_auth():
 
             st.markdown("""
             <div style="text-align:center;margin-top:20px;">
-              <span style="font-size:12px;color:#334155;">
+              <span style="font-size:14px;color:#94a3b8;">
                 Don't have an account? Use the <strong style="color:#00ff87;">Create Free Account</strong> tab above.
               </span>
             </div>
@@ -2678,19 +2678,19 @@ def page_auth():
                 <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
                      color:#94a3b8;letter-spacing:.08em;margin-bottom:4px;">FREE</div>
                 <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#e2e4f0;">$0</div>
-                <div style="font-size:10px;color:#334155;margin-top:4px;">forever</div>
-                <div style="font-size:11px;color:#475569;margin-top:8px;line-height:1.6;">
+                <div style="font-size:13px;color:#94a3b8;margin-top:4px;">forever</div>
+                <div style="font-size:13px;color:#94a3b8;margin-top:8px;line-height:1.6;">
                   Screener · BUY/HOLD/SELL signals<br>Up to 10 portfolio positions<br>5-yr backtest data
                 </div>
               </div>
               <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.4);
                    border-radius:6px;padding:14px;text-align:center;">
-                <div style="background:#d4a843;color:#000;font-size:9px;font-weight:700;
+                <div style="background:#d4a843;color:#000;font-size:12px;font-weight:700;
                      letter-spacing:.1em;padding:2px 8px;border-radius:2px;display:inline-block;
                      margin-bottom:4px;">FOUNDING MEMBER</div>
                 <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#d4a843;">$0</div>
-                <div style="font-size:10px;color:#94a3b8;margin-top:4px;">first 50 users · then $29/mo</div>
-                <div style="font-size:11px;color:#94a3b8;margin-top:8px;line-height:1.6;">
+                <div style="font-size:13px;color:#94a3b8;margin-top:4px;">first 50 users · then $29/mo</div>
+                <div style="font-size:13px;color:#94a3b8;margin-top:8px;line-height:1.6;">
                   Unlimited holdings · Hidden Gems<br>Signal alerts · Email notifications<br>Priority support
                 </div>
               </div>
@@ -2737,7 +2737,7 @@ def page_auth():
                         <div style="background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.25);
                              border-radius:6px;padding:14px 16px;font-size:13px;color:#00ff87;margin-top:8px;">
                           {msg}
-                          {'<div style="font-size:11px;color:#d4a843;margin-top:4px;">' + tag + ' — unlimited holdings, hidden gems &amp; alerts are live.</div>' if tag else ''}
+                          {'<div style="font-size:13px;color:#d4a843;margin-top:4px;">' + tag + ' — unlimited holdings, hidden gems &amp; alerts are live.</div>' if tag else ''}
                         </div>
                         """, unsafe_allow_html=True)
                     else:
@@ -2775,7 +2775,7 @@ def page_mfa():
           </div>
           <div style="margin-top:32px;font-size:36px;">🔐</div>
           <h2 style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-top:12px;">Two-Factor Auth</h2>
-          <p style="color:#64748b;margin-top:8px;">Enter the 6-digit code from your authenticator app</p>
+          <p style="color:#94a3b8;margin-top:8px;">Enter the 6-digit code from your authenticator app</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -2805,7 +2805,7 @@ def page_mfa():
             st.markdown("""
             <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06);
                  text-align:center;">
-              <p style="font-size:12px;color:#475569;">Lost access to your authenticator app?</p>
+              <p style="font-size:14px;color:#94a3b8;">Lost access to your authenticator app?</p>
             </div>
             """, unsafe_allow_html=True)
             if st.button("Reset 2FA with password →", key="mfa_recovery_btn", use_container_width=True):
@@ -2816,7 +2816,7 @@ def page_mfa():
         else:
             st.markdown("""
             <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);
-                 border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#94a3b8;">
+                 border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:14px;color:#94a3b8;">
               Verify your password to disable 2FA and set up a new authenticator.
             </div>
             """, unsafe_allow_html=True)
@@ -2868,7 +2868,7 @@ def platform_nav():
     notif_html = (
         f'<span style="background:rgba(239,68,68,.2);color:#ef4444;border-radius:50%;'
         f'width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;'
-        f'font-size:11px;font-weight:700;">{n_count}</span>'
+        f'font-size:13px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
 
     st.markdown(
@@ -2881,7 +2881,7 @@ def platform_nav():
         f'<div style="display:flex;align-items:center;gap:16px;">'
         f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
         f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
-        f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
+        f'font-size:13px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
         f'{plan.upper()}</span>'
         f'{notif_html}'
         f'<span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>'
@@ -2929,7 +2929,7 @@ def page_screener():
     data_freshness_banner()
 
     # ── Stock search box ──────────────────────────────────────────────────────
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
     search_col, _ = st.columns([2, 5])
     with search_col:
         search_ticker = st.text_input(
@@ -2938,7 +2938,7 @@ def page_screener():
         ).strip().upper()
 
     if search_ticker:
-        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {search_ticker}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {search_ticker}</div>', unsafe_allow_html=True)
         with st.spinner(f"Scoring {search_ticker}..."):
             try:
                 price_data = fetch_price_data([search_ticker], period="1y")
@@ -2952,7 +2952,7 @@ def page_screener():
                 ci = get_company_info(search_ticker)
                 st.markdown(factor_panel_html(sr, is_gem, company_info=ci), unsafe_allow_html=True)
                 if search_ticker not in ALL_SECTORS:
-                    st.markdown('<div style="font-size:12px;color:#475569;margin-bottom:16px;">⚠ Ticker scored from live price data — not in core universe. Fundamental data may be limited.</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="font-size:14px;color:#94a3b8;margin-bottom:16px;">⚠ Ticker scored from live price data — not in core universe. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.markdown(f'<div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:12px 16px;font-size:13px;color:#ef4444;">Could not score {search_ticker}: {e}</div>', unsafe_allow_html=True)
         st.markdown('<div style="height:8px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:20px;"></div>', unsafe_allow_html=True)
@@ -2997,10 +2997,10 @@ def page_screener():
                     f'<div style="font-size:14px;color:#94a3b8;line-height:1.8;margin-bottom:12px;">{info["detail"]}</div>'
                     f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
                     f'<div style="flex:1;min-width:200px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:6px;padding:10px 14px;">'
-                    f'<div style="font-size:11px;color:#ef4444;letter-spacing:.08em;margin-bottom:4px;">HEADWINDS</div>'
+                    f'<div style="font-size:13px;color:#ef4444;letter-spacing:.08em;margin-bottom:4px;">HEADWINDS</div>'
                     f'<div style="font-size:13px;color:#94a3b8;">{info["impact"]}</div></div>'
                     f'<div style="flex:1;min-width:200px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);border-radius:6px;padding:10px 14px;">'
-                    f'<div style="font-size:11px;color:#00ff87;letter-spacing:.08em;margin-bottom:4px;">TAILWINDS</div>'
+                    f'<div style="font-size:13px;color:#00ff87;letter-spacing:.08em;margin-bottom:4px;">TAILWINDS</div>'
                     f'<div style="font-size:13px;color:#94a3b8;">{info["bullish"]}</div></div>'
                     f'</div></div>',
                     unsafe_allow_html=True)
@@ -3026,7 +3026,7 @@ def page_screener():
          padding:18px 22px;margin-bottom:20px;
          display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
       <div style="flex:1;min-width:220px;">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#d4a843;
+        <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;
              letter-spacing:.12em;margin-bottom:6px;">⚡ WHY QNTM IS DIFFERENT</div>
         <div style="font-size:13px;color:#64748b;line-height:1.7;">
           Most screeners give you a score.
@@ -3038,19 +3038,19 @@ def page_screener():
       <div style="display:flex;gap:20px;flex-wrap:wrap;flex-shrink:0;">
         <div style="text-align:center;">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#d4a843;">5</div>
-          <div style="font-size:10px;color:#334155;text-transform:uppercase;letter-spacing:.08em;">Pillars</div>
+          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Pillars</div>
         </div>
         <div style="text-align:center;">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#d4a843;">75/25</div>
-          <div style="font-size:10px;color:#334155;text-transform:uppercase;letter-spacing:.08em;">Quant/Macro</div>
+          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Quant/Macro</div>
         </div>
         <div style="text-align:center;">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#1D9E75;">+40%</div>
-          <div style="font-size:10px;color:#334155;text-transform:uppercase;letter-spacing:.08em;">vs SPY 5yr</div>
+          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">vs SPY 5yr</div>
         </div>
         <div style="text-align:center;">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#1D9E75;">2.1×</div>
-          <div style="font-size:10px;color:#334155;text-transform:uppercase;letter-spacing:.08em;">Sharpe vs SPY</div>
+          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Sharpe vs SPY</div>
         </div>
       </div>
     </div>
@@ -3074,7 +3074,7 @@ def page_screener():
     stats_html = "".join(
         f'<div style="flex:1;min-width:0;background:rgba(255,255,255,.02);'
         f'border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:8px 4px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:8px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">{l}</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:8px;color:#94a3b8;letter-spacing:.06em;margin-bottom:3px;">{l}</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{c};line-height:1;">{v}</div>'
         f'</div>'
         for l,c,v in stat_items
@@ -3094,7 +3094,7 @@ def page_screener():
     # ── TAB 1: TOP 10 ──────────────────────────────────────────────────────────
     with scr_tab1:
         st.markdown("""
-        <div style="font-size:11px;color:#475569;margin-bottom:12px;">
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:12px;">
           ⚠ Prices are indicative snapshots — may not reflect intraday changes.
           Search any ticker for a fresh live score.
         </div>
@@ -3114,9 +3114,9 @@ def page_screener():
                     '<div style="display:grid;grid-template-columns:70px 1fr 44px;'
                     'gap:4px;padding:8px 10px;background:#050a0f;border-radius:6px 6px 0 0;'
                     'border:1px solid rgba(255,255,255,.07);">'
-                    '<div style="font-size:9px;color:#334155;letter-spacing:.08em;">TICKER</div>'
-                    '<div style="font-size:9px;color:#334155;letter-spacing:.08em;">COMPANY</div>'
-                    '<div style="font-size:9px;color:#334155;letter-spacing:.08em;">SCORE</div>'
+                    '<div style="font-size:12px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
+                    '<div style="font-size:12px;color:#64748b;letter-spacing:.08em;">COMPANY</div>'
+                    '<div style="font-size:12px;color:#64748b;letter-spacing:.08em;">SCORE</div>'
                     '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
                     score    = r.get("adj_composite", r.get("composite", 0))
@@ -3132,15 +3132,15 @@ def page_screener():
                         f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
                         f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem}</div>'
                         f'<div>'
-                        f'<div style="font-size:10px;color:#94a3b8;">{name_short}</div>'
-                        f'<div style="font-size:9px;color:#334155;">{r.get("sector","")[:14]}</div>'
+                        f'<div style="font-size:13px;color:#94a3b8;">{name_short}</div>'
+                        f'<div style="font-size:14px;color:#94a3b8;">{r.get("sector","")[:14]}</div>'
                         f'</div>'
                         f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{color};font-weight:700;">{score:.0f}</div>'
                         f'</div>',
                         unsafe_allow_html=True)
                 st.markdown(
                     f'<div style="padding:6px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
-                    f'border-radius:0 0 6px 6px;font-size:10px;color:#334155;">'
+                    f'border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">'
                     f'{count} total signals in universe</div>',
                     unsafe_allow_html=True)
 
@@ -3172,7 +3172,7 @@ def page_screener():
                    color:#00ff87;letter-spacing:.08em;margin-bottom:6px;">
                 ⚡ LIVE DATA REFRESH
               </div>
-              <div style="font-size:12px;color:#64748b;margin-bottom:12px;">
+              <div style="font-size:14px;color:#94a3b8;margin-bottom:12px;">
                 Fetching live fundamentals from market data for all 963 tickers.
                 This runs once per day and takes 3–4 minutes. All users benefit from the result.
               </div>
@@ -3208,7 +3208,7 @@ def page_screener():
                     _time.sleep(0.25)
 
                 status_text.markdown(
-                    '<div style="font-size:12px;color:#64748b;">Writing to cache...</div>',
+                    '<div style="font-size:14px;color:#94a3b8;">Writing to cache...</div>',
                     unsafe_allow_html=True)
                 progress_bar.progress(82, text="Writing fundamentals to Supabase...")
                 write_fundamentals_cache(live_data)
@@ -3260,7 +3260,7 @@ def page_screener():
             filtered = [r for r in filtered if r.get("adj_action",r.get("action"))==filter_act]
 
         st.markdown(
-            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#334155;'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;'
             f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM</div>',
             unsafe_allow_html=True)
         for r in filtered:
@@ -3277,7 +3277,7 @@ def page_screener():
                 sector_counts[sec] = {"BUY":0,"HOLD":0,"SELL":0}
             sector_counts[sec][act] = sector_counts[sec].get(act,0)+1
 
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin:16px 0 10px;">SIGNAL BREAKDOWN BY SECTOR</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin:16px 0 10px;">SIGNAL BREAKDOWN BY SECTOR</div>', unsafe_allow_html=True)
         for sec, counts in sorted(sector_counts.items()):
             total = sum(counts.values()) or 1
             b,h,s = counts.get("BUY",0),counts.get("HOLD",0),counts.get("SELL",0)
@@ -3290,7 +3290,7 @@ def page_screener():
                 f'<div style="width:{hp:.0f}%;background:rgba(251,191,36,.4);"></div>'
                 f'<div style="width:{sp:.0f}%;background:rgba(239,68,68,.5);"></div>'
                 f'</div>'
-                f'<div style="font-size:12px;color:#475569;width:130px;flex-shrink:0;">'
+                f'<div style="font-size:14px;color:#94a3b8;width:130px;flex-shrink:0;">'
                 f'<span style="color:#00ff87;">{b} BUY</span> '
                 f'<span style="color:#fbbf24;">{h} HOLD</span> '
                 f'<span style="color:#ef4444;">{s} SELL</span>'
@@ -3341,7 +3341,7 @@ def page_gems():
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     if not gems:
-        st.markdown('<div style="padding:0 32px;"><div style="color:#475569;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="padding:0 32px;"><div style="color:#94a3b8;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
         return
 
     regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
@@ -3351,8 +3351,8 @@ def page_gems():
     st.markdown(f'<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <div style="font-size:13px;color:#475569;">{len(gems)} hidden gems identified</div>
-      <div style="font-size:11px;color:{regime_color};font-family:DM Mono,monospace;">
+      <div style="font-size:13px;color:#94a3b8;">{len(gems)} hidden gems identified</div>
+      <div style="font-size:13px;color:{regime_color};font-family:DM Mono,monospace;">
         Regime: {regime} · {"Threshold 67+" if regime in ("RISK_OFF","HIGH VOLATILITY") else "Threshold 60+" if regime in ("RISK_ON","MILDLY BULLISH") else "Threshold 62+"}
       </div>
     </div>
@@ -3379,22 +3379,22 @@ def page_gems():
                 if abs(delta) >= 1:
                     d_col   = "#ef4444" if delta < 0 else "#00ff87"
                     d_arrow = "▼" if delta < 0 else "▲"
-                    delta_html = f'<span style="font-size:10px;color:{d_col};margin-left:6px;">{d_arrow} {abs(delta):.0f} macro adj</span>'
+                    delta_html = f'<span style="font-size:13px;color:{d_col};margin-left:6px;">{d_arrow} {abs(delta):.0f} macro adj</span>'
 
                 reasons_html = "".join(
                     f'<div style="font-size:12px;color:#4ade80;padding:4px 0;border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;"><span style="color:#00ff87;flex-shrink:0;">✓</span><span>{r}</span></div>'
                     for r in g.get("gem_reasons", [])
-                ) or '<div style="font-size:12px;color:#334155;">Run Live Refresh for detailed factor reasons</div>'
+                ) or '<div style="font-size:14px;color:#94a3b8;">Run Live Refresh for detailed factor reasons</div>'
 
                 mom  = float(g.get("momentum")  or 0)
                 qual = float(g.get("quality")   or 0)
                 val  = float(g.get("value")     or 0)
                 sent = float(g.get("sentiment") or 0)
                 pillars_html = (
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{mom:.0f}</div><div style="font-size:9px;color:#334155;">MOM</div></div>'
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{qual:.0f}</div><div style="font-size:9px;color:#334155;">QUAL</div></div>'
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{val:.0f}</div><div style="font-size:9px;color:#334155;">VAL</div></div>'
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:9px;color:#334155;">SENT</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{mom:.0f}</div><div style="font-size:14px;color:#94a3b8;">MOM</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{qual:.0f}</div><div style="font-size:14px;color:#94a3b8;">QUAL</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{val:.0f}</div><div style="font-size:14px;color:#94a3b8;">VAL</div></div>'
+                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:14px;color:#94a3b8;">SENT</div></div>'
                 )
 
                 card_html = (
@@ -3402,14 +3402,14 @@ def page_gems():
                     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
                     '<div>'
                     f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#fff;">💎 {g["ticker"]}</div>'
-                    f'<div style="font-size:11px;color:#475569;margin-top:1px;">{name_short}</div>'
-                    f'<div style="font-size:10px;color:#334155;">{g["sector"]}</div>'
+                    f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{name_short}</div>'
+                    f'<div style="font-size:13px;color:#94a3b8;">{g["sector"]}</div>'
                     f'{price_html}'
                     '</div>'
                     '<div style="text-align:right;">'
                     f'<div style="font-family:DM Mono,monospace;font-size:30px;font-weight:500;color:#00ff87;line-height:1;">{adj:.0f}</div>'
-                    f'<div style="font-size:10px;color:#475569;">adj score{delta_html}</div>'
-                    f'<div style="font-size:10px;color:#334155;margin-top:2px;">raw {raw:.0f}</div>'
+                    f'<div style="font-size:13px;color:#94a3b8;">adj score{delta_html}</div>'
+                    f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">raw {raw:.0f}</div>'
                     '</div></div>'
                     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.03);border-radius:4px;padding:8px;margin-bottom:14px;">'
                     f'{pillars_html}'
@@ -3420,7 +3420,7 @@ def page_gems():
                 )
                 st.markdown(card_html, unsafe_allow_html=True)
             except Exception:
-                st.markdown(f'<div style="color:#475569;font-size:12px;padding:8px;">💎 {g.get("ticker","?")} — display error</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="color:#94a3b8;font-size:12px;padding:8px;">💎 {g.get("ticker","?")} — display error</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -3446,27 +3446,27 @@ def page_backtest():
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:24px 0;">
       <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
            border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR TOTAL RETURN</div>
+        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR TOTAL RETURN</div>
         <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
-        <div style="font-size:12px;color:#475569;margin-top:6px;">${'100K'} → ${bt['model_final_100k']:,}</div>
+        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">${'100K'} → ${bt['model_final_100k']:,}</div>
       </div>
       <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
            border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">SPY SAME PERIOD</div>
+        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">SPY SAME PERIOD</div>
         <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#fbbf24;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
-        <div style="font-size:12px;color:#475569;margin-top:6px;">${'100K'} → ${bt['spy_final_100k']:,}</div>
+        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">${'100K'} → ${bt['spy_final_100k']:,}</div>
       </div>
       <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
            border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">MODEL CAGR</div>
+        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">MODEL CAGR</div>
         <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">+{bt['model_cagr']:.1f}%</div>
-        <div style="font-size:12px;color:#475569;margin-top:6px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
+        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
       </div>
       <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
            border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR ADVANTAGE</div>
+        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR ADVANTAGE</div>
         <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#00ff87;line-height:1;">+${bt['model_advantage_usd']:,}</div>
-        <div style="font-size:12px;color:#475569;margin-top:6px;">on $100,000 invested</div>
+        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">on $100,000 invested</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -3475,34 +3475,34 @@ def page_backtest():
     st.markdown(f"""
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
       <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">SHARPE</div>
+        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SHARPE</div>
         <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['sharpe']:.2f}</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">&gt;1.0 excellent</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">&gt;1.0 excellent</div>
       </div>
       <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">SORTINO</div>
+        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SORTINO</div>
         <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['sortino']:.2f}</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">&gt;1.5 strong</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">&gt;1.5 strong</div>
       </div>
       <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">INFO RATIO</div>
+        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">INFO RATIO</div>
         <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt.get('information_ratio',1.25):.2f}</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">&gt;0.5 signal</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">&gt;0.5 signal</div>
       </div>
       <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">MAX DD</div>
+        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MAX DD</div>
         <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['max_dd_model']:.1f}%</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">SPY {bt.get('max_dd_spy',-25.4):.1f}%</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">SPY {bt.get('max_dd_spy',-25.4):.1f}%</div>
       </div>
       <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">WIN RATE</div>
+        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">WIN RATE</div>
         <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['win_rate']:.1f}%</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">{bt['n_quarters']} quarters</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">{bt['n_quarters']} quarters</div>
       </div>
       <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">CAGR ALPHA</div>
+        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">CAGR ALPHA</div>
         <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">+{bt['cagr_alpha']:.1f}pp</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">/yr vs index</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">/yr vs index</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -3510,7 +3510,7 @@ def page_backtest():
     # Growth chart — compute from real quarterly returns for accuracy
     import streamlit.components.v1 as _components
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — Q2 2020 TO Q1 2025</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — Q2 2020 TO Q1 2025</div>', unsafe_allow_html=True)
 
     # Build growth curves from quarterly returns (most accurate)
     qr = bt.get("macro_quarterly_returns", {})
@@ -3617,11 +3617,11 @@ new Chart(document.getElementById('gc'), {{
 const c = document.createElement('div');
 c.style = 'display:flex;gap:20px;padding:8px 0 0 8px;';
 c.innerHTML = `
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:11px;color:#d4a843;">
+  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">
     <span style="width:18px;height:2.5px;background:#d4a843;display:inline-block;border-radius:2px;"></span>
     QNTM Model
   </span>
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:11px;color:#64748b;">
+  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">
     <span style="width:18px;height:1.5px;background:#64748b;display:inline-block;border-radius:2px;opacity:0.7;"></span>
     S&P 500 (SPY)
   </span>`;
@@ -3633,12 +3633,12 @@ document.body.prepend(c);
     # ── Macro Overlay Attribution Section ─────────────────────────────────────
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;
+    <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;
          letter-spacing:.1em;margin:20px 0 12px;">
       ⚡ WALK-FORWARD BACKTEST — REGIME-SCALED MACRO OVERLAY (Q2 2020 – Q1 2025)
     </div>
     <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-         border-radius:6px;padding:14px 18px;margin-bottom:14px;font-size:12px;color:#475569;line-height:1.7;">
+         border-radius:6px;padding:14px 18px;margin-bottom:14px;font-size:14px;color:#94a3b8;line-height:1.7;">
       Methodology: genuine point-in-time walk-forward simulation. Real yfinance price histories fetched
       as-of each quarter-start date. Scores recomputed every quarter from available data — no static
       fundamentals applied retroactively. 10bps transaction cost per trade. 124 large-cap tickers.
@@ -3656,9 +3656,9 @@ document.body.prepend(c);
     mac_html = "".join([
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
         f'border-top:2px solid {color};border-radius:6px;padding:16px;text-align:center;min-width:0;overflow:hidden;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:10px;">{label}</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.08em;margin-bottom:10px;">{label}</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:clamp(18px,4vw,26px);font-weight:800;color:{color};line-height:1;">{val}</div>'
-        f'<div style="font-size:11px;color:#475569;margin-top:8px;">{sub}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:8px;">{sub}</div>'
         f'</div>'
         for label,val,sub,color in mac_stats
     ])
@@ -3670,7 +3670,7 @@ document.body.prepend(c);
 
     # Honest comparison table
     st.markdown("""
-    <div style="font-family:'DM Mono',monospace;font-size:11px;color:#475569;
+    <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;
          letter-spacing:.1em;margin:8px 0 8px;">SIDE-BY-SIDE: BLENDED vs PURE QUANT vs SPY</div>
     """, unsafe_allow_html=True)
 
@@ -3689,20 +3689,20 @@ document.body.prepend(c);
     ]
     comp_html = ""
     for name,color,cum,ann,sharpe,sortino,mdd,wr,ir,adj in comparison:
-        sortino_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Sortino</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{sortino:.2f}</span></div>' if sortino else ""
-        wr_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Win Rate</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{wr:.1f}%</span></div>' if wr else ""
-        ir_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Info Ratio</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{ir:.2f}</span></div>' if ir else ""
-        adj_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Adj. Return*</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;">+{adj:.1f}%</span></div>' if adj else ""
+        sortino_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Sortino</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{sortino:.2f}</span></div>' if sortino else ""
+        wr_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Win Rate</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{wr:.1f}%</span></div>' if wr else ""
+        ir_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Info Ratio</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{ir:.2f}</span></div>' if ir else ""
+        adj_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Adj. Return*</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">+{adj:.1f}%</span></div>' if adj else ""
         comp_html += (
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-left:3px solid {color};border-radius:6px;padding:12px;min-width:0;overflow:hidden;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{color};letter-spacing:.06em;margin-bottom:10px;">{name}</div>'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Cumulative</span><span style="font-family:DM Mono,monospace;font-size:11px;color:{color};">+{cum:.1f}%</span></div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{color};letter-spacing:.06em;margin-bottom:10px;">{name}</div>'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Cumulative</span><span style="font-family:DM Mono,monospace;font-size:13px;color:{color};">+{cum:.1f}%</span></div>'
             f'{adj_row}'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Annualized</span><span style="font-family:DM Mono,monospace;font-size:11px;color:{color};">+{ann:.1f}%</span></div>'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:10px;color:#334155;">Sharpe</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{sharpe:.2f}</span></div>'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Annualized</span><span style="font-family:DM Mono,monospace;font-size:13px;color:{color};">+{ann:.1f}%</span></div>'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Sharpe</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{sharpe:.2f}</span></div>'
             f'{sortino_row}{ir_row}{wr_row}'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="font-size:10px;color:#334155;">Max Drawdown</span><span style="font-family:DM Mono,monospace;font-size:11px;color:#ef4444;">-{mdd:.1f}%</span></div>'
+            f'<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="font-size:13px;color:#94a3b8;">Max Drawdown</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#ef4444;">-{mdd:.1f}%</span></div>'
             f'</div>'
         )
     st.markdown(
@@ -3712,7 +3712,7 @@ document.body.prepend(c);
     # Regime breakdown
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div style="font-family:'DM Mono',monospace;font-size:11px;color:#475569;
+    <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;
          letter-spacing:.1em;margin-bottom:8px;">MACRO REGIME BREAKDOWN (avg quarterly return)</div>
     """, unsafe_allow_html=True)
 
@@ -3734,24 +3734,24 @@ document.body.prepend(c);
         <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
              background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.06);
              border-left:3px solid {color};border-radius:4px;margin-bottom:6px;">
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:#94a3b8;width:150px;flex-shrink:0;">
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;width:150px;flex-shrink:0;">
             {label}
           </div>
           <div style="display:flex;gap:24px;flex-wrap:wrap;flex:1;">
             <div>
-              <div style="font-size:11px;color:#475569;letter-spacing:.08em;margin-bottom:4px;">BLENDED AVG</div>
+              <div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:4px;">BLENDED AVG</div>
               <div style="font-family:'DM Mono',monospace;font-size:17px;font-weight:500;color:{b_col};">{b_pct:+.2f}%</div>
             </div>
             <div>
-              <div style="font-size:9px;color:#334155;letter-spacing:.08em;margin-bottom:2px;">PURE QUANT</div>
+              <div style="font-size:12px;color:#64748b;letter-spacing:.08em;margin-bottom:2px;">PURE QUANT</div>
               <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:#94a3b8;">{q_pct:+.2f}%</div>
             </div>
             <div>
-              <div style="font-size:11px;color:#475569;letter-spacing:.07em;margin-bottom:4px;">SPY AVG</div>
-              <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:#475569;">{s_pct:+.2f}%</div>
+              <div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">SPY AVG</div>
+              <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:#94a3b8;">{s_pct:+.2f}%</div>
             </div>
             <div>
-              <div style="font-size:13px;color:#475569;letter-spacing:.04em;margin-bottom:4px;">BlendED vs SPY</div>
+              <div style="font-size:13px;color:#94a3b8;letter-spacing:.04em;margin-bottom:4px;">BlendED vs SPY</div>
               <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:{a_col};">{b_alpha:+.0f} bps</div>
             </div>
           </div>
@@ -3772,7 +3772,7 @@ document.body.prepend(c);
     """, unsafe_allow_html=True)
 
     # Regime grid
-    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin:24px 0 12px;">REGIME SCORECARD</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin:24px 0 12px;">REGIME SCORECARD</div>', unsafe_allow_html=True)
     r_cols = st.columns(6)
     for col, p in zip(r_cols, bt["periods"]):
         beat  = p["beat"]
@@ -3785,20 +3785,20 @@ document.body.prepend(c);
         with col:
             st.markdown(f"""
             <div style="background:{col_c};border:1px solid {brd};border-radius:6px;padding:14px 12px;">
-              <div style="font-family:'DM Mono',monospace;font-size:10px;color:#475569;margin-bottom:4px;">{p['key']}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;margin-bottom:4px;">{p['key']}</div>
               <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">{p['label']}</div>
               <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:{ic};">{icon}</div>
               <div style="margin-top:8px;">
                 <div style="font-family:'DM Mono',monospace;font-size:13px;color:{mc};font-weight:500;">QNTM {p['model_ret']:+.1f}%</div>
-                <div style="font-family:'DM Mono',monospace;font-size:11px;color:{sc};margin-top:2px;">SPY {p['spy_ret']:+.1f}%</div>
-                <div style="font-size:10px;color:#334155;margin-top:6px;">{p['char']}</div>
+                <div style="font-family:'DM Mono',monospace;font-size:13px;color:{sc};margin-top:2px;">SPY {p['spy_ret']:+.1f}%</div>
+                <div style="font-size:13px;color:#94a3b8;margin-top:6px;">{p['char']}</div>
               </div>
             </div>
             """, unsafe_allow_html=True)
 
     # Holdings table — styled HTML matching platform theme
     st.markdown(
-        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;'
+        '<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;'
         'letter-spacing:.1em;margin:32px 0 12px;">12-MONTH CONVICTION PORTFOLIO — ACTUAL POSITIONS &amp; RETURNS</div>',
         unsafe_allow_html=True)
 
@@ -3809,12 +3809,12 @@ document.body.prepend(c);
         '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
         'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:11px;color:#334155;letter-spacing:.1em;">TICKER</div>'
-        '<div style="font-size:11px;color:#334155;letter-spacing:.1em;">ACTION</div>'
-        '<div style="font-size:11px;color:#334155;letter-spacing:.1em;">SCORE</div>'
-        '<div style="font-size:11px;color:#334155;letter-spacing:.1em;">HOLD PERIOD</div>'
-        '<div style="font-size:11px;color:#334155;letter-spacing:.1em;">12M RETURN</div>'
-        '<div style="font-size:11px;color:#334155;letter-spacing:.1em;">RESULT</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">ACTION</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">RESULT</div>'
         '</div>',
         unsafe_allow_html=True)
 
@@ -3834,17 +3834,17 @@ document.body.prepend(c);
             f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
             f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
             f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
-            f'<div><span style="font-size:11px;font-weight:700;color:{act_c};'
+            f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
             f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
             f'{arrow} {act}</span></div>'
             f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
-            f'<div style="font-size:13px;color:#64748b;">{h["held"]}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
             f'<div style="font-size:13px;font-weight:700;color:{result_c};">{result}</div>'
             f'</div>',
             unsafe_allow_html=True)
 
-    st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:11px;color:#334155;">Stocks avoided: ' +
+    st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">Stocks avoided: ' +
                 ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
                 ' — exited or never entered on signal</div></div></div>',
                 unsafe_allow_html=True)
@@ -3892,7 +3892,7 @@ def page_portfolio():
              display:flex;align-items:center;gap:16px;">
           <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-size:12px;color:#475569;">Free plan — positions used</span>
+              <span style="font-size:14px;color:#94a3b8;">Free plan — positions used</span>
               <span style="font-family:'DM Mono',monospace;font-size:12px;color:{bar_c};">
                 {n_holdings} / {max_h}
               </span>
@@ -3902,7 +3902,7 @@ def page_portfolio():
                    transition:width .3s;"></div>
             </div>
           </div>
-          <div style="font-size:11px;color:#334155;flex-shrink:0;">
+          <div style="font-size:13px;color:#64748b;flex-shrink:0;">
             {'<span style="color:#ef4444;">At limit</span>' if n_holdings >= max_h else f'{max_h - n_holdings} remaining'}
           </div>
         </div>
@@ -3942,7 +3942,7 @@ def page_portfolio():
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#ef4444;letter-spacing:.1em;">▼ EXIT SIGNAL: {chg["ticker"]}</span>'
-                        f'<span style="font-size:12px;color:#94a3b8;margin-left:12px;">'
+                        f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
                         f'{chg["from"]} → SELL · Check Alerts tab for details</span></div>',
                         unsafe_allow_html=True)
 
@@ -3952,7 +3952,7 @@ def page_portfolio():
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#00ff87;letter-spacing:.1em;">▲ BUY SIGNAL: {chg["ticker"]}</span>'
-                        f'<span style="font-size:12px;color:#94a3b8;margin-left:12px;">'
+                        f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
                         f'{chg["from"]} → BUY · Conviction strengthening</span></div>',
                         unsafe_allow_html=True)
 
@@ -3963,7 +3963,7 @@ def page_portfolio():
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#fbbf24;letter-spacing:.1em;">⚠ DETERIORATING: {chg["ticker"]}</span>'
-                        f'<span style="font-size:12px;color:#94a3b8;margin-left:12px;">'
+                        f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
                         f'Score dropped {abs(delta):.0f} pts · Still HOLD but monitor closely</span></div>',
                         unsafe_allow_html=True)
 
@@ -3982,17 +3982,17 @@ def page_portfolio():
             f'margin-bottom:6px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);'
             f'border-radius:4px;padding:4px 10px;">'
             f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#e2e8f0;font-weight:500;">{tk}</span>'
-            f'<span style="font-size:10px;color:#ef4444;">{sc:.0f}</span>'
+            f'<span style="font-size:13px;color:#ef4444;">{sc:.0f}</span>'
             f'</span>'
             for tk, sc, sig in exit_signals
         ])
         st.markdown(f"""
         <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);
              border-radius:8px;padding:16px 20px;margin-bottom:20px;">
-          <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
                color:#ef4444;letter-spacing:.12em;margin-bottom:10px;">⚠ ACTIVE EXIT SIGNALS</div>
           <div style="display:flex;flex-wrap:wrap;">{ticker_chips}</div>
-          <div style="font-size:11px;color:#334155;margin-top:8px;">
+          <div style="font-size:13px;color:#94a3b8;margin-top:8px;">
             Model score below exit threshold (45). Review these positions.
           </div>
         </div>
@@ -4058,18 +4058,18 @@ def page_portfolio():
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:28px;">
             <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 10px;">
               <div style="font-size:20px;margin-bottom:6px;">📊</div>
-              <div style="font-size:11px;color:#64748b;line-height:1.5;">Conviction<br>score</div>
+              <div style="font-size:13px;color:#64748b;line-height:1.5;">Conviction<br>score</div>
             </div>
             <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 10px;">
               <div style="font-size:20px;margin-bottom:6px;">🎯</div>
-              <div style="font-size:11px;color:#64748b;line-height:1.5;">Signal<br>changes</div>
+              <div style="font-size:13px;color:#64748b;line-height:1.5;">Signal<br>changes</div>
             </div>
             <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 10px;">
               <div style="font-size:20px;margin-bottom:6px;">💰</div>
-              <div style="font-size:11px;color:#64748b;line-height:1.5;">P&L<br>tracking</div>
+              <div style="font-size:13px;color:#64748b;line-height:1.5;">P&L<br>tracking</div>
             </div>
           </div>
-          <div style="font-size:12px;color:#334155;">Use the ＋ Add Position button above to get started</div>
+          <div style="font-size:14px;color:#94a3b8;">Use the ＋ Add Position button above to get started</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -4090,9 +4090,9 @@ def page_portfolio():
     ps_html = "".join([
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
         f'border-radius:6px;padding:14px;min-width:0;">'
-        f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:6px;font-family:DM Mono,monospace;">{label}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;font-family:DM Mono,monospace;">{label}</div>'
         f'<div style="font-size:28px;font-weight:800;color:{color};font-family:Syne,sans-serif;line-height:1;">{int(val)}</div>'
-        f'<div style="font-size:11px;color:#334155;margin-top:3px;">position{"s" if val!=1 else ""}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:3px;">position{"s" if val!=1 else ""}</div>'
         f'</div>'
         for label,val,color in port_summary_data
     ])
@@ -4117,7 +4117,7 @@ def page_portfolio():
             st.session_state.port_period = "1M"
 
         # Period toggle row — real st.buttons, session state only, no URL
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
         period_cols = st.columns(len(PERIOD_DATA))
         for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
             with col:
@@ -4164,41 +4164,41 @@ def page_portfolio():
         vc_html = (
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-left:3px solid #e2e8f0;border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
-            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:5px;">TOTAL VALUE</div>'
+            f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:5px;">TOTAL VALUE</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:clamp(18px,4vw,28px);font-weight:800;color:#e2e8f0;line-height:1;">${total_current:,.0f}</div>'
-            f'<div style="font-size:10px;color:#475569;margin-top:4px;">Cost basis ${total_cost_basis:,.0f}</div></div>'
+            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">Cost basis ${total_cost_basis:,.0f}</div></div>'
 
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-left:3px solid {change_c};border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
-            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:5px;">$ CHANGE</div>'
+            f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:5px;">$ CHANGE</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:clamp(16px,4vw,26px);font-weight:800;color:{change_c};line-height:1;">{arrow} ${abs(total_change):,.0f}</div>'
-            f'<div style="font-size:10px;color:#475569;margin-top:4px;">{plbl}</div></div>'
+            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{plbl}</div></div>'
 
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-left:3px solid {change_c};border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
-            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:5px;">% CHANGE</div>'
+            f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:5px;">% CHANGE</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:clamp(16px,4vw,26px);font-weight:800;color:{change_c};line-height:1;">{arrow} {abs(chg_pct):.1f}%</div>'
-            f'<div style="font-size:10px;color:#475569;margin-top:4px;">{plbl}</div></div>'
+            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{plbl}</div></div>'
 
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-radius:8px;padding:14px;min-width:0;">'
-            f'<div style="font-size:10px;color:#475569;letter-spacing:.08em;margin-bottom:6px;">SIGNAL MIX</div>'
+            f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SIGNAL MIX</div>'
             f'<div style="display:flex;gap:10px;">'
-            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:10px;color:#475569;">BUY</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:10px;color:#475569;">HOLD</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:10px;color:#475569;">SELL</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">BUY</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">HOLD</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">SELL</div></div>'
             f'</div></div>'
         )
         st.markdown(
             f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:4px;">{vc_html}</div>',
             unsafe_allow_html=True)
 
-        st.markdown('<div style="font-size:11px;color:#334155;margin:4px 0 20px;">Returns estimated from model signal rates. Add live price integration for real-time values.</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:13px;color:#64748b;margin:4px 0 20px;">Returns estimated from model signal rates. Add live price integration for real-time values.</div>', unsafe_allow_html=True)
 
     # ── Holdings cards ─────────────────────────────────────────────────────────
     st.markdown("""
-    <div style="font-family:DM Mono,monospace;font-size:11px;color:#334155;letter-spacing:.1em;margin-bottom:6px;">YOUR POSITIONS — MODEL SIGNALS APPLIED</div>
-    <div style="font-size:11px;color:#475569;margin-bottom:14px;">
+    <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">YOUR POSITIONS — MODEL SIGNALS APPLIED</div>
+    <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;">
       ⚠ Prices pulled from market data — indicative only, may not reflect real-time intraday changes.
       Run ⚡ Live Refresh in the Screener for the most current values.
     </div>
@@ -4308,20 +4308,20 @@ def page_portfolio():
         sig_disp   = (sig[:10] if sig else "—") if sig else "—"
 
         if live_price:
-            price_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
+            price_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
                           f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;font-weight:500;">${live_price:,.2f}</div></div>')
         else:
-            price_block = ('<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
-                          '<div style="font-family:DM Mono,monospace;font-size:16px;color:#334155;">—</div></div>')
-        shares_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">SHARES</div>'
+            price_block = ('<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
+                          '<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">—</div></div>')
+        shares_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">SHARES</div>'
                        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{shares:.2f}</div></div>')
-        cost_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">AVG COST</div>'
+        cost_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">AVG COST</div>'
                      f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">${cost:.2f}</div></div>') if cost > 0 else ""
-        mv_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">MKT VALUE</div>'
+        mv_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">MKT VALUE</div>'
                    f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#e2e8f0;">${market_value:,.0f}</div></div>') if market_value else ""
-        gl_block = (f'<div><div style="font-size:9px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">P&amp;L</div>'
+        gl_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">P&amp;L</div>'
                    f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f}</div></div>') if unrealized_gl is not None else ""
-        entry_block = (f'<div style="font-size:10px;color:#475569;">entry '
+        entry_block = (f'<div style="font-size:13px;color:#94a3b8;">entry '
                       f'<span style="color:#94a3b8;font-family:DM Mono,monospace;">{str(entry)[:10]}</span></div>') if entry else ""
 
         card_html = (
@@ -4331,17 +4331,17 @@ def page_portfolio():
             f'<div style="min-width:0;flex:1;">'
             f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">'
             f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{tk}</span>'
-            f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;color:{act_c};'
+            f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{act_c};'
             f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;'
             f'letter-spacing:.1em;white-space:nowrap;">{arrow} {act}</span>'
-            f'<span style="font-size:12px;color:#475569;">{sector}</span>'
+            f'<span style="font-size:14px;color:#94a3b8;">{sector}</span>'
             f'</div>'
-            f'<div style="font-size:10px;color:#475569;">{driver}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{driver}</div>'
             f'</div>'
             f'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
             f'<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:700;color:{act_c};">{comp:.0f}</div>'
-            f'<div style="font-size:10px;color:#475569;">blended score</div>'
-            f'<div style="font-size:10px;color:{delta_c};">macro {delta_str}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">blended score</div>'
+            f'<div style="font-size:13px;color:{delta_c};">macro {delta_str}</div>'
             f'</div></div>'
             # Position data row
             f'<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end;">'
@@ -4352,17 +4352,17 @@ def page_portfolio():
             # Score boxes
             f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">'
             f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
-            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">QUANT</div>'
+            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">QUANT</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{quant_disp}</div></div>'
             f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
-            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">MACRO</div>'
+            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">MACRO</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};">{delta_disp}</div></div>'
             f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
-            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">BLEND</div>'
+            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">BLEND</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div></div>'
             f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;overflow:hidden;">'
-            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;margin-bottom:3px;">SIGNAL</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sig_disp}</div></div>'
+            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">SIGNAL</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sig_disp}</div></div>'
             f'</div></div>'
         )
         st.markdown(card_html, unsafe_allow_html=True)
@@ -4409,20 +4409,20 @@ def page_alerts():
             <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
                  border-radius:6px;padding:14px 10px;">
               <div style="font-size:20px;margin-bottom:6px;">📈</div>
-              <div style="font-size:11px;color:#94a3b8;line-height:1.5;">BUY / SELL<br>signal alerts</div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">BUY / SELL<br>signal alerts</div>
             </div>
             <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
                  border-radius:6px;padding:14px 10px;">
               <div style="font-size:20px;margin-bottom:6px;">⚡</div>
-              <div style="font-size:11px;color:#94a3b8;line-height:1.5;">Macro regime<br>change alerts</div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Macro regime<br>change alerts</div>
             </div>
             <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
                  border-radius:6px;padding:14px 10px;">
               <div style="font-size:20px;margin-bottom:6px;">💎</div>
-              <div style="font-size:11px;color:#94a3b8;line-height:1.5;">Hidden gem<br>detection</div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Hidden gem<br>detection</div>
             </div>
           </div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;margin-bottom:8px;">
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;margin-bottom:8px;">
             PRO PLAN — $29/MO · FOUNDING MEMBER — FREE (FIRST 50)
           </div>
         </div>
@@ -4442,7 +4442,7 @@ def page_alerts():
     ac1, ac2, ac3 = st.columns([2, 1, 1])
     with ac1:
         st.markdown(f"""
-        <div style="padding:8px 0;font-size:13px;color:#475569;">
+        <div style="padding:8px 0;font-size:13px;color:#94a3b8;">
           {len(notifs)} notifications
           {'· <span style="color:#00ff87;">' + str(unread) + ' unread</span>' if unread else ''}
         </div>
@@ -4468,7 +4468,7 @@ def page_alerts():
             or when a macro regime shift affects the market. Add positions in Portfolio
             and the model will watch them every scan.
           </div>
-          <div style="font-size:11px;color:#334155;">Macro alerts are always active — portfolio alerts require holdings</div>
+          <div style="font-size:13px;color:#94a3b8;">Macro alerts are always active — portfolio alerts require holdings</div>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -4513,19 +4513,19 @@ def page_alerts():
                          color:{'#e2e8f0' if not is_read else '#94a3b8'};">
                       {n.get('title','')}
                     </div>
-                    <div style="font-size:12px;color:#475569;margin-top:3px;line-height:1.5;">
+                    <div style="font-size:14px;color:#94a3b8;margin-top:3px;line-height:1.5;">
                       {n.get('body','')}
                     </div>
                   </div>
                 </div>
-                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#334155;
+                <div style="font-family:'DM Mono',monospace;font-size:13px;color:#64748b;
                      flex-shrink:0;white-space:nowrap;">{created}</div>
               </div>
             </div>
             """, unsafe_allow_html=True)
 
         if shown == 0:
-            st.markdown(f'<div style="color:#334155;padding:24px;text-align:center;font-size:13px;">No {filter_type.lower()} alerts</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="color:#64748b;padding:24px;text-align:center;font-size:13px;">No {filter_type.lower()} alerts</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -4567,7 +4567,7 @@ def page_account():
             st.markdown(f"""
             <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
                  border-radius:4px;padding:10px 14px;margin:8px 0;">
-              <span style="font-size:11px;color:#334155;letter-spacing:.1em;">PLAN </span>
+              <span style="font-size:13px;color:#64748b;letter-spacing:.1em;">PLAN </span>
               <span style="font-family:'Syne',sans-serif;font-weight:700;color:{plan_c};">
                 {plan_display}
               </span>
@@ -4602,7 +4602,7 @@ def page_account():
                 <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#00ff87;">
                   Two-factor authentication is enabled
                 </div>
-                <div style="font-size:12px;color:#475569;margin-top:2px;">
+                <div style="font-size:14px;color:#94a3b8;margin-top:2px;">
                   Your account is protected with TOTP (Google Authenticator / Authy)
                 </div>
               </div>
@@ -4621,7 +4621,7 @@ def page_account():
                  border-radius:8px;padding:18px 20px;margin-bottom:20px;">
               <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
                    color:#ef4444;margin-bottom:4px;">⚠ Two-factor authentication is off</div>
-              <div style="font-size:12px;color:#64748b;">
+              <div style="font-size:14px;color:#94a3b8;">
                 We strongly recommend enabling MFA to protect your account.
                 Use Google Authenticator, Authy, or any TOTP app.
               </div>
@@ -4692,7 +4692,7 @@ def page_account():
         st.markdown("""
         <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
              border-radius:8px;padding:18px 20px;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#475569;
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;
                letter-spacing:.12em;margin-bottom:10px;">DATA SECURITY</div>
           <div style="font-size:12px;color:#64748b;line-height:1.8;">
             Your email and personal data are stored encrypted using AES-256-GCM
@@ -4711,11 +4711,11 @@ def page_account():
         st.markdown(f"""
         <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);
              border-left:3px solid {plan_color};border-radius:8px;padding:20px 24px;margin-bottom:24px;">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:#475569;
+          <div style="font-family:'DM Mono',monospace;font-size:14px;color:#94a3b8;
                letter-spacing:.12em;margin-bottom:8px;">CURRENT PLAN</div>
           <div style="font-family:'Syne',sans-serif;font-size:30px;font-weight:800;
                color:{plan_color};">{plan.upper()}</div>
-          <div style="font-size:13px;color:#475569;margin-top:6px;">
+          <div style="font-size:13px;color:#94a3b8;margin-top:6px;">
             {"Unlimited holdings · Hidden Gems · Signal alerts · Email notifications"
              if plan in ('pro','institutional')
              else "10 holdings · Market screener · BUY/HOLD/SELL signals · 5-yr backtest"}
@@ -4734,8 +4734,8 @@ def page_account():
                      color:#64748b;letter-spacing:.08em;margin-bottom:6px;">FREE</div>
                 <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
                      color:#e2e4f0;line-height:1;margin-bottom:4px;">$0</div>
-                <div style="font-size:11px;color:#475569;margin-bottom:18px;">forever</div>
-                <div style="font-size:13px;color:#475569;line-height:2;">
+                <div style="font-size:13px;color:#94a3b8;margin-bottom:18px;">forever</div>
+                <div style="font-size:13px;color:#94a3b8;line-height:2;">
                   ✓ Full market screener (61 stocks)<br>
                   ✓ BUY / HOLD / SELL signals<br>
                   ✓ 5-pillar factor breakdown<br>
@@ -4750,13 +4750,13 @@ def page_account():
               <div style="background:rgba(212,168,67,.04);border:2px solid rgba(212,168,67,.45);
                    border-radius:10px;padding:24px;position:relative;">
                 <div style="position:absolute;top:-12px;left:20px;background:#d4a843;color:#000;
-                     font-family:'Syne',sans-serif;font-size:10px;font-weight:700;
+                     font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
                      letter-spacing:.1em;padding:3px 12px;border-radius:3px;">RECOMMENDED</div>
                 <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
                      color:#d4a843;letter-spacing:.08em;margin-bottom:6px;">FOUNDING MEMBER</div>
                 <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
                      color:#d4a843;line-height:1;margin-bottom:4px;">$0</div>
-                <div style="font-size:11px;color:#94a3b8;margin-bottom:18px;">
+                <div style="font-size:13px;color:#94a3b8;margin-bottom:18px;">
                   first 50 users · then $29/mo
                 </div>
                 <div style="font-size:13px;color:#94a3b8;line-height:2;">
@@ -4891,13 +4891,13 @@ def page_platform():
     st.markdown("""
     <div style="padding:24px 32px;border-top:1px solid rgba(255,255,255,.05);margin-top:40px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div style="font-size:11px;color:#1e2a3a;">
+        <div style="font-size:13px;color:#475569;">
           QNTM · Quantitative research platform · Not investment advice
         </div>
-        <div style="font-size:11px;color:#1e2a3a;">
-          <a href="#" style="color:#334155;">Privacy</a> ·
-          <a href="#" style="color:#334155;">Terms</a> ·
-          <a href="#" style="color:#334155;">Disclaimer</a>
+        <div style="font-size:13px;color:#475569;">
+          <a href="#" style="color:#94a3b8;">Privacy</a> ·
+          <a href="#" style="color:#94a3b8;">Terms</a> ·
+          <a href="#" style="color:#94a3b8;">Disclaimer</a>
         </div>
       </div>
     </div>
