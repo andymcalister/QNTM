@@ -623,7 +623,6 @@ def show_onboarding():
     if st.session_state.get("onboarding_done"):
         return
     user = st.session_state.get("user") or {}
-    # Only show for users with no holdings yet
     try:
         holdings = get_holdings(user.get("id",""))
         if holdings:
@@ -638,83 +637,49 @@ def show_onboarding():
         {
             "icon": "⚡",
             "title": "Welcome to QNTM",
-            "body": (
-                "QNTM scores 963 stocks across 5 research-backed pillars — "
-                "Momentum, Quality, Volume, Value, and Sentiment — then blends "
-                "in a live macro overlay to tell you exactly what to buy, hold, or exit. "
-                "One conviction score. No noise."
-            ),
+            "body": "QNTM scores 963 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
             "cta": "Next →",
         },
         {
             "icon": "💼",
             "title": "Track your positions",
-            "body": (
-                "Add any stock you own to your Portfolio. QNTM will run the model "
-                "against your positions every scan and flag any signal changes — "
-                "BUY conviction strengthening, or an EXIT signal before a drawdown."
-            ),
+            "body": "Add any stock you own to your Portfolio. QNTM runs the model against your positions every scan and flags any signal changes — BUY conviction strengthening, or an EXIT signal before a drawdown.",
             "cta": "Next →",
         },
         {
             "icon": "📊",
             "title": "Run your first scan",
-            "body": (
-                "Head to the Screener and hit Rescan to score all 963 stocks live. "
-                "The model ranks everything from strongest conviction to weakest. "
-                "Filter by sector, signal, or strength — or search any ticker instantly."
-            ),
+            "body": "Head to the Screener and hit Rescan to score all 963 stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
             "cta": "Go to Screener →",
         },
     ]
 
     s = steps[step]
-    progress = f"{step + 1} of {len(steps)}"
     dots = "".join(
-        f'<div style="width:8px;height:8px;border-radius:50%;background:{"#00ff87" if i==step else "rgba(255,255,255,.15)"};"></div>'
+        f'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'
+        f'background:{"#00ff87" if i==step else "rgba(255,255,255,.2)"};margin:0 4px;"></span>'
         for i in range(len(steps))
     )
 
+    # Full-width inline card — no fixed positioning, no z-index fights
     st.markdown(f"""
-    <div style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;
-         display:flex;align-items:center;justify-content:center;padding:24px;
-         pointer-events:none;">
-      <div style="background:#0d1f18;border:2px solid rgba(0,255,135,.4);border-radius:16px;
-           padding:44px 40px 120px 40px;max-width:500px;width:100%;position:relative;
-           box-shadow:0 0 80px rgba(0,255,135,.15),0 24px 80px rgba(0,0,0,.9);">
-        <div style="font-size:56px;text-align:center;margin-bottom:20px;">{s["icon"]}</div>
-        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;
-             color:#ffffff;text-align:center;margin-bottom:16px;">{s["title"]}</div>
-        <div style="font-size:15px;color:#cbd5e1;line-height:1.9;text-align:center;
-             margin-bottom:32px;">{s["body"]}</div>
-        <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;">{dots}</div>
-        <div style="font-size:12px;color:#64748b;text-align:center;">{progress}</div>
+    <div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:40px 24px;">
+      <div style="background:#0d1f18;border:2px solid rgba(0,255,135,.5);border-radius:16px;
+           padding:52px 44px;max-width:520px;width:100%;text-align:center;
+           box-shadow:0 0 60px rgba(0,255,135,.12);">
+        <div style="font-size:60px;margin-bottom:24px;">{s["icon"]}</div>
+        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;
+             color:#ffffff;margin-bottom:18px;">{s["title"]}</div>
+        <div style="font-size:16px;color:#cbd5e1;line-height:1.9;margin-bottom:36px;">{s["body"]}</div>
+        <div style="margin-bottom:16px;">{dots}</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:32px;">Step {step+1} of {len(steps)}</div>
       </div>
     </div>
-    <style>
-    /* Float the onboarding buttons above the overlay */
-    div[data-testid="stHorizontalBlock"]:has(button[key="onboard_skip"]) {{
-        position: fixed !important;
-        bottom: calc(50% - 180px) !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        width: 460px !important;
-        max-width: calc(100vw - 48px) !important;
-        z-index: 99999 !important;
-        background: transparent !important;
-        display: flex !important;
-        gap: 12px !important;
-    }}
-    div[data-testid="stHorizontalBlock"]:has(button[key="onboard_skip"]) button {{
-        font-size: 14px !important;
-        padding: 12px 20px !important;
-    }}
-    </style>
     """, unsafe_allow_html=True)
 
     col_skip, col_cta = st.columns([1, 2])
     with col_skip:
-        if st.button("Skip", key="onboard_skip"):
+        if st.button("Skip", key="onboard_skip", use_container_width=True):
             st.session_state.onboarding_done = True
             st.rerun()
     with col_cta:
@@ -725,6 +690,9 @@ def show_onboarding():
             else:
                 st.session_state.onboarding_done = True
                 nav("screener")
+
+    # Stop rendering the rest of the page while onboarding is active
+    st.stop()
 
 # ── DATA FRESHNESS ────────────────────────────────────────────────────────────
 def data_freshness_banner():
