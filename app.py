@@ -370,34 +370,101 @@ document.addEventListener('mouseover', function(e) {
 </script>
 <style>
 
-/* Metrics */
-[data-testid="metric-container"]{
-  background:rgba(255,255,255,.03)!important;
-  border:1px solid rgba(255,255,255,.07)!important;
-  border-radius:4px!important;padding:1rem!important;
+/* ── Radio buttons (nav) ── */
+.stRadio > div {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
 }
-[data-testid="stMetricValue"]{color:#00ff87!important;font-family:'DM Mono',monospace!important;}
-[data-testid="stMetricLabel"]{color:#475569!important;font-size:11px!important;}
-[data-testid="stMetricDelta"]{font-family:'DM Mono',monospace!important;}
+.stRadio label {
+  color: #94a3b8 !important;
+  font-family: 'Syne', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+}
+.stRadio [data-testid="stMarkdownContainer"] p {
+  color: #94a3b8 !important;
+  font-size: 13px !important;
+}
+/* Selected radio option */
+.stRadio [aria-checked="true"] label,
+.stRadio input[type="radio"]:checked + div label {
+  color: #00ff87 !important;
+}
+/* Radio circle */
+.stRadio [data-baseweb="radio"] div {
+  border-color: rgba(255,255,255,.3) !important;
+  background: transparent !important;
+}
+.stRadio [aria-checked="true"] [data-baseweb="radio"] div {
+  border-color: #00ff87 !important;
+  background: #00ff87 !important;
+}
 
-/* Dataframe */
-[data-testid="stDataFrame"]{border:1px solid rgba(255,255,255,.07)!important;border-radius:4px!important;}
-.stDataFrame th{background:#050a0f!important;color:#475569!important;font-size:10px!important;letter-spacing:.1em!important;}
-.stDataFrame td{color:#94a3b8!important;font-size:12px!important;}
-
-/* Checkboxes & toggles */
-.stCheckbox label{color:#94a3b8!important;font-size:13px!important;}
-.stToggle label{color:#94a3b8!important;}
-
+/* ── General text contrast fixes ── */
+/* All markdown paragraphs */
+.stMarkdown p, [data-testid="stMarkdownContainer"] p {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+}
+/* All markdown headers */
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+  color: #e2e8f0 !important;
+}
+/* Labels — make readable */
+label,
+.stTextInput label,
+.stNumberInput label,
+.stSelectbox label,
+.stDateInput label,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] {
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+/* Tabs — brighter */
+.stTabs [data-baseweb="tab"] {
+  color: #94a3b8 !important;
+  font-family: 'Syne', sans-serif !important;
+  font-size: 13px !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+}
+.stTabs [aria-selected="true"] {
+  color: #00ff87 !important;
+  background: rgba(0,255,135,.08) !important;
+}
+/* Checkbox and toggle labels */
+.stCheckbox label, .stCheckbox label p {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+}
+.stToggle label, .stToggle label p {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+}
 /* Expander */
-.streamlit-expanderHeader{
-  background:rgba(255,255,255,.03)!important;
-  border:1px solid rgba(255,255,255,.07)!important;
-  border-radius:4px!important;color:#94a3b8!important;
+.streamlit-expanderHeader {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
 }
-
-/* Alert / info boxes */
-.stAlert{background:rgba(0,255,135,.06)!important;border:1px solid rgba(0,255,135,.2)!important;border-radius:4px!important;color:#94a3b8!important;}
+/* Selectbox text */
+div[data-baseweb="select"] span,
+[data-baseweb="select"] [data-baseweb="select-single-value"] {
+  color: #e2e8f0 !important;
+  font-size: 14px !important;
+}
+/* Metric labels */
+[data-testid="stMetricLabel"] { color: #94a3b8 !important; font-size: 12px !important; }
+/* Caption text */
+.stCaption, [data-testid="stCaptionContainer"] p { color: #64748b !important; }
 
 /* Forms */
 .stForm{border:1px solid rgba(255,255,255,.07)!important;border-radius:6px!important;padding:1.5rem!important;background:rgba(255,255,255,.02)!important;}
