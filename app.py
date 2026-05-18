@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime, date
-import sys, os
+import sys, os, contextlib
 sys.path.insert(0, os.path.dirname(__file__))
 
 st.set_page_config(
@@ -1019,7 +1019,66 @@ def macro_regime_banner_html(macro: dict) -> str:
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) -> str:
+def resolve_ticker(query: str) -> tuple[str, str]:
+    """
+    Given a ticker or company name, return (ticker, display_name).
+    Tries: exact ticker match → name substring match in KNOWN → yfinance search.
+    """
+    q = query.strip().upper()
+    if not q:
+        return "", ""
+
+    # Direct ticker match in universe
+    if q in SECTORS:
+        ci = get_company_info(q)
+        return q, ci.get("name", q)
+
+    # Search by name in KNOWN dict (case-insensitive substring)
+    q_lower = query.strip().lower()
+    KNOWN_INLINE = {
+        "AAPL":"Apple Inc.","MSFT":"Microsoft Corporation","NVDA":"NVIDIA Corporation",
+        "GOOGL":"Alphabet Inc.","GOOG":"Alphabet Inc.","META":"Meta Platforms Inc.",
+        "AMZN":"Amazon.com Inc.","TSLA":"Tesla Inc.","NFLX":"Netflix Inc.",
+        "AMD":"Advanced Micro Devices","INTC":"Intel Corporation","CSCO":"Cisco Systems",
+        "ORCL":"Oracle Corporation","CRM":"Salesforce Inc.","ADBE":"Adobe Inc.",
+        "INTU":"Intuit Inc.","QCOM":"Qualcomm Inc.","TXN":"Texas Instruments",
+        "AVGO":"Broadcom Inc.","MU":"Micron Technology","AMAT":"Applied Materials",
+        "JPM":"JPMorgan Chase & Co.","BAC":"Bank of America","GS":"Goldman Sachs",
+        "MS":"Morgan Stanley","V":"Visa Inc.","MA":"Mastercard Inc.",
+        "BLK":"BlackRock Inc.","AXP":"American Express","PYPL":"PayPal Holdings",
+        "UNH":"UnitedHealth Group","LLY":"Eli Lilly and Company","JNJ":"Johnson & Johnson",
+        "ABBV":"AbbVie Inc.","MRK":"Merck & Co.","PFE":"Pfizer Inc.",
+        "TMO":"Thermo Fisher Scientific","AMGN":"Amgen Inc.","GILD":"Gilead Sciences",
+        "WMT":"Walmart Inc.","COST":"Costco Wholesale","PG":"Procter & Gamble",
+        "KO":"The Coca-Cola Company","PEP":"PepsiCo Inc.","HD":"Home Depot",
+        "MCD":"McDonald's Corporation","NKE":"Nike Inc.","SBUX":"Starbucks Corporation",
+        "XOM":"Exxon Mobil Corporation","CVX":"Chevron Corporation",
+        "BRK":"Berkshire Hathaway","PLTR":"Palantir Technologies",
+        "COIN":"Coinbase Global","HOOD":"Robinhood Markets",
+        "SNOW":"Snowflake Inc.","DDOG":"Datadog Inc.","NET":"Cloudflare Inc.",
+        "ZS":"Zscaler Inc.","CRWD":"CrowdStrike Holdings","PANW":"Palo Alto Networks",
+        "NOW":"ServiceNow Inc.","WDAY":"Workday Inc.","TEAM":"Atlassian Corporation",
+        "UBER":"Uber Technologies","LYFT":"Lyft Inc.","ABNB":"Airbnb Inc.",
+        "DASH":"DoorDash Inc.","SPOT":"Spotify Technology",
+        "TSLA":"Tesla Inc.","TESLA":"Tesla Inc.",
+    }
+    for ticker, name in KNOWN_INLINE.items():
+        if q_lower in name.lower() or q_lower == ticker.lower():
+            return ticker, name
+
+    # Try yfinance search as last resort
+    try:
+        import yfinance as yf
+        results = yf.Search(query, max_results=1).quotes
+        if results:
+            tk = results[0].get("symbol", q)
+            nm = results[0].get("longname") or results[0].get("shortname") or tk
+            return tk.upper(), nm
+    except Exception:
+        pass
+
+    # Fall back to treating input as ticker
+    return q, q
     """
     Renders a full factor transparency panel for a single stock.
     Shows: ticker · signal badge · 5-pillar bars · quant vs macro breakdown · factor driver text.
@@ -2914,23 +2973,21 @@ def platform_nav():
     cur_nav     = st.session_state.get("nav","screener")
     cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
-    nav_col, signout_col = st.columns([8, 1])
-    with nav_col:
-        selected_tab = st.radio("nav", nav_options, index=cur_idx,
-                                horizontal=True, label_visibility="collapsed", key="nav_radio")
-        selected_key = nav_keys[nav_options.index(selected_tab)]
-        if selected_key != cur_nav:
-            nav(selected_key)
-    with signout_col:
-        if st.button("↩ Out", key="signout_btn", use_container_width=True):
-            for k in ["logged_in","user","mfa_verified","scan_results",
-                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
-                st.session_state[k] = False if k == "logged_in" else None
-            st.session_state.signed_out = True
-            for qp in ["uid","plan"]:
-                st.query_params.pop(qp, None)
-            _clear_localstorage_token()
-            go("landing")
+    selected_tab = st.radio("nav", nav_options, index=cur_idx,
+                            horizontal=True, label_visibility="collapsed", key="nav_radio")
+    selected_key = nav_keys[nav_options.index(selected_tab)]
+    if selected_key != cur_nav:
+        nav(selected_key)
+
+    if st.button("→ Sign Out", key="signout_btn"):
+        for k in ["logged_in","user","mfa_verified","scan_results",
+                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
+            st.session_state[k] = False if k == "logged_in" else None
+        st.session_state.signed_out = True
+        for qp in ["uid","plan"]:
+            st.query_params.pop(qp, None)
+        _clear_localstorage_token()
+        go("landing")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3427,27 +3484,30 @@ def page_gems():
                 f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:14px;color:#94a3b8;">SENT</div></div>'
             )
 
-            gem_cards_html += f"""
-            <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.25);
-                 border-radius:10px;padding:20px 16px;">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-                <div style="min-width:0;">
-                  <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;line-height:1;">{g["ticker"]}</div>
-                  <div style="font-size:13px;color:#94a3b8;margin-top:2px;">{name_short}</div>
-                  <div style="font-size:13px;color:#94a3b8;">{g.get("sector","")}</div>
-                  {price_html}
-                </div>
-                <div style="text-align:right;flex-shrink:0;margin-left:8px;">
-                  <div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;color:#00ff87;line-height:1;">{adj:.0f}</div>
-                  <div style="font-size:13px;color:#94a3b8;">adj score</div>
-                  <div style="font-size:13px;color:#64748b;">raw {raw:.0f}</div>
-                  {delta_html}
-                </div>
-              </div>
-              <div style="display:flex;gap:12px;background:rgba(0,255,135,.06);border-radius:6px;
-                   padding:10px;margin:12px 0;">{pillars_html}</div>
-              <div style="border-top:1px solid rgba(0,255,135,.1);padding-top:12px;">{reasons_html}</div>
-            </div>"""
+            card = (
+                '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.25);'
+                'border-radius:10px;padding:20px 16px;">'
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+                '<div style="min-width:0;">'
+                f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;line-height:1;">{g["ticker"]}</div>'
+                f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">{name_short}</div>'
+                f'<div style="font-size:13px;color:#94a3b8;">{g.get("sector","")}</div>'
+                + price_html +
+                '</div>'
+                '<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
+                f'<div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;color:#00ff87;line-height:1;">{adj:.0f}</div>'
+                '<div style="font-size:13px;color:#94a3b8;">adj score</div>'
+                f'<div style="font-size:13px;color:#64748b;">raw {raw:.0f}</div>'
+                + delta_html +
+                '</div></div>'
+                '<div style="display:flex;gap:12px;background:rgba(0,255,135,.06);border-radius:6px;padding:10px;margin:12px 0;">'
+                + pillars_html +
+                '</div>'
+                '<div style="border-top:1px solid rgba(0,255,135,.1);padding-top:12px;">'
+                + reasons_html +
+                '</div></div>'
+            )
+            gem_cards_html += card
         except Exception:
             pass
 
@@ -4042,14 +4102,33 @@ def page_portfolio():
             """, unsafe_allow_html=True)
         else:
             r1c1, r1c2, r1c3 = st.columns([2, 2, 2])
-            with r1c1: new_tk   = st.text_input("Ticker",        key="p_tk",   placeholder="e.g. AAPL")
+            with r1c1:
+                tk_query = st.text_input("Ticker / Company Name", key="p_tk", placeholder="e.g. Tesla, AAPL")
             with r1c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f")
             with r1c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f")
+
+            # Resolve and preview
+            resolved_ticker, resolved_name = "", ""
+            if tk_query and tk_query.strip():
+                with st.spinner("Looking up...") if len(tk_query) > 2 and not tk_query.strip().isupper() else contextlib.nullcontext():
+                    resolved_ticker, resolved_name = resolve_ticker(tk_query)
+                if resolved_ticker and resolved_name and resolved_name != resolved_ticker:
+                    st.markdown(
+                        f'<div style="font-size:14px;color:#00ff87;margin-bottom:8px;">'
+                        f'✓ {resolved_ticker} — {resolved_name}</div>',
+                        unsafe_allow_html=True)
+                elif resolved_ticker:
+                    st.markdown(
+                        f'<div style="font-size:14px;color:#94a3b8;margin-bottom:8px;">'
+                        f'Ticker: {resolved_ticker}</div>',
+                        unsafe_allow_html=True)
+
             r2c1, r2c2 = st.columns([3, 1])
             with r2c1: new_date = st.date_input("Entry Date", key="p_date", value=date.today())
             with r2c2:
                 st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
                 if st.button("Add", key="p_add", use_container_width=True):
+                    new_tk = resolved_ticker or tk_query.strip().upper()
                     if new_tk and new_sh > 0:
                         tk_clean = new_tk.upper().strip()
                         ok = upsert_holding(uid(), tk_clean, new_sh, new_cost, new_date)
