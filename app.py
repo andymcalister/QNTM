@@ -677,19 +677,21 @@ def show_onboarding():
     </div>
     """, unsafe_allow_html=True)
 
-    col_skip, col_cta = st.columns([1, 2])
-    with col_skip:
-        if st.button("Skip", key="onboard_skip", use_container_width=True):
-            st.session_state.onboarding_done = True
-            st.rerun()
-    with col_cta:
-        if st.button(s["cta"], key=f"onboard_step_{step}", use_container_width=True):
-            if step < len(steps) - 1:
-                st.session_state.onboarding_step = step + 1
-                st.rerun()
-            else:
+    _, btn_col, _ = st.columns([1, 3, 1])
+    with btn_col:
+        skip_col, cta_col = st.columns([1, 2])
+        with skip_col:
+            if st.button("Skip", key="onboard_skip", use_container_width=True):
                 st.session_state.onboarding_done = True
-                nav("screener")
+                st.rerun()
+        with cta_col:
+            if st.button(s["cta"], key=f"onboard_step_{step}", use_container_width=True):
+                if step < len(steps) - 1:
+                    st.session_state.onboarding_step = step + 1
+                    st.rerun()
+                else:
+                    st.session_state.onboarding_done = True
+                    nav("screener")
 
     # Stop rendering the rest of the page while onboarding is active
     st.stop()
@@ -2889,19 +2891,40 @@ def platform_nav():
     # Fixed nav bar via HTML — truly sticks on scroll
     st.markdown(f"""
     <style>
-    /* Push content below fixed nav */
     [data-testid="stMainBlockContainer"] > div:first-child {{
         padding-top: 112px !important;
     }}
     .qntm-fixed-nav {{
         position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
+        top: 0; left: 0; right: 0;
         z-index: 9999;
         background: rgba(5,7,15,.98);
         backdrop-filter: blur(16px);
         border-bottom: 1px solid rgba(255,255,255,.08);
+    }}
+    /* Hide the Streamlit radio — used only for click handling */
+    div[data-testid="stRadio"] {{
+        position: fixed !important;
+        top: 8px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 10000 !important;
+        background: transparent !important;
+        opacity: 0 !important;
+        pointer-events: auto !important;
+        width: 90vw !important;
+        max-width: 900px !important;
+    }}
+    div[data-testid="stRadio"] > div {{
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        gap: 0 !important;
+        justify-content: space-around !important;
+    }}
+    div[data-testid="stRadio"] label {{
+        flex: 1 !important;
+        height: 80px !important;
+        cursor: pointer !important;
     }}
     </style>
     <div class="qntm-fixed-nav">
@@ -2910,10 +2933,9 @@ def platform_nav():
           Q<span style="color:#00ff87;">NTM</span>
         </div>
         <div style="display:flex;align-items:center;gap:16px;">
-          <span style="background:rgba({plan_rgb},.15);color:{plan_color};
-            border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;
-            font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">
-            {plan.upper()}</span>
+          <span style="background:rgba({plan_rgb},.15);color:{plan_color};border:1px solid {plan_color}44;
+            border-radius:3px;padding:3px 10px;font-size:10px;font-weight:700;letter-spacing:.12em;
+            font-family:Syne,sans-serif;">{plan.upper()}</span>
           {notif_html}
           <span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>
         </div>
@@ -2925,7 +2947,7 @@ def platform_nav():
     </div>
     """, unsafe_allow_html=True)
 
-    # Streamlit radio for actual navigation — hidden visually, functional
+    # Radio widget — invisible but clickable for navigation
     nav_options_radio = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
     cur_idx = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
     selected_tab = st.radio("nav", nav_options_radio, index=cur_idx,
