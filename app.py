@@ -531,11 +531,7 @@ for k, v in {
 # Reads it back on every load. Falls back to query params for old sessions.
 
 def _inject_localstorage_reader():
-    """
-    Inject a component that reads the QNTM auth token from localStorage
-    and writes it to a query param so Streamlit can see it.
-    Only runs if not already logged in.
-    """
+    """Read QNTM auth token from localStorage and restore session via query params."""
     import streamlit.components.v1 as _cv1
     _cv1.html("""
     <script>
@@ -543,17 +539,10 @@ def _inject_localstorage_reader():
         try {
             var raw = localStorage.getItem('qntm_auth');
             if (!raw) return;
-            var tok = JSON.parse(raw);
-            if (!tok.uid || !tok.plan || !tok.expires) return;
-            if (Date.now() > tok.expires) {
-                localStorage.removeItem('qntm_auth');
-                return;
-            }
-            // Write to parent URL as query params so Streamlit detects them
             var url = new URL(window.parent.location.href);
             if (!url.searchParams.get('uid')) {
-                url.searchParams.set('uid', tok.uid);
-                url.searchParams.set('plan', tok.plan);
+                url.searchParams.set('uid', raw);
+                url.searchParams.set('plan', 'restore');
                 window.parent.location.replace(url.toString());
             }
         } catch(e) {}
@@ -590,16 +579,17 @@ if not st.session_state.logged_in and not st.session_state.get("signed_out"):
     _inject_localstorage_reader()
 
     params = st.query_params
-    if "uid" in params and "plan" in params:
+    if "uid" in params:
         try:
-            saved_uid  = params["uid"]
-            saved_plan = params["plan"]
-            # Check if it's a signed token in uid field
+            saved_uid = params["uid"]
+            # Signed token path (contains a dot separator)
             if "." in saved_uid:
                 verified_uid, verified_plan = _verify_token(saved_uid)
             else:
-                # Legacy plain uid — still support but will be replaced on next login
-                verified_uid, verified_plan = saved_uid, saved_plan
+                # Legacy plain uid fallback
+                verified_uid = saved_uid
+                verified_plan = params.get("plan", "free")
+
             if verified_uid:
                 user = get_user_by_id(verified_uid)
                 if user:
@@ -2669,8 +2659,9 @@ def page_auth():
                             st.session_state.mfa_verified = True
                             st.session_state.scan_results = None
                             st.session_state.force_mfa_setup = True
-                            # Always persist — 30-day token
-                            st.query_params["uid"]  = user["id"]
+                            # Always persist — signed 30-day token
+                            _signed = _sign_token(user["id"], user.get("plan","free"))
+                            st.query_params["uid"]  = _signed
                             st.query_params["plan"] = user.get("plan","free")
                             _write_localstorage_token(user["id"], user.get("plan","free"))
                             go("platform")
@@ -2807,8 +2798,9 @@ def page_mfa():
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
-                    # Always persist — 30-day token
-                    st.query_params["uid"]  = user["id"]
+                    # Always persist — signed 30-day token
+                    _signed = _sign_token(user["id"], user.get("plan","free"))
+                    st.query_params["uid"]  = _signed
                     st.query_params["plan"] = user.get("plan","free")
                     _write_localstorage_token(user["id"], user.get("plan","free"))
                     go("platform")
