@@ -370,101 +370,71 @@ document.addEventListener('mouseover', function(e) {
 </script>
 <style>
 
-/* ── Radio buttons (nav) ── */
-.stRadio > div {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 4px !important;
+/* ── Global text brightness ── */
+html, body, [class*="css"], .main, .stApp, p, span, div {
+  color: #cbd5e1;
 }
-.stRadio label {
-  color: #94a3b8 !important;
-  font-family: 'Syne', sans-serif !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  letter-spacing: .06em !important;
-  text-transform: uppercase !important;
-  cursor: pointer !important;
-}
-.stRadio [data-testid="stMarkdownContainer"] p {
-  color: #94a3b8 !important;
-  font-size: 13px !important;
-}
-/* Selected radio option */
-.stRadio [aria-checked="true"] label,
-.stRadio input[type="radio"]:checked + div label {
-  color: #00ff87 !important;
-}
-/* Radio circle */
-.stRadio [data-baseweb="radio"] div {
-  border-color: rgba(255,255,255,.3) !important;
-  background: transparent !important;
-}
-.stRadio [aria-checked="true"] [data-baseweb="radio"] div {
-  border-color: #00ff87 !important;
-  background: #00ff87 !important;
-}
-
-/* ── General text contrast fixes ── */
-/* All markdown paragraphs */
 .stMarkdown p, [data-testid="stMarkdownContainer"] p {
   color: #cbd5e1 !important;
   font-size: 14px !important;
   line-height: 1.7 !important;
 }
-/* All markdown headers */
-.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
-  color: #e2e8f0 !important;
-}
-/* Labels — make readable */
-label,
-.stTextInput label,
-.stNumberInput label,
-.stSelectbox label,
-.stDateInput label,
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+h1, h2, h3 { color: #f1f5f9 !important; }
+.stMarkdown h4, .stMarkdown h5, h4, h5 { color: #e2e8f0 !important; }
+/* Labels */
+label, .stTextInput label, .stNumberInput label,
+.stSelectbox label, .stDateInput label,
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] {
   color: #94a3b8 !important;
   font-size: 12px !important;
   letter-spacing: .08em !important;
   text-transform: uppercase !important;
-  font-family: 'Outfit', sans-serif !important;
 }
-/* Tabs — brighter */
+/* Checkboxes & toggles */
+.stCheckbox label, .stCheckbox label p,
+.stToggle label, .stToggle label p {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+/* Expander */
+.streamlit-expanderHeader, .streamlit-expanderHeader p {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+}
+/* Tabs */
 .stTabs [data-baseweb="tab"] {
   color: #94a3b8 !important;
-  font-family: 'Syne', sans-serif !important;
   font-size: 13px !important;
-  letter-spacing: .08em !important;
-  text-transform: uppercase !important;
 }
 .stTabs [aria-selected="true"] {
   color: #00ff87 !important;
   background: rgba(0,255,135,.08) !important;
 }
-/* Checkbox and toggle labels */
-.stCheckbox label, .stCheckbox label p {
-  color: #cbd5e1 !important;
-  font-size: 14px !important;
-}
-.stToggle label, .stToggle label p {
-  color: #cbd5e1 !important;
-  font-size: 14px !important;
-}
-/* Expander */
-.streamlit-expanderHeader {
-  color: #cbd5e1 !important;
-  font-size: 14px !important;
-}
-/* Selectbox text */
+/* Selectbox */
 div[data-baseweb="select"] span,
 [data-baseweb="select"] [data-baseweb="select-single-value"] {
   color: #e2e8f0 !important;
   font-size: 14px !important;
 }
-/* Metric labels */
+/* Metrics */
+[data-testid="stMetricValue"] { color: #00ff87 !important; }
 [data-testid="stMetricLabel"] { color: #94a3b8 !important; font-size: 12px !important; }
-/* Caption text */
-.stCaption, [data-testid="stCaptionContainer"] p { color: #64748b !important; }
+/* Radio buttons */
+.stRadio label, .stRadio label p,
+.stRadio [data-testid="stMarkdownContainer"] p {
+  color: #cbd5e1 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+}
+[aria-checked="true"] label, [aria-checked="true"] label p {
+  color: #00ff87 !important;
+}
 
 /* Forms */
 .stForm{border:1px solid rgba(255,255,255,.07)!important;border-radius:6px!important;padding:1.5rem!important;background:rgba(255,255,255,.02)!important;}
@@ -706,18 +676,18 @@ def show_onboarding():
     )
 
     st.markdown(f"""
-    <div style="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99998;
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;
          display:flex;align-items:center;justify-content:center;padding:24px;">
-      <div style="background:#0e0f1a;border:1px solid rgba(0,255,135,.2);border-radius:14px;
-           padding:40px 36px;max-width:480px;width:100%;position:relative;
-           box-shadow:0 24px 80px rgba(0,0,0,.8);">
-        <div style="font-size:48px;text-align:center;margin-bottom:16px;">{s["icon"]}</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;
-             color:#e2e8f0;text-align:center;margin-bottom:14px;">{s["title"]}</div>
-        <div style="font-size:14px;color:#94a3b8;line-height:1.8;text-align:center;
-             margin-bottom:28px;">{s["body"]}</div>
-        <div style="display:flex;justify-content:center;gap:6px;margin-bottom:24px;">{dots}</div>
-        <div style="font-size:11px;color:#334155;text-align:center;margin-bottom:16px;">{progress}</div>
+      <div style="background:#0d1f18;border:2px solid rgba(0,255,135,.4);border-radius:16px;
+           padding:44px 40px;max-width:500px;width:100%;position:relative;
+           box-shadow:0 0 80px rgba(0,255,135,.15),0 24px 80px rgba(0,0,0,.9);">
+        <div style="font-size:56px;text-align:center;margin-bottom:20px;">{s["icon"]}</div>
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;
+             color:#ffffff;text-align:center;margin-bottom:16px;">{s["title"]}</div>
+        <div style="font-size:15px;color:#cbd5e1;line-height:1.9;text-align:center;
+             margin-bottom:32px;">{s["body"]}</div>
+        <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;">{dots}</div>
+        <div style="font-size:12px;color:#64748b;text-align:center;margin-bottom:8px;">{progress}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2900,59 +2870,79 @@ def platform_nav():
     user  = st.session_state.user or {}
     plan  = user.get("plan","free")
     n_count = get_unread_count(uid()) if plan in ("pro","institutional") else 0
-    plan_color = "#00ff87" if plan in ("pro","institutional") else "#475569"
-    plan_rgb = "0,255,135" if plan=="pro" else "249,115,22" if plan=="institutional" else "71,85,105"
+    plan_color = "#00ff87" if plan in ("pro","institutional") else "#94a3b8"
+    plan_rgb = "0,255,135" if plan=="pro" else "249,115,22" if plan=="institutional" else "148,163,184"
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
         display_name = em[:20] + ("…" if len(em) > 20 else "")
     notif_html = (
-        f'<span style="background:rgba(239,68,68,.15);color:#ef4444;border-radius:50%;'
+        f'<span style="background:rgba(239,68,68,.2);color:#ef4444;border-radius:50%;'
         f'width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;'
         f'font-size:11px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
 
-    st.markdown(
-        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
-        f'border-bottom:1px solid rgba(255,255,255,.06);'
-        f'padding:0 32px;height:56px;display:flex;align-items:center;'
-        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
-        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;">'
-        f'Q<span style="color:#00ff87;">NTM</span></div>'
-        f'<div style="display:flex;align-items:center;gap:16px;">'
-        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
-        f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
-        f'{plan.upper()}</span>'
-        f'{notif_html}'
-        f'<span style="font-size:13px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
-        f'</div></div>',
-        unsafe_allow_html=True
-    )
-
-    # Nav tabs row — equal columns, no extra home button
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
-
-    # Nav tabs — pure HTML horizontal scroll, no st.columns
+    cur_nav = st.session_state.get("nav","screener")
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
 
-    # Map current nav to tab index
-    cur = st.session_state.get("nav","screener")
-    cur_idx = nav_keys.index(cur) if cur in nav_keys else 0
+    nav_items_html = ""
+    for label, key in zip(nav_options, nav_keys):
+        active = cur_nav == key
+        color  = "#00ff87" if active else "#94a3b8"
+        border = f"border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
+        bg     = "background:rgba(0,255,135,.06);" if active else ""
+        nav_items_html += (
+            f'<span style="{border}{bg}padding:6px 10px;font-family:Syne,sans-serif;'
+            f'font-size:12px;font-weight:700;color:{color};letter-spacing:.08em;'
+            f'text-transform:uppercase;cursor:pointer;white-space:nowrap;">{label}</span>'
+        )
 
-    selected_tab = st.radio(
-        "nav",
-        nav_options,
-        index=cur_idx,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="nav_radio"
-    )
+    # Fixed nav bar via HTML — truly sticks on scroll
+    st.markdown(f"""
+    <style>
+    /* Push content below fixed nav */
+    [data-testid="stMainBlockContainer"] > div:first-child {{
+        padding-top: 112px !important;
+    }}
+    .qntm-fixed-nav {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+        background: rgba(5,7,15,.98);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(255,255,255,.08);
+    }}
+    </style>
+    <div class="qntm-fixed-nav">
+      <div style="padding:0 32px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">
+          Q<span style="color:#00ff87;">NTM</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <span style="background:rgba({plan_rgb},.15);color:{plan_color};
+            border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;
+            font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">
+            {plan.upper()}</span>
+          {notif_html}
+          <span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>
+        </div>
+      </div>
+      <div style="display:flex;overflow-x:auto;padding:0 24px;gap:2px;scrollbar-width:none;
+           border-top:1px solid rgba(255,255,255,.05);">
+        {nav_items_html}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    selected_key = nav_keys[nav_options.index(selected_tab)]
-
+    # Streamlit radio for actual navigation — hidden visually, functional
+    nav_options_radio = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
+    cur_idx = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
+    selected_tab = st.radio("nav", nav_options_radio, index=cur_idx,
+                            horizontal=True, label_visibility="collapsed", key="nav_radio")
+    selected_key = nav_keys[nav_options_radio.index(selected_tab)]
     if selected_key == "signout":
         for k in ["logged_in","user","mfa_verified","scan_results",
                   "macro_data","mfa_recovery_mode","live_refresh_running"]:
@@ -2962,8 +2952,7 @@ def platform_nav():
             st.query_params.pop(qp, None)
         _clear_localstorage_token()
         go("landing")
-        st.rerun()
-    elif selected_key != cur:
+    elif selected_key != cur_nav:
         nav(selected_key)
 
 
