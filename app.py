@@ -1005,6 +1005,110 @@ def macro_regime_banner_html(macro: dict) -> str:
     )
 
 
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) -> str:
+    act    = r.get("adj_action", r.get("action","HOLD"))
+    score  = r.get("adj_composite", r.get("composite", 50))
+    quant  = r.get("composite", 50)
+    delta  = r.get("score_delta", 0)
+    act_colors = {"BUY":("#00ff87","rgba(0,255,135,.1)","rgba(0,255,135,.35)"),
+                  "HOLD":("#fbbf24","rgba(251,191,36,.1)","rgba(251,191,36,.3)"),
+                  "SELL":("#ef4444","rgba(239,68,68,.1)","rgba(239,68,68,.3)")}
+    act_c, act_bg, act_brd = act_colors.get(act, ("#64748b","rgba(100,116,139,.1)","rgba(100,116,139,.3)"))
+    left_border = f"3px solid {act_c}"
+    pillars = [
+        ("MOM",  r.get("momentum",50)),
+        ("QUAL", r.get("quality",50)),
+        ("VOL",  r.get("volume",50)),
+        ("VAL",  r.get("value",50)),
+        ("SENT", r.get("sentiment",50)),
+    ]
+    PILLAR_FULL_NAMES = {"MOM":"Momentum","QUAL":"Quality","VOL":"Volume","VAL":"Value","SENT":"Sentiment"}
+    pillar_bars = ""
+    for pname, pval in pillars:
+        pc = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
+        full = PILLAR_FULL_NAMES.get(pname, pname)
+        tip = PILLAR_TIPS.get(full, {})
+        tip_body = tip.get("body","")
+        tip_weight = tip.get("weight","")
+        weight_html = f'<div class="tip-weight">{tip_weight}</div>' if tip_weight else ""
+        label_html = (
+            f'<span class="qntm-tip" style="font-size:13px;color:#94a3b8;cursor:help;">'
+            f'{full}<i class="tip-icon">i</i>'
+            f'<span class="tip-box"><div class="tip-title">{full}</div>'
+            f'<div class="tip-body">{tip_body}</div>{weight_html}</span></span>'
+        )
+        pillar_bars += (
+            f'<div style="flex:1;min-width:0;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
+            f'{label_html}'
+            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{pc};font-weight:700;">{pval:.0f}</div>'
+            f'</div>'
+            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:6px;overflow:hidden;">'
+            f'<div style="width:{pval}%;height:100%;background:{pc};border-radius:3px;"></div>'
+            f'</div></div>'
+        )
+    sorted_pillars = sorted(pillars, key=lambda x: x[1], reverse=True)
+    top2 = [p[0] for p in sorted_pillars[:2]]
+    weak = [p[0] for p in sorted_pillars if p[1] < 45]
+    driver = f"Driven by {top2[0]} + {top2[1]}"
+    if weak: driver += f" — watch {weak[0]}"
+    delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
+    delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
+    gem_badge = ' 💎' if is_gem else ""
+    action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
+    ci_name = (company_info or {}).get("name","")
+    ci_desc = (company_info or {}).get("description","")
+    ticker_html = (
+        f'<span class="qntm-tip" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;cursor:help;">'
+        f'{r["ticker"]}{gem_badge}<span class="tip-box" style="width:300px;">'
+        f'<div class="tip-title">{ci_name}</div>'
+        f'<div class="tip-body">{ci_desc or "Search this ticker for a full company overview."}</div>'
+        f'</span></span>'
+        if ci_name and ci_name != r["ticker"]
+        else f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem_badge}</span>'
+    )
+    price_html = (f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;margin-top:3px;">'
+                  f'${r["price"]:,.2f} <span style="font-size:11px;color:#475569;">/ share</span></div>'
+                  if r.get("price") else "")
+    name_html = f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{ci_name}</div>' if ci_name and ci_name != r["ticker"] else ""
+    return (
+        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+        f'border-left:{left_border};border-radius:8px;padding:16px 18px;margin-bottom:8px;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
+        f'<div style="min-width:0;flex:1;">'
+        f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+        f'{ticker_html}'
+        f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
+        f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
+        f'letter-spacing:.1em;white-space:nowrap;">{action_arrow} {act}</span>'
+        f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:16]}</span>'
+        f'</div>'
+        f'{name_html}{price_html}'
+        f'<div style="font-size:12px;color:#94a3b8;margin-top:4px;">{driver}</div>'
+        f'</div>'
+        f'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:700;color:{act_c};">{score:.0f}</div>'
+        f'<div style="font-size:12px;color:#94a3b8;">blended score</div>'
+        f'<div style="font-size:12px;color:{delta_c};">macro {delta_str}</div>'
+        f'</div></div>'
+        f'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">{pillar_bars}</div>'
+        f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">'
+        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
+        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">QUANT</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{quant:.1f}</div></div>'
+        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
+        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">MACRO</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};">{delta_str}</div></div>'
+        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
+        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">BLEND</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div></div>'
+        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
+        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">RANK</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{r.get("pct_rank",50):.0f}th</div></div>'
+        f'</div></div>'
+    )
+
+
 def resolve_ticker(query: str) -> tuple[str, str]:
     """
     Given a ticker or company name, return (ticker, display_name).
