@@ -307,16 +307,18 @@ div[data-baseweb="select"] span,
 .qntm-tip .tip-box {
     visibility: hidden;
     opacity: 0;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    left: auto;
+    top: auto;
+    transform: none;
     background: #0d1117;
     border: 1px solid rgba(212,168,67,.3);
     border-radius: 8px;
     padding: 12px 16px;
     width: 260px;
-    max-width: 85vw;
+    max-width: calc(100vw - 32px);
     z-index: 99999;
     transition: opacity .15s;
     pointer-events: none;
@@ -2889,26 +2891,28 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
     cur_nav     = st.session_state.get("nav","screener")
     cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
-    selected_tab = st.radio("nav", nav_options, index=cur_idx,
-                            horizontal=True, label_visibility="collapsed", key="nav_radio")
-    selected_key = nav_keys[nav_options.index(selected_tab)]
-
-    if selected_key == "signout":
-        for k in ["logged_in","user","mfa_verified","scan_results",
-                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
-            st.session_state[k] = False if k == "logged_in" else None
-        st.session_state.signed_out = True
-        for qp in ["uid","plan"]:
-            st.query_params.pop(qp, None)
-        _clear_localstorage_token()
-        go("landing")
-    elif selected_key != cur_nav:
-        nav(selected_key)
+    nav_col, signout_col = st.columns([8, 1])
+    with nav_col:
+        selected_tab = st.radio("nav", nav_options, index=cur_idx,
+                                horizontal=True, label_visibility="collapsed", key="nav_radio")
+        selected_key = nav_keys[nav_options.index(selected_tab)]
+        if selected_key != cur_nav:
+            nav(selected_key)
+    with signout_col:
+        if st.button("↩ Out", key="signout_btn", use_container_width=True):
+            for k in ["logged_in","user","mfa_verified","scan_results",
+                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
+                st.session_state[k] = False if k == "logged_in" else None
+            st.session_state.signed_out = True
+            for qp in ["uid","plan"]:
+                st.query_params.pop(qp, None)
+            _clear_localstorage_token()
+            go("landing")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3080,10 +3084,19 @@ def page_screener():
         for l,c,v in stat_items
     )
     st.markdown(
-        f'<div style="display:flex;gap:5px;margin-bottom:16px;">{stats_html}</div>',
+        f'<div style="display:flex;gap:5px;margin-bottom:12px;">{stats_html}</div>',
         unsafe_allow_html=True)
 
-    # ── Screener tabs: Top 10 / Full Universe / Sector Breakdown ──────────────
+    # Rescan + Live Refresh — always visible on main screener
+    rb1, rb2 = st.columns(2)
+    with rb1:
+        if st.button("🔄 Rescan Universe", key="rescan_main", use_container_width=True):
+            st.session_state.scan_results = None
+            st.rerun()
+    with rb2:
+        if st.button("⚡ Live Refresh", key="live_refresh_main", use_container_width=True):
+            st.session_state.live_refresh_running = True
+            st.rerun()
     buys_ranked  = sorted([r for r in results if r.get("adj_action",r.get("action"))=="BUY"],
                           key=lambda x: x.get("adj_composite",x.get("composite",0)), reverse=True)
     sells_ranked = sorted([r for r in results if r.get("adj_action",r.get("action"))=="SELL"],
@@ -3358,70 +3371,72 @@ def page_gems():
     </div>
     """, unsafe_allow_html=True)
 
-    g_cols = st.columns(min(len(gems), 3))
-    for i, g in enumerate(gems):
-        with g_cols[i % 3]:
-            try:
-                adj   = float(g.get("adj_composite") or g.get("composite") or 0)
-                raw   = float(g.get("composite") or 0)
-                delta = adj - raw
-                price = g.get("price")
-                ci    = get_company_info(g["ticker"])
-                name  = ci.get("name", g["ticker"]) if ci else g["ticker"]
-                name_short = name if len(name) <= 24 else name[:22] + "…"
+    gem_cards_html = ""
+    for g in gems:
+        try:
+            adj   = float(g.get("adj_composite") or g.get("composite") or 0)
+            raw   = float(g.get("composite") or 0)
+            delta = adj - raw
+            price = g.get("price")
+            ci    = get_company_info(g["ticker"])
+            name  = ci.get("name", g["ticker"]) if ci else g["ticker"]
+            name_short = name if len(name) <= 24 else name[:22] + "…"
 
-                price_html = (
-                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:2px;">'
-                    f'${float(price):,.2f} / share</div>'
-                ) if price else ""
+            price_html = (
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;margin-top:2px;">'
+                f'${float(price):,.2f} / share</div>'
+            ) if price else ""
 
-                delta_html = ""
-                if abs(delta) >= 1:
-                    d_col   = "#ef4444" if delta < 0 else "#00ff87"
-                    d_arrow = "▼" if delta < 0 else "▲"
-                    delta_html = f'<span style="font-size:13px;color:{d_col};margin-left:6px;">{d_arrow} {abs(delta):.0f} macro adj</span>'
+            delta_html = ""
+            if abs(delta) >= 1:
+                d_col   = "#ef4444" if delta < 0 else "#00ff87"
+                d_arrow = "▼" if delta < 0 else "▲"
+                delta_html = f'<span style="font-size:13px;color:{d_col};margin-left:6px;">{d_arrow} {abs(delta):.0f} macro adj</span>'
 
-                reasons_html = "".join(
-                    f'<div style="font-size:12px;color:#4ade80;padding:4px 0;border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;"><span style="color:#00ff87;flex-shrink:0;">✓</span><span>{r}</span></div>'
-                    for r in g.get("gem_reasons", [])
-                ) or '<div style="font-size:14px;color:#94a3b8;">Run Live Refresh for detailed factor reasons</div>'
+            reasons_html = "".join(
+                f'<div style="font-size:14px;color:#4ade80;padding:4px 0;border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;"><span style="color:#00ff87;flex-shrink:0;">✓</span><span>{r}</span></div>'
+                for r in g.get("gem_reasons", [])
+            ) or '<div style="font-size:14px;color:#94a3b8;">Run Live Refresh for detailed factor reasons</div>'
 
-                mom  = float(g.get("momentum")  or 0)
-                qual = float(g.get("quality")   or 0)
-                val  = float(g.get("value")     or 0)
-                sent = float(g.get("sentiment") or 0)
-                pillars_html = (
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{mom:.0f}</div><div style="font-size:14px;color:#94a3b8;">MOM</div></div>'
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{qual:.0f}</div><div style="font-size:14px;color:#94a3b8;">QUAL</div></div>'
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{val:.0f}</div><div style="font-size:14px;color:#94a3b8;">VAL</div></div>'
-                    f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:14px;color:#94a3b8;">SENT</div></div>'
-                )
+            mom  = float(g.get("momentum")  or 0)
+            qual = float(g.get("quality")   or 0)
+            val  = float(g.get("value")     or 0)
+            sent = float(g.get("sentiment") or 0)
+            pillars_html = (
+                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{mom:.0f}</div><div style="font-size:14px;color:#94a3b8;">MOM</div></div>'
+                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{qual:.0f}</div><div style="font-size:14px;color:#94a3b8;">QUAL</div></div>'
+                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{val:.0f}</div><div style="font-size:14px;color:#94a3b8;">VAL</div></div>'
+                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:14px;color:#94a3b8;">SENT</div></div>'
+            )
 
-                card_html = (
-                    '<div style="background:rgba(0,255,135,.03);border:1px solid rgba(0,255,135,.2);border-radius:8px;padding:22px;margin-bottom:16px;">'
-                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
-                    '<div>'
-                    f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#fff;">💎 {g["ticker"]}</div>'
-                    f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{name_short}</div>'
-                    f'<div style="font-size:13px;color:#94a3b8;">{g["sector"]}</div>'
-                    f'{price_html}'
-                    '</div>'
-                    '<div style="text-align:right;">'
-                    f'<div style="font-family:DM Mono,monospace;font-size:30px;font-weight:500;color:#00ff87;line-height:1;">{adj:.0f}</div>'
-                    f'<div style="font-size:13px;color:#94a3b8;">adj score{delta_html}</div>'
-                    f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">raw {raw:.0f}</div>'
-                    '</div></div>'
-                    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.03);border-radius:4px;padding:8px;margin-bottom:14px;">'
-                    f'{pillars_html}'
-                    '</div>'
-                    '<div style="border-top:1px solid rgba(0,255,135,.12);padding-top:12px;">'
-                    f'{reasons_html}'
-                    '</div></div>'
-                )
-                st.markdown(card_html, unsafe_allow_html=True)
-            except Exception:
-                st.markdown(f'<div style="color:#94a3b8;font-size:12px;padding:8px;">💎 {g.get("ticker","?")} — display error</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+            gem_cards_html += f"""
+            <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.25);
+                 border-radius:10px;padding:20px 16px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                <div style="min-width:0;">
+                  <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;line-height:1;">{g["ticker"]}</div>
+                  <div style="font-size:13px;color:#94a3b8;margin-top:2px;">{name_short}</div>
+                  <div style="font-size:13px;color:#94a3b8;">{g.get("sector","")}</div>
+                  {price_html}
+                </div>
+                <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+                  <div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;color:#00ff87;line-height:1;">{adj:.0f}</div>
+                  <div style="font-size:13px;color:#94a3b8;">adj score</div>
+                  <div style="font-size:13px;color:#64748b;">raw {raw:.0f}</div>
+                  {delta_html}
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;background:rgba(0,255,135,.06);border-radius:6px;
+                   padding:10px;margin:12px 0;">{pillars_html}</div>
+              <div style="border-top:1px solid rgba(0,255,135,.1);padding-top:12px;">{reasons_html}</div>
+            </div>"""
+        except Exception:
+            pass
+
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));'
+        f'gap:16px;padding:0 4px;">{gem_cards_html}</div>',
+        unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4010,12 +4025,13 @@ def page_portfolio():
             </div>
             """, unsafe_allow_html=True)
         else:
-            c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 2, 1])
-            with c1: new_tk   = st.text_input("Ticker",        key="p_tk",   placeholder="e.g. AAPL")
-            with c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f")
-            with c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f")
-            with c4: new_date = st.date_input("Entry Date",     key="p_date", value=date.today())
-            with c5:
+            r1c1, r1c2, r1c3 = st.columns([2, 2, 2])
+            with r1c1: new_tk   = st.text_input("Ticker",        key="p_tk",   placeholder="e.g. AAPL")
+            with r1c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f")
+            with r1c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f")
+            r2c1, r2c2 = st.columns([3, 1])
+            with r2c1: new_date = st.date_input("Entry Date", key="p_date", value=date.today())
+            with r2c2:
                 st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
                 if st.button("Add", key="p_add", use_container_width=True):
                     if new_tk and new_sh > 0:
