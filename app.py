@@ -2971,28 +2971,24 @@ def page_auth():
         st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
         st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    # Legal footer links — rendered in components iframe so Streamlit CSS cannot override layout
-    st.components.v1.html("""
-    <style>
-      body { margin:0; padding:0; background:transparent; }
-      .footer-wrap {
-        display:flex; flex-wrap:wrap; gap:8px;
-        justify-content:center; padding:12px 8px 4px;
-      }
-      .footer-wrap a {
-        font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em;
-        color:#64748b; text-decoration:none;
-        border:1px solid rgba(100,116,139,.25); border-radius:4px;
-        padding:7px 14px; white-space:nowrap; background:transparent;
-      }
-    </style>
-    <div class="footer-wrap">
-      <a href="#" onclick="parent.window.location.href='?legal=privacy';return false;">PRIVACY POLICY</a>
-      <a href="#" onclick="parent.window.location.href='?legal=terms';return false;">TERMS OF SERVICE</a>
-      <a href="#" onclick="parent.window.location.href='?legal=disclaimer';return false;">INVESTMENT DISCLAIMER</a>
-      <a href="#" onclick="parent.window.location.href='?legal=cookies';return false;">COOKIE POLICY</a>
-    </div>
-    """, height=70)
+    # Legal footer — 2x2 grid, always fits any screen width
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+    r1c1, r1c2 = st.columns(2)
+    r2c1, r2c2 = st.columns(2)
+    link_style = (
+        "display:block;text-align:center;font-family:'DM Mono',monospace;"
+        "font-size:11px;letter-spacing:.07em;color:#64748b;text-decoration:none;"
+        "border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:8px 4px;"
+    )
+    with r1c1:
+        st.markdown(f'<a href="?legal=privacy" style="{link_style}">PRIVACY POLICY</a>', unsafe_allow_html=True)
+    with r1c2:
+        st.markdown(f'<a href="?legal=terms" style="{link_style}">TERMS OF SERVICE</a>', unsafe_allow_html=True)
+    with r2c1:
+        st.markdown(f'<a href="?legal=disclaimer" style="{link_style}">INVESTMENT DISCLAIMER</a>', unsafe_allow_html=True)
+    with r2c2:
+        st.markdown(f'<a href="?legal=cookies" style="{link_style}">COOKIE POLICY</a>', unsafe_allow_html=True)
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     cookie_banner()
 
