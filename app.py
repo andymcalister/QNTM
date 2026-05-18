@@ -3101,12 +3101,26 @@ def page_screener():
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
     search_col, _ = st.columns([2, 5])
     with search_col:
-        search_ticker = st.text_input(
-            "", placeholder="e.g. AAPL, TSLA, PLTR...",
+        search_query = st.text_input(
+            "", placeholder="e.g. AAPL, Tesla, Nvidia...",
             key="screener_search", label_visibility="collapsed"
-        ).strip().upper()
+        ).strip()
 
-    if search_ticker:
+    if search_query:
+        # Resolve company name → ticker (same logic as Add Position)
+        search_resolved_ticker, search_resolved_name = "", ""
+        with st.spinner("Looking up...") if len(search_query) > 2 and not search_query.strip().isupper() else contextlib.nullcontext():
+            search_resolved_ticker, search_resolved_name = resolve_ticker(search_query)
+
+        # Show green preview when a name was resolved to a different ticker string
+        if search_resolved_name and search_resolved_name != search_resolved_ticker:
+            st.markdown(
+                f'<div style="font-size:14px;color:#00ff87;margin-bottom:8px;">'
+                f'✓ {search_resolved_ticker} — {search_resolved_name}</div>',
+                unsafe_allow_html=True)
+
+        search_ticker = search_resolved_ticker or search_query.strip().upper()
+
         st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {search_ticker}</div>', unsafe_allow_html=True)
         with st.spinner(f"Scoring {search_ticker}..."):
             try:
