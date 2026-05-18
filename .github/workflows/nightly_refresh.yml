@@ -21,7 +21,7 @@ jobs:
   refresh:
     name: Refresh Universe & Score
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 30       # full 963-ticker pass takes ~4 min; 30 min is a safe ceiling
 
     env:
       SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
@@ -45,12 +45,15 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run nightly refresh
+        id: refresh
         run: |
+          # Build args
           ARGS=""
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             ARGS="$ARGS --force"
           fi
           if [ -n "${{ github.event.inputs.tickers }}" ]; then
+            # Convert "AAPL,MSFT,NVDA" → "--tickers AAPL MSFT NVDA"
             TICKER_LIST=$(echo "${{ github.event.inputs.tickers }}" | tr ',' ' ')
             ARGS="$ARGS --tickers $TICKER_LIST"
           fi
@@ -58,34 +61,40 @@ jobs:
           echo "Running: python data_refresh.py $ARGS"
           python data_refresh.py $ARGS | tee refresh_output.json
 
+          # Expose result fields to subsequent steps
+          echo "result=$(cat refresh_output.json)" >> $GITHUB_OUTPUT
+
       - name: Log refresh summary
         if: always()
         run: |
           echo "──────────────────────────────────────"
           echo "QNTM Nightly Refresh — Summary"
           echo "──────────────────────────────────────"
-          cat refresh_output.json 2>/dev/null || echo "(no output file)"
+          cat refresh_output.json 2>/dev/null || echo "(no output)"
+          echo ""
+          echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-      - name: Check refresh result
+      - name: Fail job on refresh error
         if: always()
         run: |
-          python3 - <<'EOF'
+          # data_refresh.py exits 1 on failure; this step makes the failure visible
+          python -c "
           import json, sys
           try:
               with open('refresh_output.json') as f:
-                  content = f.read()
-              # Find the JSON block (last {...} in output)
-              start = content.rfind('{')
-              end   = content.rfind('}') + 1
-              r = json.loads(content[start:end])
-              if r.get('skipped'):
-                  print('Cache was fresh — refresh skipped.')
-              elif r.get('success'):
-                  print(f"Success: {r.get('live_count',0)}/{r.get('total',0)} tickers | {r.get('duration_s',0)}s | regime={r.get('macro_regime','unknown')}")
-              else:
-                  print(f"Refresh failed: {r.get('error','unknown')}")
+                  r = json.load(f)
+              if not r.get('success') and not r.get('skipped'):
+                  print(f'Refresh failed: {r.get(\"error\", \"unknown\")}')
                   sys.exit(1)
+              elif r.get('skipped'):
+                  print('Cache was fresh — refresh skipped.')
+              else:
+                  live  = r.get('live_count', 0)
+                  total = r.get('total', 0)
+                  dur   = r.get('duration_s', 0)
+                  regime= r.get('macro_regime', 'unknown')
+                  print(f'Success: {live}/{total} live tickers scored in {dur}s | regime={regime}')
           except Exception as e:
               print(f'Could not parse output: {e}')
               sys.exit(1)
-          EOF
+          "
