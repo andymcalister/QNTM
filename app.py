@@ -143,8 +143,8 @@ section[data-testid="stMain"] > div,
   border-radius: 6px !important;
   font-family: 'Syne', sans-serif !important;
   font-weight: 700 !important;
-  font-size: 11px !important;
-  letter-spacing: .14em !important;
+  font-size: 13px !important;
+  letter-spacing: .1em !important;
   padding: 10px 26px !important;
   text-transform: uppercase !important;
   cursor: pointer !important;
@@ -684,19 +684,19 @@ def data_freshness_banner():
         if fresh:
             st.markdown(
                 f'<div style="display:inline-flex;align-items:center;gap:6px;'
-                f'background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.15);'
-                f'border-radius:20px;padding:4px 12px;font-size:11px;color:#00ff87;'
+                f'background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);'
+                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#00ff87;'
                 f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-                f'<span style="width:6px;height:6px;border-radius:50%;background:#00ff87;display:inline-block;"></span>'
+                f'<span style="width:7px;height:7px;border-radius:50%;background:#00ff87;display:inline-block;"></span>'
                 f'Data fresh · updated {age_str}</div>',
                 unsafe_allow_html=True)
         else:
             st.markdown(
                 f'<div style="display:inline-flex;align-items:center;gap:6px;'
-                f'background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);'
-                f'border-radius:20px;padding:4px 12px;font-size:11px;color:#f59e0b;'
+                f'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);'
+                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#f59e0b;'
                 f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-                f'<span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>'
+                f'<span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>'
                 f'Estimated data · last updated {age_str} · hit Rescan for live scores</div>',
                 unsafe_allow_html=True)
     except Exception:
@@ -708,18 +708,18 @@ def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
     pills_html = ""
     if pills:
         pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + "".join(
-            f'<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);'
-            f'border-radius:20px;padding:4px 12px;font-size:11px;color:#64748b;'
+            f'<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);'
+            f'border-radius:20px;padding:4px 12px;font-size:12px;color:#94a3b8;'
             f'font-family:DM Mono,monospace;">{p}</div>'
             for p in pills
         ) + '</div>'
     st.markdown(f"""
     <div style="padding:24px 32px 16px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-        <span style="font-size:24px;">{icon}</span>
-        <h1 style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#e2e8f0;margin:0;">{title}</h1>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <span style="font-size:26px;">{icon}</span>
+        <h1 style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;margin:0;">{title}</h1>
       </div>
-      <p style="color:#475569;font-size:13px;line-height:1.6;max-width:640px;margin:0;">{subtitle}</p>
+      <p style="color:#94a3b8;font-size:14px;line-height:1.7;max-width:680px;margin:0;">{subtitle}</p>
       {pills_html}
     </div>
     """, unsafe_allow_html=True)
