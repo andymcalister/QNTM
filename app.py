@@ -305,79 +305,98 @@ div[data-baseweb="select"] span,
     display: inline-block;
 }
 .qntm-tip .tip-box {
-    visibility: hidden;
-    opacity: 0;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    display: none;
+    position: fixed;
     background: #0d1117;
-    border: 1px solid rgba(212,168,67,.3);
-    border-radius: 8px;
-    padding: 12px 16px;
-    width: 240px;
-    max-width: 80vw;
+    border: 1px solid rgba(212,168,67,.4);
+    border-radius: 10px;
+    padding: 14px 16px;
+    width: 260px;
+    max-width: calc(100vw - 32px);
     z-index: 99999;
-    transition: opacity .15s;
     pointer-events: none;
-    box-shadow: 0 12px 40px rgba(0,0,0,.8);
+    box-shadow: 0 8px 40px rgba(0,0,0,.9);
     white-space: normal;
-    /* Keep within viewport */
-    max-left: 0;
 }
-/* On small screens, anchor to right edge of trigger instead */
-@media (max-width: 480px) {
-    .qntm-tip .tip-box {
-        left: auto;
-        right: 0;
-        transform: none;
-        width: 220px;
-    }
+.qntm-tip .tip-box.visible {
+    display: block;
 }
 .qntm-tip .tip-box .tip-title {
     font-family: 'Syne', sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: #d4a843;
     margin-bottom: 6px;
 }
 .qntm-tip .tip-box .tip-body {
-    font-size: 12px;
-    color: #94a3b8;
+    font-size: 13px;
+    color: #cbd5e1;
     line-height: 1.6;
 }
 .qntm-tip .tip-box .tip-weight {
     font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    color: #475569;
+    font-size: 11px;
+    color: #94a3b8;
     margin-top: 6px;
-}
-.qntm-tip:hover .tip-box {
-    visibility: visible;
-    opacity: 1;
 }
 </style>
 <script>
-// Position tooltips above their trigger element, clamped to viewport
-document.addEventListener('mouseover', function(e) {
-    var tip = e.target.closest('.qntm-tip');
-    if (!tip) return;
-    var box = tip.querySelector('.tip-box');
-    if (!box) return;
-    var rect = tip.getBoundingClientRect();
-    var bw   = 260;  // fixed width matches CSS
-    var bh   = box.offsetHeight || 130;
-    // Position above the element, centered horizontally on trigger
-    var top  = rect.top - bh - 12;
-    var left = rect.left + (rect.width / 2) - (bw / 2);
-    // Flip below if not enough room above
-    if (top < 8) top = rect.bottom + 8;
-    // Clamp horizontal — keep 12px from each edge
-    if (left < 12) left = 12;
-    if (left + bw > window.innerWidth - 12) left = window.innerWidth - bw - 12;
-    box.style.top  = top  + 'px';
-    box.style.left = left + 'px';
-});
+(function() {
+    function positionTip(tip, box) {
+        var rect = tip.getBoundingClientRect();
+        var bw = 260;
+        var bh = 160;
+        var margin = 12;
+        var top = rect.top - bh - 10;
+        var left = rect.left + rect.width / 2 - bw / 2;
+        if (top < margin) top = rect.bottom + 10;
+        if (top + bh > window.innerHeight - margin) top = margin;
+        if (left < margin) left = margin;
+        if (left + bw > window.innerWidth - margin) left = window.innerWidth - bw - margin;
+        box.style.top  = top + 'px';
+        box.style.left = left + 'px';
+    }
+
+    function showTip(tip) {
+        document.querySelectorAll('.tip-box.visible').forEach(function(b) { b.classList.remove('visible'); });
+        var box = tip.querySelector('.tip-box');
+        if (!box) return;
+        box.classList.add('visible');
+        positionTip(tip, box);
+    }
+
+    function hideTip(tip) {
+        var box = tip.querySelector('.tip-box');
+        if (box) box.classList.remove('visible');
+    }
+
+    // Mouse events for desktop
+    document.addEventListener('mouseover', function(e) {
+        var tip = e.target.closest('.qntm-tip');
+        if (tip) showTip(tip);
+    });
+    document.addEventListener('mouseout', function(e) {
+        var tip = e.target.closest('.qntm-tip');
+        if (tip && !tip.contains(e.relatedTarget)) hideTip(tip);
+    });
+
+    // Touch events for mobile — tap to toggle
+    document.addEventListener('touchstart', function(e) {
+        var tip = e.target.closest('.qntm-tip');
+        if (tip) {
+            var box = tip.querySelector('.tip-box');
+            if (box && box.classList.contains('visible')) {
+                hideTip(tip);
+            } else if (tip) {
+                e.preventDefault();
+                showTip(tip);
+            }
+            return;
+        }
+        // Tap anywhere else — hide all
+        document.querySelectorAll('.tip-box.visible').forEach(function(b) { b.classList.remove('visible'); });
+    }, { passive: false });
+})();
 </script>
 <style>
 
