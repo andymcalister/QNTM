@@ -677,9 +677,10 @@ def show_onboarding():
 
     st.markdown(f"""
     <div style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;
-         display:flex;align-items:center;justify-content:center;padding:24px;">
+         display:flex;align-items:center;justify-content:center;padding:24px;
+         pointer-events:none;">
       <div style="background:#0d1f18;border:2px solid rgba(0,255,135,.4);border-radius:16px;
-           padding:44px 40px;max-width:500px;width:100%;position:relative;
+           padding:44px 40px 120px 40px;max-width:500px;width:100%;position:relative;
            box-shadow:0 0 80px rgba(0,255,135,.15),0 24px 80px rgba(0,0,0,.9);">
         <div style="font-size:56px;text-align:center;margin-bottom:20px;">{s["icon"]}</div>
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;
@@ -687,9 +688,28 @@ def show_onboarding():
         <div style="font-size:15px;color:#cbd5e1;line-height:1.9;text-align:center;
              margin-bottom:32px;">{s["body"]}</div>
         <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;">{dots}</div>
-        <div style="font-size:12px;color:#64748b;text-align:center;margin-bottom:8px;">{progress}</div>
+        <div style="font-size:12px;color:#64748b;text-align:center;">{progress}</div>
       </div>
     </div>
+    <style>
+    /* Float the onboarding buttons above the overlay */
+    div[data-testid="stHorizontalBlock"]:has(button[key="onboard_skip"]) {{
+        position: fixed !important;
+        bottom: calc(50% - 180px) !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: 460px !important;
+        max-width: calc(100vw - 48px) !important;
+        z-index: 99999 !important;
+        background: transparent !important;
+        display: flex !important;
+        gap: 12px !important;
+    }}
+    div[data-testid="stHorizontalBlock"]:has(button[key="onboard_skip"]) button {{
+        font-size: 14px !important;
+        padding: 12px 20px !important;
+    }}
+    </style>
     """, unsafe_allow_html=True)
 
     col_skip, col_cta = st.columns([1, 2])
