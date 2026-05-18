@@ -212,25 +212,22 @@ def seed_quarter(
             failed += 1
             continue
 
+        adj = scored.get("adj_composite", scored.get("composite", 50))
         row = {
             "ticker":        ticker,
             "signal_date":   score_date,
-            "action":        scored.get("adj_action", scored.get("action", "HOLD")),
-            "score":         scored.get("adj_composite", scored.get("composite", 50)),
             "composite":     scored.get("composite", 50),
             "momentum":      scored.get("momentum", 50),
             "quality":       scored.get("quality", 50),
             "volume":        scored.get("volume", 50),
             "value":         scored.get("value", 50),
             "sentiment":     scored.get("sentiment", 50),
-            "macro_regime":  scored.get("macro_regime", "NEUTRAL"),
-            "score_delta":   scored.get("score_delta", 0),
-            "sector":        SECTORS.get(ticker, "Unknown"),
+            "adj_composite": adj,
+            "signal":        "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD"),
+            "macro_overlay": scored.get("macro_regime", "NEUTRAL"),
             "price":         scored.get("price"),
             "is_hidden_gem": False,
-            "has_live_price": len(hist) > 0,
-            # Tag seeded rows so they're distinguishable from live rows
-            "seeded":        True,
+            "hidden_gem_reason": None,
         }
         rows.append(row)
 
@@ -239,7 +236,7 @@ def seed_quarter(
         return {"written": 0, "skipped": 0, "failed": failed}
 
     if dry_run:
-        log.info(f"  [DRY RUN] {quarter}: would write {len(rows)} rows (sample: {rows[0]['ticker']} score={rows[0]['score']})")
+        log.info(f"  [DRY RUN] {quarter}: would write {len(rows)} rows (sample: {rows[0]['ticker']} adj={rows[0]['adj_composite']})")
         return {"written": 0, "skipped": 0, "failed": failed}
 
     # Check for existing rows (skip if not forced)
