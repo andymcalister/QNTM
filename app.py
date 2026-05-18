@@ -734,6 +734,47 @@ def data_freshness_banner():
     except Exception:
         pass
 
+def enrich_with_signal_log(results: list) -> list:
+    """
+    Merges latest signal_date and price from signal_log into scan results.
+    Called after run_full_scan so every stock card can show last scan date + price.
+    Safe to call even if Supabase is unavailable — returns results unchanged.
+    """
+    try:
+        sb = get_supabase()
+        if not sb or not results:
+            return results
+        tickers = [r["ticker"] for r in results]
+        # Fetch latest signal_log row per ticker (most recent signal_date)
+        rows = sb.table("signal_log") \
+            .select("ticker,signal_date,price") \
+            .in_("ticker", tickers) \
+            .order("signal_date", desc=True) \
+            .execute()
+        if not rows.data:
+            return results
+        # Build map: ticker → {signal_date, price} keeping only the most recent row
+        log_map = {}
+        for row in rows.data:
+            tk = row["ticker"]
+            if tk not in log_map:
+                log_map[tk] = {
+                    "signal_date": row.get("signal_date","")[:10] if row.get("signal_date") else "",
+                    "price":       float(row["price"]) if row.get("price") else None,
+                }
+        # Merge into results — only fill in missing values, don't overwrite live data
+        for r in results:
+            tk = r["ticker"]
+            if tk in log_map:
+                if not r.get("signal_date"):
+                    r["signal_date"] = log_map[tk]["signal_date"]
+                if not r.get("price") and log_map[tk]["price"]:
+                    r["price"] = log_map[tk]["price"]
+    except Exception:
+        pass
+    return results
+
+
 def scan_health_check():
     """
     Shows last successful nightly scan time pulled from signal_log.
@@ -3164,26 +3205,12 @@ def page_screener():
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
     search_col, _ = st.columns([2, 5])
     with search_col:
-        search_query = st.text_input(
-            "", placeholder="e.g. AAPL, Tesla, Nvidia...",
+        search_ticker = st.text_input(
+            "", placeholder="e.g. AAPL, TSLA, PLTR...",
             key="screener_search", label_visibility="collapsed"
-        ).strip()
+        ).strip().upper()
 
-    if search_query:
-        # Resolve company name → ticker (same logic as Add Position)
-        search_resolved_ticker, search_resolved_name = "", ""
-        with st.spinner("Looking up...") if len(search_query) > 2 and not search_query.strip().isupper() else contextlib.nullcontext():
-            search_resolved_ticker, search_resolved_name = resolve_ticker(search_query)
-
-        # Show green preview when a name was resolved to a different ticker string
-        if search_resolved_name and search_resolved_name != search_resolved_ticker:
-            st.markdown(
-                f'<div style="font-size:14px;color:#00ff87;margin-bottom:8px;">'
-                f'✓ {search_resolved_ticker} — {search_resolved_name}</div>',
-                unsafe_allow_html=True)
-
-        search_ticker = search_resolved_ticker or search_query.strip().upper()
-
+    if search_ticker:
         st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {search_ticker}</div>', unsafe_allow_html=True)
         with st.spinner(f"Scoring {search_ticker}..."):
             try:
@@ -3216,7 +3243,7 @@ def page_screener():
         with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
-            st.session_state.scan_results = apply_macro_overlay(raw, macro)
+            st.session_state.scan_results = enrich_with_signal_log(apply_macro_overlay(raw, macro))
             st.session_state.macro_data   = macro
 
     results = st.session_state.scan_results
