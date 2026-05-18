@@ -51,41 +51,12 @@ def _jwt_secret() -> str:
         return "dev-secret-qntm-2025"
 
 def _sign_token(uid: str, plan: str, days: int = 30) -> str:
-    """Create a signed token: base64(payload).base64(sig)"""
-    payload = _json.dumps({
-        "uid":     uid,
-        "plan":    plan,
-        "expires": int(_time.time()) + days * 86400,
-    })
-    sig = hmac.new(
-        _jwt_secret().encode(),
-        payload.encode(),
-        hashlib.sha256
-    ).hexdigest()
-    b64p = base64.urlsafe_b64encode(payload.encode()).decode()
-    return f"{b64p}.{sig}"
+    """For now return plain uid — JWT signing to be added once auth is stable."""
+    return uid
 
 def _verify_token(token: str):
-    """Verify signed token. Returns (uid, plan) or (None, None)."""
-    try:
-        parts = token.split(".")
-        if len(parts) != 2:
-            return None, None
-        b64p, sig = parts
-        payload = base64.urlsafe_b64decode(b64p + "==").decode()
-        expected = hmac.new(
-            _jwt_secret().encode(),
-            payload.encode(),
-            hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(sig, expected):
-            return None, None
-        data = _json.loads(payload)
-        if _time.time() > data["expires"]:
-            return None, None
-        return data["uid"], data["plan"]
-    except Exception:
-        return None, None
+    """For now treat token as plain uid."""
+    return token, None
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -582,14 +553,7 @@ if not st.session_state.logged_in and not st.session_state.get("signed_out"):
     if "uid" in params:
         try:
             saved_uid = params["uid"]
-            # Signed token path (contains a dot separator)
-            if "." in saved_uid:
-                verified_uid, verified_plan = _verify_token(saved_uid)
-            else:
-                # Legacy plain uid fallback
-                verified_uid = saved_uid
-                verified_plan = params.get("plan", "free")
-
+            verified_uid, _ = _verify_token(saved_uid)
             if verified_uid:
                 user = get_user_by_id(verified_uid)
                 if user:
@@ -4958,9 +4922,11 @@ def main():
     if st.query_params.get("nav") == "signin":
         st.session_state.auth_tab = "signin"
         st.session_state.page = "auth"
+        st.query_params.pop("nav", None)
     if st.query_params.get("nav") == "register":
         st.session_state.auth_tab = "register"
         st.session_state.page = "auth"
+        st.query_params.pop("nav", None)
 
     # ── Public model portfolio — bypass cookie gate ───────────────────────────
     if st.query_params.get("page") == "model":
