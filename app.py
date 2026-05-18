@@ -734,6 +734,57 @@ def data_freshness_banner():
     except Exception:
         pass
 
+def scan_health_check():
+    """
+    Shows last successful nightly scan time pulled from signal_log.
+    Green = scanned today. Amber = scanned yesterday. Red = >48h ago or never.
+    """
+    try:
+        sb = get_supabase()
+        if not sb:
+            return
+        result = sb.table("signal_log") \
+            .select("signal_date") \
+            .order("signal_date", desc=True) \
+            .limit(1) \
+            .execute()
+        if not result.data:
+            st.markdown(
+                '<div style="display:inline-flex;align-items:center;gap:6px;'
+                'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);'
+                'border-radius:20px;padding:5px 14px;font-size:12px;color:#ef4444;'
+                'font-family:DM Mono,monospace;margin-bottom:8px;">'
+                '<span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span>'
+                'No scan data found — run seed_track_record.py</div>',
+                unsafe_allow_html=True)
+            return
+        from datetime import datetime, timezone
+        last_date_str = result.data[0]["signal_date"]
+        # signal_date may be "YYYY-MM-DD" or ISO datetime string
+        try:
+            last_dt = datetime.fromisoformat(last_date_str.replace("Z",""))
+        except Exception:
+            last_dt = datetime.strptime(last_date_str[:10], "%Y-%m-%d")
+        now = datetime.now()
+        age_h = (now - last_dt).total_seconds() / 3600
+        if age_h < 26:
+            color, bg, dot, label = "#00ff87", "rgba(0,255,135,.08)", "#00ff87", f"Nightly scan OK · {last_date_str[:10]}"
+        elif age_h < 50:
+            color, bg, dot, label = "#f59e0b", "rgba(245,158,11,.08)", "#f59e0b", f"Last scan {last_date_str[:10]} · check GitHub Actions"
+        else:
+            color, bg, dot, label = "#ef4444", "rgba(239,68,68,.08)", "#ef4444", f"Scan stale · last run {last_date_str[:10]} · check GitHub Actions"
+        st.markdown(
+            f'<div style="display:inline-flex;align-items:center;gap:6px;'
+            f'background:{bg};border:1px solid {color}40;'
+            f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
+            f'font-family:DM Mono,monospace;margin-bottom:8px;">'
+            f'<span style="width:7px;height:7px;border-radius:50%;background:{dot};display:inline-block;"></span>'
+            f'{label}</div>',
+            unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
 # ── PAGE SUMMARY BANNERS ──────────────────────────────────────────────────────
 def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
     """Consistent page header with summary and optional stat pills."""
@@ -1068,8 +1119,13 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         else f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem_badge}</span>'
     )
     price_html = (f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;margin-top:3px;">'
-                  f'${r["price"]:,.2f} <span style="font-size:11px;color:#475569;">/ share</span></div>'
-                  if r.get("price") else "")
+                  f'${r["price"]:,.2f} <span style="font-size:11px;color:#475569;">/ share</span>'
+                  + (f' <span style="font-size:11px;color:#475569;margin-left:6px;">· scanned {r["signal_date"]}</span>'
+                     if r.get("signal_date") else "")
+                  + f'</div>'
+                  if r.get("price") else
+                  (f'<div style="font-size:11px;color:#475569;margin-top:3px;">scanned {r["signal_date"]}</div>'
+                   if r.get("signal_date") else ""))
     name_html = f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{ci_name}</div>' if ci_name and ci_name != r["ticker"] else ""
     return (
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
@@ -2915,28 +2971,28 @@ def page_auth():
         st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
         st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    # Legal navigation buttons — CSS flex row wraps cleanly on small screens
-    st.markdown("""
-    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
-                padding:8px 16px 16px;margin-top:4px;">
-      <a href="?legal=privacy"    style="font-family:'DM Mono',monospace;font-size:11px;
-        letter-spacing:.08em;color:#64748b;text-decoration:none;
-        border:1px solid rgba(100,116,139,.25);border-radius:4px;
-        padding:6px 12px;white-space:nowrap;">PRIVACY POLICY</a>
-      <a href="?legal=terms"      style="font-family:'DM Mono',monospace;font-size:11px;
-        letter-spacing:.08em;color:#64748b;text-decoration:none;
-        border:1px solid rgba(100,116,139,.25);border-radius:4px;
-        padding:6px 12px;white-space:nowrap;">TERMS OF SERVICE</a>
-      <a href="?legal=disclaimer" style="font-family:'DM Mono',monospace;font-size:11px;
-        letter-spacing:.08em;color:#64748b;text-decoration:none;
-        border:1px solid rgba(100,116,139,.25);border-radius:4px;
-        padding:6px 12px;white-space:nowrap;">INVESTMENT DISCLAIMER</a>
-      <a href="?legal=cookies"    style="font-family:'DM Mono',monospace;font-size:11px;
-        letter-spacing:.08em;color:#64748b;text-decoration:none;
-        border:1px solid rgba(100,116,139,.25);border-radius:4px;
-        padding:6px 12px;white-space:nowrap;">COOKIE POLICY</a>
+    # Legal footer links — rendered in components iframe so Streamlit CSS cannot override layout
+    st.components.v1.html("""
+    <style>
+      body { margin:0; padding:0; background:transparent; }
+      .footer-wrap {
+        display:flex; flex-wrap:wrap; gap:8px;
+        justify-content:center; padding:12px 8px 4px;
+      }
+      .footer-wrap a {
+        font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em;
+        color:#64748b; text-decoration:none;
+        border:1px solid rgba(100,116,139,.25); border-radius:4px;
+        padding:7px 14px; white-space:nowrap; background:transparent;
+      }
+    </style>
+    <div class="footer-wrap">
+      <a href="#" onclick="parent.window.location.href='?legal=privacy';return false;">PRIVACY POLICY</a>
+      <a href="#" onclick="parent.window.location.href='?legal=terms';return false;">TERMS OF SERVICE</a>
+      <a href="#" onclick="parent.window.location.href='?legal=disclaimer';return false;">INVESTMENT DISCLAIMER</a>
+      <a href="#" onclick="parent.window.location.href='?legal=cookies';return false;">COOKIE POLICY</a>
     </div>
-    """, unsafe_allow_html=True)
+    """, height=70)
 
     cookie_banner()
 
@@ -3106,6 +3162,7 @@ def page_screener():
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     data_freshness_banner()
+    scan_health_check()
 
     # ── Stock search box ──────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
