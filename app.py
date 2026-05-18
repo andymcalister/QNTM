@@ -2915,18 +2915,28 @@ def page_auth():
         st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
         st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    # Legal navigation buttons (invisible layout, activated by clicking links)
-    lc1, lc2, lc3, lc4 = st.columns(4)
-    for col, doc, label in [
-        (lc1,"privacy","Privacy Policy"),
-        (lc2,"terms","Terms of Service"),
-        (lc3,"disclaimer","Investment Disclaimer"),
-        (lc4,"cookies","Cookie Policy"),
-    ]:
-        with col:
-            if st.button(label, key=f"legal_{doc}"):
-                st.session_state.legal_doc = doc
-                go("legal")
+    # Legal navigation buttons — CSS flex row wraps cleanly on small screens
+    st.markdown("""
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+                padding:8px 16px 16px;margin-top:4px;">
+      <a href="?legal=privacy"    style="font-family:'DM Mono',monospace;font-size:11px;
+        letter-spacing:.08em;color:#64748b;text-decoration:none;
+        border:1px solid rgba(100,116,139,.25);border-radius:4px;
+        padding:6px 12px;white-space:nowrap;">PRIVACY POLICY</a>
+      <a href="?legal=terms"      style="font-family:'DM Mono',monospace;font-size:11px;
+        letter-spacing:.08em;color:#64748b;text-decoration:none;
+        border:1px solid rgba(100,116,139,.25);border-radius:4px;
+        padding:6px 12px;white-space:nowrap;">TERMS OF SERVICE</a>
+      <a href="?legal=disclaimer" style="font-family:'DM Mono',monospace;font-size:11px;
+        letter-spacing:.08em;color:#64748b;text-decoration:none;
+        border:1px solid rgba(100,116,139,.25);border-radius:4px;
+        padding:6px 12px;white-space:nowrap;">INVESTMENT DISCLAIMER</a>
+      <a href="?legal=cookies"    style="font-family:'DM Mono',monospace;font-size:11px;
+        letter-spacing:.08em;color:#64748b;text-decoration:none;
+        border:1px solid rgba(100,116,139,.25);border-radius:4px;
+        padding:6px 12px;white-space:nowrap;">COOKIE POLICY</a>
+    </div>
+    """, unsafe_allow_html=True)
 
     cookie_banner()
 
