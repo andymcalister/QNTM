@@ -370,64 +370,58 @@ document.addEventListener('mouseover', function(e) {
 </script>
 <style>
 
-/* ── Global text brightness ── */
-html, body, [class*="css"], .main, .stApp, p, span, div {
-  color: #cbd5e1;
+/* ── Global text brightness + font sizes ── */
+html, body, [class*="css"], .main, .stApp {
+  font-size: 16px !important;
 }
 .stMarkdown p, [data-testid="stMarkdownContainer"] p {
   color: #cbd5e1 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   line-height: 1.7 !important;
 }
-.stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
-h1, h2, h3 { color: #f1f5f9 !important; }
-.stMarkdown h4, .stMarkdown h5, h4, h5 { color: #e2e8f0 !important; }
-/* Labels */
+.stMarkdown h1, h1 { color: #f1f5f9 !important; font-size: 28px !important; }
+.stMarkdown h2, h2 { color: #f1f5f9 !important; font-size: 22px !important; }
+.stMarkdown h3, h3 { color: #e2e8f0 !important; font-size: 18px !important; }
+.stMarkdown h4, h4 { color: #e2e8f0 !important; font-size: 16px !important; }
 label, .stTextInput label, .stNumberInput label,
 .stSelectbox label, .stDateInput label,
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] {
   color: #94a3b8 !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   letter-spacing: .08em !important;
   text-transform: uppercase !important;
 }
-/* Checkboxes & toggles */
 .stCheckbox label, .stCheckbox label p,
 .stToggle label, .stToggle label p {
   color: #cbd5e1 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
 }
-/* Expander */
 .streamlit-expanderHeader, .streamlit-expanderHeader p {
   color: #cbd5e1 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
 }
-/* Tabs */
 .stTabs [data-baseweb="tab"] {
   color: #94a3b8 !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 .stTabs [aria-selected="true"] {
   color: #00ff87 !important;
   background: rgba(0,255,135,.08) !important;
 }
-/* Selectbox */
 div[data-baseweb="select"] span,
 [data-baseweb="select"] [data-baseweb="select-single-value"] {
   color: #e2e8f0 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
 }
-/* Metrics */
-[data-testid="stMetricValue"] { color: #00ff87 !important; }
-[data-testid="stMetricLabel"] { color: #94a3b8 !important; font-size: 12px !important; }
-/* Radio buttons */
+[data-testid="stMetricValue"] { color: #00ff87 !important; font-size: 28px !important; }
+[data-testid="stMetricLabel"] { color: #94a3b8 !important; font-size: 13px !important; }
 .stRadio label, .stRadio label p,
 .stRadio [data-testid="stMarkdownContainer"] p {
   color: #cbd5e1 !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: .06em !important;
@@ -583,9 +577,9 @@ def _clear_localstorage_token():
 
 
 # ── Auto-restore session from localStorage or query params ────────────────────
-if not st.session_state.logged_in and not st.session_state.get("signed_out"):
-    _inject_localstorage_reader()
-
+if not st.session_state.logged_in:
+    # If we have a uid param, always try to restore regardless of signed_out
+    # (signed_out is only meaningful within a session, not across refreshes)
     params = st.query_params
     if "uid" in params:
         try:
@@ -597,9 +591,14 @@ if not st.session_state.logged_in and not st.session_state.get("signed_out"):
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
+                    st.session_state.signed_out   = False
                     st.session_state.page         = "platform"
         except Exception:
             pass
+
+    # Only try localStorage if no uid param and not in this session's signed_out state
+    if not st.session_state.logged_in and not st.session_state.get("signed_out"):
+        _inject_localstorage_reader()
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def uid():
@@ -2872,87 +2871,33 @@ def platform_nav():
         f'font-size:11px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
 
-    cur_nav = st.session_state.get("nav","screener")
+    st.markdown(
+        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        f'border-bottom:1px solid rgba(255,255,255,.06);'
+        f'padding:0 32px;height:56px;display:flex;align-items:center;'
+        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
+        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
+        f'Q<span style="color:#00ff87;">NTM</span></div>'
+        f'<div style="display:flex;align-items:center;gap:16px;">'
+        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
+        f'font-size:10px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
+        f'{plan.upper()}</span>'
+        f'{notif_html}'
+        f'<span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
+
     nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
     nav_keys    = ["screener","gems","backtest","portfolio","alerts","account","signout"]
+    cur_nav     = st.session_state.get("nav","screener")
+    cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
-    nav_items_html = ""
-    for label, key in zip(nav_options, nav_keys):
-        active = cur_nav == key
-        color  = "#00ff87" if active else "#94a3b8"
-        border = f"border-bottom:2px solid #00ff87;" if active else "border-bottom:2px solid transparent;"
-        bg     = "background:rgba(0,255,135,.06);" if active else ""
-        nav_items_html += (
-            f'<span style="{border}{bg}padding:6px 10px;font-family:Syne,sans-serif;'
-            f'font-size:12px;font-weight:700;color:{color};letter-spacing:.08em;'
-            f'text-transform:uppercase;cursor:pointer;white-space:nowrap;">{label}</span>'
-        )
-
-    # Fixed nav bar via HTML — truly sticks on scroll
-    st.markdown(f"""
-    <style>
-    [data-testid="stMainBlockContainer"] > div:first-child {{
-        padding-top: 112px !important;
-    }}
-    .qntm-fixed-nav {{
-        position: fixed;
-        top: 0; left: 0; right: 0;
-        z-index: 9999;
-        background: rgba(5,7,15,.98);
-        backdrop-filter: blur(16px);
-        border-bottom: 1px solid rgba(255,255,255,.08);
-    }}
-    /* Hide the Streamlit radio — used only for click handling */
-    div[data-testid="stRadio"] {{
-        position: fixed !important;
-        top: 8px !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        z-index: 10000 !important;
-        background: transparent !important;
-        opacity: 0 !important;
-        pointer-events: auto !important;
-        width: 90vw !important;
-        max-width: 900px !important;
-    }}
-    div[data-testid="stRadio"] > div {{
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        gap: 0 !important;
-        justify-content: space-around !important;
-    }}
-    div[data-testid="stRadio"] label {{
-        flex: 1 !important;
-        height: 80px !important;
-        cursor: pointer !important;
-    }}
-    </style>
-    <div class="qntm-fixed-nav">
-      <div style="padding:0 32px;height:56px;display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">
-          Q<span style="color:#00ff87;">NTM</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:16px;">
-          <span style="background:rgba({plan_rgb},.15);color:{plan_color};border:1px solid {plan_color}44;
-            border-radius:3px;padding:3px 10px;font-size:10px;font-weight:700;letter-spacing:.12em;
-            font-family:Syne,sans-serif;">{plan.upper()}</span>
-          {notif_html}
-          <span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>
-        </div>
-      </div>
-      <div style="display:flex;overflow-x:auto;padding:0 24px;gap:2px;scrollbar-width:none;
-           border-top:1px solid rgba(255,255,255,.05);">
-        {nav_items_html}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Radio widget — invisible but clickable for navigation
-    nav_options_radio = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account","→ Sign Out"]
-    cur_idx = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
-    selected_tab = st.radio("nav", nav_options_radio, index=cur_idx,
+    selected_tab = st.radio("nav", nav_options, index=cur_idx,
                             horizontal=True, label_visibility="collapsed", key="nav_radio")
-    selected_key = nav_keys[nav_options_radio.index(selected_tab)]
+    selected_key = nav_keys[nav_options.index(selected_tab)]
+
     if selected_key == "signout":
         for k in ["logged_in","user","mfa_verified","scan_results",
                   "macro_data","mfa_recovery_mode","live_refresh_running"]:
@@ -4922,28 +4867,13 @@ def page_platform():
 
             st.session_state.force_mfa_setup = False
 
-    # Auto-refresh every 60 seconds
-    st.markdown("""
-    <script>
-    (function() {
-        if (!window._qntm_refresh) {
-            window._qntm_refresh = setInterval(function() {
-                // Trigger Streamlit rerun by clicking a hidden button
-                var btn = window.parent.document.querySelector('[data-testid="stButton"] button');
-                if (btn) btn.click();
-            }, 60000);
-        }
-    })();
-    </script>
-    """, unsafe_allow_html=True)
-    # Use Streamlit's built-in auto-rerun
     if "last_refresh" not in st.session_state:
         st.session_state.last_refresh = 0
     import time as _time
     now = int(_time.time())
     if now - st.session_state.last_refresh >= 60:
         st.session_state.last_refresh = now
-        st.session_state.scan_results = None  # force rescan
+        st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
 
