@@ -340,64 +340,6 @@ div[data-baseweb="select"] span,
     margin-top: 6px;
 }
 </style>
-<script>
-(function() {
-    function positionTip(tip, box) {
-        var rect = tip.getBoundingClientRect();
-        var bw = 260;
-        var bh = 160;
-        var margin = 12;
-        var top = rect.top - bh - 10;
-        var left = rect.left + rect.width / 2 - bw / 2;
-        if (top < margin) top = rect.bottom + 10;
-        if (top + bh > window.innerHeight - margin) top = margin;
-        if (left < margin) left = margin;
-        if (left + bw > window.innerWidth - margin) left = window.innerWidth - bw - margin;
-        box.style.top  = top + 'px';
-        box.style.left = left + 'px';
-    }
-
-    function showTip(tip) {
-        document.querySelectorAll('.tip-box.visible').forEach(function(b) { b.classList.remove('visible'); });
-        var box = tip.querySelector('.tip-box');
-        if (!box) return;
-        box.classList.add('visible');
-        positionTip(tip, box);
-    }
-
-    function hideTip(tip) {
-        var box = tip.querySelector('.tip-box');
-        if (box) box.classList.remove('visible');
-    }
-
-    // Mouse events for desktop
-    document.addEventListener('mouseover', function(e) {
-        var tip = e.target.closest('.qntm-tip');
-        if (tip) showTip(tip);
-    });
-    document.addEventListener('mouseout', function(e) {
-        var tip = e.target.closest('.qntm-tip');
-        if (tip && !tip.contains(e.relatedTarget)) hideTip(tip);
-    });
-
-    // Touch events for mobile — tap to toggle
-    document.addEventListener('touchstart', function(e) {
-        var tip = e.target.closest('.qntm-tip');
-        if (tip) {
-            var box = tip.querySelector('.tip-box');
-            if (box && box.classList.contains('visible')) {
-                hideTip(tip);
-            } else if (tip) {
-                e.preventDefault();
-                showTip(tip);
-            }
-            return;
-        }
-        // Tap anywhere else — hide all
-        document.querySelectorAll('.tip-box.visible').forEach(function(b) { b.classList.remove('visible'); });
-    }, { passive: false });
-})();
-</script>
 <style>
 
 /* ── Global text brightness + font sizes ── */
@@ -504,38 +446,63 @@ iframe[height="0"], iframe[style*="height: 0"],
 }
 /* Viewport meta (Streamlit adds this but ensure scale=1) */
 </style>
-<script>
-// Ensure proper mobile viewport
-if (!document.querySelector('meta[name="viewport"]')) {
-    var m=document.createElement('meta');
-    m.name='viewport';
-    m.content='width=device-width,initial-scale=1,maximum-scale=1';
-    document.head.appendChild(m);
-}
-</script>
-<style>
-/* dummy — following script tag */
-</style>
-<script>
-document.addEventListener("mouseover",function(e){
-  var tip=e.target.closest(".qntm-tip");
-  if(!tip)return;
-  var box=tip.querySelector(".tip-box");
-  if(!box)return;
-  var rect=tip.getBoundingClientRect();
-  var bw=280,m=10;
-  var top=rect.top-200-m;
-  var left=rect.left+rect.width/2-bw/2;
-  if(top<8)top=rect.bottom+m;
-  if(left<8)left=8;
-  if(left+bw>window.innerWidth-8)left=window.innerWidth-bw-8;
-  box.style.top=top+"px";
-  box.style.left=left+"px";
-  box.style.bottom="auto";
-  box.style.transform="none";
-});
-</script>
 """, unsafe_allow_html=True)
+
+# ── TOOLTIP + MOBILE JS — injected via components (only way to run JS in Streamlit) ──
+import streamlit.components.v1 as _cv1_js
+_cv1_js.html("""
+<script>
+(function() {
+    function positionTip(tip, box) {
+        var rect = tip.getBoundingClientRect();
+        var bw = 260, margin = 12, bh = box.offsetHeight || 160;
+        var top  = rect.top - bh - 10;
+        var left = rect.left + rect.width / 2 - bw / 2;
+        if (top < margin) top = rect.bottom + 10;
+        if (top + bh > window.innerHeight - margin) top = margin;
+        if (left < margin) left = margin;
+        if (left + bw > window.innerWidth - margin) left = window.innerWidth - bw - margin;
+        box.style.position = 'fixed';
+        box.style.top  = top + 'px';
+        box.style.left = left + 'px';
+        box.style.display = 'block';
+    }
+    function hideTip(tip) {
+        var box = tip.querySelector('.tip-box');
+        if (box) box.style.display = 'none';
+    }
+    function hideAll() {
+        parent.document.querySelectorAll('.tip-box').forEach(function(b) { b.style.display='none'; });
+    }
+    function showTip(tip) {
+        hideAll();
+        var box = tip.querySelector('.tip-box');
+        if (!box) return;
+        positionTip(tip, box);
+    }
+    // Desktop hover
+    parent.document.addEventListener('mouseover', function(e) {
+        var tip = e.target.closest('.qntm-tip');
+        if (tip) showTip(tip); else hideAll();
+    });
+    // Mobile tap
+    parent.document.addEventListener('touchend', function(e) {
+        var tip = e.target.closest('.qntm-tip');
+        if (tip) {
+            var box = tip.querySelector('.tip-box');
+            if (box && box.style.display === 'block') {
+                box.style.display = 'none';
+            } else {
+                e.preventDefault();
+                showTip(tip);
+            }
+        } else {
+            hideAll();
+        }
+    }, { passive: false });
+})();
+</script>
+""", height=0)
 
 # ── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in {
