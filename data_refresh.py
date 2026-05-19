@@ -428,6 +428,88 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
         return []
 
 
+def update_model_portfolio(scored_list: list) -> None:
+    """
+    Nightly model portfolio maintenance:
+    1. On first run (no active positions): seed top 20 BUY signals as of today
+    2. On subsequent runs:
+       - Exit any active position whose adj_composite < 45 (SELL signal)
+       - If positions drop below 20, fill from next-best BUY signals not already held
+    Entry date and price = today. Position size = $10,000 equal weight.
+    """
+    sb = _get_supabase()
+    if not sb:
+        log.warning("[MODEL PORTFOLIO] No Supabase — skipping update")
+        return
+
+    try:
+        today      = date.today().isoformat()
+        pos_size   = 10000
+
+        # Score map: ticker → row
+        score_map = {r["ticker"]: r for r in scored_list}
+
+        # ── Fetch active positions ────────────────────────────────────────────
+        active_resp = sb.table("model_portfolio_positions") \
+            .select("id,ticker,entry_date,entry_price,entry_score") \
+            .eq("is_active", True) \
+            .execute()
+        active = active_resp.data or []
+        active_tickers = {p["ticker"] for p in active}
+
+        # ── Step 1: Exit positions that triggered SELL ────────────────────────
+        exited = []
+        for pos in active:
+            tk = pos["ticker"]
+            scored = score_map.get(tk)
+            if not scored:
+                continue
+            adj = scored.get("adj_composite", scored.get("composite", 50))
+            if adj < 45:
+                exit_price = scored.get("price")
+                sb.table("model_portfolio_positions").update({
+                    "is_active":   False,
+                    "exit_date":   today,
+                    "exit_price":  exit_price,
+                    "exit_score":  adj,
+                    "exit_reason": "SELL_SIGNAL",
+                }).eq("id", pos["id"]).execute()
+                exited.append(tk)
+                active_tickers.discard(tk)
+                log.info(f"[MODEL PORTFOLIO] Exited {tk} (score={adj:.1f})")
+
+        # ── Step 2: Seed or fill to 20 positions ─────────────────────────────
+        # Get ranked BUY signals (score >= 60), excluding already held
+        buys = sorted(
+            [r for r in scored_list
+             if r.get("adj_composite", r.get("composite", 0)) >= 60
+             and r["ticker"] not in active_tickers],
+            key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+            reverse=True
+        )
+
+        slots_needed = 20 - len(active_tickers)
+        new_entries  = buys[:slots_needed]
+
+        for r in new_entries:
+            tk = r["ticker"]
+            sb.table("model_portfolio_positions").insert({
+                "ticker":        tk,
+                "entry_date":    today,
+                "entry_price":   r.get("price"),
+                "entry_score":   r.get("adj_composite", r.get("composite", 50)),
+                "position_size": pos_size,
+                "is_active":     True,
+            }).execute()
+            log.info(f"[MODEL PORTFOLIO] Entered {tk} @ {r.get('price')} (score={r.get('adj_composite', 50):.1f})")
+
+        log.info(f"[MODEL PORTFOLIO] Update complete — {len(exited)} exited, {len(new_entries)} entered, "
+                 f"{len(active_tickers)} held")
+
+    except Exception as e:
+        log.error(f"[MODEL PORTFOLIO] Update failed: {e}")
+
+
 def cache_is_fresh(max_age_hours: int = STALE_HOURS) -> bool:
     """Quick check: does today's cache exist and is it recent enough?"""
     sb = _get_supabase()
@@ -568,6 +650,9 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
 
         # Write to signal_log
         write_signal_snapshot(scored)
+
+        # Update model portfolio positions
+        update_model_portfolio(scored)
 
         duration = round(time.time() - start, 1)
         log.info(f"Refresh complete in {duration}s")

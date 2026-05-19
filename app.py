@@ -642,7 +642,7 @@ def show_onboarding():
         {
             "icon": "⚡",
             "title": "Welcome to QNTM",
-            "body": "QNTM scores 963 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
+            "body": "QNTM scores {len(ALL_SECTORS)} stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
             "cta": "Next →",
         },
         {
@@ -654,7 +654,7 @@ def show_onboarding():
         {
             "icon": "📊",
             "title": "Run your first scan",
-            "body": "Head to the Screener and hit Rescan to score all 963 stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
+            "body": "Head to the Screener and hit Rescan to score all {len(ALL_SECTORS)} stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
             "cta": "Go to Screener →",
         },
     ]
@@ -1789,7 +1789,7 @@ def _get_spy_return(start_date: str) -> float:
         return 0.0
 
 
-def page_model_portfolio():
+def page_public_track_record():
     from model_engine import run_full_scan, fetch_macro_overlay, apply_macro_overlay
 
     st.markdown("""
@@ -1821,7 +1821,7 @@ def page_model_portfolio():
       <div style="text-align:right;">
         <div style="font-size:13px;color:#94a3b8;">Returns measured from signal entry · Not investment advice</div>
         <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
-          963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+          {len(ALL_SECTORS)}-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
     </div>
@@ -2085,7 +2085,7 @@ def page_model_portfolio():
       <div style="text-align:right;">
         <div style="font-size:13px;color:#94a3b8;">Updated on load · Not investment advice</div>
         <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
-          963-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+          {len(ALL_SECTORS)}-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
     </div>
@@ -2486,7 +2486,7 @@ def page_landing():
         <div style="width:7px;height:7px;background:#00ff87;border-radius:50%;
              animation:land-pulse 2s infinite;flex-shrink:0;"></div>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;">
-          MODEL LIVE &middot; 5-YR VALIDATED &middot; 963 STOCKS &middot; RISK-OFF REGIME
+          MODEL LIVE &middot; 5-YR VALIDATED &middot; {len(ALL_SECTORS)} STOCKS &middot; RISK-OFF REGIME
         </span>
       </div>
 
@@ -2738,7 +2738,7 @@ def page_landing():
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row("963-stock screener")}
+          {feat_row(f"{len(ALL_SECTORS)}-stock screener")}
           {feat_row("BUY/HOLD/SELL signals")}
           {feat_row("5 pillar scores")}
           {feat_row("75/25 quant/macro")}
@@ -3163,8 +3163,8 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","alerts","account"]
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🏆 Model Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","model_portfolio","alerts","account"]
     cur_nav     = st.session_state.get("nav","screener")
     cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
@@ -3194,10 +3194,10 @@ def page_screener():
 
     page_summary(
         "📊", "Market Screener",
-        "963 stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
+        "{len(ALL_SECTORS)} stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
         "then blended with a live macro overlay. Every score tells you exactly what to buy, hold, or exit, and why. "
         "Search any ticker for an instant live score, or run a full universe rescan.",
-        pills=["963 tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
+        pills=[f"{len(ALL_SECTORS)} tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     data_freshness_banner()
@@ -3458,7 +3458,7 @@ def page_screener():
                 ⚡ LIVE DATA REFRESH
               </div>
               <div style="font-size:14px;color:#94a3b8;margin-bottom:12px;">
-                Fetching live fundamentals from market data for all 963 tickers.
+                Fetching live fundamentals from market data for all {len(ALL_SECTORS)} tickers.
                 This runs once per day and takes 3–4 minutes. All users benefit from the result.
               </div>
             </div>
@@ -5136,6 +5136,407 @@ def page_account():
 # ══════════════════════════════════════════════════════════════════════════════
 # PLATFORM SHELL
 # ══════════════════════════════════════════════════════════════════════════════
+def page_model_portfolio():
+    """
+    QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
+    Entry date = today (as if you acted on today's signals).
+    Exits when score drops below 45. Reinvests into next-best BUY signal.
+    """
+    from data_refresh import _get_supabase
+    import datetime
+
+    page_summary(
+        "🏆", "Model Portfolio",
+        "QNTM's top 20 BUY signals tracked live. Entry date is today — as if you acted on today's recommendations.",
+        pills=["Equal weighted", "Top 20 BUY signals", "$10K per position", "Auto-rebalance on SELL signal"]
+    )
+
+    sb = _get_supabase()
+
+    # ── Load positions from Supabase ──────────────────────────────────────────
+    positions = []
+    if sb:
+        try:
+            resp = sb.table("model_portfolio_positions") \
+                .select("*") \
+                .eq("is_active", True) \
+                .order("entry_date", desc=False) \
+                .execute()
+            positions = resp.data or []
+        except Exception as e:
+            st.warning(f"Could not load positions: {e}")
+
+    scan = st.session_state.get("scan_results") or []
+    score_map = {r["ticker"]: r for r in scan}
+
+    if not positions:
+        # No positions yet — show what would be entered today
+        st.markdown(
+            '<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);'
+            'border-radius:8px;padding:20px 24px;margin-bottom:24px;font-size:13px;color:#d4a843;">'
+            '⚡ Model portfolio initializes tonight at 2 AM UTC when the nightly cron runs. '
+            'Run a Rescan on the Screener first to seed today\'s signals.</div>',
+            unsafe_allow_html=True)
+
+        # Preview what would be entered
+        buys = sorted(
+            [r for r in scan if r.get("adj_composite", r.get("composite", 0)) >= 60],
+            key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+            reverse=True
+        )[:20]
+
+        if buys:
+            st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;'
+                        'letter-spacing:.1em;margin-bottom:12px;">TONIGHT\'S ENTRIES (PREVIEW)</div>',
+                        unsafe_allow_html=True)
+            for i, r in enumerate(buys):
+                bg = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
+                price_str = f'${r["price"]:,.2f}' if r.get("price") else "—"
+                st.markdown(
+                    f'<div style="display:grid;grid-template-columns:80px 1fr 80px 60px;'
+                    f'gap:4px;padding:8px 12px;background:{bg};'
+                    f'border:1px solid rgba(255,255,255,.04);border-radius:4px;margin-bottom:2px;">'
+                    f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}</div>'
+                    f'<div style="font-size:12px;color:#64748b;">Entry today</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{price_str}</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;">{r.get("adj_composite", 0):.0f}</div>'
+                    f'</div>', unsafe_allow_html=True)
+        return
+
+    # ── Calculate portfolio metrics ───────────────────────────────────────────
+    today = datetime.date.today().isoformat()
+    holdings = []
+    total_invested = 0
+    total_current  = 0
+
+    for pos in positions:
+        tk           = pos["ticker"]
+        entry_price  = pos.get("entry_price")
+        pos_size     = pos.get("position_size", 10000)
+        current_data = score_map.get(tk, {})
+        current_price = current_data.get("price")
+
+        if entry_price and current_price and entry_price > 0:
+            shares      = pos_size / entry_price
+            current_val = shares * current_price
+            pnl         = current_val - pos_size
+            pnl_pct     = (current_val / pos_size - 1) * 100
+        else:
+            shares      = None
+            current_val = pos_size
+            pnl         = 0
+            pnl_pct     = 0
+
+        total_invested += pos_size
+        total_current  += current_val
+
+        holdings.append({
+            "ticker":        tk,
+            "entry_date":    pos.get("entry_date", today),
+            "entry_price":   entry_price,
+            "current_price": current_price,
+            "current_score": current_data.get("adj_composite", current_data.get("composite", pos.get("entry_score", 50))),
+            "pos_size":      pos_size,
+            "current_val":   current_val,
+            "pnl":           pnl,
+            "pnl_pct":       pnl_pct,
+        })
+
+    port_return = (total_current / total_invested - 1) * 100 if total_invested > 0 else 0
+    port_pnl    = total_current - total_invested
+    sign        = "+" if port_return >= 0 else ""
+    ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
+
+    # ── Summary strip ─────────────────────────────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
+    ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:16px 20px;text-align:center;"
+    ls = "font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
+
+    with c1:
+        st.markdown(f'<div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div style="{ss}"><div style="{ls}">TOTAL RETURN</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:{ret_color};">{sign}{port_return:.1f}%</div></div>',
+                    unsafe_allow_html=True)
+    with c3:
+        pnl_sign = "+" if port_pnl >= 0 else ""
+        st.markdown(f'<div style="{ss}"><div style="{ls}">TOTAL P&L</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with c4:
+        st.markdown(f'<div style="{ss}"><div style="{ls}">POSITIONS</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:#cbd5e1;">{len(holdings)}</div></div>',
+                    unsafe_allow_html=True)
+
+    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+
+    # ── Holdings table ────────────────────────────────────────────────────────
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+                'letter-spacing:.1em;margin-bottom:12px;">▲ ACTIVE POSITIONS</div>',
+                unsafe_allow_html=True)
+
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:80px 90px 80px 80px 80px 80px 60px;'
+        'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">ENTERED</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">ENTRY $</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">NOW $</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">P&L</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">RETURN</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
+        '</div>', unsafe_allow_html=True)
+
+    for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
+        bg         = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
+        rc         = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
+        sg         = "+" if h["pnl_pct"] >= 0 else ""
+        entry_str  = f'${h["entry_price"]:,.2f}'   if h["entry_price"]   else "—"
+        cur_str    = f'${h["current_price"]:,.2f}'  if h["current_price"] else "—"
+        pnl_str    = f'{sg}${h["pnl"]:,.0f}'        if h["entry_price"] and h["current_price"] else "—"
+        ret_str    = f'{sg}{h["pnl_pct"]:.1f}%'     if h["entry_price"] and h["current_price"] else "—"
+        score      = h["current_score"]
+        score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
+
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:80px 90px 80px 80px 80px 80px 60px;'
+            f'gap:4px;padding:8px 12px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
+            f'<div style="font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{entry_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">{cur_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};text-align:right;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
+            f'</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div style="padding:8px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:0 0 6px 6px;font-size:12px;color:#64748b;">'
+        f'$10,000/position · Equal weighted · Entry = date of first BUY signal · '
+        f'Auto-exit when score drops below 45</div>', unsafe_allow_html=True)
+
+    # ── Exit history ──────────────────────────────────────────────────────────
+    if sb:
+        try:
+            exits = sb.table("model_portfolio_positions") \
+                .select("ticker,entry_date,entry_price,exit_date,exit_price,exit_score,exit_reason") \
+                .eq("is_active", False) \
+                .order("exit_date", desc=True) \
+                .limit(20) \
+                .execute()
+            if exits.data:
+                st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;'
+                            'letter-spacing:.1em;margin-bottom:12px;">RECENT EXITS</div>',
+                            unsafe_allow_html=True)
+                for ex in exits.data:
+                    ep = ex.get("entry_price")
+                    xp = ex.get("exit_price")
+                    if ep and xp and ep > 0:
+                        ret = (xp / ep - 1) * 100
+                        rc  = "#00ff87" if ret >= 0 else "#ef4444"
+                        sg  = "+" if ret >= 0 else ""
+                        ret_str = f'{sg}{ret:.1f}%'
+                    else:
+                        rc = "#64748b"
+                        ret_str = "—"
+                    st.markdown(
+                        f'<div style="display:flex;gap:16px;padding:6px 12px;'
+                        f'border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;">'
+                        f'<span style="font-family:Syne,sans-serif;font-weight:800;color:#94a3b8;width:60px;">{ex["ticker"]}</span>'
+                        f'<span style="color:#475569;">{ex.get("exit_date","")} · {ex.get("exit_reason","")}</span>'
+                        f'<span style="font-family:DM Mono,monospace;color:{rc};margin-left:auto;">{ret_str}</span>'
+                        f'</div>', unsafe_allow_html=True)
+        except Exception:
+            pass
+
+    st.markdown(
+        '<div style="font-size:12px;color:#475569;padding:16px 0;margin-top:16px;'
+        'border-top:1px solid rgba(255,255,255,.05);">'
+        '⚠ Model portfolio is hypothetical. $10K equal weight per position. '
+        'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
+        unsafe_allow_html=True)
+
+    sb = _get_supabase()
+    scan = st.session_state.get("scan_results") or []
+
+    # ── Get current top 20 BUY signals ───────────────────────────────────────
+    buys = sorted(
+        [r for r in scan if r.get("adj_composite", r.get("composite", 0)) >= 60],
+        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+        reverse=True
+    )[:20]
+
+    if not buys:
+        st.markdown(
+            '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+            'border-radius:8px;padding:32px;text-align:center;margin:24px 0;">'
+            '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
+            '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">Run a scan first</div>'
+            '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe to load the current BUY signals.</div>'
+            '</div>', unsafe_allow_html=True)
+        return
+
+    # ── Pull entry dates from signal_log ─────────────────────────────────────
+    entry_map = {}
+    if sb:
+        try:
+            tickers = [r["ticker"] for r in buys]
+            rows = sb.table("signal_log").select("ticker,signal_date,price") \
+                .in_("ticker", tickers) \
+                .eq("signal", "BUY") \
+                .order("signal_date", desc=False) \
+                .execute()
+            # Get earliest BUY date and entry price per ticker
+            for row in (rows.data or []):
+                tk = row["ticker"]
+                if tk not in entry_map:
+                    entry_map[tk] = {
+                        "entry_date": row["signal_date"],
+                        "entry_price": row.get("price"),
+                    }
+        except Exception:
+            pass
+
+    # ── Portfolio metrics ─────────────────────────────────────────────────────
+    today = datetime.date.today().isoformat()
+    holdings = []
+    total_invested = 0
+    total_current = 0
+    position_size = 10000  # $10K equal weight per position
+
+    for r in buys:
+        tk = r["ticker"]
+        entry = entry_map.get(tk, {})
+        entry_price = entry.get("entry_price")
+        current_price = r.get("price")
+        entry_date = entry.get("entry_date", today)
+
+        if entry_price and current_price and entry_price > 0:
+            shares = position_size / entry_price
+            current_val = shares * current_price
+            pnl = current_val - position_size
+            pnl_pct = (current_val / position_size - 1) * 100
+        else:
+            shares = None
+            current_val = position_size  # assume flat if no price
+            pnl = 0
+            pnl_pct = 0
+
+        total_invested += position_size
+        total_current  += current_val
+
+        holdings.append({
+            "ticker":       tk,
+            "score":        r.get("adj_composite", r.get("composite", 0)),
+            "entry_date":   entry_date,
+            "entry_price":  entry_price,
+            "current_price": current_price,
+            "shares":       shares,
+            "position_size": position_size,
+            "current_val":  current_val,
+            "pnl":          pnl,
+            "pnl_pct":      pnl_pct,
+            "sector":       r.get("sector", ""),
+        })
+
+    port_return = (total_current / total_invested - 1) * 100 if total_invested > 0 else 0
+    port_pnl    = total_current - total_invested
+
+    # ── Summary stat strip ────────────────────────────────────────────────────
+    col1, col2, col3, col4 = st.columns(4)
+    stat_style = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:16px 20px;text-align:center;"
+    label_style = "font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
+    val_style_green = "font-size:22px;font-weight:700;color:#00ff87;"
+    val_style_red   = "font-size:22px;font-weight:700;color:#ef4444;"
+    val_style_gold  = "font-size:22px;font-weight:700;color:#d4a843;"
+
+    return_color = "#00ff87" if port_return >= 0 else "#ef4444"
+    pnl_color    = "#00ff87" if port_pnl >= 0 else "#ef4444"
+    sign         = "+" if port_return >= 0 else ""
+
+    with col1:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">PORTFOLIO VALUE</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">TOTAL RETURN</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:{return_color};">{sign}{port_return:.1f}%</div></div>',
+                    unsafe_allow_html=True)
+    with col3:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">TOTAL P&L</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:{pnl_color};">{sign}${port_pnl:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with col4:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">POSITIONS</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:#cbd5e1;">{len(holdings)}</div></div>',
+                    unsafe_allow_html=True)
+
+    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+
+    # ── Holdings table ────────────────────────────────────────────────────────
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+                'letter-spacing:.1em;margin-bottom:12px;">▲ CURRENT HOLDINGS</div>',
+                unsafe_allow_html=True)
+
+    # Header
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:80px 1fr 80px 80px 80px 80px 70px;'
+        'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">ENTRY DATE</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">ENTRY $</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">CURRENT $</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">P&L</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">RETURN</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
+        '</div>', unsafe_allow_html=True)
+
+    for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
+        bg = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
+        ret_color = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
+        sign = "+" if h["pnl_pct"] >= 0 else ""
+        entry_str   = f'${h["entry_price"]:,.2f}' if h["entry_price"] else "—"
+        current_str = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
+        pnl_str     = f'{sign}${h["pnl"]:,.0f}' if h["entry_price"] and h["current_price"] else "—"
+        ret_str     = f'{sign}{h["pnl_pct"]:.1f}%' if h["entry_price"] and h["current_price"] else "—"
+
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:80px 1fr 80px 80px 80px 80px 70px;'
+            f'gap:4px;padding:8px 12px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
+            f'<div style="font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{entry_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">{current_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{ret_color};text-align:right;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{ret_color};text-align:right;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;text-align:right;">{h["score"]:.0f}</div>'
+            f'</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div style="padding:8px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:0 0 6px 6px;font-size:12px;color:#64748b;">'
+        f'${position_size:,}/position · Equal weighted · Hypothetical $10K per position · '
+        f'Entry price = first BUY signal date from signal_log</div>',
+        unsafe_allow_html=True)
+
+    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:12px;color:#475569;padding:12px 0;border-top:1px solid rgba(255,255,255,.05);">'
+        '⚠ Model portfolio is hypothetical. Entry prices sourced from nightly signal_log at first BUY signal date. '
+        'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
+        unsafe_allow_html=True)
+
+
 def page_platform():
     # ── Force MFA setup on first login ─────────────────────────────────────────
     if st.session_state.get("force_mfa_setup"):
@@ -5186,12 +5587,13 @@ def page_platform():
     show_onboarding()
 
     nav_map = {
-        "screener":  page_screener,
-        "gems":      page_gems,
-        "backtest":  page_backtest,
-        "portfolio": page_portfolio,
-        "alerts":    page_alerts,
-        "account":   page_account,
+        "screener":       page_screener,
+        "gems":           page_gems,
+        "backtest":       page_backtest,
+        "portfolio":      page_portfolio,
+        "model_portfolio": page_model_portfolio,
+        "alerts":         page_alerts,
+        "account":        page_account,
     }
     nav_map.get(st.session_state.nav, page_screener)()
 
@@ -5251,7 +5653,7 @@ def main():
     if   route == "landing":  page_landing()
     elif route == "auth":     page_auth()
     elif route == "mfa":      page_mfa()
-    elif route == "model":    page_model_portfolio()
+    elif route == "model":    page_public_track_record()
     elif route == "platform": page_platform()
     elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
     else:                     page_landing()
