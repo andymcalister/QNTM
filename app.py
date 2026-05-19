@@ -3399,6 +3399,14 @@ def page_screener():
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
                     f'letter-spacing:.1em;margin:16px 0 6px;">{label}</div>',
                     unsafe_allow_html=True)
+                st.markdown(
+                    '<div style="display:grid;grid-template-columns:60px 1fr 44px;'
+                    'gap:4px;padding:5px 10px 5px 32px;background:#050a0f;'
+                    'border-radius:6px 6px 0 0;border:1px solid rgba(255,255,255,.07);">'
+                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
+                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">COMPANY</div>'
+                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
+                    '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
                     score     = r.get("adj_composite", r.get("composite", 0))
                     gem       = " 💎" if r["ticker"] in gem_tickers else ""
@@ -5329,6 +5337,15 @@ def page_model_portfolio():
         '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
         '</div>', unsafe_allow_html=True)
 
+    # ── Detect current hidden gems for diamond display ────────────────────────
+    port_gem_tickers = set()
+    if scan:
+        try:
+            port_gems = detect_hidden_gems(scan, macro_data=st.session_state.get("macro_data"))
+            port_gem_tickers = {g["ticker"] for g in port_gems}
+        except Exception:
+            pass
+
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
         bg         = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
         rc         = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
@@ -5339,13 +5356,14 @@ def page_model_portfolio():
         ret_str    = f'{sg}{h["pnl_pct"]:.1f}%'     if h["entry_price"] and h["current_price"] else "—"
         score      = h["current_score"]
         score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
+        gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
 
         st.markdown(
             f'<div style="display:grid;grid-template-columns:80px 90px 80px 80px 80px 80px 60px;'
             f'gap:4px;padding:8px 12px;background:{bg};'
             f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
             f'<div style="font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{entry_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">{cur_str}</div>'
