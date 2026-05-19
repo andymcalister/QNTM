@@ -3389,9 +3389,9 @@ def page_screener():
         </div>
         """, unsafe_allow_html=True)
         col_b, col_s = st.columns(2)
-        for col, label, color, ranked, action_lbl, act_c, act_bg in [
-            (col_b, "▲ TOP 10 BUY SIGNALS",  "#00ff87", buys_ranked[:10],  "▲ BUY",  "#00ff87", "rgba(0,255,135,.12)"),
-            (col_s, "▼ TOP 10 SELL / EXIT",  "#ef4444", sells_ranked[:10], "▼ SELL", "#ef4444", "rgba(239,68,68,.12)"),
+        for col, label, color, ranked, action_lbl in [
+            (col_b, "▲ TOP 10 BUY SIGNALS",  "#00ff87", buys_ranked[:10],  "▲ BUY"),
+            (col_s, "▼ TOP 10 SELL / EXIT",  "#ef4444", sells_ranked[:10], "▼ SELL"),
         ]:
             with col:
                 count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
@@ -3401,25 +3401,46 @@ def page_screener():
                     unsafe_allow_html=True)
 
                 for i, r in enumerate(ranked):
-                    score     = r.get("adj_composite", r.get("composite", 0))
-                    gem       = " 💎" if r["ticker"] in gem_tickers else ""
-                    ci        = get_company_info(r["ticker"])
-                    name      = ci.get("name", r["ticker"]) if ci else r["ticker"]
+                    score      = r.get("adj_composite", r.get("composite", 0))
+                    gem        = " 💎" if r["ticker"] in gem_tickers else ""
+                    ci         = get_company_info(r["ticker"])
+                    name       = ci.get("name", r["ticker"]) if ci else r["ticker"]
                     name_short = name if len(name) <= 20 else name[:18] + "…"
-                    price_str = f'${r["price"]:,.2f}' if r.get("price") else ""
-                    is_gem    = r["ticker"] in gem_tickers
-                    # Expander label shows ticker · company · score inline
-                    label_str = f"{r['ticker']}{gem}  ·  {name_short}  ·  **{score:.0f}**"
+                    price_str  = f'${r["price"]:,.2f}' if r.get("price") else ""
+                    is_gem     = r["ticker"] in gem_tickers
+                    macro_d    = r.get("score_delta", 0)
+                    macro_str  = f'+{macro_d:.1f}' if macro_d >= 0 else f'{macro_d:.1f}'
+                    macro_col  = "#00ff87" if macro_d >= 0 else "#ef4444"
+                    label_str  = f"{r['ticker']}{gem}  ·  {name_short}  ·  **{score:.0f}**"
+
                     with st.expander(label_str, expanded=False):
-                        if price_str:
-                            st.markdown(
-                                f'<div style="font-family:DM Mono,monospace;font-size:12px;'
-                                f'color:#d4a843;margin-bottom:8px;">{price_str} / share</div>',
-                                unsafe_allow_html=True)
+                        # Compact card: price + macro + stacked pillar bars
+                        mom = r.get("momentum", 50)
+                        qua = r.get("quality",  50)
+                        vol = r.get("volume",   50)
+                        val = r.get("value",    50)
+                        sen = r.get("sentiment",50)
+
+                        def bar(v):
+                            c = "#00ff87" if v>=60 else ("#f59e0b" if v>=45 else "#ef4444")
+                            w = max(4, int(v))
+                            return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
+                                    f'<div style="width:{w}%;height:100%;background:{c};border-radius:2px;"></div></div>')
+
+                        price_line = f'<span style="color:#d4a843;font-size:11px;">{price_str}</span> ' if price_str else ''
+                        macro_line = f'<span style="color:{macro_col};font-size:11px;">macro {macro_str}</span>'
+
                         st.markdown(
-                            '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">' +
-                            factor_panel_html(r, is_gem, company_info=ci) +
-                            '</div>',
+                            f'<div style="padding:4px 2px;">'
+                            f'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'
+                            f'{price_line}{macro_line}'
+                            f'</div>'
+                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;">MOM {mom:.0f}</div>{bar(mom)}'
+                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">QUAL {qua:.0f}</div>{bar(qua)}'
+                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">VOL {vol:.0f}</div>{bar(vol)}'
+                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">VAL {val:.0f}</div>{bar(val)}'
+                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">SENT {sen:.0f}</div>{bar(sen)}'
+                            f'</div>',
                             unsafe_allow_html=True)
                 st.caption(f"{count} total signals in universe")
 
