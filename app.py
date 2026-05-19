@@ -3411,7 +3411,6 @@ def page_screener():
                         if price_str:
                             st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-bottom:8px;">{price_str} / share</div>', unsafe_allow_html=True)
                         st.markdown(factor_panel_html(r, is_gem, company_info=ci), unsafe_allow_html=True)
-                st.markdown(
                 st.caption(f"{count} total signals in universe")
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
