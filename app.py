@@ -3399,6 +3399,13 @@ def page_screener():
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
                     f'letter-spacing:.1em;margin:16px 0 10px;">{label}</div>',
                     unsafe_allow_html=True)
+                st.markdown(
+                    '<div style="display:grid;grid-template-columns:1fr 44px;'
+                    'gap:4px;padding:6px 10px;background:#050a0f;border-radius:6px 6px 0 0;'
+                    'border:1px solid rgba(255,255,255,.07);margin-bottom:2px;">'
+                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER · COMPANY</div>'
+                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
+                    '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
                     score    = r.get("adj_composite", r.get("composite", 0))
                     gem      = " 💎" if r["ticker"] in gem_tickers else ""
@@ -3411,7 +3418,6 @@ def page_screener():
                         if price_str:
                             st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-bottom:8px;">{price_str} / share</div>', unsafe_allow_html=True)
                         st.markdown(factor_panel_html(r, is_gem, company_info=ci), unsafe_allow_html=True)
-                st.markdown(
                 st.caption(f"{count} total signals in universe")
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
@@ -5232,30 +5238,77 @@ def page_model_portfolio():
     sign        = "+" if port_return >= 0 else ""
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
+    # ── SPY benchmark comparison ──────────────────────────────────────────────
+    spy_return = 0.0
+    spy_pnl    = 0.0
+    try:
+        import yfinance as yf
+        # Use earliest entry date as benchmark start
+        entry_dates = [p.get("entry_date") for p in positions if p.get("entry_date")]
+        if entry_dates:
+            earliest = min(entry_dates)
+            spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
+            if not spy_hist.empty:
+                spy_start = float(spy_hist["Close"].iloc[0])
+                spy_end   = float(spy_hist["Close"].iloc[-1])
+                spy_return = (spy_end / spy_start - 1) * 100
+                spy_pnl    = total_invested * (spy_return / 100)
+    except Exception:
+        pass
+
+    vs_spy_pct = port_return - spy_return
+    vs_spy_pnl = port_pnl - spy_pnl
+    vs_color   = "#00ff87" if vs_spy_pct >= 0 else "#ef4444"
+    vs_sign    = "+" if vs_spy_pct >= 0 else ""
+
+    # ── Methodology banner ────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);
+         border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
+           letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
+        This portfolio holds QNTM's top 20 BUY-rated stocks, equal-weighted at $10,000 per position.
+        Positions are entered when a stock's blended conviction score reaches <strong style="color:#00ff87;">≥60</strong> —
+        combining 5-pillar quantitative analysis (Momentum, Quality, Value, Volume, Sentiment) with a live macro regime overlay.
+        <br><br>
+        <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model generates a SELL signal
+        (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover, transaction costs, and
+        short-term capital gains tax events. When a position exits, capital is redeployed into the next highest-conviction
+        BUY signal not already held. No discretionary overrides — the model drives every entry and exit.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # ── Summary strip ─────────────────────────────────────────────────────────
-    c1, c2, c3, c4 = st.columns(4)
-    ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:16px 20px;text-align:center;"
-    ls = "font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
+    c1, c2, c3, c4, c5 = st.columns(5)
+    ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;text-align:center;"
+    ls = "font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
 
     with c1:
         st.markdown(f'<div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
+                    f'<div style="font-size:20px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
                     unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div style="{ss}"><div style="{ls}">TOTAL RETURN</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:{ret_color};">{sign}{port_return:.1f}%</div></div>',
+        pnl_sign = "+" if port_pnl >= 0 else ""
+        st.markdown(f'<div style="{ss}"><div style="{ls}">$ CHANGE</div>'
+                    f'<div style="font-size:20px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>',
                     unsafe_allow_html=True)
     with c3:
-        pnl_sign = "+" if port_pnl >= 0 else ""
-        st.markdown(f'<div style="{ss}"><div style="{ls}">TOTAL P&L</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>',
+        st.markdown(f'<div style="{ss}"><div style="{ls}">% RETURN</div>'
+                    f'<div style="font-size:20px;font-weight:700;color:{ret_color};">{sign}{port_return:.1f}%</div></div>',
                     unsafe_allow_html=True)
     with c4:
-        st.markdown(f'<div style="{ss}"><div style="{ls}">POSITIONS</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:#cbd5e1;">{len(holdings)}</div></div>',
+        vs_pnl_sign = "+" if vs_spy_pnl >= 0 else ""
+        st.markdown(f'<div style="{ss}"><div style="{ls}">$ vs SPY</div>'
+                    f'<div style="font-size:20px;font-weight:700;color:{vs_color};">{vs_pnl_sign}${vs_spy_pnl:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with c5:
+        st.markdown(f'<div style="{ss}"><div style="{ls}">% vs SPY</div>'
+                    f'<div style="font-size:20px;font-weight:700;color:{vs_color};">{vs_sign}{vs_spy_pct:.1f}%</div></div>',
                     unsafe_allow_html=True)
 
-    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
 
     # ── Holdings table ────────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
