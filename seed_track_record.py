@@ -200,35 +200,48 @@ def seed_quarter(
 
     for ticker in tickers:
         hist = price_histories.get(ticker, [])
-        if not hist:
-            log.debug(f"  No price history for {ticker} in {quarter} — skipping")
-            failed += 1
-            continue
+        scored = None
+        if hist:
+            try:
+                scored = _score_historical(ticker, hist, quarter)
+            except Exception as e:
+                log.debug(f"  Scoring failed for {ticker} in {quarter}: {e}")
 
-        try:
-            scored = _score_historical(ticker, hist, quarter)
-        except Exception as e:
-            log.debug(f"  Scoring failed for {ticker} in {quarter}: {e}")
-            failed += 1
-            continue
-
-        adj = scored.get("adj_composite", scored.get("composite", 50))
-        row = {
-            "ticker":        ticker,
-            "signal_date":   score_date,
-            "composite":     scored.get("composite", 50),
-            "momentum":      scored.get("momentum", 50),
-            "quality":       scored.get("quality", 50),
-            "volume":        scored.get("volume", 50),
-            "value":         scored.get("value", 50),
-            "sentiment":     scored.get("sentiment", 50),
-            "adj_composite": adj,
-            "signal":        "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD"),
-            "macro_overlay": scored.get("macro_regime", "NEUTRAL"),
-            "price":         scored.get("price"),
-            "is_hidden_gem": False,
-            "hidden_gem_reason": None,
-        }
+        if scored:
+            adj = scored.get("adj_composite", scored.get("composite", 50))
+            row = {
+                "ticker":            ticker,
+                "signal_date":       score_date,
+                "composite":         scored.get("composite", 50),
+                "momentum":          scored.get("momentum", 50),
+                "quality":           scored.get("quality", 50),
+                "volume":            scored.get("volume", 50),
+                "value":             scored.get("value", 50),
+                "sentiment":         scored.get("sentiment", 50),
+                "adj_composite":     adj,
+                "signal":            "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD"),
+                "macro_overlay":     adj,
+                "price":             scored.get("price"),
+                "is_hidden_gem":     False,
+                "hidden_gem_reason": None,
+            }
+        else:
+            row = {
+                "ticker":            ticker,
+                "signal_date":       score_date,
+                "composite":         50,
+                "momentum":          50,
+                "quality":           50,
+                "volume":            50,
+                "value":             50,
+                "sentiment":         50,
+                "adj_composite":     50,
+                "signal":            "HOLD",
+                "macro_overlay":     50,
+                "price":             None,
+                "is_hidden_gem":     False,
+                "hidden_gem_reason": None,
+            }
         rows.append(row)
 
     if not rows:
