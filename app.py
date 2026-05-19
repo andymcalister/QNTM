@@ -741,7 +741,8 @@ def enrich_with_signal_log(results: list) -> list:
     Safe to call even if Supabase is unavailable — returns results unchanged.
     """
     try:
-        sb = get_supabase()
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
         if not sb or not results:
             return results
         tickers = [r["ticker"] for r in results]
@@ -781,7 +782,8 @@ def scan_health_check():
     Green = scanned today. Amber = scanned yesterday. Red = >48h ago or never.
     """
     try:
-        sb = get_supabase()
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
         if not sb:
             return
         result = sb.table("signal_log") \
@@ -3206,7 +3208,7 @@ def page_screener():
     search_col, _ = st.columns([2, 5])
     with search_col:
         search_ticker = st.text_input(
-            "", placeholder="e.g. AAPL, TSLA, PLTR...",
+            "", placeholder="e.g. AAPL, Tesla, Nvidia...",
             key="screener_search", label_visibility="collapsed"
         ).strip().upper()
 
