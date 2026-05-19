@@ -642,7 +642,7 @@ def show_onboarding():
         {
             "icon": "⚡",
             "title": "Welcome to QNTM",
-            "body": "QNTM scores {len(ALL_SECTORS)} stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
+            "body": "QNTM scores 846 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
             "cta": "Next →",
         },
         {
@@ -654,7 +654,7 @@ def show_onboarding():
         {
             "icon": "📊",
             "title": "Run your first scan",
-            "body": "Head to the Screener and hit Rescan to score all {len(ALL_SECTORS)} stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
+            "body": "Head to the Screener and hit Rescan to score all 846 stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
             "cta": "Go to Screener →",
         },
     ]
@@ -1821,7 +1821,7 @@ def page_public_track_record():
       <div style="text-align:right;">
         <div style="font-size:13px;color:#94a3b8;">Returns measured from signal entry · Not investment advice</div>
         <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
-          {len(ALL_SECTORS)}-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+          846-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
     </div>
@@ -2085,7 +2085,7 @@ def page_public_track_record():
       <div style="text-align:right;">
         <div style="font-size:13px;color:#94a3b8;">Updated on load · Not investment advice</div>
         <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
-          {len(ALL_SECTORS)}-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+          846-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
     </div>
@@ -2486,7 +2486,7 @@ def page_landing():
         <div style="width:7px;height:7px;background:#00ff87;border-radius:50%;
              animation:land-pulse 2s infinite;flex-shrink:0;"></div>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;">
-          MODEL LIVE &middot; 5-YR VALIDATED &middot; {len(ALL_SECTORS)} STOCKS &middot; RISK-OFF REGIME
+          MODEL LIVE &middot; 5-YR VALIDATED &middot; 846 STOCKS &middot; RISK-OFF REGIME
         </span>
       </div>
 
@@ -2738,7 +2738,7 @@ def page_landing():
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row(f"{len(ALL_SECTORS)}-stock screener")}
+          {feat_row(f"846-stock screener")}
           {feat_row("BUY/HOLD/SELL signals")}
           {feat_row("5 pillar scores")}
           {feat_row("75/25 quant/macro")}
@@ -3194,10 +3194,10 @@ def page_screener():
 
     page_summary(
         "📊", "Market Screener",
-        "{len(ALL_SECTORS)} stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
+        "846 stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
         "then blended with a live macro overlay. Every score tells you exactly what to buy, hold, or exit, and why. "
         "Search any ticker for an instant live score, or run a full universe rescan.",
-        pills=[f"{len(ALL_SECTORS)} tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
+        pills=[f"846 tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     data_freshness_banner()
@@ -3245,11 +3245,11 @@ def page_screener():
         with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
-            results = apply_macro_overlay(raw, macro)
-            # Force sector from SECTORS map — ensures macro overlay applies correctly
-            for r in results:
+            # Force sector BEFORE macro overlay so overlay uses correct sector keys
+            for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
+            results = apply_macro_overlay(raw, macro)
             st.session_state.scan_results = enrich_with_signal_log(results)
             st.session_state.macro_data   = macro
 
@@ -3449,7 +3449,7 @@ def page_screener():
                 ⚡ LIVE DATA REFRESH
               </div>
               <div style="font-size:14px;color:#94a3b8;margin-bottom:12px;">
-                Fetching live fundamentals from market data for all {len(ALL_SECTORS)} tickers.
+                Fetching live fundamentals from market data for all 846 tickers.
                 This runs once per day and takes 3–4 minutes. All users benefit from the result.
               </div>
             </div>
@@ -3508,6 +3508,9 @@ def page_screener():
 
                 progress_bar.progress(93, text="Applying macro overlay...")
                 macro  = fetch_macro_overlay()
+                for s in scores:
+                    if not s.get("sector") or s.get("sector") == "Unknown":
+                        s["sector"] = ALL_SECTORS.get(s["ticker"], "Unknown")
                 scored = apply_macro_overlay(scores, macro)
 
                 progress_bar.progress(97, text="Saving signal snapshot...")
