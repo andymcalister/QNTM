@@ -3245,7 +3245,12 @@ def page_screener():
         with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
-            st.session_state.scan_results = enrich_with_signal_log(apply_macro_overlay(raw, macro))
+            results = apply_macro_overlay(raw, macro)
+            # Force sector from SECTORS map — ensures macro overlay applies correctly
+            for r in results:
+                if not r.get("sector") or r.get("sector") == "Unknown":
+                    r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
+            st.session_state.scan_results = enrich_with_signal_log(results)
             st.session_state.macro_data   = macro
 
     results = st.session_state.scan_results
@@ -3394,40 +3399,20 @@ def page_screener():
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
                     f'letter-spacing:.1em;margin:16px 0 10px;">{label}</div>',
                     unsafe_allow_html=True)
-                st.markdown(
-                    '<div style="display:grid;grid-template-columns:70px 1fr 44px;'
-                    'gap:4px;padding:8px 10px;background:#050a0f;border-radius:6px 6px 0 0;'
-                    'border:1px solid rgba(255,255,255,.07);">'
-                    '<div style="font-size:12px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
-                    '<div style="font-size:12px;color:#64748b;letter-spacing:.08em;">COMPANY</div>'
-                    '<div style="font-size:12px;color:#64748b;letter-spacing:.08em;">SCORE</div>'
-                    '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
                     score    = r.get("adj_composite", r.get("composite", 0))
                     gem      = " 💎" if r["ticker"] in gem_tickers else ""
-                    bg       = "rgba(255,255,255,.02)" if i%2==0 else "rgba(255,255,255,.008)"
                     ci       = get_company_info(r["ticker"])
                     name     = ci.get("name", r["ticker"]) if ci else r["ticker"]
                     name_short = name if len(name) <= 18 else name[:16] + "…"
                     price_str = f'${r["price"]:,.2f}' if r.get("price") else ""
-                    st.markdown(
-                        f'<div style="display:grid;grid-template-columns:70px 1fr 44px;'
-                        f'gap:4px;padding:8px 10px;background:{bg};'
-                        f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
-                        f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-                        f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem}</div>'
-                        f'<div>'
-                        f'<div style="font-size:13px;color:#94a3b8;">{name_short}</div>'
-                        f'<div style="font-size:11px;color:#64748b;">{price_str}</div>'
-                        f'</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{color};font-weight:700;">{score:.0f}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True)
+                    is_gem = r["ticker"] in gem_tickers
+                    with st.expander(f"{r['ticker']}{gem}  ·  {name_short}  ·  {score:.0f}", expanded=False):
+                        if price_str:
+                            st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-bottom:8px;">{price_str} / share</div>', unsafe_allow_html=True)
+                        st.markdown(factor_panel_html(r, is_gem, company_info=ci), unsafe_allow_html=True)
                 st.markdown(
-                    f'<div style="padding:6px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
-                    f'border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">'
-                    f'{count} total signals in universe</div>',
-                    unsafe_allow_html=True)
+                st.caption(f"{count} total signals in universe")
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
