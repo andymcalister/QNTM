@@ -3409,6 +3409,7 @@ def page_screener():
                     ci       = get_company_info(r["ticker"])
                     name     = ci.get("name", r["ticker"]) if ci else r["ticker"]
                     name_short = name if len(name) <= 18 else name[:16] + "…"
+                    price_str = f'${r["price"]:,.2f}' if r.get("price") else ""
                     st.markdown(
                         f'<div style="display:grid;grid-template-columns:70px 1fr 44px;'
                         f'gap:4px;padding:8px 10px;background:{bg};'
@@ -3417,7 +3418,7 @@ def page_screener():
                         f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem}</div>'
                         f'<div>'
                         f'<div style="font-size:13px;color:#94a3b8;">{name_short}</div>'
-                        f'<div style="font-size:14px;color:#94a3b8;">{r.get("sector","")[:14]}</div>'
+                        f'<div style="font-size:11px;color:#64748b;">{price_str}</div>'
                         f'</div>'
                         f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{color};font-weight:700;">{score:.0f}</div>'
                         f'</div>',
