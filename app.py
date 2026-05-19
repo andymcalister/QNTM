@@ -5282,53 +5282,32 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Summary strip ─────────────────────────────────────────────────────────
-    c1, c2, c3, c4, c5 = st.columns(5)
+    # ── Summary strip — CSS grid wraps to 2-3 cols on mobile ────────────────
     ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;text-align:center;"
     ls = "font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
 
-    with c1:
-        st.markdown(f'<div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>'
-                    f'<div style="font-size:20px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
-                    unsafe_allow_html=True)
-    with c2:
-        pnl_sign = "+" if port_pnl >= 0 else ""
-        st.markdown(f'<div style="{ss}"><div style="{ls}">$ CHANGE</div>'
-                    f'<div style="font-size:20px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>',
-                    unsafe_allow_html=True)
-    with c3:
-        st.markdown(f'<div style="{ss}"><div style="{ls}">% RETURN</div>'
-                    f'<div style="font-size:20px;font-weight:700;color:{ret_color};">{sign}{port_return:.1f}%</div></div>',
-                    unsafe_allow_html=True)
-    with c4:
-        vs_pnl_sign = "+" if vs_spy_pnl >= 0 else ""
-        st.markdown(f'<div style="{ss}"><div style="{ls}">$ vs SPY</div>'
-                    f'<div style="font-size:20px;font-weight:700;color:{vs_color};">{vs_pnl_sign}${vs_spy_pnl:,.0f}</div></div>',
-                    unsafe_allow_html=True)
-    with c5:
-        st.markdown(f'<div style="{ss}"><div style="{ls}">% vs SPY</div>'
-                    f'<div style="font-size:20px;font-weight:700;color:{vs_color};">{vs_sign}{vs_spy_pct:.1f}%</div></div>',
-                    unsafe_allow_html=True)
+    pnl_sign    = "+" if port_pnl >= 0 else ""
+    vs_pnl_sign = "+" if vs_spy_pnl >= 0 else ""
 
-    st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:20px;">
+      <div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>
+        <div style="font-size:18px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>
+      <div style="{ss}"><div style="{ls}">$ CHANGE</div>
+        <div style="font-size:18px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>
+      <div style="{ss}"><div style="{ls}">% RETURN</div>
+        <div style="font-size:18px;font-weight:700;color:{ret_color};">{sign}{port_return:.1f}%</div></div>
+      <div style="{ss}"><div style="{ls}">$ vs SPY</div>
+        <div style="font-size:18px;font-weight:700;color:{vs_color};">{vs_pnl_sign}${vs_spy_pnl:,.0f}</div></div>
+      <div style="{ss}"><div style="{ls}">% vs SPY</div>
+        <div style="font-size:18px;font-weight:700;color:{vs_color};">{vs_sign}{vs_spy_pct:.1f}%</div></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # ── Holdings table ────────────────────────────────────────────────────────
+    # ── Holdings — mobile-friendly card stack ────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
                 'letter-spacing:.1em;margin-bottom:12px;">▲ ACTIVE POSITIONS</div>',
                 unsafe_allow_html=True)
-
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:80px 90px 80px 80px 80px 80px 60px;'
-        'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">ENTERED</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">ENTRY $</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">NOW $</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">P&L</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">RETURN</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
-        '</div>', unsafe_allow_html=True)
 
     # ── Detect current hidden gems for diamond display ────────────────────────
     port_gem_tickers = set()
@@ -5340,36 +5319,39 @@ def page_model_portfolio():
             pass
 
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg         = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
-        rc         = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-        sg         = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str  = f'${h["entry_price"]:,.2f}'   if h["entry_price"]   else "—"
-        cur_str    = f'${h["current_price"]:,.2f}'  if h["current_price"] else "—"
-        pnl_str    = f'{sg}${h["pnl"]:,.0f}'        if h["entry_price"] and h["current_price"] else "—"
-        ret_str    = f'{sg}{h["pnl_pct"]:.1f}%'     if h["entry_price"] and h["current_price"] else "—"
-        score      = h["current_score"]
-        score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
-        gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
-
+        bg        = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        rc        = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
+        sg        = "+" if h["pnl_pct"] >= 0 else ""
+        entry_str = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
+        cur_str   = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
+        pnl_str   = f'{sg}${h["pnl"]:,.0f}'       if h["entry_price"] and h["current_price"] else "—"
+        ret_str   = f'{sg}{h["pnl_pct"]:.1f}%'    if h["entry_price"] and h["current_price"] else "—"
+        score     = h["current_score"]
+        score_col = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
+        gem_badge = " 💎" if h["ticker"] in port_gem_tickers else ""
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:80px 90px 80px 80px 80px 80px 60px;'
-            f'gap:4px;padding:8px 12px;background:{bg};'
-            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
-            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
-            f'<div style="font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{entry_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">{cur_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};text-align:right;">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
-            f'</div>', unsafe_allow_html=True)
+            f'<div style="background:{bg};border:1px solid rgba(255,255,255,.06);'
+            f'border-radius:6px;padding:10px 14px;margin-bottom:6px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+            f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{score_col};">{score:.0f}</span>'
+            f'</div>'
+            f'<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
+            f'<span style="font-size:11px;color:#475569;">Entered {h["entry_date"]}</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</span>'
+            f'</div>'
+            f'<div style="display:flex;justify-content:space-between;">'
+            f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;">{entry_str} → {cur_str}</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{rc};">{pnl_str}</span>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True)
 
     st.markdown(
-        f'<div style="padding:8px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
-        f'border-radius:0 0 6px 6px;font-size:12px;color:#64748b;">'
-        f'$10,000/position · Equal weighted · Entry = date of first BUY signal · '
-        f'Auto-exit when score drops below 45</div>', unsafe_allow_html=True)
+        '<div style="font-size:11px;color:#475569;padding:8px 0;margin-bottom:8px;">'
+        '$10,000/position · Equal weighted · Auto-exit when score drops below 45</div>',
+        unsafe_allow_html=True)
+
 
     # ── Exit history ──────────────────────────────────────────────────────────
     if sb:
