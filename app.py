@@ -3399,14 +3399,7 @@ def page_screener():
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
                     f'letter-spacing:.1em;margin:16px 0 6px;">{label}</div>',
                     unsafe_allow_html=True)
-                st.markdown(
-                    '<div style="display:grid;grid-template-columns:60px 1fr 44px;'
-                    'gap:4px;padding:5px 10px 5px 32px;background:#050a0f;'
-                    'border-radius:6px 6px 0 0;border:1px solid rgba(255,255,255,.07);">'
-                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
-                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">COMPANY</div>'
-                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
-                    '</div>', unsafe_allow_html=True)
+
                 for i, r in enumerate(ranked):
                     score     = r.get("adj_composite", r.get("composite", 0))
                     gem       = " 💎" if r["ticker"] in gem_tickers else ""
