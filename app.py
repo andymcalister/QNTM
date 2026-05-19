@@ -3397,26 +3397,24 @@ def page_screener():
                 count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
                 st.markdown(
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
-                    f'letter-spacing:.1em;margin:16px 0 10px;">{label}</div>',
+                    f'letter-spacing:.1em;margin:16px 0 6px;">{label}</div>',
                     unsafe_allow_html=True)
-                st.markdown(
-                    '<div style="display:grid;grid-template-columns:1fr 44px;'
-                    'gap:4px;padding:6px 10px;background:#050a0f;border-radius:6px 6px 0 0;'
-                    'border:1px solid rgba(255,255,255,.07);margin-bottom:2px;">'
-                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER · COMPANY</div>'
-                    '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
-                    '</div>', unsafe_allow_html=True)
                 for i, r in enumerate(ranked):
-                    score    = r.get("adj_composite", r.get("composite", 0))
-                    gem      = " 💎" if r["ticker"] in gem_tickers else ""
-                    ci       = get_company_info(r["ticker"])
-                    name     = ci.get("name", r["ticker"]) if ci else r["ticker"]
-                    name_short = name if len(name) <= 18 else name[:16] + "…"
+                    score     = r.get("adj_composite", r.get("composite", 0))
+                    gem       = " 💎" if r["ticker"] in gem_tickers else ""
+                    ci        = get_company_info(r["ticker"])
+                    name      = ci.get("name", r["ticker"]) if ci else r["ticker"]
+                    name_short = name if len(name) <= 20 else name[:18] + "…"
                     price_str = f'${r["price"]:,.2f}' if r.get("price") else ""
-                    is_gem = r["ticker"] in gem_tickers
-                    with st.expander(f"{r['ticker']}{gem}  ·  {name_short}  ·  {score:.0f}", expanded=False):
+                    is_gem    = r["ticker"] in gem_tickers
+                    # Expander label shows ticker · company · score inline
+                    label_str = f"{r['ticker']}{gem}  ·  {name_short}  ·  **{score:.0f}**"
+                    with st.expander(label_str, expanded=False):
                         if price_str:
-                            st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-bottom:8px;">{price_str} / share</div>', unsafe_allow_html=True)
+                            st.markdown(
+                                f'<div style="font-family:DM Mono,monospace;font-size:12px;'
+                                f'color:#d4a843;margin-bottom:8px;">{price_str} / share</div>',
+                                unsafe_allow_html=True)
                         st.markdown(factor_panel_html(r, is_gem, company_info=ci), unsafe_allow_html=True)
                 st.caption(f"{count} total signals in universe")
 
