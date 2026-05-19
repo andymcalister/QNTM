@@ -3416,7 +3416,11 @@ def page_screener():
                                 f'<div style="font-family:DM Mono,monospace;font-size:12px;'
                                 f'color:#d4a843;margin-bottom:8px;">{price_str} / share</div>',
                                 unsafe_allow_html=True)
-                        st.markdown(factor_panel_html(r, is_gem, company_info=ci), unsafe_allow_html=True)
+                        st.markdown(
+                            '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">' +
+                            factor_panel_html(r, is_gem, company_info=ci) +
+                            '</div>',
+                            unsafe_allow_html=True)
                 st.caption(f"{count} total signals in universe")
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
@@ -5304,12 +5308,12 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Holdings — mobile-friendly card stack ────────────────────────────────
+    # ── Holdings table ────────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
-                'letter-spacing:.1em;margin-bottom:12px;">▲ ACTIVE POSITIONS</div>',
+                'letter-spacing:.1em;margin-bottom:8px;">▲ ACTIVE POSITIONS</div>',
                 unsafe_allow_html=True)
 
-    # ── Detect current hidden gems for diamond display ────────────────────────
+    # ── Detect current hidden gems ────────────────────────────────────────────
     port_gem_tickers = set()
     if scan:
         try:
@@ -5318,39 +5322,49 @@ def page_model_portfolio():
         except Exception:
             pass
 
+    # Header
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:56px 1fr 60px 60px 48px;'
+        'gap:3px;padding:5px 8px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
+        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;">ENTRY → NOW</div>'
+        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
+        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
+        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
+        '</div>', unsafe_allow_html=True)
+
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg        = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        bg        = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
         rc        = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
         sg        = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
-        cur_str   = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
+        entry_str = f'${h["entry_price"]:,.0f}'  if h["entry_price"]   else "—"
+        cur_str   = f'${h["current_price"]:,.0f}' if h["current_price"] else "—"
         pnl_str   = f'{sg}${h["pnl"]:,.0f}'       if h["entry_price"] and h["current_price"] else "—"
         ret_str   = f'{sg}{h["pnl_pct"]:.1f}%'    if h["entry_price"] and h["current_price"] else "—"
         score     = h["current_score"]
         score_col = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
         gem_badge = " 💎" if h["ticker"] in port_gem_tickers else ""
+        arrow     = f'{entry_str}→{cur_str}'
+
         st.markdown(
-            f'<div style="background:{bg};border:1px solid rgba(255,255,255,.06);'
-            f'border-radius:6px;padding:10px 14px;margin-bottom:6px;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-            f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</span>'
-            f'<span style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{score_col};">{score:.0f}</span>'
-            f'</div>'
-            f'<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
-            f'<span style="font-size:11px;color:#475569;">Entered {h["entry_date"]}</span>'
-            f'<span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</span>'
-            f'</div>'
-            f'<div style="display:flex;justify-content:space-between;">'
-            f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;">{entry_str} → {cur_str}</span>'
-            f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{rc};">{pnl_str}</span>'
-            f'</div>'
-            f'</div>',
-            unsafe_allow_html=True)
+            f'<div style="display:grid;grid-template-columns:56px 1fr 60px 60px 48px;'
+            f'gap:3px;padding:6px 8px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{arrow}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{rc};text-align:right;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
+            f'</div>', unsafe_allow_html=True)
 
     st.markdown(
-        '<div style="font-size:11px;color:#475569;padding:8px 0;margin-bottom:8px;">'
-        '$10,000/position · Equal weighted · Auto-exit when score drops below 45</div>',
+        '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
+        'border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;margin-bottom:8px;">'
+        '$10K/position · Equal weighted · Auto-exit score < 45</div>',
         unsafe_allow_html=True)
+
 
 
     # ── Exit history ──────────────────────────────────────────────────────────
