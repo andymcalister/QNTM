@@ -3245,11 +3245,11 @@ def page_screener():
         with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
-            results = apply_macro_overlay(raw, macro)
-            # Force sector from SECTORS map — ensures macro overlay applies correctly
-            for r in results:
+            # Force sector BEFORE macro overlay so overlay uses correct sector keys
+            for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
+            results = apply_macro_overlay(raw, macro)
             st.session_state.scan_results = enrich_with_signal_log(results)
             st.session_state.macro_data   = macro
 
@@ -3508,6 +3508,9 @@ def page_screener():
 
                 progress_bar.progress(93, text="Applying macro overlay...")
                 macro  = fetch_macro_overlay()
+                for s in scores:
+                    if not s.get("sector") or s.get("sector") == "Unknown":
+                        s["sector"] = ALL_SECTORS.get(s["ticker"], "Unknown")
                 scored = apply_macro_overlay(scores, macro)
 
                 progress_bar.progress(97, text="Saving signal snapshot...")
