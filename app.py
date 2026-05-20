@@ -51,29 +51,12 @@ def _jwt_secret() -> str:
         return "dev-secret-qntm-2025"
 
 def _sign_token(uid: str, plan: str, days: int = 30) -> str:
-    """Sign a token: base64(uid|plan|exp)|base64(hmac)."""
-    secret = _jwt_secret().encode()
-    exp = int(_time.time()) + days * 86400
-    payload = base64.urlsafe_b64encode(
-        _json.dumps({"uid": uid, "plan": plan, "exp": exp}).encode()
-    ).decode()
-    sig = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
-    return f"{payload}|{sig}"
+    """For now return plain uid — JWT signing to be added once auth is stable."""
+    return uid
 
 def _verify_token(token: str):
-    """Verify HMAC-signed token. Returns (uid, plan) or (None, None)."""
-    try:
-        payload, sig = token.rsplit("|", 1)
-        secret = _jwt_secret().encode()
-        expected = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected):
-            return None, None
-        data = _json.loads(base64.urlsafe_b64decode(payload + "==").decode())
-        if data.get("exp", 0) < int(_time.time()):
-            return None, None
-        return data.get("uid"), data.get("plan", "free")
-    except Exception:
-        return None, None
+    """For now treat token as plain uid."""
+    return token, None
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -659,7 +642,7 @@ def show_onboarding():
         {
             "icon": "⚡",
             "title": "Welcome to QNTM",
-            "body": "QNTM scores 846 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
+            "body": "QNTM scores 834 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
             "cta": "Next →",
         },
         {
@@ -671,7 +654,7 @@ def show_onboarding():
         {
             "icon": "📊",
             "title": "Run your first scan",
-            "body": "Head to the Screener and hit Rescan to score all 846 stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
+            "body": "Head to the Screener and hit Rescan to score all 834 stocks live. Filter by sector, signal, or strength — or search any ticker instantly for a live score.",
             "cta": "Go to Screener →",
         },
     ]
@@ -720,40 +703,34 @@ def show_onboarding():
 
 # ── DATA FRESHNESS ────────────────────────────────────────────────────────────
 def data_freshness_banner():
-    """Show data age pill with actual date/time pulled from signal_log.created_at."""
+    """Show data age and auto-refresh prompt if stale."""
     try:
-        from data_refresh import _get_supabase, cache_is_fresh
+        from data_refresh import cache_is_fresh, get_cache_age_hours
         fresh = cache_is_fresh()
-        dt_str = None
         try:
-            sb = _get_supabase()
-            if sb:
-                resp = sb.table("signal_log").select("created_at").order(
-                    "created_at", desc=True).limit(1).execute()
-                if resp.data:
-                    raw = resp.data[0]["created_at"]  # e.g. "2026-05-20T02:14:33.123456+00:00"
-                    from datetime import datetime, timezone
-                    # Parse ISO string, convert to local-ish display (UTC)
-                    dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-                    dt_utc = dt.astimezone(timezone.utc)
-                    dt_str = dt_utc.strftime("%b %d, %Y · %H:%M UTC")
+            age_h = get_cache_age_hours()
+            age_str = f"{age_h:.0f}h ago" if age_h < 24 else f"{age_h/24:.0f}d ago"
         except Exception:
-            dt_str = None
+            age_str = "unknown"
 
-        label = f"Data refreshed {dt_str}" if dt_str else ("Data fresh" if fresh else "Estimated data")
-        color  = "#00ff87" if fresh else "#f59e0b"
-        bg     = "rgba(0,255,135,.08)" if fresh else "rgba(245,158,11,.08)"
-        border = "rgba(0,255,135,.2)"  if fresh else "rgba(245,158,11,.25)"
-        suffix = "" if fresh else " · hit Rescan for live scores"
-
-        st.markdown(
-            f'<div style="display:inline-flex;align-items:center;gap:6px;'
-            f'background:{bg};border:1px solid {border};'
-            f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
-            f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-            f'<span style="width:7px;height:7px;border-radius:50%;background:{color};display:inline-block;"></span>'
-            f'{label}{suffix}</div>',
-            unsafe_allow_html=True)
+        if fresh:
+            st.markdown(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;'
+                f'background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);'
+                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#00ff87;'
+                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+                f'<span style="width:7px;height:7px;border-radius:50%;background:#00ff87;display:inline-block;"></span>'
+                f'Data fresh · updated {age_str}</div>',
+                unsafe_allow_html=True)
+        else:
+            st.markdown(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;'
+                f'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);'
+                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#f59e0b;'
+                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+                f'<span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>'
+                f'Estimated data · last updated {age_str} · hit Rescan for live scores</div>',
+                unsafe_allow_html=True)
     except Exception:
         pass
 
@@ -1437,13 +1414,7 @@ QNTM is a quantitative research and factor analysis tool for informational and e
 purposes only. It does not constitute investment advice, a recommendation to buy or sell
 any security, or a guarantee of future performance. Past model performance does not predict
 future results. All investments involve risk including possible loss of principal. Consult
-a qualified financial adviser before making any investment decisions.<br><br>
-<strong style="color:#94a3b8;">Personalisation:</strong> Scores do not account for your
-individual financial situation, tax position, risk tolerance, or investment objectives.<br><br>
-<strong style="color:#94a3b8;">Model Limitations:</strong> Quantitative models may fail in market
-regimes not represented in the historical validation period. No forward-looking guarantee is implied.<br><br>
-<strong style="color:#94a3b8;">Conflicts of Interest:</strong> QNTM holds no positions in covered
-securities and receives no issuer compensation. Revenue is generated solely through user subscriptions.
+a qualified financial adviser before making any investment decisions.
 </div>"""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1558,7 +1529,7 @@ DISCLAIMER_FULL = """
 QNTM provides quantitative factor analysis, model scores, and signal generation as an educational
 and research resource. The following must be understood before using any QNTM output:
 
-**No Investment Advice:** Model HIGH, MODERATE, and LOW conviction signals are algorithmic outputs based on
+**No Investment Advice:** Model BUY, HOLD, and SELL signals are algorithmic outputs based on
 historical factor analysis. They are NOT recommendations to purchase or sell any security.
 
 **Past Performance:** The 5-year backtest results shown are based on historical data using the
@@ -1570,14 +1541,7 @@ principal amount invested. Equity markets can and do decline significantly.
 
 **Model Limitations:** The QNTM model uses publicly available data and estimated fundamentals.
 Data may be delayed, inaccurate, or incomplete. The model does not account for taxes, transaction
-costs, liquidity constraints, or individual financial circumstances. Quantitative models may fail
-in market regimes not represented in the historical validation period.
-
-**Personalisation:** Scores do not account for your individual financial situation, tax position,
-risk tolerance, or investment objectives. No score should be interpreted as tailored advice.
-
-**Conflicts of Interest:** QNTM holds no positions in covered securities and receives no issuer
-compensation. Revenue is generated solely through user subscriptions.
+costs, liquidity constraints, or individual financial circumstances.
 
 **Not a Fiduciary:** QNTM has no fiduciary duty to users. We are a technology platform, not a
 registered investment adviser.
@@ -1857,7 +1821,7 @@ def page_public_track_record():
       <div style="text-align:right;">
         <div style="font-size:13px;color:#94a3b8;">Returns measured from signal entry · Not investment advice</div>
         <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
-          846-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+          834-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
     </div>
@@ -1978,7 +1942,7 @@ def page_public_track_record():
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ ACTIVE HIGH CONVICTION — LIVE TRACK RECORD
+        ▲ ACTIVE BUY SIGNALS — LIVE TRACK RECORD
       </div>
       <div style="font-size:13px;color:#94a3b8;">{data_note}</div>
     </div>
@@ -2043,7 +2007,7 @@ def page_public_track_record():
             f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{ret_color};">{ret_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ HIGH</span></div>'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
             f'</div>'
         )
         st.markdown(row, unsafe_allow_html=True)
@@ -2121,7 +2085,7 @@ def page_public_track_record():
       <div style="text-align:right;">
         <div style="font-size:13px;color:#94a3b8;">Updated on load · Not investment advice</div>
         <div style="font-size:13px;color:#94a3b8;margin-top:2px;">
-          846-stock universe · 5-pillar factor model · Regime-scaled macro overlay
+          834-stock universe · 5-pillar factor model · Regime-scaled macro overlay
         </div>
       </div>
     </div>
@@ -2188,7 +2152,7 @@ def page_public_track_record():
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ TOP {len(buys)} HIGH CONVICTION — CURRENT MODEL OUTPUT
+        ▲ TOP {len(buys)} BUY SIGNALS — CURRENT MODEL OUTPUT
       </div>
       <div style="font-size:13px;color:#94a3b8;">Equal-weight · Quarterly rebalance</div>
     </div>
@@ -2239,7 +2203,7 @@ def page_public_track_record():
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{qual:.0f}</div>'
             f'<div style="font-size:13px;color:#94a3b8;">{rank:.0f}th pct</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ HIGH</span></div>'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
             f'</div>'
         )
         st.markdown(row_html, unsafe_allow_html=True)
@@ -2522,7 +2486,7 @@ def page_landing():
         <div style="width:7px;height:7px;background:#00ff87;border-radius:50%;
              animation:land-pulse 2s infinite;flex-shrink:0;"></div>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;">
-          MODEL LIVE &middot; 5-YR VALIDATED &middot; 846 STOCKS &middot; RISK-OFF REGIME
+          MODEL LIVE &middot; 5-YR VALIDATED &middot; 834 STOCKS &middot; RISK-OFF REGIME
         </span>
       </div>
 
@@ -2540,7 +2504,7 @@ def page_landing():
     """, unsafe_allow_html=True)
 
     # Hero CTA buttons — real Streamlit, work immediately
-    hb1, hb2, hb3 = st.columns(3)
+    hb1, hb2 = st.columns(2)
     with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
         if st.button("⚡ Get Started Free", key="hero_register", use_container_width=True):
@@ -2553,7 +2517,7 @@ def page_landing():
             st.session_state.auth_tab = "signin"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
-    with hb3:
+    with st.columns(1)[0]:
         st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
         if st.button("📊 Live Signals →", key="hero_model", use_container_width=True):
             go("model")
@@ -2728,7 +2692,7 @@ def page_landing():
     signals_html = ""
     for label, score, desc, color, brd in [
         ("▲ BUY SIGNAL",  "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
-        ("─ MODERATE",    "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
+        ("─ HOLD",        "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
         ("▼ EXIT SIGNAL", "Score < 45",  "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                "#E24B4A", "rgba(226,75,74,.25)"),
     ]:
         signals_html += (
@@ -2774,7 +2738,7 @@ def page_landing():
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row(f"846-stock screener")}
+          {feat_row(f"834-stock screener")}
           {feat_row("BUY/HOLD/SELL signals")}
           {feat_row("5 pillar scores")}
           {feat_row("75/25 quant/macro")}
@@ -2825,19 +2789,26 @@ def page_landing():
 
     pb1, pb2, pb3 = st.columns(3)
     with pb1:
-        if st.button("Get Started Free", key="price_free", use_container_width=True):
+        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
+        if st.button("Start Free →", key="price_free", use_container_width=True):
             st.session_state.auth_tab = "register"
+            st.session_state.auto_upgrade = False
             go("auth")
+        st.markdown('</div>', unsafe_allow_html=True)
     with pb2:
-        if st.button("Join Free — 50 Spots", key="price_founding", use_container_width=True):
+        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
+        if st.button("Claim Founding Spot →", key="price_founding", use_container_width=True):
             st.session_state.auth_tab = "register"
             st.session_state.auto_upgrade = True
             go("auth")
+        st.markdown('</div>', unsafe_allow_html=True)
     with pb3:
+        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
         if st.button("Get Pro — $29/mo", key="price_pro", use_container_width=True):
             st.session_state.auth_tab = "register"
             st.session_state.auto_upgrade = True
             go("auth")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
@@ -2884,7 +2855,7 @@ def page_landing():
       <div style="max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;
            align-items:center;flex-wrap:wrap;gap:12px;padding-top:20px;
            border-top:1px solid rgba(255,255,255,.05);">
-        <div style="font-size:13px;color:#94a3b8;">&copy; 2026 QNTM. All rights reserved.</div>
+        <div style="font-size:13px;color:#94a3b8;">&copy; 2025 QNTM. All rights reserved.</div>
         <div style="font-size:13px;color:#94a3b8;">
           Not investment advice &middot; Quantitative research tool only
         </div>
@@ -3201,8 +3172,8 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio","🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","simulator","model_portfolio","alerts","account"]
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🏆 Model Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","model_portfolio","alerts","account"]
     cur_nav     = st.session_state.get("nav","screener")
     cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
@@ -3232,10 +3203,10 @@ def page_screener():
 
     page_summary(
         "📊", "Market Screener",
-        "846 stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
+        "834 stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
         "then blended with a live macro overlay. Every score tells you exactly what to buy, hold, or exit, and why. "
         "Search any ticker for an instant live score, or run a full universe rescan.",
-        pills=[f"846 tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
+        pills=[f"834 tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     data_freshness_banner()
@@ -3349,7 +3320,7 @@ def page_screener():
         <div style="font-size:13px;color:#64748b;line-height:1.7;">
           Most screeners give you a score.
           <strong style="color:#94a3b8;">QNTM shows you the reasoning.</strong>
-          Every HIGH, MODERATE, or LOW conviction signal names the exact factors that moved the needle —
+          Every BUY, HOLD, or SELL names the exact factors that moved the needle —
           and shows how the 75/25 macro blend shifted conviction.
         </div>
       </div>
@@ -3383,9 +3354,9 @@ def page_screener():
 
     # Summary strip — single HTML row, no Streamlit columns
     stat_items = [
-        ("HIGH",  "#00ff87", str(buys)),
-        ("MOD",   "#fbbf24", str(holds)),
-        ("LOW",   "#ef4444", str(sells)),
+        ("BUY",   "#00ff87", str(buys)),
+        ("HOLD",  "#fbbf24", str(holds)),
+        ("SELL",  "#ef4444", str(sells)),
         ("GEMS",  "#00ff87", str(len(gems))),
         ("UNIV",  "#475569", f"{len(results)}"),
     ]
@@ -3428,8 +3399,8 @@ def page_screener():
         """, unsafe_allow_html=True)
         col_b, col_s = st.columns(2)
         for col, label, color, ranked, action_lbl in [
-            (col_b, "▲ TOP 10 HIGH CONVICTION",  "#00ff87", buys_ranked[:10],  "▲ HIGH"),
-            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10], "▼ LOW"),
+            (col_b, "▲ TOP 10 BUY SIGNALS",  "#00ff87", buys_ranked[:10],  "▲ BUY"),
+            (col_s, "▼ TOP 10 SELL / EXIT",  "#ef4444", sells_ranked[:10], "▼ SELL"),
         ]:
             with col:
                 count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
@@ -3511,7 +3482,7 @@ def page_screener():
                 ⚡ LIVE DATA REFRESH
               </div>
               <div style="font-size:14px;color:#94a3b8;margin-bottom:12px;">
-                Fetching live fundamentals from market data for all 846 tickers.
+                Fetching live fundamentals from market data for all 834 tickers.
                 This runs once per day and takes 3–4 minutes. All users benefit from the result.
               </div>
             </div>
@@ -4141,59 +4112,59 @@ document.body.prepend(c);
             """, unsafe_allow_html=True)
 
     # Holdings table — styled HTML matching platform theme
-        st.markdown(
+    st.markdown(
         '<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;'
         'letter-spacing:.1em;margin:32px 0 12px;">12-MONTH CONVICTION PORTFOLIO — ACTUAL POSITIONS &amp; RETURNS</div>',
         unsafe_allow_html=True)
 
-        # Table header — wrapped for mobile horizontal scroll
+    # Table header — wrapped for mobile horizontal scroll
+    st.markdown(
+        '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+        '<div style="min-width:520px;">'
+        '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
+        'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">ACTION</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">RESULT</div>'
+        '</div>',
+        unsafe_allow_html=True)
+
+    for h in bt["holdings_12m"]:
+        ret    = h["return_pct"]
+        act    = h["action"]
+        act_c  = "#00ff87" if act=="BUY" else "#ef4444"
+        ret_c  = "#00ff87" if ret > 0 else "#ef4444"
+        arrow  = "▲" if act=="BUY" else "▼"
+        win    = ret > 0
+        result_c = "#00ff87" if win else "#ef4444"
+        result   = "✓ WIN" if win else "✗ LOSS"
+        row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
         st.markdown(
-            '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-            '<div style="min-width:520px;">'
-            '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
-            'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
-            'border:1px solid rgba(255,255,255,.07);">'
-            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
-            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">ACTION</div>'
-            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
-            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
-            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
-            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">RESULT</div>'
-            '</div>',
+            f'<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
+            f'gap:8px;padding:12px 16px;background:{row_bg};'
+            f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
+            f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
+            f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
+            f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
+            f'{arrow} {act}</span></div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
+            f'<div style="font-size:13px;font-weight:700;color:{result_c};">{result}</div>'
+            f'</div>',
             unsafe_allow_html=True)
 
-        for h in bt["holdings_12m"]:
-            ret    = h["return_pct"]
-            act    = h["action"]
-            act_c  = "#00ff87" if act=="BUY" else "#ef4444"
-            ret_c  = "#00ff87" if ret > 0 else "#ef4444"
-            arrow  = "▲" if act=="BUY" else "▼"
-            win    = ret > 0
-            result_c = "#00ff87" if win else "#ef4444"
-            result   = "✓ WIN" if win else "✗ LOSS"
-            row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
-            st.markdown(
-                f'<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
-                f'gap:8px;padding:12px 16px;background:{row_bg};'
-                f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
-                f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
-                f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
-                f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
-                f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
-                f'{arrow} {act}</span></div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
-                f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
-                f'<div style="font-size:13px;font-weight:700;color:{result_c};">{result}</div>'
-                f'</div>',
+    st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">Stocks avoided: ' +
+                ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
+                ' — exited or never entered on signal</div></div></div>',
                 unsafe_allow_html=True)
 
-        st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">Stocks avoided: ' +
-                    ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
-                    ' — exited or never entered on signal</div></div></div>',
-                    unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4287,7 +4258,7 @@ def page_portfolio():
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#ef4444;letter-spacing:.1em;">▼ EXIT SIGNAL: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'{chg["from"]} → LOW · Check Alerts tab for details</span></div>',
+                        f'{chg["from"]} → SELL · Check Alerts tab for details</span></div>',
                         unsafe_allow_html=True)
 
                 elif change_type == "action_change" and chg["to"] == "BUY":
@@ -4295,9 +4266,9 @@ def page_portfolio():
                         f'<div style="background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.3);'
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                        f'color:#00ff87;letter-spacing:.1em;">▲ HIGH CONVICTION: {chg["ticker"]}</span>'
+                        f'color:#00ff87;letter-spacing:.1em;">▲ BUY SIGNAL: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'{chg["from"]} → HIGH · Conviction strengthening</span></div>',
+                        f'{chg["from"]} → BUY · Conviction strengthening</span></div>',
                         unsafe_allow_html=True)
 
                 elif change_type == "deterioration":
@@ -4308,7 +4279,7 @@ def page_portfolio():
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#fbbf24;letter-spacing:.1em;">⚠ DETERIORATING: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'Score dropped {abs(delta):.0f} pts · Still MODERATE but monitor closely</span></div>',
+                        f'Score dropped {abs(delta):.0f} pts · Still HOLD but monitor closely</span></div>',
                         unsafe_allow_html=True)
 
     # ── SELL / EXIT signals across portfolio ───────────────────────────────────
@@ -4446,7 +4417,7 @@ def page_portfolio():
     port_na    = n_holdings - port_buys - port_holds - port_sells
 
     port_summary_data = [
-        ("▲ HIGH Conviction",  port_buys,  "#00ff87"),
+        ("▲ BUY Signals",     port_buys,  "#00ff87"),
         ("─ Hold",            port_holds, "#fbbf24"),
         ("▼ Sell / Exit",     port_sells, "#ef4444"),
         ("Outside Universe",  port_na,    "#475569"),
@@ -4480,19 +4451,16 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row — compact styled pill buttons
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
+        # Period toggle row — real st.buttons, session state only, no URL
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
         period_cols = st.columns(len(PERIOD_DATA))
         for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
             with col:
                 active = st.session_state.port_period == pkey
-                label_color = "#00ff87" if active else "#94a3b8"
-                bg_color    = "rgba(0,255,135,.12)" if active else "rgba(255,255,255,.03)"
-                border_col  = "rgba(0,255,135,.45)" if active else "rgba(255,255,255,.08)"
                 st.markdown(
-                    f'<div style="background:{bg_color};border:1px solid {border_col};'
-                    f'border-radius:6px;text-align:center;padding:0;margin:0;">',
-                    unsafe_allow_html=True)
+                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.04)"};'
+                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.1)"};'
+                    f'border-radius:4px;padding:1px;">', unsafe_allow_html=True)
                 if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
                     st.session_state.port_period = pkey
                     st.rerun()
@@ -4551,9 +4519,9 @@ def page_portfolio():
             f'border-radius:8px;padding:14px;min-width:0;">'
             f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SIGNAL MIX</div>'
             f'<div style="display:flex;gap:10px;">'
-            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">HIGH</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">MOD</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">LOW</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">BUY</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">HOLD</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">SELL</div></div>'
             f'</div></div>'
         )
         st.markdown(
@@ -4738,330 +4706,12 @@ def page_portfolio():
             delete_holding(uid(), tk)
             st.rerun()
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-def page_simulator():
-    page_summary(
-        "🧮", "Portfolio Simulator",
-        "Model a portfolio from HIGH conviction signals. Choose a risk profile, then add or remove individual positions and adjust weights.",
-        pills=["Pro feature", "3 risk profiles", "Top 20 default", "Custom weights"]
-    )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
-
-    if not is_pro():
-        st.markdown(
-            '<div style="background:rgba(212,168,67,.07);border:1px solid rgba(212,168,67,.25);'
-            'border-radius:10px;padding:28px 24px;text-align:center;margin:24px 0;">'
-            '<div style="font-size:28px;margin-bottom:12px;">🧮</div>'
-            '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:8px;">Portfolio Simulator</div>'
-            '<div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">'
-            'Model a portfolio from HIGH conviction signals across three risk profiles.</div>'
-            '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
-            '</div>', unsafe_allow_html=True)
-        if st.button("Upgrade to Pro — $29/mo", key="sim_upgrade", use_container_width=True):
-            nav("account")
-        st.markdown('</div>', unsafe_allow_html=True)
-        return
-
-    # ── Load scan data ─────────────────────────────────────────────────────────
-    scan = st.session_state.get("scan_results") or []
-    all_buys = sorted(
-        [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
-        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
-        reverse=True
-    )
-    all_holds = sorted(
-        [r for r in scan if r.get("adj_action", r.get("action")) == "HOLD"],
-        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
-        reverse=True
-    )
-    ticker_map = {r["ticker"]: r for r in scan}  # lookup by ticker
-
-    if not all_buys:
-        st.markdown(
-            '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
-            'border-radius:8px;padding:32px;text-align:center;">'
-            '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
-            '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">No scan data loaded</div>'
-            '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe first.</div>'
-            '</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        return
-
-    # ── Risk profile definitions ───────────────────────────────────────────────
-    # HIGH:   top 20 buys sorted by momentum (highest momentum, most volatile)
-    # MEDIUM: top 20 buys sorted by composite (balanced — the model default)
-    # LOW:    top 20 buys sorted by quality+value (lower momentum, more defensive)
-    def profile_tickers(profile):
-        if profile == "HIGH":
-            ranked = sorted(all_buys, key=lambda x: x.get("momentum", 0), reverse=True)
-        elif profile == "LOW":
-            ranked = sorted(all_buys, key=lambda x: (x.get("quality", 0) + x.get("value", 0)) / 2, reverse=True)
-        else:  # MEDIUM
-            ranked = all_buys  # already sorted by composite
-        return [r["ticker"] for r in ranked[:20]]
-
-    # ── Session state init ─────────────────────────────────────────────────────
-    if "sim_profile" not in st.session_state:
-        st.session_state.sim_profile = "MEDIUM"
-    if "sim_selected" not in st.session_state or st.session_state.get("sim_profile_applied") != st.session_state.sim_profile:
-        st.session_state.sim_selected   = profile_tickers(st.session_state.sim_profile)
-        st.session_state.sim_weights    = {}   # ticker → custom weight override (%)
-        st.session_state.sim_profile_applied = st.session_state.sim_profile
-
-    # Clamp: remove tickers no longer in scan
-    available = set(ticker_map.keys())
-    st.session_state.sim_selected = [t for t in st.session_state.sim_selected if t in available]
-
-    # ── Investment amount ──────────────────────────────────────────────────────
-    sim_amount = st.number_input(
-        "Investment Amount ($)", min_value=1000, max_value=10000000,
-        value=50000, step=1000, format="%d", key="sim_amount"
-    )
-
-    # ── Risk profile selector ──────────────────────────────────────────────────
-    PROFILES = {
-        "HIGH":   ("🔥 High Risk",   "Top 20 by momentum. Higher volatility, higher potential return. Concentrated in fast-moving sectors."),
-        "MEDIUM": ("⚖️ Medium Risk", "Top 20 by conviction score. Balanced across quality, momentum, and value. Model default."),
-        "LOW":    ("🛡 Low Risk",    "Top 20 by quality + value. More defensive positioning, lower expected volatility."),
-    }
-    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
-        'letter-spacing:.08em;margin-bottom:10px;">RISK PROFILE</div>',
-        unsafe_allow_html=True)
-
-    p_cols = st.columns(3)
-    for col, (pk, (plbl, pdesc)) in zip(p_cols, PROFILES.items()):
-        with col:
-            active = st.session_state.sim_profile == pk
-            border = "rgba(212,168,67,.6)" if pk=="HIGH" else "rgba(0,255,135,.5)" if pk=="LOW" else "rgba(148,163,184,.4)"
-            bg     = "rgba(212,168,67,.08)" if pk=="HIGH" else "rgba(0,255,135,.07)" if pk=="LOW" else "rgba(255,255,255,.04)"
-            tc     = "#d4a843" if pk=="HIGH" else "#00ff87" if pk=="LOW" else "#94a3b8"
-            if active:
-                border = border.replace(",.6",",.9").replace(",.5",",.8").replace(",.4",",.7")
-                bg     = bg.replace(",.08",",.15").replace(",.07",",.13").replace(",.04",",.09")
-            st.markdown(
-                f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
-                f'padding:10px 8px;text-align:center;margin-bottom:4px;">'
-                f'<div style="font-size:13px;font-weight:700;color:{tc};">{plbl}</div>'
-                f'<div style="font-size:10px;color:#64748b;margin-top:3px;line-height:1.3;">{pdesc[:50]}…</div>'
-                f'</div>',
-                unsafe_allow_html=True)
-            if st.button(f"{"✓ Selected" if active else "Select"}", key=f"prof_{pk}", use_container_width=True):
-                st.session_state.sim_profile = pk
-                st.session_state.sim_selected = profile_tickers(pk)
-                st.session_state.sim_weights  = {}
-                st.session_state.sim_profile_applied = pk
-                st.rerun()
-
-    # ── Weighting mode ─────────────────────────────────────────────────────────
-    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
-    equal_weight = st.toggle("Equal weight", value=True, key="sim_equal")
-
-    # ── Add position by ticker / name search ───────────────────────────────────
-    st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
-        'letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>',
-        unsafe_allow_html=True)
-    add_query = st.text_input("Search ticker or company name", key="sim_add_query",
-                              placeholder="e.g. NVDA, Apple, energy stocks…", label_visibility="collapsed")
-    if add_query and add_query.strip():
-        q = add_query.strip().upper()
-        # Match by ticker prefix or company name substring
-        matches = []
-        for r in scan:
-            tk = r["ticker"]
-            ci = get_company_info(tk)
-            name = (ci.get("name","") if ci else "").upper()
-            if tk.startswith(q) or q in name or q in tk:
-                matches.append(r)
-        matches = sorted(matches, key=lambda x: x.get("adj_composite", x.get("composite",0)), reverse=True)[:8]
-        if matches:
-            for r in matches:
-                tk    = r["ticker"]
-                score = r.get("adj_composite", r.get("composite", 0))
-                act   = r.get("adj_action", r.get("action", "HOLD"))
-                ci    = get_company_info(tk)
-                name  = ci.get("name", tk) if ci else tk
-                sc_c  = "#00ff87" if act=="BUY" else "#fbbf24" if act=="HOLD" else "#ef4444"
-                already = tk in st.session_state.sim_selected
-                btn_lbl = f"{'✓ In portfolio' if already else '+ Add'}  {tk} — {name[:28]} · score {score:.0f}"
-                if st.button(btn_lbl, key=f"simadd_{tk}", use_container_width=True, disabled=already):
-                    st.session_state.sim_selected.append(tk)
-                    st.session_state.sim_weights[tk] = round(100 / (len(st.session_state.sim_selected)), 1)
-                    st.rerun()
-        else:
-            st.caption("No matching tickers found in current scan.")
-
-    # ── Selected positions list ────────────────────────────────────────────────
-    selected_tickers = st.session_state.sim_selected
-    selected_rows    = [ticker_map[t] for t in selected_tickers if t in ticker_map]
-    n_sel = len(selected_rows)
-
-    if n_sel == 0:
-        st.info("No positions — select a risk profile or search for a ticker above.")
-        st.markdown('</div>', unsafe_allow_html=True)
-        return
-
-    # ── Build allocation ───────────────────────────────────────────────────────
-    # Custom weights: if not equal-weight, use per-position sliders or default even split
-    if equal_weight:
-        weight_map = {r["ticker"]: 100.0 / n_sel for r in selected_rows}
-    else:
-        # Use stored custom weights, normalise to 100%
-        raw_w = {r["ticker"]: st.session_state.sim_weights.get(r["ticker"], 100.0 / n_sel) for r in selected_rows}
-        total_w = sum(raw_w.values())
-        weight_map = {tk: v / total_w * 100 for tk, v in raw_w.items()} if total_w > 0 else {tk: 100.0/n_sel for tk in raw_w}
-
-    alloc = []
-    total_score = sum(r.get("adj_composite", r.get("composite", 0)) for r in selected_rows)
-    for r in selected_rows:
-        tk    = r["ticker"]
-        score = r.get("adj_composite", r.get("composite", 0))
-        price = r.get("price")
-        pct   = weight_map[tk]
-        w_dollar = sim_amount * pct / 100
-        shares   = round(w_dollar / price, 4) if price and price > 0 else None
-        alloc.append({
-            "ticker":     tk,
-            "score":      score,
-            "price":      price,
-            "allocation": w_dollar,
-            "pct":        pct,
-            "shares":     shares,
-            "sector":     r.get("sector", "Unknown"),
-            "momentum":   r.get("momentum",   50),
-            "quality":    r.get("quality",     50),
-            "volume":     r.get("volume",      50),
-            "value":      r.get("value",       50),
-            "sentiment":  r.get("sentiment",   50),
-        })
-
-    weighted_score = sum(a["pct"] * a["score"] for a in alloc) / 100
-
-    # ── Summary strip ─────────────────────────────────────────────────────────
-    st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
-    sc_col  = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
-    prof_lbl, _ = PROFILES[st.session_state.sim_profile]
-    st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">'
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">INVESTED</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#d4a843;">${sim_amount:,.0f}</div></div>'
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">POSITIONS</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#cbd5e1;">{n_sel}</div></div>'
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">AVG SCORE</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{sc_col};">{weighted_score:.1f}</div></div>'
-        f'</div>',
-        unsafe_allow_html=True)
-
-    # ── Sector exposure ────────────────────────────────────────────────────────
-    sector_totals = {}
-    for a in alloc:
-        s = a.get("sector", "Unknown")
-        sector_totals[s] = sector_totals.get(s, 0) + a["allocation"]
-    top_sectors = sorted(sector_totals.items(), key=lambda x: x[1], reverse=True)[:6]
-    bars_html = ""
-    for sec, val in top_sectors:
-        pct = val / sim_amount * 100
-        bars_html += (
-            f'<div style="margin-bottom:8px;">'
-            f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
-            f'<span style="font-size:12px;color:#94a3b8;">{sec}</span>'
-            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">{pct:.1f}%</span>'
-            f'</div><div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
-            f'<div style="width:{min(pct,100):.1f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
-            f'</div></div>'
-        )
-    st.markdown(
-        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-        f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
-        f'{bars_html}</div>',
-        unsafe_allow_html=True)
-
-    # ── Position breakdown — expandable ────────────────────────────────────────
-    st.markdown(
-        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
-        'letter-spacing:.08em;margin-bottom:8px;">POSITIONS</div>',
-        unsafe_allow_html=True)
-
-    def pill_bar(v):
-        c = "#00ff87" if v >= 60 else ("#f59e0b" if v >= 45 else "#ef4444")
-        return (
-            f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
-            f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>'
-        )
-
-    for a in sorted(alloc, key=lambda x: x["score"], reverse=True):
-        sc_color  = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
-        price_str = f'${a["price"]:,.2f}' if a["price"] else "—"
-        exp_label = f'{a["ticker"]}  ·  ${a["allocation"]:,.0f} ({a["pct"]:.1f}%)  ·  score {a["score"]:.0f}'
-
-        with st.expander(exp_label, expanded=False):
-            # Price / shares / conviction
-            shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
-            st.markdown(
-                f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
-                f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:3px;">PRICE</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#cbd5e1;">{price_str}</div></div>'
-                f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:3px;">SHARES</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#94a3b8;">{shares_str}</div></div>'
-                f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:3px;">CONVICTION</div>'
-                f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:{sc_color};">{a["score"]:.0f}</div></div>'
-                f'</div>',
-                unsafe_allow_html=True)
-
-            # Pillar bars
-            st.markdown(
-                f'<div style="margin-bottom:10px;">'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;">MOM {a["momentum"]:.0f}</div>{pill_bar(a["momentum"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">QUAL {a["quality"]:.0f}</div>{pill_bar(a["quality"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">VOL {a["volume"]:.0f}</div>{pill_bar(a["volume"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">VAL {a["value"]:.0f}</div>{pill_bar(a["value"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">SENT {a["sentiment"]:.0f}</div>{pill_bar(a["sentiment"])}'
-                f'</div>',
-                unsafe_allow_html=True)
-
-            st.markdown(f'<div style="font-size:12px;color:#475569;margin-bottom:8px;">{a["sector"]}</div>', unsafe_allow_html=True)
-
-            # Custom weight slider (shown only when not equal-weighted)
-            if not equal_weight:
-                raw_pct = st.session_state.sim_weights.get(a["ticker"], round(100.0 / n_sel, 1))
-                new_pct = st.slider(
-                    f"Weight % for {a['ticker']}",
-                    min_value=0.5, max_value=50.0,
-                    value=float(raw_pct), step=0.5,
-                    key=f"sim_w_{a['ticker']}",
-                    help="Will be normalised to 100% across all positions"
-                )
-                if new_pct != raw_pct:
-                    st.session_state.sim_weights[a["ticker"]] = new_pct
-                    st.rerun()
-
-            # Remove button
-            if st.button(f"✕ Remove {a['ticker']}", key=f"sim_rm_{a['ticker']}", use_container_width=True):
-                st.session_state.sim_selected.remove(a["ticker"])
-                st.session_state.sim_weights.pop(a["ticker"], None)
-                st.rerun()
-
-    st.markdown(
-        f'<div style="font-size:11px;color:#475569;padding-top:12px;margin-top:8px;'
-        f'border-top:1px solid rgba(255,255,255,.05);">'
-        f'{"Equal weight" if equal_weight else "Custom weight (normalised)"} · ${sim_amount:,.0f} across {n_sel} positions · '
-        f'Shares at last scan price · Hypothetical — not investment advice.</div>',
-        unsafe_allow_html=True)
-
     st.markdown('</div>', unsafe_allow_html=True)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ALERTS PAGE
+# ══════════════════════════════════════════════════════════════════════════════
 def page_alerts():
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
@@ -5515,8 +5165,8 @@ def page_account():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_model_portfolio():
     """
-    QNTM Model Portfolio — top 20 HIGH conviction signals tracked from first signal date.
-    Entry date sourced from model_portfolio_positions table (seeded 2026-05-19).
+    QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
+    Entry date = today (as if you acted on today's signals).
     Exits when score drops below 45. Reinvests into next-best BUY signal.
     """
     from data_refresh import _get_supabase
@@ -5524,8 +5174,8 @@ def page_model_portfolio():
 
     page_summary(
         "🏆", "Model Portfolio",
-        "QNTM's top 20 HIGH conviction signals tracked live from first signal date. Equal-weighted $10K per position, auto-exits when conviction drops below 45.",
-        pills=["Equal weighted", "Top 20 HIGH conviction", "$10K per position", "Auto-rebalance on exit signal"]
+        "QNTM's top 20 BUY signals tracked live. Entry date is today — as if you acted on today's recommendations.",
+        pills=["Equal weighted", "Top 20 BUY signals", "$10K per position", "Auto-rebalance on SELL signal"]
     )
 
     sb = _get_supabase()
@@ -5574,7 +5224,7 @@ def page_model_portfolio():
                     f'gap:4px;padding:8px 12px;background:{bg};'
                     f'border:1px solid rgba(255,255,255,.04);border-radius:4px;margin-bottom:2px;">'
                     f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}</div>'
-                    f'<div style="font-size:12px;color:#64748b;">Pending entry</div>'
+                    f'<div style="font-size:12px;color:#64748b;">Entry today</div>'
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{price_str}</div>'
                     f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;">{r.get("adj_composite", 0):.0f}</div>'
                     f'</div>', unsafe_allow_html=True)
@@ -5648,29 +5298,20 @@ def page_model_portfolio():
     vs_sign    = "+" if vs_spy_pct >= 0 else ""
 
     # ── Methodology banner ────────────────────────────────────────────────────
-    earliest_date = min((pos.get("entry_date","") for pos in positions if pos.get("entry_date")), default="2026-05-19")
-    try:
-        import datetime as _dt
-        ed = _dt.date.fromisoformat(earliest_date)
-        start_str = ed.strftime("%B %d, %Y")
-    except Exception:
-        start_str = earliest_date
-
-    st.markdown(f"""
+    st.markdown("""
     <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);
          border-radius:8px;padding:16px 20px;margin-bottom:20px;">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
            letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>
       <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
-        This portfolio holds QNTM's top 20 HIGH conviction stocks, equal-weighted at $10,000 per position.
-        Tracking live from <strong style="color:#cbd5e1;">{start_str}</strong> — the date of first model signal.
+        This portfolio holds QNTM's top 20 BUY-rated stocks, equal-weighted at $10,000 per position.
         Positions are entered when a stock's blended conviction score reaches <strong style="color:#00ff87;">≥60</strong> —
         combining 5-pillar quantitative analysis (Momentum, Quality, Value, Volume, Sentiment) with a live macro regime overlay.
         <br><br>
-        <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model issues an exit signal
-        (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover and transaction costs.
-        When a position exits, capital is redeployed into the next highest-conviction signal not already held.
-        No discretionary overrides — the model drives every entry and exit.
+        <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model generates a SELL signal
+        (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover, transaction costs, and
+        short-term capital gains tax events. When a position exits, capital is redeployed into the next highest-conviction
+        BUY signal not already held. No discretionary overrides — the model drives every entry and exit.
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -5798,6 +5439,178 @@ def page_model_portfolio():
         'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
         unsafe_allow_html=True)
 
+    sb = _get_supabase()
+    scan = st.session_state.get("scan_results") or []
+
+    # ── Get current top 20 BUY signals ───────────────────────────────────────
+    buys = sorted(
+        [r for r in scan if r.get("adj_composite", r.get("composite", 0)) >= 60],
+        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+        reverse=True
+    )[:20]
+
+    if not buys:
+        st.markdown(
+            '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+            'border-radius:8px;padding:32px;text-align:center;margin:24px 0;">'
+            '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
+            '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">Run a scan first</div>'
+            '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe to load the current BUY signals.</div>'
+            '</div>', unsafe_allow_html=True)
+        return
+
+    # ── Pull entry dates from signal_log ─────────────────────────────────────
+    entry_map = {}
+    if sb:
+        try:
+            tickers = [r["ticker"] for r in buys]
+            rows = sb.table("signal_log").select("ticker,signal_date,price") \
+                .in_("ticker", tickers) \
+                .eq("signal", "BUY") \
+                .order("signal_date", desc=False) \
+                .execute()
+            # Get earliest BUY date and entry price per ticker
+            for row in (rows.data or []):
+                tk = row["ticker"]
+                if tk not in entry_map:
+                    entry_map[tk] = {
+                        "entry_date": row["signal_date"],
+                        "entry_price": row.get("price"),
+                    }
+        except Exception:
+            pass
+
+    # ── Portfolio metrics ─────────────────────────────────────────────────────
+    today = datetime.date.today().isoformat()
+    holdings = []
+    total_invested = 0
+    total_current = 0
+    position_size = 10000  # $10K equal weight per position
+
+    for r in buys:
+        tk = r["ticker"]
+        entry = entry_map.get(tk, {})
+        entry_price = entry.get("entry_price")
+        current_price = r.get("price")
+        entry_date = entry.get("entry_date", today)
+
+        if entry_price and current_price and entry_price > 0:
+            shares = position_size / entry_price
+            current_val = shares * current_price
+            pnl = current_val - position_size
+            pnl_pct = (current_val / position_size - 1) * 100
+        else:
+            shares = None
+            current_val = position_size  # assume flat if no price
+            pnl = 0
+            pnl_pct = 0
+
+        total_invested += position_size
+        total_current  += current_val
+
+        holdings.append({
+            "ticker":       tk,
+            "score":        r.get("adj_composite", r.get("composite", 0)),
+            "entry_date":   entry_date,
+            "entry_price":  entry_price,
+            "current_price": current_price,
+            "shares":       shares,
+            "position_size": position_size,
+            "current_val":  current_val,
+            "pnl":          pnl,
+            "pnl_pct":      pnl_pct,
+            "sector":       r.get("sector", ""),
+        })
+
+    port_return = (total_current / total_invested - 1) * 100 if total_invested > 0 else 0
+    port_pnl    = total_current - total_invested
+
+    # ── Summary stat strip ────────────────────────────────────────────────────
+    col1, col2, col3, col4 = st.columns(4)
+    stat_style = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:16px 20px;text-align:center;"
+    label_style = "font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
+    val_style_green = "font-size:22px;font-weight:700;color:#00ff87;"
+    val_style_red   = "font-size:22px;font-weight:700;color:#ef4444;"
+    val_style_gold  = "font-size:22px;font-weight:700;color:#d4a843;"
+
+    return_color = "#00ff87" if port_return >= 0 else "#ef4444"
+    pnl_color    = "#00ff87" if port_pnl >= 0 else "#ef4444"
+    sign         = "+" if port_return >= 0 else ""
+
+    with col1:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">PORTFOLIO VALUE</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">TOTAL RETURN</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:{return_color};">{sign}{port_return:.1f}%</div></div>',
+                    unsafe_allow_html=True)
+    with col3:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">TOTAL P&L</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:{pnl_color};">{sign}${port_pnl:,.0f}</div></div>',
+                    unsafe_allow_html=True)
+    with col4:
+        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">POSITIONS</div>'
+                    f'<div style="font-size:22px;font-weight:700;color:#cbd5e1;">{len(holdings)}</div></div>',
+                    unsafe_allow_html=True)
+
+    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+
+    # ── Holdings table ────────────────────────────────────────────────────────
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+                'letter-spacing:.1em;margin-bottom:12px;">▲ CURRENT HOLDINGS</div>',
+                unsafe_allow_html=True)
+
+    # Header
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:80px 1fr 80px 80px 80px 80px 70px;'
+        'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">ENTRY DATE</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">ENTRY $</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">CURRENT $</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">P&L</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">RETURN</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
+        '</div>', unsafe_allow_html=True)
+
+    for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
+        bg = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
+        ret_color = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
+        sign = "+" if h["pnl_pct"] >= 0 else ""
+        entry_str   = f'${h["entry_price"]:,.2f}' if h["entry_price"] else "—"
+        current_str = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
+        pnl_str     = f'{sign}${h["pnl"]:,.0f}' if h["entry_price"] and h["current_price"] else "—"
+        ret_str     = f'{sign}{h["pnl_pct"]:.1f}%' if h["entry_price"] and h["current_price"] else "—"
+
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:80px 1fr 80px 80px 80px 80px 70px;'
+            f'gap:4px;padding:8px 12px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
+            f'<div style="font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{entry_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">{current_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{ret_color};text-align:right;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{ret_color};text-align:right;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;text-align:right;">{h["score"]:.0f}</div>'
+            f'</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div style="padding:8px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:0 0 6px 6px;font-size:12px;color:#64748b;">'
+        f'${position_size:,}/position · Equal weighted · Hypothetical $10K per position · '
+        f'Entry price = first BUY signal date from signal_log</div>',
+        unsafe_allow_html=True)
+
+    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:12px;color:#475569;padding:12px 0;border-top:1px solid rgba(255,255,255,.05);">'
+        '⚠ Model portfolio is hypothetical. Entry prices sourced from nightly signal_log at first BUY signal date. '
+        'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
+        unsafe_allow_html=True)
 
 
 def page_platform():
@@ -5823,14 +5636,16 @@ def page_platform():
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-                if st.button("⚡ Enable 2FA Now", key="force_mfa_yes", use_container_width=True):
-                    st.session_state.force_mfa_setup = False
-                    nav("account")
-                    st.session_state.show_mfa_setup = True
-                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-                if st.button("Skip for Now", key="force_mfa_skip", use_container_width=True):
-                    st.session_state.force_mfa_setup = False
-                    st.rerun()
+                b1, b2 = st.columns(2)
+                with b1:
+                    if st.button("⚡ Enable 2FA Now", key="force_mfa_yes", use_container_width=True):
+                        st.session_state.force_mfa_setup = False
+                        nav("account")
+                        st.session_state.show_mfa_setup = True
+                with b2:
+                    if st.button("Skip for Now", key="force_mfa_skip", use_container_width=True):
+                        st.session_state.force_mfa_setup = False
+                        st.rerun()
             return
         else:
             st.session_state.force_mfa_setup = False
@@ -5852,7 +5667,6 @@ def page_platform():
         "gems":           page_gems,
         "backtest":       page_backtest,
         "portfolio":      page_portfolio,
-        "simulator":      page_simulator,
         "model_portfolio": page_model_portfolio,
         "alerts":         page_alerts,
         "account":        page_account,
@@ -5864,12 +5678,12 @@ def page_platform():
     <div style="padding:24px 32px;border-top:1px solid rgba(255,255,255,.05);margin-top:40px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div style="font-size:13px;color:#475569;">
-          &copy; 2026 QNTM · Quantitative research platform · Not investment advice
+          QNTM · Quantitative research platform · Not investment advice
         </div>
         <div style="font-size:13px;color:#475569;">
-          <a href="?legal=privacy" style="color:#94a3b8;">Privacy</a> ·
-          <a href="?legal=terms" style="color:#94a3b8;">Terms</a> ·
-          <a href="?legal=disclaimer" style="color:#94a3b8;">Disclaimer</a>
+          <a href="#" style="color:#94a3b8;">Privacy</a> ·
+          <a href="#" style="color:#94a3b8;">Terms</a> ·
+          <a href="#" style="color:#94a3b8;">Disclaimer</a>
         </div>
       </div>
     </div>
