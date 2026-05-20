@@ -5430,178 +5430,6 @@ def page_model_portfolio():
         'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
         unsafe_allow_html=True)
 
-    sb = _get_supabase()
-    scan = st.session_state.get("scan_results") or []
-
-    # ── Get current top 20 BUY signals ───────────────────────────────────────
-    buys = sorted(
-        [r for r in scan if r.get("adj_composite", r.get("composite", 0)) >= 60],
-        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
-        reverse=True
-    )[:20]
-
-    if not buys:
-        st.markdown(
-            '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
-            'border-radius:8px;padding:32px;text-align:center;margin:24px 0;">'
-            '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
-            '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">Run a scan first</div>'
-            '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe to load the current BUY signals.</div>'
-            '</div>', unsafe_allow_html=True)
-        return
-
-    # ── Pull entry dates from signal_log ─────────────────────────────────────
-    entry_map = {}
-    if sb:
-        try:
-            tickers = [r["ticker"] for r in buys]
-            rows = sb.table("signal_log").select("ticker,signal_date,price") \
-                .in_("ticker", tickers) \
-                .eq("signal", "BUY") \
-                .order("signal_date", desc=False) \
-                .execute()
-            # Get earliest BUY date and entry price per ticker
-            for row in (rows.data or []):
-                tk = row["ticker"]
-                if tk not in entry_map:
-                    entry_map[tk] = {
-                        "entry_date": row["signal_date"],
-                        "entry_price": row.get("price"),
-                    }
-        except Exception:
-            pass
-
-    # ── Portfolio metrics ─────────────────────────────────────────────────────
-    today = datetime.date.today().isoformat()
-    holdings = []
-    total_invested = 0
-    total_current = 0
-    position_size = 10000  # $10K equal weight per position
-
-    for r in buys:
-        tk = r["ticker"]
-        entry = entry_map.get(tk, {})
-        entry_price = entry.get("entry_price")
-        current_price = r.get("price")
-        entry_date = entry.get("entry_date", today)
-
-        if entry_price and current_price and entry_price > 0:
-            shares = position_size / entry_price
-            current_val = shares * current_price
-            pnl = current_val - position_size
-            pnl_pct = (current_val / position_size - 1) * 100
-        else:
-            shares = None
-            current_val = position_size  # assume flat if no price
-            pnl = 0
-            pnl_pct = 0
-
-        total_invested += position_size
-        total_current  += current_val
-
-        holdings.append({
-            "ticker":       tk,
-            "score":        r.get("adj_composite", r.get("composite", 0)),
-            "entry_date":   entry_date,
-            "entry_price":  entry_price,
-            "current_price": current_price,
-            "shares":       shares,
-            "position_size": position_size,
-            "current_val":  current_val,
-            "pnl":          pnl,
-            "pnl_pct":      pnl_pct,
-            "sector":       r.get("sector", ""),
-        })
-
-    port_return = (total_current / total_invested - 1) * 100 if total_invested > 0 else 0
-    port_pnl    = total_current - total_invested
-
-    # ── Summary stat strip ────────────────────────────────────────────────────
-    col1, col2, col3, col4 = st.columns(4)
-    stat_style = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:16px 20px;text-align:center;"
-    label_style = "font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
-    val_style_green = "font-size:22px;font-weight:700;color:#00ff87;"
-    val_style_red   = "font-size:22px;font-weight:700;color:#ef4444;"
-    val_style_gold  = "font-size:22px;font-weight:700;color:#d4a843;"
-
-    return_color = "#00ff87" if port_return >= 0 else "#ef4444"
-    pnl_color    = "#00ff87" if port_pnl >= 0 else "#ef4444"
-    sign         = "+" if port_return >= 0 else ""
-
-    with col1:
-        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">PORTFOLIO VALUE</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>',
-                    unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">TOTAL RETURN</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:{return_color};">{sign}{port_return:.1f}%</div></div>',
-                    unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">TOTAL P&L</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:{pnl_color};">{sign}${port_pnl:,.0f}</div></div>',
-                    unsafe_allow_html=True)
-    with col4:
-        st.markdown(f'<div style="{stat_style}"><div style="{label_style}">POSITIONS</div>'
-                    f'<div style="font-size:22px;font-weight:700;color:#cbd5e1;">{len(holdings)}</div></div>',
-                    unsafe_allow_html=True)
-
-    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-
-    # ── Holdings table ────────────────────────────────────────────────────────
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
-                'letter-spacing:.1em;margin-bottom:12px;">▲ CURRENT HOLDINGS</div>',
-                unsafe_allow_html=True)
-
-    # Header
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:80px 1fr 80px 80px 80px 80px 70px;'
-        'gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">TICKER</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;">ENTRY DATE</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">ENTRY $</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">CURRENT $</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">P&L</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">RETURN</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.08em;text-align:right;">SCORE</div>'
-        '</div>', unsafe_allow_html=True)
-
-    for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
-        ret_color = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-        sign = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str   = f'${h["entry_price"]:,.2f}' if h["entry_price"] else "—"
-        current_str = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
-        pnl_str     = f'{sign}${h["pnl"]:,.0f}' if h["entry_price"] and h["current_price"] else "—"
-        ret_str     = f'{sign}{h["pnl_pct"]:.1f}%' if h["entry_price"] and h["current_price"] else "—"
-
-        st.markdown(
-            f'<div style="display:grid;grid-template-columns:80px 1fr 80px 80px 80px 80px 70px;'
-            f'gap:4px;padding:8px 12px;background:{bg};'
-            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
-            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
-            f'<div style="font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{entry_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">{current_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{ret_color};text-align:right;">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{ret_color};text-align:right;">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;text-align:right;">{h["score"]:.0f}</div>'
-            f'</div>', unsafe_allow_html=True)
-
-    st.markdown(
-        f'<div style="padding:8px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
-        f'border-radius:0 0 6px 6px;font-size:12px;color:#64748b;">'
-        f'${position_size:,}/position · Equal weighted · Hypothetical $10K per position · '
-        f'Entry price = first BUY signal date from signal_log</div>',
-        unsafe_allow_html=True)
-
-    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div style="font-size:12px;color:#475569;padding:12px 0;border-top:1px solid rgba(255,255,255,.05);">'
-        '⚠ Model portfolio is hypothetical. Entry prices sourced from nightly signal_log at first BUY signal date. '
-        'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
-        unsafe_allow_html=True)
 
 
 def page_platform():
@@ -5627,16 +5455,14 @@ def page_platform():
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-                b1, b2 = st.columns(2)
-                with b1:
-                    if st.button("⚡ Enable 2FA Now", key="force_mfa_yes", use_container_width=True):
-                        st.session_state.force_mfa_setup = False
-                        nav("account")
-                        st.session_state.show_mfa_setup = True
-                with b2:
-                    if st.button("Skip for Now", key="force_mfa_skip", use_container_width=True):
-                        st.session_state.force_mfa_setup = False
-                        st.rerun()
+                if st.button("⚡ Enable 2FA Now", key="force_mfa_yes", use_container_width=True):
+                    st.session_state.force_mfa_setup = False
+                    nav("account")
+                    st.session_state.show_mfa_setup = True
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                if st.button("Skip for Now", key="force_mfa_skip", use_container_width=True):
+                    st.session_state.force_mfa_setup = False
+                    st.rerun()
             return
         else:
             st.session_state.force_mfa_setup = False
