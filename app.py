@@ -3217,7 +3217,7 @@ def page_screener():
     search_col, _ = st.columns([2, 5])
     with search_col:
         search_ticker = st.text_input(
-            "", placeholder="e.g. AAPL, Tesla, Nvidia...",
+            "Search ticker or company", placeholder="e.g. AAPL, Tesla, Nvidia...",
             key="screener_search", label_visibility="collapsed"
         ).strip().upper()
 
