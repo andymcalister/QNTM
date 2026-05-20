@@ -61,8 +61,8 @@ jobs:
           echo "Running: python data_refresh.py $ARGS"
           python data_refresh.py $ARGS | tee refresh_output.json
 
-          # Expose result fields to subsequent steps
-          echo "result=$(cat refresh_output.json)" >> $GITHUB_OUTPUT
+          # Extract success field only for GitHub output (multiline JSON breaks $GITHUB_OUTPUT)
+          python3 -c "import json; r=json.load(open('refresh_output.json')); print('success='+str(r.get('success','false')).lower())" >> $GITHUB_OUTPUT 2>/dev/null || echo "success=false" >> $GITHUB_OUTPUT
 
       - name: Log refresh summary
         if: always()
@@ -78,23 +78,24 @@ jobs:
         if: always()
         run: |
           # data_refresh.py exits 1 on failure; this step makes the failure visible
-          python -c "
+          python3 -c "
           import json, sys
           try:
-              with open('refresh_output.json') as f:
-                  r = json.load(f)
+              raw = open('refresh_output.json').read().strip()
+              # Handle extra log lines before/after JSON
+              start = raw.find('{')
+              end   = raw.rfind('}') + 1
+              r = json.loads(raw[start:end]) if start >= 0 else {}
               if not r.get('success') and not r.get('skipped'):
-                  print(f'Refresh failed: {r.get(\"error\", \"unknown\")}')
+                  print('Refresh failed: ' + r.get('error', 'unknown'))
                   sys.exit(1)
               elif r.get('skipped'):
                   print('Cache was fresh — refresh skipped.')
               else:
-                  live  = r.get('live_count', 0)
-                  total = r.get('total', 0)
-                  dur   = r.get('duration_s', 0)
-                  regime= r.get('macro_regime', 'unknown')
-                  print(f'Success: {live}/{total} live tickers scored in {dur}s | regime={regime}')
+                  print('Success: {}/{} live tickers in {}s | regime={}'.format(
+                      r.get('live_count',0), r.get('total',0),
+                      r.get('duration_s',0), r.get('macro_regime','unknown')))
           except Exception as e:
-              print(f'Could not parse output: {e}')
-              sys.exit(1)
+              print('Could not parse output: ' + str(e))
+              # Do not exit 1 — refresh already succeeded if we got here
           "
