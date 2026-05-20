@@ -4,6 +4,8 @@ on:
   schedule:
     # 2:00 AM UTC daily (6 PM PT / 9 PM ET — after US market close + settlement)
     - cron: "0 2 * * *"
+    # Intraday refresh every 15 min during US market hours (Mon–Fri, 1:30–8:45 PM UTC = 9:30 AM–4:45 PM ET)
+    - cron: "*/15 13-20 * * 1-5"
   workflow_dispatch:
     inputs:
       force:
@@ -21,19 +23,20 @@ jobs:
   refresh:
     name: Refresh Universe & Score
     runs-on: ubuntu-latest
-    timeout-minutes: 30       # full 963-ticker pass takes ~4 min; 30 min is a safe ceiling
+    timeout-minutes: 30       # full 834-ticker pass ~4 min; intraday price-only ~90s; 30 min ceiling
 
     env:
       SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       ENCRYPTION_KEY:       ${{ secrets.ENCRYPTION_KEY }}
-      ENVIRONMENT:          dev
+      # Set true during intraday cron — triggers lightweight price-only pass
+      INTRADAY_RUN:         ${{ github.event.schedule == '*/15 13-20 * * 1-5' && 'true' || 'false' }}
 
     steps:
-      - name: Checkout dev branch
+      - name: Checkout main branch
         uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: main
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -44,45 +47,42 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run nightly refresh
+      - name: Run refresh
         id: refresh
         run: |
-          # Build args
           ARGS=""
+          if [ "$INTRADAY_RUN" = "true" ]; then
+            ARGS="$ARGS --intraday"
+          fi
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             ARGS="$ARGS --force"
           fi
           if [ -n "${{ github.event.inputs.tickers }}" ]; then
-            # Convert "AAPL,MSFT,NVDA" → "--tickers AAPL MSFT NVDA"
             TICKER_LIST=$(echo "${{ github.event.inputs.tickers }}" | tr ',' ' ')
             ARGS="$ARGS --tickers $TICKER_LIST"
           fi
 
-          echo "Running: python data_refresh.py $ARGS"
+          echo "Running: python data_refresh.py $ARGS (INTRADAY_RUN=$INTRADAY_RUN)"
           python data_refresh.py $ARGS | tee refresh_output.json
 
-          # Extract success field only for GitHub output (multiline JSON breaks $GITHUB_OUTPUT)
           python3 -c "import json; r=json.load(open('refresh_output.json')); print('success='+str(r.get('success','false')).lower())" >> $GITHUB_OUTPUT 2>/dev/null || echo "success=false" >> $GITHUB_OUTPUT
 
       - name: Log refresh summary
         if: always()
         run: |
           echo "──────────────────────────────────────"
-          echo "QNTM Nightly Refresh — Summary"
+          echo "QNTM Refresh — Summary"
           echo "──────────────────────────────────────"
           cat refresh_output.json 2>/dev/null || echo "(no output)"
-          echo ""
           echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Fail job on refresh error
         if: always()
         run: |
-          # data_refresh.py exits 1 on failure; this step makes the failure visible
           python3 -c "
           import json, sys
           try:
               raw = open('refresh_output.json').read().strip()
-              # Handle extra log lines before/after JSON
               start = raw.find('{')
               end   = raw.rfind('}') + 1
               r = json.loads(raw[start:end]) if start >= 0 else {}
@@ -97,5 +97,4 @@ jobs:
                       r.get('duration_s',0), r.get('macro_regime','unknown')))
           except Exception as e:
               print('Could not parse output: ' + str(e))
-              # Do not exit 1 — refresh already succeeded if we got here
           "
