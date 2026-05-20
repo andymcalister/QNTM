@@ -5515,8 +5515,8 @@ def page_account():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_model_portfolio():
     """
-    QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
-    Entry date = today (as if you acted on today's signals).
+    QNTM Model Portfolio — top 20 HIGH conviction signals tracked from first signal date.
+    Entry date sourced from model_portfolio_positions table (seeded 2026-05-19).
     Exits when score drops below 45. Reinvests into next-best BUY signal.
     """
     from data_refresh import _get_supabase
@@ -5524,8 +5524,8 @@ def page_model_portfolio():
 
     page_summary(
         "🏆", "Model Portfolio",
-        "QNTM's top 20 BUY signals tracked live. Entry date is today — as if you acted on today's recommendations.",
-        pills=["Equal weighted", "Top 20 BUY signals", "$10K per position", "Auto-rebalance on SELL signal"]
+        "QNTM's top 20 HIGH conviction signals tracked live from first signal date. Equal-weighted $10K per position, auto-exits when conviction drops below 45.",
+        pills=["Equal weighted", "Top 20 HIGH conviction", "$10K per position", "Auto-rebalance on exit signal"]
     )
 
     sb = _get_supabase()
@@ -5574,7 +5574,7 @@ def page_model_portfolio():
                     f'gap:4px;padding:8px 12px;background:{bg};'
                     f'border:1px solid rgba(255,255,255,.04);border-radius:4px;margin-bottom:2px;">'
                     f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}</div>'
-                    f'<div style="font-size:12px;color:#64748b;">Entry today</div>'
+                    f'<div style="font-size:12px;color:#64748b;">Pending entry</div>'
                     f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{price_str}</div>'
                     f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;">{r.get("adj_composite", 0):.0f}</div>'
                     f'</div>', unsafe_allow_html=True)
@@ -5648,20 +5648,29 @@ def page_model_portfolio():
     vs_sign    = "+" if vs_spy_pct >= 0 else ""
 
     # ── Methodology banner ────────────────────────────────────────────────────
-    st.markdown("""
+    earliest_date = min((pos.get("entry_date","") for pos in positions if pos.get("entry_date")), default="2026-05-19")
+    try:
+        import datetime as _dt
+        ed = _dt.date.fromisoformat(earliest_date)
+        start_str = ed.strftime("%B %d, %Y")
+    except Exception:
+        start_str = earliest_date
+
+    st.markdown(f"""
     <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);
          border-radius:8px;padding:16px 20px;margin-bottom:20px;">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
            letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>
       <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
         This portfolio holds QNTM's top 20 HIGH conviction stocks, equal-weighted at $10,000 per position.
+        Tracking live from <strong style="color:#cbd5e1;">{start_str}</strong> — the date of first model signal.
         Positions are entered when a stock's blended conviction score reaches <strong style="color:#00ff87;">≥60</strong> —
         combining 5-pillar quantitative analysis (Momentum, Quality, Value, Volume, Sentiment) with a live macro regime overlay.
         <br><br>
-        <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model generates a SELL signal
-        (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover, transaction costs, and
-        short-term capital gains tax events. When a position exits, capital is redeployed into the next highest-conviction
-        BUY signal not already held. No discretionary overrides — the model drives every entry and exit.
+        <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model issues an exit signal
+        (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover and transaction costs.
+        When a position exits, capital is redeployed into the next highest-conviction signal not already held.
+        No discretionary overrides — the model drives every entry and exit.
       </div>
     </div>
     """, unsafe_allow_html=True)
