@@ -720,34 +720,40 @@ def show_onboarding():
 
 # ── DATA FRESHNESS ────────────────────────────────────────────────────────────
 def data_freshness_banner():
-    """Show data age and auto-refresh prompt if stale."""
+    """Show data age pill with actual date/time pulled from signal_log.created_at."""
     try:
-        from data_refresh import cache_is_fresh, get_cache_age_hours
+        from data_refresh import _get_supabase, cache_is_fresh
         fresh = cache_is_fresh()
+        dt_str = None
         try:
-            age_h = get_cache_age_hours()
-            age_str = f"{age_h:.0f}h ago" if age_h < 24 else f"{age_h/24:.0f}d ago"
+            sb = _get_supabase()
+            if sb:
+                resp = sb.table("signal_log").select("created_at").order(
+                    "created_at", desc=True).limit(1).execute()
+                if resp.data:
+                    raw = resp.data[0]["created_at"]  # e.g. "2026-05-20T02:14:33.123456+00:00"
+                    from datetime import datetime, timezone
+                    # Parse ISO string, convert to local-ish display (UTC)
+                    dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    dt_utc = dt.astimezone(timezone.utc)
+                    dt_str = dt_utc.strftime("%b %d, %Y · %H:%M UTC")
         except Exception:
-            age_str = "unknown"
+            dt_str = None
 
-        if fresh:
-            st.markdown(
-                f'<div style="display:inline-flex;align-items:center;gap:6px;'
-                f'background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);'
-                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#00ff87;'
-                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:#00ff87;display:inline-block;"></span>'
-                f'Data fresh · updated {age_str}</div>',
-                unsafe_allow_html=True)
-        else:
-            st.markdown(
-                f'<div style="display:inline-flex;align-items:center;gap:6px;'
-                f'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);'
-                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#f59e0b;'
-                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>'
-                f'Estimated data · last updated {age_str} · hit Rescan for live scores</div>',
-                unsafe_allow_html=True)
+        label = f"Data refreshed {dt_str}" if dt_str else ("Data fresh" if fresh else "Estimated data")
+        color  = "#00ff87" if fresh else "#f59e0b"
+        bg     = "rgba(0,255,135,.08)" if fresh else "rgba(245,158,11,.08)"
+        border = "rgba(0,255,135,.2)"  if fresh else "rgba(245,158,11,.25)"
+        suffix = "" if fresh else " · hit Rescan for live scores"
+
+        st.markdown(
+            f'<div style="display:inline-flex;align-items:center;gap:6px;'
+            f'background:{bg};border:1px solid {border};'
+            f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
+            f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+            f'<span style="width:7px;height:7px;border-radius:50%;background:{color};display:inline-block;"></span>'
+            f'{label}{suffix}</div>',
+            unsafe_allow_html=True)
     except Exception:
         pass
 
@@ -4134,8 +4140,14 @@ document.body.prepend(c);
             </div>
             """, unsafe_allow_html=True)
 
-    # Holdings table — styled HTML matching platform theme
-    st.markdown(
+    # ── Portfolio tabs ────────────────────────────────────────────────────────
+    port_tab1, port_tab2 = st.tabs(["📊 My Holdings", "🧮 Simulator"])
+
+    # ── TAB 1: Holdings ───────────────────────────────────────────────────────
+    with port_tab1:
+
+     # Holdings table — styled HTML matching platform theme
+     st.markdown(
         '<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;'
         'letter-spacing:.1em;margin:32px 0 12px;">12-MONTH CONVICTION PORTFOLIO — ACTUAL POSITIONS &amp; RETURNS</div>',
         unsafe_allow_html=True)
@@ -4474,16 +4486,19 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row — real st.buttons, session state only, no URL
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
+        # Period toggle row — compact styled pill buttons
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
         period_cols = st.columns(len(PERIOD_DATA))
         for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
             with col:
                 active = st.session_state.port_period == pkey
+                label_color = "#00ff87" if active else "#94a3b8"
+                bg_color    = "rgba(0,255,135,.12)" if active else "rgba(255,255,255,.03)"
+                border_col  = "rgba(0,255,135,.45)" if active else "rgba(255,255,255,.08)"
                 st.markdown(
-                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.04)"};'
-                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.1)"};'
-                    f'border-radius:4px;padding:1px;">', unsafe_allow_html=True)
+                    f'<div style="background:{bg_color};border:1px solid {border_col};'
+                    f'border-radius:6px;text-align:center;padding:0;margin:0;">',
+                    unsafe_allow_html=True)
                 if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
                     st.session_state.port_period = pkey
                     st.rerun()
@@ -4729,7 +4744,166 @@ def page_portfolio():
             delete_holding(uid(), tk)
             st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
+     st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── TAB 2: Simulator ─────────────────────────────────────────────────────
+    with port_tab2:
+        if not is_pro():
+            st.markdown(
+                '<div style="background:rgba(212,168,67,.07);border:1px solid rgba(212,168,67,.25);'
+                'border-radius:10px;padding:28px 24px;text-align:center;margin:24px 0;">'
+                '<div style="font-size:28px;margin-bottom:12px;">🧮</div>'
+                '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:8px;">Portfolio Simulator</div>'
+                '<div style="font-size:14px;color:#94a3b8;margin-bottom:20px;max-width:420px;margin-left:auto;margin-right:auto;">'
+                'Enter a dollar amount and build a hypothetical portfolio from current HIGH conviction signals. '
+                'See shares purchasable, allocation breakdown, sector exposure, and weighted conviction score.</div>'
+                '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
+                '</div>',
+                unsafe_allow_html=True)
+            if st.button("Upgrade to Pro — $29/mo", key="sim_upgrade", use_container_width=False):
+                nav("account")
+        else:
+            scan = st.session_state.get("scan_results") or []
+            buys = sorted(
+                [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
+                key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+                reverse=True
+            )
+            if not buys:
+                st.markdown(
+                    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+                    'border-radius:8px;padding:32px;text-align:center;">'
+                    '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
+                    '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">No scan data loaded</div>'
+                    '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe first.</div>'
+                    '</div>', unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                sim_c1, sim_c2 = st.columns([2, 3])
+                with sim_c1:
+                    sim_amount = st.number_input(
+                        "Investment Amount ($)", min_value=1000, max_value=10000000,
+                        value=50000, step=1000, format="%d", key="sim_amount"
+                    )
+                    sim_n = st.slider(
+                        "Number of positions", min_value=1, max_value=min(30, len(buys)),
+                        value=min(10, len(buys)), key="sim_n"
+                    )
+                    equal_weight = st.toggle("Equal weight", value=True, key="sim_equal")
+
+                selected = buys[:sim_n]
+                pos_size = sim_amount / sim_n if equal_weight else None
+
+                # Build allocation
+                alloc = []
+                total_score = sum(r.get("adj_composite", r.get("composite", 0)) for r in selected)
+                for r in selected:
+                    tk = r["ticker"]
+                    score = r.get("adj_composite", r.get("composite", 0))
+                    price = r.get("price")
+                    w_dollar = pos_size if equal_weight else (score / total_score * sim_amount if total_score > 0 else 0)
+                    shares = round(w_dollar / price, 4) if price and price > 0 else None
+                    alloc.append({
+                        "ticker": tk,
+                        "score": score,
+                        "price": price,
+                        "allocation": w_dollar,
+                        "pct": w_dollar / sim_amount * 100,
+                        "shares": shares,
+                        "sector": r.get("sector", "Unknown"),
+                    })
+
+                # Weighted conviction score
+                weighted_score = sum(a["allocation"] * a["score"] for a in alloc) / sim_amount if sim_amount > 0 else 0
+
+                with sim_c2:
+                    # Summary strip
+                    ss = "background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 18px;text-align:center;"
+                    sl = "font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:5px;"
+                    sv = "font-family:Syne,sans-serif;font-size:20px;font-weight:800;"
+                    sc1, sc2, sc3 = st.columns(3)
+                    with sc1:
+                        st.markdown(f'<div style="{ss}"><div style="{sl}">INVESTED</div><div style="{sv}color:#d4a843;">${sim_amount:,.0f}</div></div>', unsafe_allow_html=True)
+                    with sc2:
+                        st.markdown(f'<div style="{ss}"><div style="{sl}">POSITIONS</div><div style="{sv}color:#cbd5e1;">{sim_n}</div></div>', unsafe_allow_html=True)
+                    with sc3:
+                        sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
+                        st.markdown(f'<div style="{ss}"><div style="{sl}">AVG CONVICTION</div><div style="{sv}color:{sc_col};">{weighted_score:.1f}</div></div>', unsafe_allow_html=True)
+
+                st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+                # Sector exposure
+                from collections import Counter
+                sector_totals = {}
+                for a in alloc:
+                    s = a.get("sector", "Unknown")
+                    sector_totals[s] = sector_totals.get(s, 0) + a["allocation"]
+                sector_pct = {s: v / sim_amount * 100 for s, v in sector_totals.items()}
+                top_sectors = sorted(sector_pct.items(), key=lambda x: x[1], reverse=True)[:5]
+
+                bars_html = ""
+                for sec, pct in top_sectors:
+                    bars_html += (
+                        f'<div style="margin-bottom:8px;">'
+                        f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
+                        f'<span style="font-size:12px;color:#94a3b8;">{sec}</span>'
+                        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">{pct:.1f}%</span>'
+                        f'</div>'
+                        f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
+                        f'<div style="width:{min(pct,100):.1f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
+                        f'</div></div>'
+                    )
+                st.markdown(
+                    f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+                    f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
+                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
+                    f'{bars_html}</div>',
+                    unsafe_allow_html=True)
+
+                # Allocation table
+                st.markdown(
+                    '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:8px;">POSITION BREAKDOWN</div>',
+                    unsafe_allow_html=True)
+                st.markdown(
+                    '<div style="display:grid;grid-template-columns:70px 1fr 70px 70px 70px 55px;'
+                    'gap:4px;padding:7px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
+                    'border:1px solid rgba(255,255,255,.07);">'
+                    '<div style="font-size:10px;color:#475569;letter-spacing:.07em;">TICKER</div>'
+                    '<div style="font-size:10px;color:#475569;letter-spacing:.07em;">SECTOR</div>'
+                    '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">PRICE</div>'
+                    '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">ALLOC</div>'
+                    '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">SHARES</div>'
+                    '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">SCORE</div>'
+                    '</div>', unsafe_allow_html=True)
+
+                for i, a in enumerate(alloc):
+                    bg = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.007)"
+                    sc_color = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
+                    price_str  = f'${a["price"]:,.2f}' if a["price"] else "—"
+                    shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
+                    sec_short  = (a["sector"][:14] + "…") if len(a.get("sector","")) > 15 else a.get("sector","—")
+                    st.markdown(
+                        f'<div style="display:grid;grid-template-columns:70px 1fr 70px 70px 70px 55px;'
+                        f'gap:4px;padding:7px 12px;background:{bg};'
+                        f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+                        f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+                        f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{a["ticker"]}</div>'
+                        f'<div style="font-size:11px;color:#64748b;">{sec_short}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{price_str}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">${a["allocation"]:,.0f}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{shares_str}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{sc_color};text-align:right;">{a["score"]:.0f}</div>'
+                        f'</div>', unsafe_allow_html=True)
+
+                st.markdown(
+                    f'<div style="padding:7px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
+                    f'border-radius:0 0 6px 6px;font-size:11px;color:#475569;">'
+                    f'{"Equal weight" if equal_weight else "Score-weighted"} · ${sim_amount:,.0f} across {sim_n} positions · '
+                    f'Shares calculated at last scan price · Hypothetical only</div>',
+                    unsafe_allow_html=True)
+
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                st.markdown('<div style="font-size:11px;color:#475569;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">⚠ Simulation is hypothetical. Prices are last scan prices and may not reflect current market. Not investment advice.</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
