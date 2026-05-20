@@ -2666,6 +2666,24 @@ def page_landing():
         f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:16px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">{risk_html}</div></div>',
         unsafe_allow_html=True)
 
+    # ── VS COMPETITORS BAR ────────────────────────────────────────────────────
+    vs_data = [
+        ("QNTM Model",        447000, "#d4a843"),
+        ("Typical Quant Fund",310000, "#475569"),
+        ("SPY (Index)",        231000, "#334155"),
+        ("Retail Avg",         162000, "#1e293b"),
+    ]
+    max_val = 447000
+    bars = ""
+    for name, val, color in vs_data:
+        pct = val / max_val * 100
+        bars += (
+            f'<div style="margin-bottom:10px;">'            f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'            f'<span style="font-size:12px;color:#94a3b8;">{name}</span>'            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">${val:,}</span>'            f'</div>'            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:8px;">'            f'<div style="width:{pct:.0f}%;height:100%;background:{color};border-radius:3px;"></div>'            f'</div></div>'
+        )
+    st.markdown(
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:8px;">'        f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:20px 18px;">'        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:16px;">$100,000 INVESTED — 5 YEAR OUTCOME</div>'        f'{bars}'        f'<div style="font-size:11px;color:#475569;margin-top:12px;border-top:1px solid rgba(255,255,255,.05);padding-top:10px;">Q2 2020 – Q1 2025. Typical quant fund estimated at 1.25× SPY return. Retail avg estimated at 0.7× SPY. Past performance does not guarantee future results.</div>'        f'</div></div>',
+        unsafe_allow_html=True)
+
         # ── THE MODEL ─────────────────────────────────────────────────────────────
     st.markdown("""
     <div class="land-divider" style="margin-top:32px;"></div>
@@ -2722,6 +2740,82 @@ def page_landing():
         f'<div style="width:100%;box-sizing:border-box;padding:0 16px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">{signals_html}</div></div>',
         unsafe_allow_html=True)
 
+
+    # ── COMPETITOR MATRIX ─────────────────────────────────────────────────────
+    st.markdown("""
+    <div class="land-divider" style="margin-top:32px;"></div>
+    <div class="land-section">
+      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; VS THE MARKET</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
+           color:#fff;margin-bottom:10px;line-height:1.1;">
+        Institutional tools.<br><span style="color:#d4a843;">Retail price.</span>
+      </h2>
+      <p style="color:#94a3b8;margin-bottom:32px;">Everything Bloomberg does for quant signals — at 1% of the cost.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    def chk(v):
+        if v == 1:  return '<span style="color:#1D9E75;font-size:15px;">&#10003;</span>'
+        if v == 0:  return '<span style="color:#E24B4A;font-size:15px;">&#10007;</span>'
+        return '<span style="color:#f59e0b;font-size:12px;">partial</span>'
+
+    matrix_rows = [
+        ("Price / month",          ["$29","$199","$299","$249","$49","$2,700+"]),
+        ("Quant factor model",      [1, 0, "p", "p", "p", 1]),
+        ("Live macro overlay",      [1, 0, 0, 0, 0, 1]),
+        ("5-pillar conviction score",[1, 0, 0, "p", "p", 1]),
+        ("Walk-forward backtest",   [1, 0, 0, 0, 0, 1]),
+        ("Hidden gem detection",    [1, 0, 0, 0, 0, 0]),
+        ("Portfolio simulator",     [1, 0, 0, "p", 0, 1]),
+        ("Live model portfolio",    [1, 1, 0, 0, 0, 0]),
+        ("15-min intraday refresh", [1, 0, 0, 0, "p", 1]),
+        ("834-stock universe",      [1, "p", 1, 1, 1, 1]),
+        ("Free tier available",     [1, 0, 0, 0, "p", 0]),
+        ("Mobile native",           [1, 1, 1, "p", 1, 0]),
+    ]
+
+    cols_h = ["", "QNTM", "Motley Fool", "Seeking Alpha", "Morningstar", "TipRanks", "Bloomberg"]
+    col_w  = ["35%", "11%", "11%", "11%", "11%", "11%", "10%"]
+
+    header_html = "".join([
+        f'<th style="width:{col_w[i]};padding:8px 6px;font-family:DM Mono,monospace;font-size:10px;'
+        f'color:{"#d4a843" if c=="QNTM" else "#64748b"};letter-spacing:.06em;'
+        f'text-align:{"left" if i==0 else "center"};border-bottom:1px solid rgba(255,255,255,.08);">'
+        f'{c}</th>'
+        for i,c in enumerate(cols_h)
+    ])
+
+    rows_html = ""
+    for ri, (label, vals) in enumerate(matrix_rows):
+        bg = "rgba(212,168,67,.04)" if ri % 2 == 0 else "transparent"
+        row = f'<tr style="background:{bg};">'
+        row += f'<td style="padding:8px 6px;font-size:12px;color:#94a3b8;">{label}</td>'
+        for ci, v in enumerate(vals):
+            is_qntm = ci == 0
+            if isinstance(v, str) and v.startswith("$"):
+                cell = f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{"#d4a843" if is_qntm else "#475569"};">{v}</span>'
+            elif v == "p":
+                cell = chk("p")
+            else:
+                cell = chk(v)
+            fw = "font-weight:700;" if is_qntm else ""
+            row += f'<td style="text-align:center;padding:8px 4px;{fw}">{cell}</td>'
+        row += "</tr>"
+        rows_html += row
+
+    matrix_html = (
+        f'<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+        f'<table style="width:100%;min-width:580px;border-collapse:collapse;background:#0a0b14;'
+        f'border:1px solid rgba(255,255,255,.07);border-radius:8px;overflow:hidden;">'
+        f'<thead><tr>{header_html}</tr></thead>'
+        f'<tbody>{rows_html}</tbody>'
+        f'</table>'
+        f'<div style="font-size:11px;color:#475569;margin-top:8px;padding:0 2px;">'
+        f'Competitor features and pricing based on publicly available information May 2026. Partial = limited implementation.</div>'
+        f'</div>'
+    )
+    st.markdown(matrix_html, unsafe_allow_html=True)
+
     # ── PRICING ───────────────────────────────────────────────────────────────
     st.markdown("""
     <div class="land-divider" style="margin-top:32px;"></div>
@@ -2752,32 +2846,34 @@ def page_landing():
       <div style="{card_style()}">
         <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FREE</div>
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
-        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">forever · no card needed</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row(f"834-stock screener")}
-          {feat_row("BUY/HOLD/SELL signals")}
-          {feat_row("5 pillar scores")}
-          {feat_row("75/25 quant/macro")}
-          {feat_row("Portfolio — 10 positions")}
-          {feat_row("+" + bt_ret_str + "% backtest")}
-          {feat_row("Macro regime indicator")}
+          {feat_row("834-stock screener")}
+          {feat_row("HIGH / MOD / LOW conviction signals")}
+          {feat_row("5-pillar score breakdown")}
+          {feat_row("Live macro regime overlay")}
+          {feat_row("Top 10 daily picks")}
+          {feat_row("Portfolio tracking (10 positions)")}
+          {feat_row("Backtest track record (read only)")}
+          {feat_row("Walk-forward validated model")}
         </div>
       </div>"""
 
     founding_card = f"""
       <div style="{card_style(True)}">
         <div style="background:#d4a843;color:#000;font-family:Syne,sans-serif;font-size:8px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;">MOST POPULAR</div>
-        <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">FOUNDING MEMBER</div>
-        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
-        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">first 50 · then $29/mo</div>
+        <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">PRO</div>
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#d4a843;line-height:1;">$29<span style="font-size:14px;font-weight:500;color:#94a3b8;">/mo</span></div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">first 50 users get it free</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Free", True)}
-          {feat_row("Unlimited positions", True)}
-          {feat_row("💎 Hidden Gems", True)}
-          {feat_row("Real-time alerts", True)}
-          {feat_row("Macro alerts", True)}
+          {feat_row("Unlimited portfolio positions", True)}
+          {feat_row("Hidden Gems detection", True)}
+          {feat_row("Portfolio Simulator (risk profiles)", True)}
+          {feat_row("15-min intraday price refresh", True)}
+          {feat_row("Signal change alerts", True)}
           {feat_row("Email notifications", True)}
-          {feat_row("Founding badge — $0", True)}
+          {feat_row("Founding member badge", True)}
         </div>
       </div>"""
 
