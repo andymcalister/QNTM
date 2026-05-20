@@ -703,34 +703,39 @@ def show_onboarding():
 
 # ── DATA FRESHNESS ────────────────────────────────────────────────────────────
 def data_freshness_banner():
-    """Show data age and auto-refresh prompt if stale."""
+    """Show data age pill with actual datetime from signal_log.created_at."""
     try:
-        from data_refresh import cache_is_fresh, get_cache_age_hours
-        fresh = cache_is_fresh()
+        from data_refresh import _get_supabase
+        from datetime import datetime, timezone, timedelta
+        dt_str = None
+        fresh  = True
         try:
-            age_h = get_cache_age_hours()
-            age_str = f"{age_h:.0f}h ago" if age_h < 24 else f"{age_h/24:.0f}d ago"
+            sb = _get_supabase()
+            if sb:
+                resp = sb.table("signal_log").select("created_at").order(
+                    "created_at", desc=True).limit(1).execute()
+                if resp.data:
+                    raw   = resp.data[0]["created_at"]
+                    dt    = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    dt_utc = dt.astimezone(timezone.utc)
+                    dt_str = dt_utc.strftime("%b %d · %H:%M UTC")
+                    fresh = (datetime.now(timezone.utc) - dt_utc) < timedelta(hours=26)
         except Exception:
-            age_str = "unknown"
+            dt_str = None
 
-        if fresh:
-            st.markdown(
-                f'<div style="display:inline-flex;align-items:center;gap:6px;'
-                f'background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);'
-                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#00ff87;'
-                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:#00ff87;display:inline-block;"></span>'
-                f'Data fresh · updated {age_str}</div>',
-                unsafe_allow_html=True)
-        else:
-            st.markdown(
-                f'<div style="display:inline-flex;align-items:center;gap:6px;'
-                f'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);'
-                f'border-radius:20px;padding:5px 14px;font-size:12px;color:#f59e0b;'
-                f'font-family:DM Mono,monospace;margin-bottom:12px;">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>'
-                f'Estimated data · last updated {age_str} · hit Rescan for live scores</div>',
-                unsafe_allow_html=True)
+        label  = f"Nightly scan OK · {dt_str}" if dt_str else ("Data fresh" if fresh else "Stale data")
+        color  = "#00ff87" if fresh else "#f59e0b"
+        bg     = "rgba(0,255,135,.08)" if fresh else "rgba(245,158,11,.08)"
+        border = "rgba(0,255,135,.2)"  if fresh else "rgba(245,158,11,.25)"
+        suffix = "" if fresh else " · Rescan for live scores"
+        st.markdown(
+            f'<div style="display:inline-flex;align-items:center;gap:6px;'
+            f'background:{bg};border:1px solid {border};'
+            f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
+            f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+            f'<span style="width:7px;height:7px;border-radius:50%;background:{color};display:inline-block;"></span>'
+            f'{label}{suffix}</div>',
+            unsafe_allow_html=True)
     except Exception:
         pass
 
@@ -3172,8 +3177,8 @@ def platform_nav():
         unsafe_allow_html=True
     )
 
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio","🏆 Model Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","model_portfolio","alerts","account"]
+    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio","🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account"]
+    nav_keys    = ["screener","gems","backtest","portfolio","simulator","model_portfolio","alerts","account"]
     cur_nav     = st.session_state.get("nav","screener")
     cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
@@ -5667,6 +5672,7 @@ def page_platform():
         "gems":           page_gems,
         "backtest":       page_backtest,
         "portfolio":      page_portfolio,
+        "simulator":      page_simulator,
         "model_portfolio": page_model_portfolio,
         "alerts":         page_alerts,
         "account":        page_account,
