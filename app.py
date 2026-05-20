@@ -4146,60 +4146,60 @@ document.body.prepend(c);
     # ── TAB 1: Holdings ───────────────────────────────────────────────────────
     with port_tab1:
 
-     # Holdings table — styled HTML matching platform theme
-     st.markdown(
+        # Holdings table — styled HTML matching platform theme
+        st.markdown(
         '<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;'
         'letter-spacing:.1em;margin:32px 0 12px;">12-MONTH CONVICTION PORTFOLIO — ACTUAL POSITIONS &amp; RETURNS</div>',
         unsafe_allow_html=True)
 
-    # Table header — wrapped for mobile horizontal scroll
-    st.markdown(
-        '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-        '<div style="min-width:520px;">'
-        '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
-        'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">ACTION</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">RESULT</div>'
-        '</div>',
-        unsafe_allow_html=True)
-
-    for h in bt["holdings_12m"]:
-        ret    = h["return_pct"]
-        act    = h["action"]
-        act_c  = "#00ff87" if act=="BUY" else "#ef4444"
-        ret_c  = "#00ff87" if ret > 0 else "#ef4444"
-        arrow  = "▲" if act=="BUY" else "▼"
-        win    = ret > 0
-        result_c = "#00ff87" if win else "#ef4444"
-        result   = "✓ WIN" if win else "✗ LOSS"
-        row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
+        # Table header — wrapped for mobile horizontal scroll
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
-            f'gap:8px;padding:12px 16px;background:{row_bg};'
-            f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
-            f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
-            f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
-            f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
-            f'{arrow} {act}</span></div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
-            f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
-            f'<div style="font-size:13px;font-weight:700;color:{result_c};">{result}</div>'
-            f'</div>',
+            '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+            '<div style="min-width:520px;">'
+            '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
+            'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
+            'border:1px solid rgba(255,255,255,.07);">'
+            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
+            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">ACTION</div>'
+            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
+            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
+            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
+            '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">RESULT</div>'
+            '</div>',
             unsafe_allow_html=True)
 
-    st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">Stocks avoided: ' +
-                ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
-                ' — exited or never entered on signal</div></div></div>',
+        for h in bt["holdings_12m"]:
+            ret    = h["return_pct"]
+            act    = h["action"]
+            act_c  = "#00ff87" if act=="BUY" else "#ef4444"
+            ret_c  = "#00ff87" if ret > 0 else "#ef4444"
+            arrow  = "▲" if act=="BUY" else "▼"
+            win    = ret > 0
+            result_c = "#00ff87" if win else "#ef4444"
+            result   = "✓ WIN" if win else "✗ LOSS"
+            row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
+            st.markdown(
+                f'<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
+                f'gap:8px;padding:12px 16px;background:{row_bg};'
+                f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
+                f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
+                f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
+                f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
+                f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
+                f'{arrow} {act}</span></div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
+                f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
+                f'<div style="font-size:13px;font-weight:700;color:{result_c};">{result}</div>'
+                f'</div>',
                 unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">Stocks avoided: ' +
+                    ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
+                    ' — exited or never entered on signal</div></div></div>',
+                    unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4744,7 +4744,7 @@ def page_portfolio():
             delete_holding(uid(), tk)
             st.rerun()
 
-     st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ── TAB 2: Simulator ─────────────────────────────────────────────────────
     with port_tab2:
@@ -4906,9 +4906,9 @@ def page_portfolio():
                 st.markdown('<div style="font-size:11px;color:#475569;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">⚠ Simulation is hypothetical. Prices are last scan prices and may not reflect current market. Not investment advice.</div>', unsafe_allow_html=True)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ALERTS PAGE
-# ══════════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════════
+    # ALERTS PAGE
+    # ══════════════════════════════════════════════════════════════════════════════
 def page_alerts():
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
