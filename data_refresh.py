@@ -707,20 +707,86 @@ CREATE INDEX IF NOT EXISTS idx_fundamentals_cache_date
 """
 
 
+# ── INTRADAY PRICE REFRESH ────────────────────────────────────────────────────
+
+def run_intraday_refresh(tickers: list = None) -> dict:
+    """
+    Lightweight intraday refresh — updates price + momentum scores only.
+    Runs every 15 minutes during US market hours (9:30 AM–4:45 PM ET, Mon–Fri).
+    Skips fundamental re-fetch and full model re-score to stay within rate limits.
+    Writes updated price to signal_log for today's date (upserts).
+    """
+    import yfinance as yf
+    from universe_data import SECTORS
+
+    if tickers is None:
+        tickers = list(SECTORS.keys())
+
+    log.info(f"Intraday refresh: updating prices for {len(tickers)} tickers")
+    start = time.time()
+    sb = _get_supabase()
+    if not sb:
+        return {"success": False, "error": "No Supabase connection"}
+
+    today = datetime.date.today().isoformat()
+    updated = 0
+    failed  = 0
+
+    # Fetch current prices in batches of 200
+    chunk_size = 200
+    for i in range(0, len(tickers), chunk_size):
+        chunk = tickers[i:i + chunk_size]
+        try:
+            hist = yf.download(chunk, period="2d", auto_adjust=True, progress=False, threads=True)
+            if "Close" not in hist.columns:
+                continue
+            close = hist["Close"]
+            rows = []
+            for tk in chunk:
+                if tk in close.columns:
+                    vals = close[tk].dropna()
+                    if not vals.empty:
+                        price = round(float(vals.iloc[-1]), 4)
+                        rows.append({"ticker": tk, "signal_date": today, "price": price})
+            if rows:
+                # Upsert price field only — don't overwrite scores
+                sb.table("signal_log").upsert(
+                    rows, on_conflict="ticker,signal_date"
+                ).execute()
+                updated += len(rows)
+        except Exception as e:
+            log.warning(f"Intraday batch {i} failed: {e}")
+            failed += len(chunk)
+        time.sleep(0.5)  # be gentle with yfinance during market hours
+
+    duration = round(time.time() - start, 1)
+    log.info(f"Intraday refresh complete: {updated} prices updated in {duration}s")
+    return {"success": True, "updated": updated, "failed": failed, "duration_s": duration}
+
+
 # ── ENTRYPOINT ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="QNTM Nightly Data Refresh")
-    parser.add_argument("--force",   action="store_true", help="Bypass freshness check")
-    parser.add_argument("--tickers", nargs="*",           help="Specific tickers to refresh")
-    parser.add_argument("--schema",  action="store_true", help="Print schema SQL and exit")
+    parser.add_argument("--force",    action="store_true", help="Bypass freshness check")
+    parser.add_argument("--intraday", action="store_true", help="Run lightweight intraday price refresh only")
+    parser.add_argument("--tickers",  nargs="*",           help="Specific tickers to refresh")
+    parser.add_argument("--schema",   action="store_true", help="Print schema SQL and exit")
     args = parser.parse_args()
 
     if args.schema:
         print(SCHEMA_SQL)
         sys.exit(0)
 
-    result = run_refresh(tickers=args.tickers, force=args.force)
+    # Respect INTRADAY_RUN env var (set by GitHub Actions intraday cron)
+    import os
+    is_intraday = args.intraday or os.getenv("INTRADAY_RUN", "false").lower() == "true"
+
+    if is_intraday:
+        result = run_intraday_refresh(tickers=args.tickers)
+    else:
+        result = run_refresh(tickers=args.tickers, force=args.force)
+
     print(json.dumps(result, indent=2))
     sys.exit(0 if result.get("success") else 1)

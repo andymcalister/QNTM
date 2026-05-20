@@ -51,12 +51,29 @@ def _jwt_secret() -> str:
         return "dev-secret-qntm-2025"
 
 def _sign_token(uid: str, plan: str, days: int = 30) -> str:
-    """For now return plain uid — JWT signing to be added once auth is stable."""
-    return uid
+    """Sign a token: base64(uid|plan|exp)|base64(hmac)."""
+    secret = _jwt_secret().encode()
+    exp = int(_time.time()) + days * 86400
+    payload = base64.urlsafe_b64encode(
+        _json.dumps({"uid": uid, "plan": plan, "exp": exp}).encode()
+    ).decode()
+    sig = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}|{sig}"
 
 def _verify_token(token: str):
-    """For now treat token as plain uid."""
-    return token, None
+    """Verify HMAC-signed token. Returns (uid, plan) or (None, None)."""
+    try:
+        payload, sig = token.rsplit("|", 1)
+        secret = _jwt_secret().encode()
+        expected = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None, None
+        data = _json.loads(base64.urlsafe_b64decode(payload + "==").decode())
+        if data.get("exp", 0) < int(_time.time()):
+            return None, None
+        return data.get("uid"), data.get("plan", "free")
+    except Exception:
+        return None, None
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -1414,7 +1431,13 @@ QNTM is a quantitative research and factor analysis tool for informational and e
 purposes only. It does not constitute investment advice, a recommendation to buy or sell
 any security, or a guarantee of future performance. Past model performance does not predict
 future results. All investments involve risk including possible loss of principal. Consult
-a qualified financial adviser before making any investment decisions.
+a qualified financial adviser before making any investment decisions.<br><br>
+<strong style="color:#94a3b8;">Personalisation:</strong> Scores do not account for your
+individual financial situation, tax position, risk tolerance, or investment objectives.<br><br>
+<strong style="color:#94a3b8;">Model Limitations:</strong> Quantitative models may fail in market
+regimes not represented in the historical validation period. No forward-looking guarantee is implied.<br><br>
+<strong style="color:#94a3b8;">Conflicts of Interest:</strong> QNTM holds no positions in covered
+securities and receives no issuer compensation. Revenue is generated solely through user subscriptions.
 </div>"""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1529,7 +1552,7 @@ DISCLAIMER_FULL = """
 QNTM provides quantitative factor analysis, model scores, and signal generation as an educational
 and research resource. The following must be understood before using any QNTM output:
 
-**No Investment Advice:** Model BUY, HOLD, and SELL signals are algorithmic outputs based on
+**No Investment Advice:** Model HIGH, MODERATE, and LOW conviction signals are algorithmic outputs based on
 historical factor analysis. They are NOT recommendations to purchase or sell any security.
 
 **Past Performance:** The 5-year backtest results shown are based on historical data using the
@@ -1541,7 +1564,14 @@ principal amount invested. Equity markets can and do decline significantly.
 
 **Model Limitations:** The QNTM model uses publicly available data and estimated fundamentals.
 Data may be delayed, inaccurate, or incomplete. The model does not account for taxes, transaction
-costs, liquidity constraints, or individual financial circumstances.
+costs, liquidity constraints, or individual financial circumstances. Quantitative models may fail
+in market regimes not represented in the historical validation period.
+
+**Personalisation:** Scores do not account for your individual financial situation, tax position,
+risk tolerance, or investment objectives. No score should be interpreted as tailored advice.
+
+**Conflicts of Interest:** QNTM holds no positions in covered securities and receives no issuer
+compensation. Revenue is generated solely through user subscriptions.
 
 **Not a Fiduciary:** QNTM has no fiduciary duty to users. We are a technology platform, not a
 registered investment adviser.
@@ -1942,7 +1972,7 @@ def page_public_track_record():
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ ACTIVE BUY SIGNALS — LIVE TRACK RECORD
+        ▲ ACTIVE HIGH CONVICTION — LIVE TRACK RECORD
       </div>
       <div style="font-size:13px;color:#94a3b8;">{data_note}</div>
     </div>
@@ -2007,7 +2037,7 @@ def page_public_track_record():
             f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{ret_color};">{ret_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ HIGH</span></div>'
             f'</div>'
         )
         st.markdown(row, unsafe_allow_html=True)
@@ -2152,7 +2182,7 @@ def page_public_track_record():
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ TOP {len(buys)} BUY SIGNALS — CURRENT MODEL OUTPUT
+        ▲ TOP {len(buys)} HIGH CONVICTION — CURRENT MODEL OUTPUT
       </div>
       <div style="font-size:13px;color:#94a3b8;">Equal-weight · Quarterly rebalance</div>
     </div>
@@ -2203,7 +2233,7 @@ def page_public_track_record():
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{qual:.0f}</div>'
             f'<div style="font-size:13px;color:#94a3b8;">{rank:.0f}th pct</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ HIGH</span></div>'
             f'</div>'
         )
         st.markdown(row_html, unsafe_allow_html=True)
@@ -2692,7 +2722,7 @@ def page_landing():
     signals_html = ""
     for label, score, desc, color, brd in [
         ("▲ BUY SIGNAL",  "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
-        ("─ HOLD",        "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
+        ("─ MODERATE",    "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
         ("▼ EXIT SIGNAL", "Score < 45",  "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                "#E24B4A", "rgba(226,75,74,.25)"),
     ]:
         signals_html += (
@@ -2798,8 +2828,10 @@ def page_landing():
             st.session_state.auto_upgrade = True
             go("auth")
     with pb3:
-        if st.button("Contact Us", key="price_inst", use_container_width=True):
-            pass
+        if st.button("Get Pro — $29/mo", key="price_pro", use_container_width=True):
+            st.session_state.auth_tab = "register"
+            st.session_state.auto_upgrade = True
+            go("auth")
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
@@ -2846,7 +2878,7 @@ def page_landing():
       <div style="max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;
            align-items:center;flex-wrap:wrap;gap:12px;padding-top:20px;
            border-top:1px solid rgba(255,255,255,.05);">
-        <div style="font-size:13px;color:#94a3b8;">&copy; 2025 QNTM. All rights reserved.</div>
+        <div style="font-size:13px;color:#94a3b8;">&copy; 2026 QNTM. All rights reserved.</div>
         <div style="font-size:13px;color:#94a3b8;">
           Not investment advice &middot; Quantitative research tool only
         </div>
@@ -3311,7 +3343,7 @@ def page_screener():
         <div style="font-size:13px;color:#64748b;line-height:1.7;">
           Most screeners give you a score.
           <strong style="color:#94a3b8;">QNTM shows you the reasoning.</strong>
-          Every BUY, HOLD, or SELL names the exact factors that moved the needle —
+          Every HIGH, MODERATE, or LOW conviction signal names the exact factors that moved the needle —
           and shows how the 75/25 macro blend shifted conviction.
         </div>
       </div>
@@ -3345,9 +3377,9 @@ def page_screener():
 
     # Summary strip — single HTML row, no Streamlit columns
     stat_items = [
-        ("BUY",   "#00ff87", str(buys)),
-        ("HOLD",  "#fbbf24", str(holds)),
-        ("SELL",  "#ef4444", str(sells)),
+        ("HIGH",  "#00ff87", str(buys)),
+        ("MOD",   "#fbbf24", str(holds)),
+        ("LOW",   "#ef4444", str(sells)),
         ("GEMS",  "#00ff87", str(len(gems))),
         ("UNIV",  "#475569", f"{len(results)}"),
     ]
@@ -3390,8 +3422,8 @@ def page_screener():
         """, unsafe_allow_html=True)
         col_b, col_s = st.columns(2)
         for col, label, color, ranked, action_lbl in [
-            (col_b, "▲ TOP 10 BUY SIGNALS",  "#00ff87", buys_ranked[:10],  "▲ BUY"),
-            (col_s, "▼ TOP 10 SELL / EXIT",  "#ef4444", sells_ranked[:10], "▼ SELL"),
+            (col_b, "▲ TOP 10 HIGH CONVICTION",  "#00ff87", buys_ranked[:10],  "▲ HIGH"),
+            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10], "▼ LOW"),
         ]:
             with col:
                 count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
@@ -4249,7 +4281,7 @@ def page_portfolio():
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#ef4444;letter-spacing:.1em;">▼ EXIT SIGNAL: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'{chg["from"]} → SELL · Check Alerts tab for details</span></div>',
+                        f'{chg["from"]} → LOW · Check Alerts tab for details</span></div>',
                         unsafe_allow_html=True)
 
                 elif change_type == "action_change" and chg["to"] == "BUY":
@@ -4257,9 +4289,9 @@ def page_portfolio():
                         f'<div style="background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.3);'
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                        f'color:#00ff87;letter-spacing:.1em;">▲ BUY SIGNAL: {chg["ticker"]}</span>'
+                        f'color:#00ff87;letter-spacing:.1em;">▲ HIGH CONVICTION: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'{chg["from"]} → BUY · Conviction strengthening</span></div>',
+                        f'{chg["from"]} → HIGH · Conviction strengthening</span></div>',
                         unsafe_allow_html=True)
 
                 elif change_type == "deterioration":
@@ -4270,7 +4302,7 @@ def page_portfolio():
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
                         f'color:#fbbf24;letter-spacing:.1em;">⚠ DETERIORATING: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'Score dropped {abs(delta):.0f} pts · Still HOLD but monitor closely</span></div>',
+                        f'Score dropped {abs(delta):.0f} pts · Still MODERATE but monitor closely</span></div>',
                         unsafe_allow_html=True)
 
     # ── SELL / EXIT signals across portfolio ───────────────────────────────────
@@ -4408,7 +4440,7 @@ def page_portfolio():
     port_na    = n_holdings - port_buys - port_holds - port_sells
 
     port_summary_data = [
-        ("▲ BUY Signals",     port_buys,  "#00ff87"),
+        ("▲ HIGH Conviction",  port_buys,  "#00ff87"),
         ("─ Hold",            port_holds, "#fbbf24"),
         ("▼ Sell / Exit",     port_sells, "#ef4444"),
         ("Outside Universe",  port_na,    "#475569"),
@@ -4510,9 +4542,9 @@ def page_portfolio():
             f'border-radius:8px;padding:14px;min-width:0;">'
             f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SIGNAL MIX</div>'
             f'<div style="display:flex;gap:10px;">'
-            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">BUY</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">HOLD</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">SELL</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">HIGH</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">MOD</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">LOW</div></div>'
             f'</div></div>'
         )
         st.markdown(
@@ -5295,7 +5327,7 @@ def page_model_portfolio():
       <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
            letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>
       <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
-        This portfolio holds QNTM's top 20 BUY-rated stocks, equal-weighted at $10,000 per position.
+        This portfolio holds QNTM's top 20 HIGH conviction stocks, equal-weighted at $10,000 per position.
         Positions are entered when a stock's blended conviction score reaches <strong style="color:#00ff87;">≥60</strong> —
         combining 5-pillar quantitative analysis (Momentum, Quality, Value, Volume, Sentiment) with a live macro regime overlay.
         <br><br>
@@ -5495,12 +5527,12 @@ def page_platform():
     <div style="padding:24px 32px;border-top:1px solid rgba(255,255,255,.05);margin-top:40px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div style="font-size:13px;color:#475569;">
-          QNTM · Quantitative research platform · Not investment advice
+          &copy; 2026 QNTM · Quantitative research platform · Not investment advice
         </div>
         <div style="font-size:13px;color:#475569;">
-          <a href="#" style="color:#94a3b8;">Privacy</a> ·
-          <a href="#" style="color:#94a3b8;">Terms</a> ·
-          <a href="#" style="color:#94a3b8;">Disclaimer</a>
+          <a href="?legal=privacy" style="color:#94a3b8;">Privacy</a> ·
+          <a href="?legal=terms" style="color:#94a3b8;">Terms</a> ·
+          <a href="?legal=disclaimer" style="color:#94a3b8;">Disclaimer</a>
         </div>
       </div>
     </div>
