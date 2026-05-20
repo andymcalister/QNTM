@@ -712,18 +712,29 @@ def data_freshness_banner():
         try:
             sb = _get_supabase()
             if sb:
-                resp = sb.table("signal_log").select("created_at").order(
-                    "created_at", desc=True).limit(1).execute()
-                if resp.data:
-                    raw   = resp.data[0]["created_at"]
-                    dt    = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                # Check fundamentals_cache.refreshed_at — updated on every run incl. intraday
+                resp = sb.table("fundamentals_cache").select("refreshed_at").order(
+                    "refreshed_at", desc=True).limit(1).execute()
+                if resp.data and resp.data[0].get("refreshed_at"):
+                    raw    = resp.data[0]["refreshed_at"]
+                    dt     = datetime.fromisoformat(raw.replace("Z", "+00:00"))
                     dt_utc = dt.astimezone(timezone.utc)
                     dt_str = dt_utc.strftime("%b %d · %H:%M UTC")
-                    fresh = (datetime.now(timezone.utc) - dt_utc) < timedelta(hours=26)
+                    fresh  = (datetime.now(timezone.utc) - dt_utc) < timedelta(hours=26)
+                else:
+                    # Fallback: signal_log created_at (nightly only)
+                    resp2 = sb.table("signal_log").select("created_at").order(
+                        "created_at", desc=True).limit(1).execute()
+                    if resp2.data:
+                        raw    = resp2.data[0]["created_at"]
+                        dt     = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                        dt_utc = dt.astimezone(timezone.utc)
+                        dt_str = dt_utc.strftime("%b %d · %H:%M UTC")
+                        fresh  = (datetime.now(timezone.utc) - dt_utc) < timedelta(hours=26)
         except Exception:
             dt_str = None
 
-        label  = f"Nightly scan OK · {dt_str}" if dt_str else ("Data fresh" if fresh else "Stale data")
+        label  = f"Last refresh · {dt_str}" if dt_str else ("Data fresh" if fresh else "Stale data")
         color  = "#00ff87" if fresh else "#f59e0b"
         bg     = "rgba(0,255,135,.08)" if fresh else "rgba(245,158,11,.08)"
         border = "rgba(0,255,135,.2)"  if fresh else "rgba(245,158,11,.25)"
@@ -3215,7 +3226,6 @@ def page_screener():
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     data_freshness_banner()
-    scan_health_check()
 
     # ── Stock search box ──────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)

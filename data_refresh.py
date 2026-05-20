@@ -761,6 +761,19 @@ def run_intraday_refresh(tickers: list = None) -> dict:
 
     duration = round(time.time() - start, 1)
     log.info(f"Intraday refresh complete: {updated} prices updated in {duration}s")
+
+    # Touch fundamentals_cache.refreshed_at so the app pill shows intraday time
+    if sb and updated > 0:
+        try:
+            sb.table("fundamentals_cache").upsert(
+                {"ticker": "_intraday_sentinel", "data_date": datetime.date.today().isoformat(),
+                 "refreshed_at": datetime.datetime.utcnow().isoformat(),
+                 "fundamentals": {}, "price": None, "vol_ratio": None},
+                on_conflict="ticker,data_date"
+            ).execute()
+        except Exception:
+            pass  # non-critical
+
     return {"success": True, "updated": updated, "failed": failed, "duration_s": duration}
 
 
