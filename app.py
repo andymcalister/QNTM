@@ -4744,9 +4744,8 @@ def page_portfolio():
 def page_simulator():
     page_summary(
         "🧮", "Portfolio Simulator",
-        "Build a hypothetical portfolio from current HIGH conviction signals. "
-        "Adjust amount, add or remove positions, and see allocation, sector exposure, and conviction breakdown.",
-        pills=["Pro feature", "Equal or score-weighted", "Sector exposure", "Live conviction scores"]
+        "Model a portfolio from HIGH conviction signals. Choose a risk profile, then add or remove individual positions and adjust weights.",
+        pills=["Pro feature", "3 risk profiles", "Top 20 default", "Custom weights"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
@@ -4757,7 +4756,7 @@ def page_simulator():
             '<div style="font-size:28px;margin-bottom:12px;">🧮</div>'
             '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:8px;">Portfolio Simulator</div>'
             '<div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">'
-            'Build a hypothetical portfolio from current HIGH conviction signals.</div>'
+            'Model a portfolio from HIGH conviction signals across three risk profiles.</div>'
             '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
             '</div>', unsafe_allow_html=True)
         if st.button("Upgrade to Pro — $29/mo", key="sim_upgrade", use_container_width=True):
@@ -4765,14 +4764,21 @@ def page_simulator():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
+    # ── Load scan data ─────────────────────────────────────────────────────────
     scan = st.session_state.get("scan_results") or []
-    buys = sorted(
+    all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
         key=lambda x: x.get("adj_composite", x.get("composite", 0)),
         reverse=True
     )
+    all_holds = sorted(
+        [r for r in scan if r.get("adj_action", r.get("action")) == "HOLD"],
+        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+        reverse=True
+    )
+    ticker_map = {r["ticker"]: r for r in scan}  # lookup by ticker
 
-    if not buys:
+    if not all_buys:
         st.markdown(
             '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
             'border-radius:8px;padding:32px;text-align:center;">'
@@ -4783,101 +4789,172 @@ def page_simulator():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # ── Session state for selected tickers ────────────────────────────────────
-    if "sim_selected" not in st.session_state:
-        st.session_state.sim_selected = [r["ticker"] for r in buys[:10]]
+    # ── Risk profile definitions ───────────────────────────────────────────────
+    # HIGH:   top 20 buys sorted by momentum (highest momentum, most volatile)
+    # MEDIUM: top 20 buys sorted by composite (balanced — the model default)
+    # LOW:    top 20 buys sorted by quality+value (lower momentum, more defensive)
+    def profile_tickers(profile):
+        if profile == "HIGH":
+            ranked = sorted(all_buys, key=lambda x: x.get("momentum", 0), reverse=True)
+        elif profile == "LOW":
+            ranked = sorted(all_buys, key=lambda x: (x.get("quality", 0) + x.get("value", 0)) / 2, reverse=True)
+        else:  # MEDIUM
+            ranked = all_buys  # already sorted by composite
+        return [r["ticker"] for r in ranked[:20]]
 
-    # Clamp to available buys
-    available_tickers = [r["ticker"] for r in buys]
-    st.session_state.sim_selected = [t for t in st.session_state.sim_selected if t in available_tickers]
+    # ── Session state init ─────────────────────────────────────────────────────
+    if "sim_profile" not in st.session_state:
+        st.session_state.sim_profile = "MEDIUM"
+    if "sim_selected" not in st.session_state or st.session_state.get("sim_profile_applied") != st.session_state.sim_profile:
+        st.session_state.sim_selected   = profile_tickers(st.session_state.sim_profile)
+        st.session_state.sim_weights    = {}   # ticker → custom weight override (%)
+        st.session_state.sim_profile_applied = st.session_state.sim_profile
 
-    # ── Controls — full width, mobile-friendly ────────────────────────────────
+    # Clamp: remove tickers no longer in scan
+    available = set(ticker_map.keys())
+    st.session_state.sim_selected = [t for t in st.session_state.sim_selected if t in available]
+
+    # ── Investment amount ──────────────────────────────────────────────────────
     sim_amount = st.number_input(
         "Investment Amount ($)", min_value=1000, max_value=10000000,
-        value=st.session_state.get("sim_amount_val", 50000),
-        step=1000, format="%d", key="sim_amount"
+        value=50000, step=1000, format="%d", key="sim_amount"
     )
-    equal_weight = st.toggle("Equal weight", value=st.session_state.get("sim_equal_val", True), key="sim_equal")
 
-    st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
-
-    # ── Add / Remove positions ────────────────────────────────────────────────
+    # ── Risk profile selector ──────────────────────────────────────────────────
+    PROFILES = {
+        "HIGH":   ("🔥 High Risk",   "Top 20 by momentum. Higher volatility, higher potential return. Concentrated in fast-moving sectors."),
+        "MEDIUM": ("⚖️ Medium Risk", "Top 20 by conviction score. Balanced across quality, momentum, and value. Model default."),
+        "LOW":    ("🛡 Low Risk",    "Top 20 by quality + value. More defensive positioning, lower expected volatility."),
+    }
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
     st.markdown(
         '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
-        'letter-spacing:.08em;margin-bottom:8px;">POSITIONS — tap to add or remove</div>',
+        'letter-spacing:.08em;margin-bottom:10px;">RISK PROFILE</div>',
         unsafe_allow_html=True)
 
-    # Show all available HIGH conviction tickers as toggle chips
-    # Render as a grid of buttons — selected = green, unselected = dim
-    cols_per_row = 4
-    ticker_rows = [available_tickers[i:i+cols_per_row] for i in range(0, min(len(available_tickers), 40), cols_per_row)]
-    for row in ticker_rows:
-        chip_cols = st.columns(len(row))
-        for col, tk in zip(chip_cols, row):
-            with col:
-                is_sel = tk in st.session_state.sim_selected
-                score  = next((r.get("adj_composite", r.get("composite", 0)) for r in buys if r["ticker"] == tk), 0)
-                sc_col = "#00ff87" if score >= 70 else "#fbbf24" if score >= 55 else "#ef4444"
-                label  = f"{'✓ ' if is_sel else ''}{tk}"
-                if st.button(label, key=f"simchip_{tk}", use_container_width=True):
-                    if is_sel:
-                        st.session_state.sim_selected.remove(tk)
-                    else:
-                        st.session_state.sim_selected.append(tk)
-                    st.rerun()
+    p_cols = st.columns(3)
+    for col, (pk, (plbl, pdesc)) in zip(p_cols, PROFILES.items()):
+        with col:
+            active = st.session_state.sim_profile == pk
+            border = "rgba(212,168,67,.6)" if pk=="HIGH" else "rgba(0,255,135,.5)" if pk=="LOW" else "rgba(148,163,184,.4)"
+            bg     = "rgba(212,168,67,.08)" if pk=="HIGH" else "rgba(0,255,135,.07)" if pk=="LOW" else "rgba(255,255,255,.04)"
+            tc     = "#d4a843" if pk=="HIGH" else "#00ff87" if pk=="LOW" else "#94a3b8"
+            if active:
+                border = border.replace(",.6",",.9").replace(",.5",",.8").replace(",.4",",.7")
+                bg     = bg.replace(",.08",",.15").replace(",.07",",.13").replace(",.04",",.09")
+            st.markdown(
+                f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
+                f'padding:10px 8px;text-align:center;margin-bottom:4px;">'
+                f'<div style="font-size:13px;font-weight:700;color:{tc};">{plbl}</div>'
+                f'<div style="font-size:10px;color:#64748b;margin-top:3px;line-height:1.3;">{pdesc[:50]}…</div>'
+                f'</div>',
+                unsafe_allow_html=True)
+            if st.button(f"{"✓ Selected" if active else "Select"}", key=f"prof_{pk}", use_container_width=True):
+                st.session_state.sim_profile = pk
+                st.session_state.sim_selected = profile_tickers(pk)
+                st.session_state.sim_weights  = {}
+                st.session_state.sim_profile_applied = pk
+                st.rerun()
 
+    # ── Weighting mode ─────────────────────────────────────────────────────────
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+    equal_weight = st.toggle("Equal weight", value=True, key="sim_equal")
+
+    # ── Add position by ticker / name search ───────────────────────────────────
+    st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
+        'letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>',
+        unsafe_allow_html=True)
+    add_query = st.text_input("Search ticker or company name", key="sim_add_query",
+                              placeholder="e.g. NVDA, Apple, energy stocks…", label_visibility="collapsed")
+    if add_query and add_query.strip():
+        q = add_query.strip().upper()
+        # Match by ticker prefix or company name substring
+        matches = []
+        for r in scan:
+            tk = r["ticker"]
+            ci = get_company_info(tk)
+            name = (ci.get("name","") if ci else "").upper()
+            if tk.startswith(q) or q in name or q in tk:
+                matches.append(r)
+        matches = sorted(matches, key=lambda x: x.get("adj_composite", x.get("composite",0)), reverse=True)[:8]
+        if matches:
+            for r in matches:
+                tk    = r["ticker"]
+                score = r.get("adj_composite", r.get("composite", 0))
+                act   = r.get("adj_action", r.get("action", "HOLD"))
+                ci    = get_company_info(tk)
+                name  = ci.get("name", tk) if ci else tk
+                sc_c  = "#00ff87" if act=="BUY" else "#fbbf24" if act=="HOLD" else "#ef4444"
+                already = tk in st.session_state.sim_selected
+                btn_lbl = f"{'✓ In portfolio' if already else '+ Add'}  {tk} — {name[:28]} · score {score:.0f}"
+                if st.button(btn_lbl, key=f"simadd_{tk}", use_container_width=True, disabled=already):
+                    st.session_state.sim_selected.append(tk)
+                    st.session_state.sim_weights[tk] = round(100 / (len(st.session_state.sim_selected)), 1)
+                    st.rerun()
+        else:
+            st.caption("No matching tickers found in current scan.")
+
+    # ── Selected positions list ────────────────────────────────────────────────
     selected_tickers = st.session_state.sim_selected
-    selected_rows    = [r for r in buys if r["ticker"] in selected_tickers]
+    selected_rows    = [ticker_map[t] for t in selected_tickers if t in ticker_map]
     n_sel = len(selected_rows)
 
     if n_sel == 0:
-        st.info("No positions selected — tap tickers above to add them.")
+        st.info("No positions — select a risk profile or search for a ticker above.")
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
     # ── Build allocation ───────────────────────────────────────────────────────
-    total_score = sum(r.get("adj_composite", r.get("composite", 0)) for r in selected_rows)
+    # Custom weights: if not equal-weight, use per-position sliders or default even split
+    if equal_weight:
+        weight_map = {r["ticker"]: 100.0 / n_sel for r in selected_rows}
+    else:
+        # Use stored custom weights, normalise to 100%
+        raw_w = {r["ticker"]: st.session_state.sim_weights.get(r["ticker"], 100.0 / n_sel) for r in selected_rows}
+        total_w = sum(raw_w.values())
+        weight_map = {tk: v / total_w * 100 for tk, v in raw_w.items()} if total_w > 0 else {tk: 100.0/n_sel for tk in raw_w}
+
     alloc = []
+    total_score = sum(r.get("adj_composite", r.get("composite", 0)) for r in selected_rows)
     for r in selected_rows:
         tk    = r["ticker"]
         score = r.get("adj_composite", r.get("composite", 0))
         price = r.get("price")
-        w_dollar = (sim_amount / n_sel) if equal_weight else (score / total_score * sim_amount if total_score > 0 else 0)
+        pct   = weight_map[tk]
+        w_dollar = sim_amount * pct / 100
         shares   = round(w_dollar / price, 4) if price and price > 0 else None
         alloc.append({
             "ticker":     tk,
             "score":      score,
             "price":      price,
             "allocation": w_dollar,
-            "pct":        w_dollar / sim_amount * 100,
+            "pct":        pct,
             "shares":     shares,
             "sector":     r.get("sector", "Unknown"),
-            "momentum":   r.get("momentum", 50),
-            "quality":    r.get("quality",  50),
-            "volume":     r.get("volume",   50),
-            "value":      r.get("value",    50),
-            "sentiment":  r.get("sentiment",50),
-            "signal":     r.get("adj_action", r.get("action", "BUY")),
-            "signal_date": r.get("signal_date", ""),
+            "momentum":   r.get("momentum",   50),
+            "quality":    r.get("quality",     50),
+            "volume":     r.get("volume",      50),
+            "value":      r.get("value",       50),
+            "sentiment":  r.get("sentiment",   50),
         })
 
-    weighted_score = sum(a["allocation"] * a["score"] for a in alloc) / sim_amount if sim_amount > 0 else 0
+    weighted_score = sum(a["pct"] * a["score"] for a in alloc) / 100
 
-    # ── Summary strip — single row, no columns, CSS grid ──────────────────────
+    # ── Summary strip ─────────────────────────────────────────────────────────
     st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
-    sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
+    sc_col  = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
+    prof_lbl, _ = PROFILES[st.session_state.sim_profile]
     st.markdown(
         f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">'
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
-        f'border-radius:8px;padding:12px;text-align:center;">'
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
         f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">INVESTED</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#d4a843;">${sim_amount:,.0f}</div></div>'
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
-        f'border-radius:8px;padding:12px;text-align:center;">'
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
         f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">POSITIONS</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#cbd5e1;">{n_sel}</div></div>'
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
-        f'border-radius:8px;padding:12px;text-align:center;">'
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
         f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">AVG SCORE</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{sc_col};">{weighted_score:.1f}</div></div>'
         f'</div>',
@@ -4888,18 +4965,16 @@ def page_simulator():
     for a in alloc:
         s = a.get("sector", "Unknown")
         sector_totals[s] = sector_totals.get(s, 0) + a["allocation"]
-    sector_pct    = {s: v / sim_amount * 100 for s, v in sector_totals.items()}
-    top_sectors   = sorted(sector_pct.items(), key=lambda x: x[1], reverse=True)[:5]
-
+    top_sectors = sorted(sector_totals.items(), key=lambda x: x[1], reverse=True)[:6]
     bars_html = ""
-    for sec, pct in top_sectors:
+    for sec, val in top_sectors:
+        pct = val / sim_amount * 100
         bars_html += (
             f'<div style="margin-bottom:8px;">'
             f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
             f'<span style="font-size:12px;color:#94a3b8;">{sec}</span>'
             f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">{pct:.1f}%</span>'
-            f'</div>'
-            f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
+            f'</div><div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
             f'<div style="width:{min(pct,100):.1f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
             f'</div></div>'
         )
@@ -4910,30 +4985,27 @@ def page_simulator():
         f'{bars_html}</div>',
         unsafe_allow_html=True)
 
-    # ── Position breakdown with expandable pillar cards ────────────────────────
+    # ── Position breakdown — expandable ────────────────────────────────────────
     st.markdown(
         '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
-        'letter-spacing:.08em;margin-bottom:8px;">POSITION BREAKDOWN</div>',
+        'letter-spacing:.08em;margin-bottom:8px;">POSITIONS</div>',
         unsafe_allow_html=True)
 
     def pill_bar(v):
         c = "#00ff87" if v >= 60 else ("#f59e0b" if v >= 45 else "#ef4444")
-        w = max(4, int(v))
         return (
             f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
-            f'<div style="width:{w}%;height:100%;background:{c};border-radius:2px;"></div></div>'
+            f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>'
         )
 
-    for i, a in enumerate(sorted(alloc, key=lambda x: x["score"], reverse=True)):
-        sc_color   = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
-        price_str  = f'${a["price"]:,.2f}' if a["price"] else "—"
-        shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
-        alloc_str  = f'${a["allocation"]:,.0f}'
-        pct_str    = f'{a["pct"]:.1f}%'
-        label      = f'{a["ticker"]}  ·  {alloc_str} ({pct_str})  ·  score {a["score"]:.0f}'
+    for a in sorted(alloc, key=lambda x: x["score"], reverse=True):
+        sc_color  = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
+        price_str = f'${a["price"]:,.2f}' if a["price"] else "—"
+        exp_label = f'{a["ticker"]}  ·  ${a["allocation"]:,.0f} ({a["pct"]:.1f}%)  ·  score {a["score"]:.0f}'
 
-        with st.expander(label, expanded=False):
-            # Header row: price / shares / score
+        with st.expander(exp_label, expanded=False):
+            # Price / shares / conviction
+            shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
             st.markdown(
                 f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
                 f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
@@ -4952,24 +5024,40 @@ def page_simulator():
             st.markdown(
                 f'<div style="margin-bottom:10px;">'
                 f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;">MOM {a["momentum"]:.0f}</div>{pill_bar(a["momentum"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">QUAL {a["quality"]:.0f}</div>{pill_bar(a["quality"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">VOL {a["volume"]:.0f}</div>{pill_bar(a["volume"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">VAL {a["value"]:.0f}</div>{pill_bar(a["value"])}'
-                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">SENT {a["sentiment"]:.0f}</div>{pill_bar(a["sentiment"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">QUAL {a["quality"]:.0f}</div>{pill_bar(a["quality"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">VOL {a["volume"]:.0f}</div>{pill_bar(a["volume"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">VAL {a["value"]:.0f}</div>{pill_bar(a["value"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-top:4px;margin-bottom:1px;">SENT {a["sentiment"]:.0f}</div>{pill_bar(a["sentiment"])}'
                 f'</div>',
                 unsafe_allow_html=True)
 
-            # Sector + remove button
             st.markdown(f'<div style="font-size:12px;color:#475569;margin-bottom:8px;">{a["sector"]}</div>', unsafe_allow_html=True)
+
+            # Custom weight slider (shown only when not equal-weighted)
+            if not equal_weight:
+                raw_pct = st.session_state.sim_weights.get(a["ticker"], round(100.0 / n_sel, 1))
+                new_pct = st.slider(
+                    f"Weight % for {a['ticker']}",
+                    min_value=0.5, max_value=50.0,
+                    value=float(raw_pct), step=0.5,
+                    key=f"sim_w_{a['ticker']}",
+                    help="Will be normalised to 100% across all positions"
+                )
+                if new_pct != raw_pct:
+                    st.session_state.sim_weights[a["ticker"]] = new_pct
+                    st.rerun()
+
+            # Remove button
             if st.button(f"✕ Remove {a['ticker']}", key=f"sim_rm_{a['ticker']}", use_container_width=True):
                 st.session_state.sim_selected.remove(a["ticker"])
+                st.session_state.sim_weights.pop(a["ticker"], None)
                 st.rerun()
 
     st.markdown(
         f'<div style="font-size:11px;color:#475569;padding-top:12px;margin-top:8px;'
         f'border-top:1px solid rgba(255,255,255,.05);">'
-        f'{"Equal weight" if equal_weight else "Score-weighted"} · ${sim_amount:,.0f} across {n_sel} positions · '
-        f'Shares at last scan price · Hypothetical only — not investment advice.</div>',
+        f'{"Equal weight" if equal_weight else "Custom weight (normalised)"} · ${sim_amount:,.0f} across {n_sel} positions · '
+        f'Shares at last scan price · Hypothetical — not investment advice.</div>',
         unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
