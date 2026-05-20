@@ -4744,168 +4744,233 @@ def page_portfolio():
 def page_simulator():
     page_summary(
         "🧮", "Portfolio Simulator",
-        "Enter a dollar amount and build a hypothetical portfolio from current HIGH conviction signals. "
-        "See shares purchasable, allocation breakdown, sector exposure, and weighted conviction score.",
+        "Build a hypothetical portfolio from current HIGH conviction signals. "
+        "Adjust amount, add or remove positions, and see allocation, sector exposure, and conviction breakdown.",
         pills=["Pro feature", "Equal or score-weighted", "Sector exposure", "Live conviction scores"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+
     if not is_pro():
         st.markdown(
             '<div style="background:rgba(212,168,67,.07);border:1px solid rgba(212,168,67,.25);'
             'border-radius:10px;padding:28px 24px;text-align:center;margin:24px 0;">'
             '<div style="font-size:28px;margin-bottom:12px;">🧮</div>'
             '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:8px;">Portfolio Simulator</div>'
-            '<div style="font-size:14px;color:#94a3b8;margin-bottom:20px;max-width:420px;margin-left:auto;margin-right:auto;">'
-            'Enter a dollar amount and build a hypothetical portfolio from current HIGH conviction signals. '
-            'See shares purchasable, allocation breakdown, sector exposure, and weighted conviction score.</div>'
+            '<div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">'
+            'Build a hypothetical portfolio from current HIGH conviction signals.</div>'
             '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
-            '</div>',
-            unsafe_allow_html=True)
-        if st.button("Upgrade to Pro — $29/mo", key="sim_upgrade", use_container_width=False):
+            '</div>', unsafe_allow_html=True)
+        if st.button("Upgrade to Pro — $29/mo", key="sim_upgrade", use_container_width=True):
             nav("account")
-    else:
-        scan = st.session_state.get("scan_results") or []
-        buys = sorted(
-            [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
-            key=lambda x: x.get("adj_composite", x.get("composite", 0)),
-            reverse=True
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    scan = st.session_state.get("scan_results") or []
+    buys = sorted(
+        [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
+        key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+        reverse=True
+    )
+
+    if not buys:
+        st.markdown(
+            '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+            'border-radius:8px;padding:32px;text-align:center;">'
+            '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
+            '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">No scan data loaded</div>'
+            '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe first.</div>'
+            '</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # ── Session state for selected tickers ────────────────────────────────────
+    if "sim_selected" not in st.session_state:
+        st.session_state.sim_selected = [r["ticker"] for r in buys[:10]]
+
+    # Clamp to available buys
+    available_tickers = [r["ticker"] for r in buys]
+    st.session_state.sim_selected = [t for t in st.session_state.sim_selected if t in available_tickers]
+
+    # ── Controls — full width, mobile-friendly ────────────────────────────────
+    sim_amount = st.number_input(
+        "Investment Amount ($)", min_value=1000, max_value=10000000,
+        value=st.session_state.get("sim_amount_val", 50000),
+        step=1000, format="%d", key="sim_amount"
+    )
+    equal_weight = st.toggle("Equal weight", value=st.session_state.get("sim_equal_val", True), key="sim_equal")
+
+    st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
+
+    # ── Add / Remove positions ────────────────────────────────────────────────
+    st.markdown(
+        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
+        'letter-spacing:.08em;margin-bottom:8px;">POSITIONS — tap to add or remove</div>',
+        unsafe_allow_html=True)
+
+    # Show all available HIGH conviction tickers as toggle chips
+    # Render as a grid of buttons — selected = green, unselected = dim
+    cols_per_row = 4
+    ticker_rows = [available_tickers[i:i+cols_per_row] for i in range(0, min(len(available_tickers), 40), cols_per_row)]
+    for row in ticker_rows:
+        chip_cols = st.columns(len(row))
+        for col, tk in zip(chip_cols, row):
+            with col:
+                is_sel = tk in st.session_state.sim_selected
+                score  = next((r.get("adj_composite", r.get("composite", 0)) for r in buys if r["ticker"] == tk), 0)
+                sc_col = "#00ff87" if score >= 70 else "#fbbf24" if score >= 55 else "#ef4444"
+                label  = f"{'✓ ' if is_sel else ''}{tk}"
+                if st.button(label, key=f"simchip_{tk}", use_container_width=True):
+                    if is_sel:
+                        st.session_state.sim_selected.remove(tk)
+                    else:
+                        st.session_state.sim_selected.append(tk)
+                    st.rerun()
+
+    selected_tickers = st.session_state.sim_selected
+    selected_rows    = [r for r in buys if r["ticker"] in selected_tickers]
+    n_sel = len(selected_rows)
+
+    if n_sel == 0:
+        st.info("No positions selected — tap tickers above to add them.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # ── Build allocation ───────────────────────────────────────────────────────
+    total_score = sum(r.get("adj_composite", r.get("composite", 0)) for r in selected_rows)
+    alloc = []
+    for r in selected_rows:
+        tk    = r["ticker"]
+        score = r.get("adj_composite", r.get("composite", 0))
+        price = r.get("price")
+        w_dollar = (sim_amount / n_sel) if equal_weight else (score / total_score * sim_amount if total_score > 0 else 0)
+        shares   = round(w_dollar / price, 4) if price and price > 0 else None
+        alloc.append({
+            "ticker":     tk,
+            "score":      score,
+            "price":      price,
+            "allocation": w_dollar,
+            "pct":        w_dollar / sim_amount * 100,
+            "shares":     shares,
+            "sector":     r.get("sector", "Unknown"),
+            "momentum":   r.get("momentum", 50),
+            "quality":    r.get("quality",  50),
+            "volume":     r.get("volume",   50),
+            "value":      r.get("value",    50),
+            "sentiment":  r.get("sentiment",50),
+            "signal":     r.get("adj_action", r.get("action", "BUY")),
+            "signal_date": r.get("signal_date", ""),
+        })
+
+    weighted_score = sum(a["allocation"] * a["score"] for a in alloc) / sim_amount if sim_amount > 0 else 0
+
+    # ── Summary strip — single row, no columns, CSS grid ──────────────────────
+    st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+    sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">'
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:8px;padding:12px;text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">INVESTED</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#d4a843;">${sim_amount:,.0f}</div></div>'
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:8px;padding:12px;text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">POSITIONS</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#cbd5e1;">{n_sel}</div></div>'
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:8px;padding:12px;text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:4px;">AVG SCORE</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{sc_col};">{weighted_score:.1f}</div></div>'
+        f'</div>',
+        unsafe_allow_html=True)
+
+    # ── Sector exposure ────────────────────────────────────────────────────────
+    sector_totals = {}
+    for a in alloc:
+        s = a.get("sector", "Unknown")
+        sector_totals[s] = sector_totals.get(s, 0) + a["allocation"]
+    sector_pct    = {s: v / sim_amount * 100 for s, v in sector_totals.items()}
+    top_sectors   = sorted(sector_pct.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    bars_html = ""
+    for sec, pct in top_sectors:
+        bars_html += (
+            f'<div style="margin-bottom:8px;">'
+            f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
+            f'<span style="font-size:12px;color:#94a3b8;">{sec}</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">{pct:.1f}%</span>'
+            f'</div>'
+            f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
+            f'<div style="width:{min(pct,100):.1f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
+            f'</div></div>'
         )
-        if not buys:
+    st.markdown(
+        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
+        f'{bars_html}</div>',
+        unsafe_allow_html=True)
+
+    # ── Position breakdown with expandable pillar cards ────────────────────────
+    st.markdown(
+        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
+        'letter-spacing:.08em;margin-bottom:8px;">POSITION BREAKDOWN</div>',
+        unsafe_allow_html=True)
+
+    def pill_bar(v):
+        c = "#00ff87" if v >= 60 else ("#f59e0b" if v >= 45 else "#ef4444")
+        w = max(4, int(v))
+        return (
+            f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
+            f'<div style="width:{w}%;height:100%;background:{c};border-radius:2px;"></div></div>'
+        )
+
+    for i, a in enumerate(sorted(alloc, key=lambda x: x["score"], reverse=True)):
+        sc_color   = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
+        price_str  = f'${a["price"]:,.2f}' if a["price"] else "—"
+        shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
+        alloc_str  = f'${a["allocation"]:,.0f}'
+        pct_str    = f'{a["pct"]:.1f}%'
+        label      = f'{a["ticker"]}  ·  {alloc_str} ({pct_str})  ·  score {a["score"]:.0f}'
+
+        with st.expander(label, expanded=False):
+            # Header row: price / shares / score
             st.markdown(
-                '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
-                'border-radius:8px;padding:32px;text-align:center;">'
-                '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
-                '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">No scan data loaded</div>'
-                '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe first.</div>'
-                '</div>', unsafe_allow_html=True)
-        else:
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-            sim_c1, sim_c2 = st.columns([2, 3])
-            with sim_c1:
-                sim_amount = st.number_input(
-                    "Investment Amount ($)", min_value=1000, max_value=10000000,
-                    value=50000, step=1000, format="%d", key="sim_amount"
-                )
-                sim_n = st.slider(
-                    "Number of positions", min_value=1, max_value=min(30, len(buys)),
-                    value=min(10, len(buys)), key="sim_n"
-                )
-                equal_weight = st.toggle("Equal weight", value=True, key="sim_equal")
-
-            selected = buys[:sim_n]
-            pos_size = sim_amount / sim_n if equal_weight else None
-
-            # Build allocation
-            alloc = []
-            total_score = sum(r.get("adj_composite", r.get("composite", 0)) for r in selected)
-            for r in selected:
-                tk = r["ticker"]
-                score = r.get("adj_composite", r.get("composite", 0))
-                price = r.get("price")
-                w_dollar = pos_size if equal_weight else (score / total_score * sim_amount if total_score > 0 else 0)
-                shares = round(w_dollar / price, 4) if price and price > 0 else None
-                alloc.append({
-                    "ticker": tk,
-                    "score": score,
-                    "price": price,
-                    "allocation": w_dollar,
-                    "pct": w_dollar / sim_amount * 100,
-                    "shares": shares,
-                    "sector": r.get("sector", "Unknown"),
-                })
-
-            # Weighted conviction score
-            weighted_score = sum(a["allocation"] * a["score"] for a in alloc) / sim_amount if sim_amount > 0 else 0
-
-            with sim_c2:
-                # Summary strip
-                ss = "background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 18px;text-align:center;"
-                sl = "font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:5px;"
-                sv = "font-family:Syne,sans-serif;font-size:20px;font-weight:800;"
-                sc1, sc2, sc3 = st.columns(3)
-                with sc1:
-                    st.markdown(f'<div style="{ss}"><div style="{sl}">INVESTED</div><div style="{sv}color:#d4a843;">${sim_amount:,.0f}</div></div>', unsafe_allow_html=True)
-                with sc2:
-                    st.markdown(f'<div style="{ss}"><div style="{sl}">POSITIONS</div><div style="{sv}color:#cbd5e1;">{sim_n}</div></div>', unsafe_allow_html=True)
-                with sc3:
-                    sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
-                    st.markdown(f'<div style="{ss}"><div style="{sl}">AVG CONVICTION</div><div style="{sv}color:{sc_col};">{weighted_score:.1f}</div></div>', unsafe_allow_html=True)
-
-            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-
-            # Sector exposure
-            from collections import Counter
-            sector_totals = {}
-            for a in alloc:
-                s = a.get("sector", "Unknown")
-                sector_totals[s] = sector_totals.get(s, 0) + a["allocation"]
-            sector_pct = {s: v / sim_amount * 100 for s, v in sector_totals.items()}
-            top_sectors = sorted(sector_pct.items(), key=lambda x: x[1], reverse=True)[:5]
-
-            bars_html = ""
-            for sec, pct in top_sectors:
-                bars_html += (
-                    f'<div style="margin-bottom:8px;">'
-                    f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
-                    f'<span style="font-size:12px;color:#94a3b8;">{sec}</span>'
-                    f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">{pct:.1f}%</span>'
-                    f'</div>'
-                    f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
-                    f'<div style="width:{min(pct,100):.1f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
-                    f'</div></div>'
-                )
-            st.markdown(
-                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-                f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
-                f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
-                f'{bars_html}</div>',
+                f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
+                f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:3px;">PRICE</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#cbd5e1;">{price_str}</div></div>'
+                f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:3px;">SHARES</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#94a3b8;">{shares_str}</div></div>'
+                f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:3px;">CONVICTION</div>'
+                f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:{sc_color};">{a["score"]:.0f}</div></div>'
+                f'</div>',
                 unsafe_allow_html=True)
 
-            # Allocation table
+            # Pillar bars
             st.markdown(
-                '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:8px;">POSITION BREAKDOWN</div>',
-                unsafe_allow_html=True)
-            st.markdown(
-                '<div style="display:grid;grid-template-columns:70px 1fr 70px 70px 70px 55px;'
-                'gap:4px;padding:7px 12px;background:#050a0f;border-radius:6px 6px 0 0;'
-                'border:1px solid rgba(255,255,255,.07);">'
-                '<div style="font-size:10px;color:#475569;letter-spacing:.07em;">TICKER</div>'
-                '<div style="font-size:10px;color:#475569;letter-spacing:.07em;">SECTOR</div>'
-                '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">PRICE</div>'
-                '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">ALLOC</div>'
-                '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">SHARES</div>'
-                '<div style="font-size:10px;color:#475569;letter-spacing:.07em;text-align:right;">SCORE</div>'
-                '</div>', unsafe_allow_html=True)
-
-            for i, a in enumerate(alloc):
-                bg = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.007)"
-                sc_color = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
-                price_str  = f'${a["price"]:,.2f}' if a["price"] else "—"
-                shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
-                sec_short  = (a["sector"][:14] + "…") if len(a.get("sector","")) > 15 else a.get("sector","—")
-                st.markdown(
-                    f'<div style="display:grid;grid-template-columns:70px 1fr 70px 70px 70px 55px;'
-                    f'gap:4px;padding:7px 12px;background:{bg};'
-                    f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
-                    f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-                    f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{a["ticker"]}</div>'
-                    f'<div style="font-size:11px;color:#64748b;">{sec_short}</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{price_str}</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;text-align:right;">${a["allocation"]:,.0f}</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;text-align:right;">{shares_str}</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{sc_color};text-align:right;">{a["score"]:.0f}</div>'
-                    f'</div>', unsafe_allow_html=True)
-
-            st.markdown(
-                f'<div style="padding:7px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
-                f'border-radius:0 0 6px 6px;font-size:11px;color:#475569;">'
-                f'{"Equal weight" if equal_weight else "Score-weighted"} · ${sim_amount:,.0f} across {sim_n} positions · '
-                f'Shares calculated at last scan price · Hypothetical only</div>',
+                f'<div style="margin-bottom:10px;">'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;">MOM {a["momentum"]:.0f}</div>{pill_bar(a["momentum"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">QUAL {a["quality"]:.0f}</div>{pill_bar(a["quality"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">VOL {a["volume"]:.0f}</div>{pill_bar(a["volume"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">VAL {a["value"]:.0f}</div>{pill_bar(a["value"])}'
+                f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:4px;">SENT {a["sentiment"]:.0f}</div>{pill_bar(a["sentiment"])}'
+                f'</div>',
                 unsafe_allow_html=True)
 
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-            st.markdown('<div style="font-size:11px;color:#475569;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">⚠ Simulation is hypothetical. Prices are last scan prices and may not reflect current market. Not investment advice.</div>', unsafe_allow_html=True)
+            # Sector + remove button
+            st.markdown(f'<div style="font-size:12px;color:#475569;margin-bottom:8px;">{a["sector"]}</div>', unsafe_allow_html=True)
+            if st.button(f"✕ Remove {a['ticker']}", key=f"sim_rm_{a['ticker']}", use_container_width=True):
+                st.session_state.sim_selected.remove(a["ticker"])
+                st.rerun()
 
+    st.markdown(
+        f'<div style="font-size:11px;color:#475569;padding-top:12px;margin-top:8px;'
+        f'border-top:1px solid rgba(255,255,255,.05);">'
+        f'{"Equal weight" if equal_weight else "Score-weighted"} · ${sim_amount:,.0f} across {n_sel} positions · '
+        f'Shares at last scan price · Hypothetical only — not investment advice.</div>',
+        unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
