@@ -5732,12 +5732,13 @@ def page_model_portfolio():
 
     # Header
     st.markdown(
-        '<div style="display:grid;grid-template-columns:90px 180px 1fr 90px 90px 64px;'
+        '<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
         'gap:8px;padding:8px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.07);">'
         '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
         '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY DATE</div>'
         '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY → CURRENT</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SHARES</div>'
         '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
         '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
         '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
@@ -5747,23 +5748,26 @@ def page_model_portfolio():
         bg        = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
         rc        = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
         sg        = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str = f'${h["entry_price"]:,.0f}'  if h["entry_price"]   else "—"
-        cur_str   = f'${h["current_price"]:,.0f}' if h["current_price"] else "—"
-        pnl_str   = f'{sg}${h["pnl"]:,.0f}'       if h["entry_price"] and h["current_price"] else "—"
-        ret_str   = f'{sg}{h["pnl_pct"]:.1f}%'    if h["entry_price"] and h["current_price"] else "—"
-        score     = h["current_score"]
-        score_col = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
-        gem_badge = " 💎" if h["ticker"] in port_gem_tickers else ""
-        arrow     = f'{entry_str}→{cur_str}'
+        entry_str  = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
+        cur_str    = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
+        pnl_str    = f'{sg}${h["pnl"]:,.0f}'       if h["entry_price"] and h["current_price"] else "—"
+        ret_str    = f'{sg}{h["pnl_pct"]:.1f}%'    if h["entry_price"] and h["current_price"] else "—"
+        shares     = (h["pos_size"] / h["entry_price"]) if h["entry_price"] and h["entry_price"] > 0 else None
+        shares_str = f'{shares:,.1f} sh' if shares else "—"
+        score      = h["current_score"]
+        score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
+        gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
+        arrow      = f'{entry_str}→{cur_str}'
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:90px 180px 1fr 90px 90px 64px;'
+            f'<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
             f'gap:8px;padding:10px 16px;background:{bg};'
             f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
             f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{arrow}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;text-align:right;">{shares_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
