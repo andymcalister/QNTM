@@ -4281,6 +4281,48 @@ document.body.prepend(c);
 # ══════════════════════════════════════════════════════════════════════════════
 # PORTFOLIO PAGE
 # ══════════════════════════════════════════════════════════════════════════════
+
+def _make_excel(rows: list, headers: list, sheet_name: str = "Export") -> bytes:
+    """Generate an in-memory Excel file from a list of dicts. Returns bytes."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, PatternFill
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+
+    # Header row
+    header_fill = PatternFill("solid", start_color="0D1117")
+    header_font = Font(name="Arial", bold=True, color="D4A843", size=10)
+    for ci, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    # Data rows
+    row_font  = Font(name="Arial", size=10)
+    for ri, row in enumerate(rows, 2):
+        for ci, h in enumerate(headers, 1):
+            val = row.get(h, "")
+            cell = ws.cell(row=ri, column=ci, value=val)
+            cell.font = row_font
+            if ri % 2 == 0:
+                cell.fill = PatternFill("solid", start_color="0A0B14")
+
+    # Auto-width columns
+    for col in ws.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
 def page_portfolio():
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
@@ -4819,6 +4861,41 @@ def page_portfolio():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Export to Excel ───────────────────────────────────────────────────────
+    if holdings:
+        try:
+            export_rows = []
+            for h in holdings:
+                score_data = score_map.get(h["ticker"], {})
+                export_rows.append({
+                    "Ticker":         h["ticker"],
+                    "Entry Date":     h.get("entry_date", ""),
+                    "Entry Price":    h.get("entry_price", ""),
+                    "Current Price":  score_data.get("price", ""),
+                    "Shares":         round(h["pos_size"] / h["entry_price"], 4) if h.get("entry_price") and h["entry_price"] > 0 else "",
+                    "Position Value": h.get("pos_size", 10000),
+                    "P&L ($)":        round(h.get("pnl", 0), 2),
+                    "Return (%)":     round(h.get("pnl_pct", 0), 2),
+                    "Score":          round(score_data.get("adj_composite", score_data.get("composite", 0)), 1),
+                    "Momentum":       round(score_data.get("momentum", 0), 1),
+                    "Quality":        round(score_data.get("quality", 0), 1),
+                    "Volume":         round(score_data.get("volume", 0), 1),
+                    "Value":          round(score_data.get("value", 0), 1),
+                    "Sentiment":      round(score_data.get("sentiment", 0), 1),
+                    "Signal":         score_data.get("adj_action", score_data.get("action", "")),
+                })
+            headers = ["Ticker","Entry Date","Entry Price","Current Price","Shares","Position Value","P&L ($)","Return (%)","Score","Momentum","Quality","Volume","Value","Sentiment","Signal"]
+            xl = _make_excel(export_rows, headers, "My Portfolio")
+            st.download_button(
+                label="⬇ Export to Excel",
+                data=xl,
+                file_name="qntm_my_portfolio.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="port_export"
+            )
+        except Exception:
+            pass
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ALERTS PAGE
@@ -5055,6 +5132,34 @@ def page_simulator():
         f'{"Equal weight" if equal_weight else "Custom weight (normalised)"} · ${sim_amount:,.0f} across {n_sel} positions · '
         f'Shares at last scan price · Hypothetical — not investment advice.</div>',
         unsafe_allow_html=True)
+
+    # ── Export to Excel ───────────────────────────────────────────────────────
+    try:
+        export_rows = [{
+            "Ticker":       a["ticker"],
+            "Sector":       a["sector"],
+            "Price":        a["price"] or "",
+            "Allocation ($)": round(a["allocation"], 2),
+            "Weight (%)":   round(a["pct"], 2),
+            "Shares":       a["shares"] or "",
+            "Score":        round(a["score"], 1),
+            "Momentum":     round(a["momentum"], 1),
+            "Quality":      round(a["quality"], 1),
+            "Volume":       round(a["volume"], 1),
+            "Value":        round(a["value"], 1),
+            "Sentiment":    round(a["sentiment"], 1),
+        } for a in sorted(alloc, key=lambda x: x["score"], reverse=True)]
+        headers = ["Ticker","Sector","Price","Allocation ($)","Weight (%)","Shares","Score","Momentum","Quality","Volume","Value","Sentiment"]
+        xl = _make_excel(export_rows, headers, "Simulator")
+        st.download_button(
+            label="⬇ Export to Excel",
+            data=xl,
+            file_name="qntm_simulator.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="sim_export"
+        )
+    except Exception:
+        pass
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -5810,6 +5915,41 @@ def page_model_portfolio():
         'border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;margin-bottom:8px;">'
         '$10K/position · Equal weighted · Auto-exit score < 45</div>',
         unsafe_allow_html=True)
+
+    # ── Export to Excel ───────────────────────────────────────────────────────
+    try:
+        export_rows = []
+        for h in sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True):
+            shares = (h["pos_size"] / h["entry_price"]) if h.get("entry_price") and h["entry_price"] > 0 else ""
+            export_rows.append({
+                "Ticker":        h["ticker"],
+                "Entry Date":    h["entry_date"],
+                "Entry Price":   h.get("entry_price", ""),
+                "Current Price": h.get("current_price", ""),
+                "Shares":        round(shares, 4) if shares else "",
+                "Position ($)":  h["pos_size"],
+                "Current Value": round(h["current_val"], 2),
+                "P&L ($)":       round(h["pnl"], 2),
+                "Return (%)":    round(h["pnl_pct"], 2),
+                "Score":         round(h["current_score"], 1),
+                "Momentum":      round(h["momentum"], 1),
+                "Quality":       round(h["quality"], 1),
+                "Volume":        round(h["volume"], 1),
+                "Value":         round(h["value"], 1),
+                "Sentiment":     round(h["sentiment"], 1),
+                "Gem":           "💎" if h.get("is_gem") else "",
+            })
+        headers = ["Ticker","Entry Date","Entry Price","Current Price","Shares","Position ($)","Current Value","P&L ($)","Return (%)","Score","Momentum","Quality","Volume","Value","Sentiment","Gem"]
+        xl = _make_excel(export_rows, headers, "Model Portfolio")
+        st.download_button(
+            label="⬇ Export to Excel",
+            data=xl,
+            file_name="qntm_model_portfolio.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="model_port_export"
+        )
+    except Exception:
+        pass
 
 
 
