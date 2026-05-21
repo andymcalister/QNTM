@@ -5741,7 +5741,22 @@ def page_model_portfolio():
         return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:2px 0;">'
                 f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>')
 
+    # Table header
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
+        'gap:8px;padding:8px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY DATE</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY → CURRENT</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SHARES</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
+        '</div>', unsafe_allow_html=True)
+
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
+        bg        = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
         rc        = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
         sg        = "+" if h["pnl_pct"] >= 0 else ""
         entry_str  = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
@@ -5753,34 +5768,27 @@ def page_model_portfolio():
         score      = h["current_score"]
         score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
         gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
-        exp_label  = f'{h["ticker"]}{gem_badge}  ·  {h["entry_date"]}  ·  {entry_str}→{cur_str}  ·  {ret_str}  ·  score {score:.0f}'
 
-        with st.expander(exp_label, expanded=False):
-            # ── Mini stat strip ───────────────────────────────────────────────
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            def _stat(col, label, val, color="#cbd5e1"):
-                with col:
-                    st.markdown(
-                        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
-                        f'border-radius:6px;padding:10px;text-align:center;">'
-                        f'<div style="font-size:10px;color:#64748b;margin-bottom:4px;">{label}</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{color};">{val}</div>'
-                        f'</div>', unsafe_allow_html=True)
-            _stat(sc1, "SHARES",     shares_str,    "#94a3b8")
-            _stat(sc2, "P&L",        pnl_str,       rc)
-            _stat(sc3, "RETURN",     ret_str,        rc)
-            _stat(sc4, "ENTRY SCORE", f'{h["entry_score"]:.0f}', "#64748b")
+        # Table row as expander label — keeps the grid layout visible, click to expand
+        with st.expander(f'{h["ticker"]}{gem_badge}', expanded=False):
+            # ── Replicate the table row inside the expander header area ───────
+            st.markdown(
+                f'<div style="display:grid;grid-template-columns:1fr 120px 1fr 90px 80px 80px 56px;'
+                f'gap:8px;padding:4px 0;background:{bg};align-items:center;margin-top:-8px;">'
+                f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{entry_str}→{cur_str}</div>'
+                f'<div></div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;text-align:right;">{shares_str} sh</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
+                f'</div>', unsafe_allow_html=True)
 
-            st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
 
             # ── Pillar bars ───────────────────────────────────────────────────
-            pillars = [
-                ("MOM", h["momentum"]),
-                ("QUAL", h["quality"]),
-                ("VOL", h["volume"]),
-                ("VAL", h["value"]),
-                ("SENT", h["sentiment"]),
-            ]
+            pillars = [("MOM", h["momentum"]), ("QUAL", h["quality"]),
+                       ("VOL", h["volume"]), ("VAL", h["value"]), ("SENT", h["sentiment"])]
             pc = st.columns(5)
             for col, (name, val) in zip(pc, pillars):
                 with col:
@@ -5792,11 +5800,10 @@ def page_model_portfolio():
                         f'{_pill(val)}'
                         f'</div>', unsafe_allow_html=True)
 
-            # ── Entry info ────────────────────────────────────────────────────
             st.markdown(
-                f'<div style="font-size:11px;color:#475569;margin-top:12px;padding-top:10px;'
+                f'<div style="font-size:11px;color:#475569;margin-top:10px;padding-top:8px;'
                 f'border-top:1px solid rgba(255,255,255,.05);">'
-                f'Entered {h["entry_date"]} · ${h["pos_size"]:,} position · Entry price {entry_str} · '
+                f'${h["pos_size"]:,} position · Entry {entry_str} · '
                 f'{"💎 Hidden Gem at entry" if h.get("is_gem") else "Standard position"}'
                 f'</div>', unsafe_allow_html=True)
 
