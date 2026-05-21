@@ -5714,7 +5714,16 @@ def page_model_portfolio():
 
     # ── Detect current hidden gems ────────────────────────────────────────────
     port_gem_tickers = set()
-    if scan:
+    # First try signal_log.is_hidden_gem (no scan required)
+    if sb:
+        try:
+            tickers_in_port = [h["ticker"] for h in holdings]
+            gem_resp = sb.table("signal_log")                 .select("ticker,is_hidden_gem")                 .in_("ticker", tickers_in_port)                 .eq("is_hidden_gem", True)                 .order("signal_date", desc=True)                 .limit(len(tickers_in_port) * 2)                 .execute()
+            port_gem_tickers = {row["ticker"] for row in (gem_resp.data or [])}
+        except Exception:
+            pass
+    # Fallback: detect from session scan if available
+    if not port_gem_tickers and scan:
         try:
             port_gems = detect_hidden_gems(scan, macro_data=st.session_state.get("macro_data"))
             port_gem_tickers = {g["ticker"] for g in port_gems}
