@@ -738,26 +738,50 @@ def run_intraday_refresh(tickers: list = None) -> dict:
         chunk = tickers[i:i + chunk_size]
         try:
             hist = yf.download(chunk, period="2d", auto_adjust=True, progress=False, threads=True)
-            if "Close" not in hist.columns:
+            if hist.empty:
+                log.warning(f"Intraday batch {i}: empty response from yfinance")
                 continue
-            close = hist["Close"]
             rows = []
-            for tk in chunk:
-                if tk in close.columns:
-                    vals = close[tk].dropna()
-                    if not vals.empty:
+            # Handle both single-ticker (Series) and multi-ticker (MultiIndex DataFrame)
+            if "Close" in hist.columns:
+                close = hist["Close"]
+                if hasattr(close, "columns"):
+                    # MultiIndex — multiple tickers
+                    for tk in chunk:
+                        if tk in close.columns:
+                            vals = close[tk].dropna()
+                            if not vals.empty:
+                                price = round(float(vals.iloc[-1]), 4)
+                                rows.append({"ticker": tk, "signal_date": today, "price": price})
+                else:
+                    # Single ticker — close is a Series
+                    vals = close.dropna()
+                    if not vals.empty and len(chunk) == 1:
                         price = round(float(vals.iloc[-1]), 4)
-                        rows.append({"ticker": tk, "signal_date": today, "price": price})
+                        rows.append({"ticker": chunk[0], "signal_date": today, "price": price})
+            elif hasattr(hist.columns, "levels"):
+                # MultiIndex columns — ("Close", "AAPL") format
+                for tk in chunk:
+                    try:
+                        vals = hist["Close"][tk].dropna()
+                        if not vals.empty:
+                            price = round(float(vals.iloc[-1]), 4)
+                            rows.append({"ticker": tk, "signal_date": today, "price": price})
+                    except Exception:
+                        pass
+
             if rows:
-                # Upsert price field only — don't overwrite scores
                 sb.table("signal_log").upsert(
                     rows, on_conflict="ticker,signal_date"
                 ).execute()
                 updated += len(rows)
+                log.info(f"Intraday batch {i}: updated {len(rows)} prices")
+            else:
+                log.warning(f"Intraday batch {i}: no prices extracted from response")
         except Exception as e:
             log.warning(f"Intraday batch {i} failed: {e}")
             failed += len(chunk)
-        time.sleep(0.5)  # be gentle with yfinance during market hours
+        time.sleep(0.5)
 
     duration = round(time.time() - start, 1)
     log.info(f"Intraday refresh complete: {updated} prices updated in {duration}s")
@@ -774,7 +798,9 @@ def run_intraday_refresh(tickers: list = None) -> dict:
         except Exception:
             pass  # non-critical
 
-    return {"success": True, "updated": updated, "failed": failed, "duration_s": duration}
+    if updated == 0 and failed == len(tickers):
+        return {"success": False, "error": f"All {failed} batches failed", "updated": 0, "duration_s": duration}
+    return {"success": True, "updated": updated, "failed": failed, "duration_s": duration, "mode": "intraday"}
 
 
 # ── ENTRYPOINT ────────────────────────────────────────────────────────────────
