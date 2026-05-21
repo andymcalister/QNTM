@@ -5542,6 +5542,29 @@ def page_model_portfolio():
     scan = st.session_state.get("scan_results") or []
     score_map = {r["ticker"]: r for r in scan}
 
+    # ── Pull latest prices + scores from signal_log (no scan required) ────────
+    if sb:
+        try:
+            tickers = [p["ticker"] for p in positions]
+            sig_resp = sb.table("signal_log")                 .select("ticker,price,adj_composite,composite,signal")                 .in_("ticker", tickers)                 .order("signal_date", desc=True)                 .limit(len(tickers) * 3)                 .execute()
+            # Take most recent row per ticker
+            seen = set()
+            for row in (sig_resp.data or []):
+                tk = row["ticker"]
+                if tk not in seen:
+                    seen.add(tk)
+                    # Merge into score_map — signal_log wins over stale session state
+                    if tk not in score_map:
+                        score_map[tk] = {}
+                    if row.get("price"):
+                        score_map[tk]["price"] = row["price"]
+                    if row.get("adj_composite"):
+                        score_map[tk]["adj_composite"] = row["adj_composite"]
+                    elif row.get("composite"):
+                        score_map[tk]["composite"] = row["composite"]
+        except Exception:
+            pass  # fall back to session state if query fails
+
     if not positions:
         # No positions yet — show what would be entered today
         st.markdown(
