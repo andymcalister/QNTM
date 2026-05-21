@@ -5732,14 +5732,15 @@ def page_model_portfolio():
 
     # Header
     st.markdown(
-        '<div style="display:grid;grid-template-columns:56px 1fr 60px 60px 48px;'
-        'gap:3px;padding:5px 8px;background:#050a0f;border-radius:6px 6px 0 0;'
+        '<div style="display:grid;grid-template-columns:90px 180px 1fr 90px 90px 64px;'
+        'gap:8px;padding:8px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
-        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;">ENTRY → NOW</div>'
-        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
-        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
-        '<div style="font-size:10px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY DATE</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY → CURRENT</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
+        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
         '</div>', unsafe_allow_html=True)
 
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
@@ -5756,15 +5757,16 @@ def page_model_portfolio():
         arrow     = f'{entry_str}→{cur_str}'
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:56px 1fr 60px 60px 48px;'
-            f'gap:3px;padding:6px 8px;background:{bg};'
+            f'<div style="display:grid;grid-template-columns:90px 180px 1fr 90px 90px 64px;'
+            f'gap:8px;padding:10px 16px;background:{bg};'
             f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{arrow}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{rc};text-align:right;">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{arrow}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
             f'</div>', unsafe_allow_html=True)
 
     st.markdown(
