@@ -4,8 +4,8 @@ on:
   schedule:
     # 2:00 AM UTC daily (6 PM PT / 9 PM ET — after US market close + settlement)
     - cron: "0 2 * * *"
-    # Intraday refresh every 15 min during US market hours (Mon–Fri, 1:30–8:45 PM UTC = 9:30 AM–4:45 PM ET)
-    - cron: "*/15 13-20 * * 1-5"
+    # Intraday refresh every 30 min during US market hours (Mon–Fri, 1:30–8:30 PM UTC = 9:30 AM–4:30 PM ET)
+    - cron: "*/30 13-20 * * 1-5"
   workflow_dispatch:
     inputs:
       force:
@@ -30,7 +30,7 @@ jobs:
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       ENCRYPTION_KEY:       ${{ secrets.ENCRYPTION_KEY }}
       # Set true during intraday cron — triggers lightweight price-only pass
-      INTRADAY_RUN:         ${{ github.event.schedule == '*/15 13-20 * * 1-5' && 'true' || 'false' }}
+      INTRADAY_RUN:         ${{ github.event.schedule == '*/30 13-20 * * 1-5' && 'true' || 'false' }}
 
     steps:
       - name: Checkout main branch
