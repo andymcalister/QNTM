@@ -5769,24 +5769,23 @@ def page_model_portfolio():
         score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
         gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
 
-        # Table row as expander label — keeps the grid layout visible, click to expand
-        with st.expander(f'{h["ticker"]}{gem_badge}', expanded=False):
-            # ── Replicate the table row inside the expander header area ───────
-            st.markdown(
-                f'<div style="display:grid;grid-template-columns:1fr 120px 1fr 90px 80px 80px 56px;'
-                f'gap:8px;padding:4px 0;background:{bg};align-items:center;margin-top:-8px;">'
-                f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{entry_str}→{cur_str}</div>'
-                f'<div></div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;text-align:right;">{shares_str} sh</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
-                f'</div>', unsafe_allow_html=True)
+        # ── Full table row (always visible) ───────────────────────────────────
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
+            f'gap:8px;padding:10px 16px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{entry_str}→{cur_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;text-align:right;">{shares_str} sh</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
+            f'</div>', unsafe_allow_html=True)
 
-            st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
-
-            # ── Pillar bars ───────────────────────────────────────────────────
+        # ── Collapsible detail (pillar scores) ────────────────────────────────
+        with st.expander("▸ pillar detail", expanded=False):
             pillars = [("MOM", h["momentum"]), ("QUAL", h["quality"]),
                        ("VOL", h["volume"]), ("VAL", h["value"]), ("SENT", h["sentiment"])]
             pc = st.columns(5)
@@ -5794,14 +5793,13 @@ def page_model_portfolio():
                 with col:
                     pc_c = "#00ff87" if val >= 60 else ("#fbbf24" if val >= 45 else "#ef4444")
                     st.markdown(
-                        f'<div style="text-align:center;">'
+                        f'<div style="text-align:center;padding:8px 0;">'
                         f'<div style="font-size:10px;color:#64748b;margin-bottom:4px;">{name}</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{pc_c};">{val:.0f}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{pc_c};">{val:.0f}</div>'
                         f'{_pill(val)}'
                         f'</div>', unsafe_allow_html=True)
-
             st.markdown(
-                f'<div style="font-size:11px;color:#475569;margin-top:10px;padding-top:8px;'
+                f'<div style="font-size:11px;color:#475569;margin-top:8px;padding-top:8px;'
                 f'border-top:1px solid rgba(255,255,255,.05);">'
                 f'${h["pos_size"]:,} position · Entry {entry_str} · '
                 f'{"💎 Hidden Gem at entry" if h.get("is_gem") else "Standard position"}'
