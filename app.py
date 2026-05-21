@@ -5512,7 +5512,7 @@ def page_account():
 def page_model_portfolio():
     """
     QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
-    Entry date = today (as if you acted on today's signals).
+    Entry date sourced from model_portfolio_positions (seeded 2026-05-19).
     Exits when score drops below 45. Reinvests into next-best BUY signal.
     """
     from data_refresh import _get_supabase
@@ -5520,8 +5520,8 @@ def page_model_portfolio():
 
     page_summary(
         "🏆", "Model Portfolio",
-        "QNTM's top 20 BUY signals tracked live. Entry date is today — as if you acted on today's recommendations.",
-        pills=["Equal weighted", "Top 20 BUY signals", "$10K per position", "Auto-rebalance on SELL signal"]
+        "QNTM's top 20 HIGH conviction signals tracked live from first signal date. Equal-weighted $10K per position, auto-exits when conviction drops below 45.",
+        pills=["Equal weighted", "Top 20 HIGH conviction", "$10K per position", "Auto-exit below score 45"]
     )
 
     sb = _get_supabase()
