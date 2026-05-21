@@ -5546,7 +5546,7 @@ def page_model_portfolio():
     if sb:
         try:
             tickers = [p["ticker"] for p in positions]
-            sig_resp = sb.table("signal_log")                 .select("ticker,price,adj_composite,composite,signal")                 .in_("ticker", tickers)                 .order("signal_date", desc=True)                 .limit(len(tickers) * 3)                 .execute()
+            sig_resp = sb.table("signal_log")                 .select("ticker,price,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,is_hidden_gem")                 .in_("ticker", tickers)                 .order("signal_date", desc=True)                 .limit(len(tickers) * 3)                 .execute()
             # Take most recent row per ticker
             seen = set()
             for row in (sig_resp.data or []):
@@ -5556,12 +5556,9 @@ def page_model_portfolio():
                     # Merge into score_map — signal_log wins over stale session state
                     if tk not in score_map:
                         score_map[tk] = {}
-                    if row.get("price"):
-                        score_map[tk]["price"] = row["price"]
-                    if row.get("adj_composite"):
-                        score_map[tk]["adj_composite"] = row["adj_composite"]
-                    elif row.get("composite"):
-                        score_map[tk]["composite"] = row["composite"]
+                    for field in ["price","adj_composite","composite","signal","momentum","quality","volume","value","sentiment","is_hidden_gem","hidden_gem_reason"]:
+                        if row.get(field) is not None:
+                            score_map[tk][field] = row[field]
         except Exception:
             pass  # fall back to session state if query fails
 
@@ -5630,12 +5627,19 @@ def page_model_portfolio():
             "ticker":        tk,
             "entry_date":    pos.get("entry_date", today),
             "entry_price":   entry_price,
+            "entry_score":   pos.get("entry_score", 50),
             "current_price": current_price,
             "current_score": current_data.get("adj_composite", current_data.get("composite", pos.get("entry_score", 50))),
+            "momentum":      current_data.get("momentum", 50),
+            "quality":       current_data.get("quality",  50),
+            "volume":        current_data.get("volume",   50),
+            "value":         current_data.get("value",    50),
+            "sentiment":     current_data.get("sentiment",50),
             "pos_size":      pos_size,
             "current_val":   current_val,
             "pnl":           pnl,
             "pnl_pct":       pnl_pct,
+            "is_gem":        current_data.get("is_hidden_gem", False),
         })
 
     port_return = (total_current / total_invested - 1) * 100 if total_invested > 0 else 0
@@ -5730,22 +5734,14 @@ def page_model_portfolio():
         except Exception:
             pass
 
-    # Header
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
-        'gap:8px;padding:8px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY DATE</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY → CURRENT</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SHARES</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
-        '</div>', unsafe_allow_html=True)
+    # Rows rendered as expanders below
+
+    def _pill(v):
+        c = "#00ff87" if v >= 60 else ("#fbbf24" if v >= 45 else "#ef4444")
+        return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:2px 0;">'
+                f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>')
 
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg        = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
         rc        = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
         sg        = "+" if h["pnl_pct"] >= 0 else ""
         entry_str  = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
@@ -5753,25 +5749,56 @@ def page_model_portfolio():
         pnl_str    = f'{sg}${h["pnl"]:,.0f}'       if h["entry_price"] and h["current_price"] else "—"
         ret_str    = f'{sg}{h["pnl_pct"]:.1f}%'    if h["entry_price"] and h["current_price"] else "—"
         shares     = (h["pos_size"] / h["entry_price"]) if h["entry_price"] and h["entry_price"] > 0 else None
-        shares_str = f'{shares:,.1f} sh' if shares else "—"
+        shares_str = f'{shares:,.1f}' if shares else "—"
         score      = h["current_score"]
         score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
         gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
-        arrow      = f'{entry_str}→{cur_str}'
+        exp_label  = f'{h["ticker"]}{gem_badge}  ·  {h["entry_date"]}  ·  {entry_str}→{cur_str}  ·  {ret_str}  ·  score {score:.0f}'
 
-        st.markdown(
-            f'<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
-            f'gap:8px;padding:10px 16px;background:{bg};'
-            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
-            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{arrow}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;text-align:right;">{shares_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
-            f'</div>', unsafe_allow_html=True)
+        with st.expander(exp_label, expanded=False):
+            # ── Mini stat strip ───────────────────────────────────────────────
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            def _stat(col, label, val, color="#cbd5e1"):
+                with col:
+                    st.markdown(
+                        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);'
+                        f'border-radius:6px;padding:10px;text-align:center;">'
+                        f'<div style="font-size:10px;color:#64748b;margin-bottom:4px;">{label}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{color};">{val}</div>'
+                        f'</div>', unsafe_allow_html=True)
+            _stat(sc1, "SHARES",     shares_str,    "#94a3b8")
+            _stat(sc2, "P&L",        pnl_str,       rc)
+            _stat(sc3, "RETURN",     ret_str,        rc)
+            _stat(sc4, "ENTRY SCORE", f'{h["entry_score"]:.0f}', "#64748b")
+
+            st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
+
+            # ── Pillar bars ───────────────────────────────────────────────────
+            pillars = [
+                ("MOM", h["momentum"]),
+                ("QUAL", h["quality"]),
+                ("VOL", h["volume"]),
+                ("VAL", h["value"]),
+                ("SENT", h["sentiment"]),
+            ]
+            pc = st.columns(5)
+            for col, (name, val) in zip(pc, pillars):
+                with col:
+                    pc_c = "#00ff87" if val >= 60 else ("#fbbf24" if val >= 45 else "#ef4444")
+                    st.markdown(
+                        f'<div style="text-align:center;">'
+                        f'<div style="font-size:10px;color:#64748b;margin-bottom:4px;">{name}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{pc_c};">{val:.0f}</div>'
+                        f'{_pill(val)}'
+                        f'</div>', unsafe_allow_html=True)
+
+            # ── Entry info ────────────────────────────────────────────────────
+            st.markdown(
+                f'<div style="font-size:11px;color:#475569;margin-top:12px;padding-top:10px;'
+                f'border-top:1px solid rgba(255,255,255,.05);">'
+                f'Entered {h["entry_date"]} · ${h["pos_size"]:,} position · Entry price {entry_str} · '
+                f'{"💎 Hidden Gem at entry" if h.get("is_gem") else "Standard position"}'
+                f'</div>', unsafe_allow_html=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
