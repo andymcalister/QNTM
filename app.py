@@ -5839,76 +5839,57 @@ def page_model_portfolio():
         except Exception:
             pass
 
-    # Rows rendered as expanders below
-
-    def _pill(v):
-        c = "#00ff87" if v >= 60 else ("#fbbf24" if v >= 45 else "#ef4444")
-        return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:2px 0;">'
-                f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>')
-
-    # Table header
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
-        'gap:8px;padding:8px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">TICKER</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY DATE</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;">ENTRY → CURRENT</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SHARES</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">P&L</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">RETURN</div>'
-        '<div style="font-size:11px;color:#64748b;letter-spacing:.06em;text-align:right;">SCORE</div>'
-        '</div>', unsafe_allow_html=True)
-
     for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg        = "rgba(255,255,255,.02)" if i % 2 == 0 else "rgba(255,255,255,.008)"
-        rc        = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-        sg        = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str  = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
-        cur_str    = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
-        pnl_str    = f'{sg}${h["pnl"]:,.0f}'       if h["entry_price"] and h["current_price"] else "—"
-        ret_str    = f'{sg}{h["pnl_pct"]:.1f}%'    if h["entry_price"] and h["current_price"] else "—"
-        shares     = (h["pos_size"] / h["entry_price"]) if h["entry_price"] and h["entry_price"] > 0 else None
-        shares_str = f'{shares:,.1f}' if shares else "—"
-        score      = h["current_score"]
-        score_col  = "#00ff87" if score >= 60 else ("#fbbf24" if score >= 45 else "#ef4444")
-        gem_badge  = " 💎" if h["ticker"] in port_gem_tickers else ""
+        bg       = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        rc       = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
+        sg       = "+" if h["pnl_pct"] >= 0 else ""
+        entry_str = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
+        cur_str   = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
+        pnl_str   = f'{sg}${abs(h["pnl"]):,.0f}' if h["entry_price"] and h["current_price"] else "—"
+        ret_str   = f'{sg}{h["pnl_pct"]:.1f}%'   if h["entry_price"] and h["current_price"] else "—"
+        shares    = (h["pos_size"] / h["entry_price"]) if h.get("entry_price") and h["entry_price"] > 0 else None
+        shares_str = f'{shares:,.1f} sh' if shares else "—"
+        score     = h["current_score"]
+        score_col = "#00ff87" if score >= 70 else ("#fbbf24" if score >= 55 else "#ef4444")
+        gem_badge = "💎 " if h["ticker"] in port_gem_tickers else ""
 
-        # ── Full table row (always visible) ───────────────────────────────────
+        # Company name + sector from score_map
+        sd       = score_map.get(h["ticker"], {})
+        ci       = get_company_info(h["ticker"])
+        co_name  = (ci.get("name","") if ci else "")[:28] or h["ticker"]
+        sector   = h.get("sector", sd.get("sector","")) or "—"
+        sec_short = sector[:18] + "…" if len(sector) > 18 else sector
+
+        # Left border accent by return
+        border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
+
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:90px 120px 1fr 90px 80px 80px 56px;'
-            f'gap:8px;padding:10px 16px;background:{bg};'
-            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
-            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{h["ticker"]}{gem_badge}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{h["entry_date"]}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{entry_str}→{cur_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;text-align:right;">{shares_str} sh</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{rc};text-align:right;">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score:.0f}</div>'
-            f'</div>', unsafe_allow_html=True)
+            f'<div style="display:grid;grid-template-columns:140px 1fr auto;'
+            f'gap:0;padding:14px 18px;background:{bg};margin-bottom:2px;'
+            f'border-left:3px solid {border_c};border-radius:0 6px 6px 0;'
+            f'align-items:center;">'
 
-        # ── Collapsible detail (pillar scores) ────────────────────────────────
-        with st.expander("▸ pillar detail", expanded=False):
-            pillars = [("MOM", h["momentum"]), ("QUAL", h["quality"]),
-                       ("VOL", h["volume"]), ("VAL", h["value"]), ("SENT", h["sentiment"])]
-            pc = st.columns(5)
-            for col, (name, val) in zip(pc, pillars):
-                with col:
-                    pc_c = "#00ff87" if val >= 60 else ("#fbbf24" if val >= 45 else "#ef4444")
-                    st.markdown(
-                        f'<div style="text-align:center;padding:8px 0;">'
-                        f'<div style="font-size:10px;color:#64748b;margin-bottom:4px;">{name}</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{pc_c};">{val:.0f}</div>'
-                        f'{_pill(val)}'
-                        f'</div>', unsafe_allow_html=True)
-            st.markdown(
-                f'<div style="font-size:11px;color:#475569;margin-top:8px;padding-top:8px;'
-                f'border-top:1px solid rgba(255,255,255,.05);">'
-                f'${h["pos_size"]:,} position · Entry {entry_str} · '
-                f'{"💎 Hidden Gem at entry" if h.get("is_gem") else "Standard position"}'
-                f'</div>', unsafe_allow_html=True)
+            # Left: ticker + name + sector
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
+            f'<div style="font-size:12px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{co_name}</div>'
+            f'<div style="font-size:10px;color:#475569;margin-top:1px;">{sec_short}</div>'
+            f'</div>'
+
+            # Centre: entry→current + shares + entry date
+            f'<div style="padding:0 16px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{entry_str} → {cur_str}</div>'
+            f'<div style="font-size:11px;color:#475569;margin-top:2px;">{shares_str} · entered {h["entry_date"]}</div>'
+            f'</div>'
+
+            # Right: score + return + P&L stacked
+            f'<div style="text-align:right;min-width:100px;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{score_col};line-height:1;">{score:.0f}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{rc};margin-top:2px;">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};opacity:.8;">{pnl_str}</div>'
+            f'</div>'
+
+            f'</div>', unsafe_allow_html=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
