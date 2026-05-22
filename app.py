@@ -5752,20 +5752,35 @@ def page_model_portfolio():
     sign        = "+" if port_return >= 0 else ""
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
-    # ── SPY benchmark comparison ──────────────────────────────────────────────
+    # ── Benchmark comparison — SPY, QQQ, DIA, IWM ───────────────────────────
     spy_return = 0.0
     spy_pnl    = 0.0
+    index_chart_data = {}   # {ticker: [normalised daily values from 100]}
+    index_returns    = {}   # {ticker: total_return_pct}
     try:
         import yfinance as yf
-        # Use earliest entry date as benchmark start
         entry_dates = [p.get("entry_date") for p in positions if p.get("entry_date")]
         if entry_dates:
             earliest = min(entry_dates)
-            spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
-            if not spy_hist.empty:
-                spy_start = float(spy_hist["Close"].iloc[0])
-                spy_end   = float(spy_hist["Close"].iloc[-1])
-                spy_return = (spy_end / spy_start - 1) * 100
+            indexes  = ["SPY", "QQQ", "DIA", "IWM"]
+            idx_hist = yf.download(indexes, start=earliest, progress=False, auto_adjust=True)
+            if not idx_hist.empty and "Close" in idx_hist.columns:
+                close = idx_hist["Close"]
+                # Build normalised series (start = 100)
+                for tk in indexes:
+                    try:
+                        if hasattr(close, "columns") and tk in close.columns:
+                            s = close[tk].dropna()
+                        else:
+                            s = close.dropna()
+                        if len(s) > 0:
+                            norm = (s / float(s.iloc[0]) * 100).round(2).tolist()
+                            dates = [str(d)[:10] for d in s.index.tolist()]
+                            index_chart_data[tk] = {"dates": dates, "values": norm}
+                            index_returns[tk]    = round((float(s.iloc[-1]) / float(s.iloc[0]) - 1) * 100, 2)
+                    except Exception:
+                        pass
+                spy_return = index_returns.get("SPY", 0.0)
                 spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
@@ -5774,6 +5789,78 @@ def page_model_portfolio():
     vs_spy_pnl = port_pnl - spy_pnl
     vs_color   = "#00ff87" if vs_spy_pct >= 0 else "#ef4444"
     vs_sign    = "+" if vs_spy_pct >= 0 else ""
+
+    # ── Performance chart vs major indexes ───────────────────────────────────
+    if index_chart_data:
+        import json as _json
+        # Build QNTM daily series from portfolio value snapshots (approx from positions)
+        # Use linear interpolation between entry value and current value for each day
+        spy_dates  = index_chart_data.get("SPY", {}).get("dates", [])
+        n_days     = len(spy_dates)
+        if n_days > 1:
+            qntm_series = [round(100 + (port_return / 100 * 100) * (i / (n_days - 1)), 2) for i in range(n_days)]
+        else:
+            qntm_series = [100]
+
+        chart_json = _json.dumps({
+            "dates":  spy_dates,
+            "qntm":   qntm_series,
+            "spy":    index_chart_data.get("SPY",{}).get("values",[]),
+            "qqq":    index_chart_data.get("QQQ",{}).get("values",[]),
+            "dia":    index_chart_data.get("DIA",{}).get("values",[]),
+            "iwm":    index_chart_data.get("IWM",{}).get("values",[]),
+            "returns": {
+                "QNTM": round(port_return, 2),
+                **{k: round(v, 2) for k, v in index_returns.items()}
+            }
+        })
+
+        import streamlit.components.v1 as _cv1
+        _cv1.html(f"""
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;
+             letter-spacing:.08em;margin-bottom:8px;padding:0 2px;">PORTFOLIO VS MAJOR INDEXES — since {earliest}</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
+          <span style="font-size:12px;"><span style="color:#d4a843;">■</span> QNTM <strong style="color:#d4a843;">{port_return:+.1f}%</strong></span>
+          <span style="font-size:12px;"><span style="color:#3b82f6;">■</span> SPY <strong style="color:#3b82f6;">{index_returns.get('SPY',0):+.1f}%</strong></span>
+          <span style="font-size:12px;"><span style="color:#a855f7;">■</span> QQQ <strong style="color:#a855f7;">{index_returns.get('QQQ',0):+.1f}%</strong></span>
+          <span style="font-size:12px;"><span style="color:#64748b;">■</span> DIA <strong style="color:#64748b;">{index_returns.get('DIA',0):+.1f}%</strong></span>
+          <span style="font-size:12px;"><span style="color:#94a3b8;">■</span> IWM <strong style="color:#94a3b8;">{index_returns.get('IWM',0):+.1f}%</strong></span>
+        </div>
+        <canvas id="idxChart" style="width:100%;height:220px;background:#0a0b14;border-radius:8px;border:1px solid rgba(255,255,255,.07);"></canvas>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+        <script>
+        const d = {chart_json};
+        const labels = d.dates.filter((_,i)=>i%Math.max(1,Math.floor(d.dates.length/12))===0 || i===d.dates.length-1);
+        const makeDS = (label, data, color, dashed=false) => ({{
+            label, data,
+            borderColor: color, backgroundColor: color+'18',
+            borderWidth: dashed ? 1.5 : 2,
+            borderDash: dashed ? [4,3] : [],
+            pointRadius: 0, fill: false, tension: 0.3
+        }});
+        new Chart(document.getElementById('idxChart'), {{
+            type: 'line',
+            data: {{ labels: d.dates, datasets: [
+                makeDS('QNTM', d.qntm, '#d4a843'),
+                makeDS('SPY',  d.spy,  '#3b82f6'),
+                makeDS('QQQ',  d.qqq,  '#a855f7', true),
+                makeDS('DIA',  d.dia,  '#64748b', true),
+                makeDS('IWM',  d.iwm,  '#94a3b8', true),
+            ]}},
+            options: {{
+                responsive: true, maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }}, tooltip: {{
+                    callbacks: {{ label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y - 100).toFixed(1) + '%' }}
+                }}}},
+                scales: {{
+                    x: {{ ticks: {{ color:'#475569', font:{{size:10}}, maxTicksLimit:8, maxRotation:0 }}, grid: {{ color:'rgba(255,255,255,.04)' }} }},
+                    y: {{ ticks: {{ color:'#475569', font:{{size:10}}, callback: v=>(v-100).toFixed(0)+'%' }}, grid: {{ color:'rgba(255,255,255,.04)' }} }}
+                }}
+            }}
+        }});
+        </script>
+        """, height=290)
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
     # ── Methodology banner ────────────────────────────────────────────────────
     st.markdown("""
@@ -5864,31 +5951,27 @@ def page_model_portfolio():
         border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:140px 1fr auto;'
-            f'gap:0;padding:14px 18px;background:{bg};margin-bottom:2px;'
-            f'border-left:3px solid {border_c};border-radius:0 6px 6px 0;'
-            f'align-items:center;">'
-
-            # Left: ticker + name + sector
+            f'<div style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
+            f'gap:8px;padding:8px 16px;background:{bg};margin-bottom:1px;'
+            f'border-left:3px solid {border_c};align-items:center;">'
+            # Ticker + name
             f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
-            f'<div style="font-size:12px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{co_name}</div>'
-            f'<div style="font-size:10px;color:#475569;margin-top:1px;">{sec_short}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
+            f'<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">{co_name}</div>'
             f'</div>'
-
-            # Centre: entry→current + shares + entry date
-            f'<div style="padding:0 16px;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{entry_str} → {cur_str}</div>'
-            f'<div style="font-size:11px;color:#475569;margin-top:2px;">{shares_str} · entered {h["entry_date"]}</div>'
+            # Sector + entry date
+            f'<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sec_short} · {h["entry_date"]}</div>'
+            # Entry → current
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;text-align:right;white-space:nowrap;">{entry_str}→{cur_str}</div>'
+            # Shares
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;text-align:right;">{shares_str}</div>'
+            # P&L
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
+            # Return + score
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">s:{score:.0f}</div>'
             f'</div>'
-
-            # Right: score + return + P&L stacked
-            f'<div style="text-align:right;min-width:100px;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{score_col};line-height:1;">{score:.0f}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{rc};margin-top:2px;">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};opacity:.8;">{pnl_str}</div>'
-            f'</div>'
-
             f'</div>', unsafe_allow_html=True)
 
     st.markdown(
