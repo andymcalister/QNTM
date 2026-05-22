@@ -5752,35 +5752,19 @@ def page_model_portfolio():
     sign        = "+" if port_return >= 0 else ""
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
-    # ── Benchmark comparison — SPY, QQQ, DIA, IWM ───────────────────────────
+    # ── SPY benchmark comparison ──────────────────────────────────────────────
     spy_return = 0.0
     spy_pnl    = 0.0
-    index_chart_data = {}   # {ticker: [normalised daily values from 100]}
-    index_returns    = {}   # {ticker: total_return_pct}
     try:
         import yfinance as yf
         entry_dates = [p.get("entry_date") for p in positions if p.get("entry_date")]
         if entry_dates:
             earliest = min(entry_dates)
-            indexes  = ["SPY", "QQQ", "DIA", "IWM"]
-            idx_hist = yf.download(indexes, start=earliest, progress=False, auto_adjust=True)
-            if not idx_hist.empty and "Close" in idx_hist.columns:
-                close = idx_hist["Close"]
-                # Build normalised series (start = 100)
-                for tk in indexes:
-                    try:
-                        if hasattr(close, "columns") and tk in close.columns:
-                            s = close[tk].dropna()
-                        else:
-                            s = close.dropna()
-                        if len(s) > 0:
-                            norm = (s / float(s.iloc[0]) * 100).round(2).tolist()
-                            dates = [str(d)[:10] for d in s.index.tolist()]
-                            index_chart_data[tk] = {"dates": dates, "values": norm}
-                            index_returns[tk]    = round((float(s.iloc[-1]) / float(s.iloc[0]) - 1) * 100, 2)
-                    except Exception:
-                        pass
-                spy_return = index_returns.get("SPY", 0.0)
+            spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
+            if not spy_hist.empty:
+                spy_start  = float(spy_hist["Close"].iloc[0])
+                spy_end    = float(spy_hist["Close"].iloc[-1])
+                spy_return = (spy_end / spy_start - 1) * 100
                 spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
@@ -5790,178 +5774,7 @@ def page_model_portfolio():
     vs_color   = "#00ff87" if vs_spy_pct >= 0 else "#ef4444"
     vs_sign    = "+" if vs_spy_pct >= 0 else ""
 
-    # ── Performance chart vs major indexes ───────────────────────────────────
-    if index_chart_data:
-        import streamlit.components.v1 as _mp_cv1
 
-        # Build $10K normalised series for each index (same scale as portfolio)
-        spy_vals  = index_chart_data.get("SPY", {}).get("values", [])
-        qqq_vals  = index_chart_data.get("QQQ", {}).get("values", [])
-        dia_vals  = index_chart_data.get("DIA", {}).get("values", [])
-        iwm_vals  = index_chart_data.get("IWM", {}).get("values", [])
-        day_labels = index_chart_data.get("SPY", {}).get("dates", [])
-        n = len(day_labels)
-
-        # Scale indexes to $200K (same starting capital as portfolio)
-        def scale(vals):
-            return [round(total_invested * v / 100, 0) for v in vals] if vals else []
-
-        # QNTM: linear interpolation from total_invested to total_current
-        if n > 1:
-            qntm_vals = [round(total_invested + (total_current - total_invested) * i / (n-1), 0) for i in range(n)]
-        else:
-            qntm_vals = [total_invested]
-
-        spy_scaled  = scale(spy_vals)
-        qqq_scaled  = scale(qqq_vals)
-        dia_scaled  = scale(dia_vals)
-        iwm_scaled  = scale(iwm_vals)
-
-        spy_r  = index_returns.get("SPY", 0)
-        qqq_r  = index_returns.get("QQQ", 0)
-        dia_r  = index_returns.get("DIA", 0)
-        iwm_r  = index_returns.get("IWM", 0)
-        pr_sign = "+" if port_return >= 0 else ""
-        spy_sign = "+" if spy_r >= 0 else ""
-        qqq_sign = "+" if qqq_r >= 0 else ""
-        dia_sign = "+" if dia_r >= 0 else ""
-        iwm_sign = "+" if iwm_r >= 0 else ""
-
-        mp_chart_html = f"""<!DOCTYPE html><html>
-<head><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script></head>
-<body style="margin:0;background:#0a0b14;padding:0;">
-<div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0 10px 4px;">
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">
-    <span style="width:18px;height:2.5px;background:#d4a843;display:inline-block;border-radius:2px;"></span>
-    QNTM {pr_sign}{port_return:.1f}%
-  </span>
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:12px;color:#64748b;">
-    <span style="width:18px;height:1.5px;background:#64748b;display:inline-block;border-radius:2px;"></span>
-    SPY {spy_sign}{spy_r:.1f}%
-  </span>
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:12px;color:#a855f7;">
-    <span style="width:18px;height:1.5px;background:#a855f7;display:inline-block;border-radius:2px;opacity:0.7;"></span>
-    QQQ {qqq_sign}{qqq_r:.1f}%
-  </span>
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:12px;color:#3b82f6;">
-    <span style="width:18px;height:1.5px;background:#3b82f6;display:inline-block;border-radius:2px;opacity:0.7;"></span>
-    DIA {dia_sign}{dia_r:.1f}%
-  </span>
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:12px;color:#475569;">
-    <span style="width:18px;height:1.5px;background:#475569;display:inline-block;border-radius:2px;opacity:0.7;"></span>
-    IWM {iwm_sign}{iwm_r:.1f}%
-  </span>
-</div>
-<div style="position:relative;height:300px;width:100%;">
-<canvas id="mpChart"></canvas>
-</div>
-<script>
-const labels = {day_labels};
-new Chart(document.getElementById('mpChart'), {{
-  type: 'line',
-  data: {{
-    labels: labels,
-    datasets: [
-      {{
-        label: 'QNTM',
-        data: {qntm_vals},
-        borderColor: '#d4a843',
-        backgroundColor: 'rgba(212,168,67,0.06)',
-        borderWidth: 2.5,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        fill: true,
-        tension: 0.3,
-      }},
-      {{
-        label: 'SPY',
-        data: {spy_scaled},
-        borderColor: 'rgba(100,116,139,0.9)',
-        backgroundColor: 'rgba(100,116,139,0.03)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        fill: false,
-        tension: 0.3,
-        borderDash: [5,4],
-      }},
-      {{
-        label: 'QQQ',
-        data: {qqq_scaled},
-        borderColor: 'rgba(168,85,247,0.7)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        tension: 0.3,
-        borderDash: [3,3],
-      }},
-      {{
-        label: 'DIA',
-        data: {dia_scaled},
-        borderColor: 'rgba(59,130,246,0.7)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        tension: 0.3,
-        borderDash: [3,3],
-      }},
-      {{
-        label: 'IWM',
-        data: {iwm_scaled},
-        borderColor: 'rgba(71,85,105,0.7)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        tension: 0.3,
-        borderDash: [2,4],
-      }},
-    ]
-  }},
-  options: {{
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {{
-      legend: {{ display: false }},
-      tooltip: {{
-        backgroundColor: '#0d1117',
-        borderColor: 'rgba(212,168,67,0.3)',
-        borderWidth: 1,
-        titleColor: '#d4a843',
-        bodyColor: '#94a3b8',
-        padding: 10,
-        callbacks: {{
-          label: ctx => ' ' + ctx.dataset.label + ': $' + ctx.parsed.y.toLocaleString(),
-        }}
-      }}
-    }},
-    scales: {{
-      x: {{
-        grid: {{ color: 'rgba(255,255,255,0.03)' }},
-        ticks: {{
-          color: '#334155',
-          font: {{ family: 'DM Mono, monospace', size: 10 }},
-          maxTicksLimit: 10,
-          maxRotation: 45,
-        }},
-        border: {{ color: 'rgba(255,255,255,0.05)' }},
-      }},
-      y: {{
-        grid: {{ color: 'rgba(255,255,255,0.03)' }},
-        ticks: {{
-          color: '#334155',
-          font: {{ family: 'DM Mono, monospace', size: 10 }},
-          callback: v => '$' + (v/1000).toFixed(0) + 'K',
-        }},
-        border: {{ color: 'rgba(255,255,255,0.05)' }},
-      }}
-    }}
-  }}
-}});
-</script>
-</body></html>"""
-
-        _mp_cv1.html(mp_chart_html, height=400)
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     # ── Methodology banner ────────────────────────────────────────────────────
     st.markdown("""
