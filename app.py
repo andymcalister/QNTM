@@ -121,7 +121,7 @@ section[data-testid="stMain"] > div,
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(0,255,135,.25)}50%{box-shadow:0 0 28px rgba(0,255,135,.55)}}
+@keyframes glow{0%,100%{box-shadow:0 0 4px rgba(0,255,135,.1)}50%{box-shadow:0 0 12px rgba(0,255,135,.2)}}
 @keyframes scanLine{0%{top:-2px}100%{top:100%}}
 @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 @keyframes borderAnim{0%,100%{border-color:rgba(0,255,135,.2)}50%{border-color:rgba(0,255,135,.6)}}
@@ -137,9 +137,9 @@ section[data-testid="stMain"] > div,
   100% { background-position:  200% center; }
 }
 .stButton > button {
-  background: linear-gradient(135deg,#0d1f18 0%,#0a1a12 50%,#0d1f18 100%) !important;
+  background: rgba(0,255,135,.06) !important;
   color: #00ff87 !important;
-  border: 1px solid rgba(0,255,135,.35) !important;
+  border: 1px solid rgba(0,255,135,.22) !important;
   border-radius: 6px !important;
   font-family: 'Syne', sans-serif !important;
   font-weight: 700 !important;
@@ -154,8 +154,8 @@ section[data-testid="stMain"] > div,
   text-overflow: ellipsis !important;
   min-height: 42px !important;
   height: 42px !important;
-  transition: border-color .2s, box-shadow .2s, transform .15s !important;
-  box-shadow: 0 0 0 0 rgba(0,255,135,0), inset 0 1px 0 rgba(0,255,135,.12) !important;
+  transition: border-color .18s, background .18s, transform .12s !important;
+  box-shadow: none !important;
 }
 .stButton > button::before {
   content: '' !important;
@@ -170,11 +170,10 @@ section[data-testid="stMain"] > div,
   transition: opacity .2s !important;
 }
 .stButton > button:hover {
-  border-color: rgba(0,255,135,.75) !important;
-  box-shadow: 0 0 20px rgba(0,255,135,.18), 0 4px 16px rgba(0,0,0,.4),
-              inset 0 1px 0 rgba(0,255,135,.2) !important;
-  transform: translateY(-2px) !important;
-  background: linear-gradient(135deg,#0f2a1e 0%,#0c2018 50%,#0f2a1e 100%) !important;
+  border-color: rgba(0,255,135,.5) !important;
+  background: rgba(0,255,135,.1) !important;
+  box-shadow: none !important;
+  transform: translateY(-1px) !important;
 }
 .stButton > button:hover::before { opacity: 1 !important; }
 .stButton > button:active { transform: translateY(0) !important; }
@@ -533,9 +532,45 @@ for k, v in {
     "signed_out": False,
     "onboarding_done": False,
     "onboarding_step": 0,
+    "tz_offset_hours": None,  # browser timezone offset, injected on first load
+    "tz_name": None,          # IANA timezone name e.g. America/Los_Angeles
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ── TIMEZONE DETECTION ────────────────────────────────────────────────────────
+# Read ?_tz= query param set by browser JS on first load, store in session state
+_tz_param = st.query_params.get("_tz", "")
+if _tz_param and st.session_state.get("tz_offset_hours") is None:
+    try:
+        st.session_state.tz_offset_hours = float(_tz_param)
+        st.query_params.pop("_tz", None)
+    except Exception:
+        pass
+
+_tz_name_param = st.query_params.get("_tzname", "")
+if _tz_name_param and st.session_state.get("tz_name") is None:
+    st.session_state.tz_name = _tz_name_param
+    st.query_params.pop("_tzname", None)
+
+if st.session_state.get("tz_offset_hours") is None:
+    import streamlit.components.v1 as _tz_cv1
+    _tz_cv1.html("""
+    <script>
+    (function() {
+        try {
+            var offset = -(new Date().getTimezoneOffset() / 60);
+            var tzname = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            var url = new URL(window.parent.location.href);
+            if (!url.searchParams.get('_tz')) {
+                url.searchParams.set('_tz', offset.toString());
+                url.searchParams.set('_tzname', tzname);
+                window.parent.location.replace(url.toString());
+            }
+        } catch(e) {}
+    })();
+    </script>
+    """, height=0)
 
 
 # ── PERSISTENT LOGIN — 7-day localStorage token ───────────────────────────────
@@ -647,7 +682,7 @@ def show_onboarding():
         {
             "icon": "⚡",
             "title": "Welcome to QNTM",
-            "body": "QNTM scores 834 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to buy, hold, or exit. One conviction score. No noise.",
+            "body": "QNTM scores 834 stocks across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — then blends in a live macro overlay to tell you exactly what to enter, maintain, or exit. One conviction score. No noise.",
             "cta": "Next →",
         },
         {
@@ -708,33 +743,50 @@ def show_onboarding():
 
 # ── DATA FRESHNESS ────────────────────────────────────────────────────────────
 def data_freshness_banner():
-    """Show data age pill with actual datetime from signal_log.created_at."""
+    """Show data age pill with actual datetime from signal_log.created_at, in user's local time."""
     try:
         from data_refresh import _get_supabase
         from datetime import datetime, timezone, timedelta
         dt_str = None
         fresh  = True
+        tz_offset = st.session_state.get("tz_offset_hours")
+        tz_name   = st.session_state.get("tz_name")
+
+        def _fmt(raw: str) -> str:
+            dt     = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            dt_utc = dt.astimezone(timezone.utc)
+            if tz_name:
+                try:
+                    from zoneinfo import ZoneInfo
+                    dt_local = dt_utc.astimezone(ZoneInfo(tz_name))
+                    tz_abbr  = dt_local.strftime("%Z")  # e.g. PDT, EST, GMT
+                    return dt_local.strftime(f"%b %d · %H:%M {tz_abbr}")
+                except Exception:
+                    pass
+            if tz_offset is not None:
+                dt_local = dt_utc + timedelta(hours=tz_offset)
+                sign     = "+" if tz_offset >= 0 else ""
+                hrs      = int(tz_offset)
+                return dt_local.strftime(f"%b %d · %H:%M UTC{sign}{hrs}")
+            return dt_utc.strftime("%b %d · %H:%M UTC")
+
         try:
             sb = _get_supabase()
             if sb:
-                # Check fundamentals_cache.refreshed_at — updated on every run incl. intraday
                 resp = sb.table("fundamentals_cache").select("refreshed_at").order(
                     "refreshed_at", desc=True).limit(1).execute()
                 if resp.data and resp.data[0].get("refreshed_at"):
                     raw    = resp.data[0]["refreshed_at"]
-                    dt     = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-                    dt_utc = dt.astimezone(timezone.utc)
-                    dt_str = dt_utc.strftime("%b %d · %H:%M UTC")
+                    dt_str = _fmt(raw)
+                    dt_utc = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(timezone.utc)
                     fresh  = (datetime.now(timezone.utc) - dt_utc) < timedelta(hours=26)
                 else:
-                    # Fallback: signal_log created_at (nightly only)
                     resp2 = sb.table("signal_log").select("created_at").order(
                         "created_at", desc=True).limit(1).execute()
                     if resp2.data:
                         raw    = resp2.data[0]["created_at"]
-                        dt     = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-                        dt_utc = dt.astimezone(timezone.utc)
-                        dt_str = dt_utc.strftime("%b %d · %H:%M UTC")
+                        dt_str = _fmt(raw)
+                        dt_utc = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(timezone.utc)
                         fresh  = (datetime.now(timezone.utc) - dt_utc) < timedelta(hours=26)
         except Exception:
             dt_str = None
@@ -1158,10 +1210,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     weak = [p[0] for p in sorted_pillars if p[1] < 45]
     driver = f"Driven by {top2[0]} + {top2[1]}"
     if weak: driver += f" — watch {weak[0]}"
+    macro_score_delta = float(r.get("score_delta", 0) or 0)
+    if abs(macro_score_delta) >= 2:
+        _dir = "strengthening" if macro_score_delta > 0 else "weakening"
+        driver += f" · Macro {_dir} {abs(macro_score_delta):.1f}pts"
     delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
     gem_badge = ' 💎' if is_gem else ""
-    action_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MODERATE"
+    action_label = "High Conviction" if act=="BUY" else "Low Conviction" if act=="SELL" else "Moderate Conviction"
     action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
     ci_name = (company_info or {}).get("name","")
     ci_desc = (company_info or {}).get("description","")
@@ -1352,7 +1408,7 @@ def resolve_ticker(query: str) -> tuple[str, str]:
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
 
     gem_badge = '<span style="font-size:13px;margin-left:6px;">💎</span>' if is_gem else ""
-    action_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MODERATE"
+    action_label = "High Conviction" if act=="BUY" else "Low Conviction" if act=="SELL" else "Moderate Conviction"
     action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
 
     # Build HTML as a variable first — no comments, no risk of comment stripping
@@ -1931,15 +1987,15 @@ def page_landing():
         </span>
       </div>
 
-      <h1 style="font-family:'Syne',sans-serif;font-size:clamp(44px,7vw,84px);
+      <h1 style="font-family:'Syne',sans-serif;font-size:clamp(38px,6.5vw,76px);
            font-weight:800;line-height:.95;letter-spacing:-.02em;color:#ffffff;margin-bottom:22px;">
-        Institutional-grade quant signals.<br>
-        <span style="color:#d4a843;">Built for retail investors.</span>
+        Know where conviction<br>
+        <span style="color:#d4a843;">is strongest.</span>
       </h1>
 
-      <p style="font-size:18px;color:#94a3b8;max-width:540px;line-height:1.75;margin-bottom:40px;">
-        Institutional-grade factor model for retail investors. Know exactly what to buy,
-        when to hold, and &mdash; critically &mdash; what to avoid.
+      <p style="font-size:17px;color:#94a3b8;max-width:520px;line-height:1.75;margin-bottom:40px;">
+        QNTM surfaces high conviction opportunities, weakening signals, and market regime shifts
+        across 834 stocks — refreshed daily, grounded in a multi-factor quantitative model.
       </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1948,7 +2004,7 @@ def page_landing():
     hb1, hb2 = st.columns(2)
     with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("⚡ Get Started Free", key="hero_register", use_container_width=True):
+        if st.button("Explore QNTM Free →", key="hero_register", use_container_width=True):
             st.session_state.auth_tab = "register"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1967,8 +2023,8 @@ def page_landing():
         buys  = [s for s in tape_scores if s.get("adj_action","") == "BUY"  or s.get("action","") == "BUY"][:8]
         sells = [s for s in tape_scores if s.get("adj_action","") == "SELL" or s.get("action","") == "SELL"][:5]
         tape_items = (
-            [(s["ticker"],"HIGH","#00ff87") for s in buys] +
-            [(s["ticker"],"LOW","#E24B4A")  for s in sells]
+            [(s["ticker"],"High","#00ff87") for s in buys] +
+            [(s["ticker"],"Low","#E24B4A")  for s in sells]
         )
     else:
         # Static fallback — updated to current model signals
@@ -2116,7 +2172,7 @@ def page_landing():
       </h2>
       <p style="color:#94a3b8;max-width:520px;margin-bottom:36px;line-height:1.7;">
         36 factors scored weekly across 5 research-backed pillars — plus a 75/25 macro overlay.
-        The model tells you exactly what to buy, hold, or exit. And why.
+        The model tells you exactly what to enter, maintain, or exit. And why.
       </p>
     </div>
     """, unsafe_allow_html=True)
@@ -2714,9 +2770,9 @@ def platform_nav():
     )
 
     nav_labels = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio",
-                  "🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account","🚪 Sign Out"]
+                  "🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account","📖 Methodology","🚪 Sign Out"]
     nav_keys   = ["screener","gems","backtest","portfolio",
-                  "simulator","model_portfolio","alerts","account","__signout__"]
+                  "simulator","model_portfolio","alerts","account","methodology","__signout__"]
     cur_nav    = st.session_state.get("nav","screener")
     cur_idx    = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
 
@@ -2993,9 +3049,9 @@ def page_screener():
 
     # Summary strip — single HTML row, no Streamlit columns
     stat_items = [
-        ("HIGH",     "#00ff87", str(buys)),
-        ("MODERATE", "#fbbf24", str(holds)),
-        ("LOW",      "#ef4444", str(sells)),
+        ("HIGH CONVICTION",  "#00ff87", str(buys)),
+        ("MODERATE",         "#fbbf24", str(holds)),
+        ("LOW CONVICTION",   "#ef4444", str(sells)),
         ("GEMS",  "#00ff87", str(len(gems))),
         ("UNIV",  "#475569", f"{len(results)}"),
     ]
@@ -3030,8 +3086,8 @@ def page_screener():
         """, unsafe_allow_html=True)
         col_b, col_s = st.columns(2)
         for col, label, color, ranked, action_lbl in [
-            (col_b, "▲ TOP 10 HIGH CONVICTION", "#00ff87", buys_ranked[:10],  "▲ HIGH"),
-            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10], "▼ LOW"),
+            (col_b, "▲ TOP 10 HIGH CONVICTION", "#00ff87", buys_ranked[:10],  "▲ High Conviction"),
+            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10], "▼ Low Conviction"),
         ]:
             with col:
                 count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
@@ -3152,6 +3208,34 @@ def page_screener():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+def _gem_why_tags(r: dict) -> list:
+    """Short reason tags for why this stock was surfaced as a Hidden Gem."""
+    tags, comp = [], float(r.get("adj_composite", r.get("composite", 50)) or 50)
+    mom  = float(r.get("momentum",  50) or 50)
+    qual = float(r.get("quality",   50) or 50)
+    val  = float(r.get("value",     50) or 50)
+    sent = float(r.get("sentiment", 50) or 50)
+    vol  = float(r.get("volume",    50) or 50)
+    delta = float(r.get("score_delta", 0) or 0)
+    if mom  >= 65: tags.append("Momentum leadership")
+    if qual >= 65: tags.append("Quality improving")
+    if val  >= 65: tags.append("Undervalued")
+    if sent >= 60: tags.append("Positive sentiment")
+    if vol  >= 65: tags.append("Volume confirming")
+    if delta > 2:  tags.append("Macro tailwind")
+    if comp >= 68: tags.append("Rising conviction")
+    reason = r.get("hidden_gem_reason", "")
+    why_tags = _gem_why_tags(r)
+    why_html = "".join(
+        f'<span style="background:rgba(212,168,67,.1);border:1px solid rgba(212,168,67,.18);"'
+        f'border-radius:10px;padding:2px 8px;font-size:10px;color:#d4a843;font-family:DM Mono,monospace;margin-right:4px;">{t}</span>'
+        for t in why_tags
+    )
+    if "coverage" in reason.lower():  tags.append("Low analyst coverage")
+    if "insider"  in reason.lower():  tags.append("Insider activity")
+    return tags[:3]
+
+
 def page_gems():
     page_summary(
         "💎", "Hidden Gems",
@@ -3270,7 +3354,14 @@ def page_gems():
                 '</div>'
                 '<div style="border-top:1px solid rgba(0,255,135,.1);padding-top:12px;">'
                 + reasons_html +
-                '</div></div>'
+                '</div>'
+                + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;">'
+                + "".join(
+                    f'<span style="background:rgba(212,168,67,.1);border:1px solid rgba(212,168,67,.18);'
+                    f'border-radius:10px;padding:2px 8px;font-size:10px;color:#d4a843;font-family:DM Mono,monospace;">{t}</span>'
+                    for t in _gem_why_tags(g)
+                )
+                + '</div></div>'
             )
             gem_cards_html += card
         except Exception:
@@ -3780,6 +3871,32 @@ def page_portfolio():
     holdings  = get_holdings(uid())
     n_holdings = len(holdings)
 
+    # ── Portfolio conviction summary ────────────────────────────────────
+    if holdings and score_map:
+        _sc = [float(score_map.get(h["ticker"],{}).get("adj_composite",50) or 50) for h in holdings]
+        _hi, _mo, _lo = sum(1 for x in _sc if x>=60), sum(1 for x in _sc if 45<=x<60), sum(1 for x in _sc if x<45)
+        _avg = sum(_sc)/len(_sc)
+        _cl  = "High" if _avg>=60 else ("Low" if _avg<45 else "Moderate")
+        _cc  = "#00ff87" if _avg>=60 else ("#ef4444" if _avg<45 else "#fbbf24")
+        _html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 32px 20px;">'
+        for _lb, _vl, _cl2, _sb in [
+            ("PORTFOLIO CONVICTION", _cl,      _cc,       f"avg score {_avg:.0f}"),
+            ("HIGH CONVICTION",      str(_hi), "#00ff87", "positions"),
+            ("MODERATE",             str(_mo), "#fbbf24", "positions"),
+            ("LOW CONVICTION",       str(_lo), "#ef4444", f"{"⚠ " if _lo>0 else ""}{_lo} positions"),
+        ]:
+            _fsz = "16px" if len(_vl)>3 else "22px"
+            _html += (
+                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);"'
+                f'border-radius:8px;padding:12px 14px;text-align:center;">'
+                f'<div style="font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:4px;">{_lb}</div>'
+                f'<div style="font-family:Syne,sans-serif;font-size:{_fsz};font-weight:700;color:{_cl2};">{_vl}</div>'
+                f'<div style="font-size:9px;color:#475569;margin-top:3px;">{_sb}</div></div>'
+            )
+        _html += '</div>'
+        st.markdown(_html, unsafe_allow_html=True)
+
+
     # ── Plan capacity bar ──────────────────────────────────────────────────────
     if plan == "free":
         pct = min(100, int(n_holdings / max_h * 100))
@@ -4188,7 +4305,7 @@ def page_portfolio():
         }
         act_c, act_bg, act_brd = act_colors.get(act, act_colors["N/A"])
         arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
-        act_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MOD"
+        act_label = "High" if act=="BUY" else "Low" if act=="SELL" else "Moderate"
 
         # Pillar bars — clean horizontal with gradient fill
         def pbar_row(name, v):
@@ -4751,10 +4868,10 @@ def page_alerts():
                   <div>
                     <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:600;
                          color:{'#e2e8f0' if not is_read else '#94a3b8'};">
-                      {n.get('title','').replace('BUY','HIGH').replace('SELL','LOW').replace('HOLD','MODERATE')}
+                      {n.get('title','').replace('BUY','High Conviction').replace('SELL','Low Conviction').replace('HOLD','Moderate Conviction')}
                     </div>
                     <div style="font-size:13px;color:#94a3b8;margin-top:3px;line-height:1.5;">
-                      {n.get('body','').replace('BUY','HIGH').replace('SELL','LOW').replace('HOLD','MODERATE')}
+                      {n.get('body','').replace('BUY','High Conviction').replace('SELL','Low Conviction').replace('HOLD','Moderate Conviction')}
                     </div>
                   </div>
                 </div>
@@ -5072,14 +5189,14 @@ def page_model_portfolio():
     """
     QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
     Entry date sourced from model_portfolio_positions (seeded 2026-05-19).
-    Exits when score drops below 45. Reinvests into next-best BUY signal.
+    Exits when conviction score drops below 45. Reinvests into next highest conviction signal.
     """
     from data_refresh import _get_supabase
     import datetime
 
     page_summary(
         "🏆", "Model Portfolio",
-        "QNTM's top 20 HIGH conviction signals tracked live from first signal date. Equal-weighted $10K per position, auto-exits when conviction drops below 45.",
+        "QNTM's model portfolio — 20 High Conviction positions tracked from May 19, 2026. Equal-weighted $10K per position. Exits when conviction score drops below 45.",
         pills=["Equal weighted", "Top 20 HIGH conviction", "$10K per position", "Auto-exit below score 45"]
     )
 
@@ -5252,7 +5369,7 @@ def page_model_portfolio():
         <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model generates a SELL signal
         (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover, transaction costs, and
         short-term capital gains tax events. When a position exits, capital is redeployed into the next highest-conviction
-        BUY signal not already held. No discretionary overrides — the model drives every entry and exit.
+        High Conviction signal not already held. No discretionary overrides — the model drives every entry and exit.
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -5436,6 +5553,69 @@ def page_model_portfolio():
         unsafe_allow_html=True)
 
 
+def page_methodology():
+    """How QNTM Works — methodology, factor logic, disclaimers."""
+    page_summary("📖", "How QNTM Works",
+        "Transparent methodology — what the model does, how it scores stocks, and what it doesn't do.")
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+
+    sections = [
+        ("The Universe", "#00ff87",
+         "QNTM covers 834 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
+         "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
+         "most retail investors already hold or consider."),
+
+        ("The Factor Model", "#00ff87",
+         "Each stock receives a composite score (0–100) built from five weighted pillars:\n\n"
+         "• Momentum (30%) — price trend, relative strength, rate of change\n"
+         "• Quality (25%) — earnings consistency, return on equity, balance sheet strength\n"
+         "• Volume (20%) — institutional flow signals, volume trend confirmation\n"
+         "• Value (15%) — price-to-earnings, price-to-book relative to sector\n"
+         "• Sentiment (10%) — analyst revision trend, news flow\n\n"
+         "Scores are cross-sectional — a score of 75 means stronger than 75% of the universe, not an absolute value."),
+
+        ("Conviction Thresholds", "#00ff87",
+         "• High Conviction: composite score ≥ 60 — signal is in the top 40% of the universe\n"
+         "• Moderate Conviction: score 45–59 — neutral, monitor for movement\n"
+         "• Low Conviction: score < 45 — signal weakening, elevated risk profile\n\n"
+         "These are quantitative signal categories, not investment advice."),
+
+        ("Macro Overlay", "#d4a843",
+         "The model applies a macro regime overlay that adjusts composite scores based on current "
+         "market conditions — VIX level, commodity prices, news sentiment across 70+ live headlines.\n\n"
+         "Weighting: 75% quantitative model, 25% macro regime adjustment (max). "
+         "In Risk-Off regimes, macro dampening reduces scores to reflect elevated market risk."),
+
+        ("Backtest Methodology", "#d4a843",
+         "Walk-forward backtest across Q2 2020 – Q1 2025 (20 quarters). "
+         "124 tickers per quarter, 10bps transaction costs assumed. No look-ahead bias — each quarter "
+         "is scored using only data available at that point in time.\n\n"
+         "Results: +307% adjusted cumulative vs SPY +131% · Sharpe 1.72 · Max drawdown 6.5%\n"
+         "Past model performance does not guarantee future results."),
+
+        ("What QNTM Does NOT Do", "#ef4444",
+         "• QNTM does not provide personalized investment advice\n"
+         "• QNTM does not account for your individual tax situation, risk tolerance, or financial goals\n"
+         "• QNTM does not predict short-term price movements\n"
+         "• QNTM is not a registered investment adviser under the Investment Advisers Act of 1940\n"
+         "• Conviction scores are quantitative outputs — not buy or sell recommendations\n\n"
+         "Always consult a qualified financial adviser before making investment decisions."),
+    ]
+
+    for title, color, body in sections:
+        st.markdown(
+            f'<div style="border-left:3px solid {color};padding:16px 20px;margin-bottom:16px;"'
+            f'background:rgba(255,255,255,.02);border-radius:0 8px 8px 0;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:{color};"'
+            f'letter-spacing:.06em;margin-bottom:8px;">{title}</div>'
+            f'<div style="font-size:13px;color:#94a3b8;line-height:1.8;white-space:pre-line;">{body}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def page_platform():
     # ── Force MFA setup on first login ─────────────────────────────────────────
     if st.session_state.get("force_mfa_setup"):
@@ -5510,10 +5690,24 @@ def page_platform():
         "portfolio":      page_portfolio,
         "simulator":      page_simulator,
         "model_portfolio": page_model_portfolio,
+        "methodology":     page_methodology,
         "alerts":         page_alerts,
         "account":        page_account,
     }
     nav_map.get(st.session_state.nav, page_screener)()
+
+    # ── Persistent disclaimer footer ────────────────────────────────────
+    st.markdown(
+        '<div style="margin:32px 32px 8px;padding:12px 16px;"'
+        'background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05);"'
+        'border-radius:6px;font-size:11px;color:#334155;line-height:1.6;text-align:center;">'
+        'QNTM provides quantitative signal analysis for informational and educational purposes only. '
+        'Conviction scores are model outputs — not personalized investment advice. '
+        'Past model performance does not guarantee future results. '
+        'Not a registered investment adviser.'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     # Platform footer
     st.markdown("""
