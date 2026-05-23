@@ -3262,156 +3262,87 @@ def platform_nav():
         display_name = em[:20] + ("..." if len(em) > 20 else "")
 
     cur_nav = st.session_state.get("nav", "screener")
-    nav_options = [
-        ("screener",        "📊", "Screener"),
-        ("gems",            "💎", "Hidden Gems"),
-        ("backtest",        "📈", "Backtest"),
-        ("portfolio",       "💼", "Portfolio"),
-        ("simulator",       "🧮", "Simulator"),
-        ("model_portfolio", "🏆", "Model Port."),
-        ("alerts",          "🔔", "Alerts"),
-        ("account",         "⚙️", "Account"),
-    ]
+    nav_labels = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio",
+                  "🧮 Simulator","🏆 Model Port.","🔔 Alerts","⚙️ Account","🚪 Sign Out"]
+    nav_keys   = ["screener","gems","backtest","portfolio",
+                  "simulator","model_portfolio","alerts","account","__signout__"]
 
-    cur_label = next((e + " " + l for k,e,l in nav_options if k == cur_nav), "📊 Screener")
+    cur_label = next((nav_labels[i] for i,k in enumerate(nav_keys) if k == cur_nav), "📊 Screener")
     notif_dot = (
         '<span style="background:#ef4444;color:#fff;border-radius:50%;'
         'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
         'font-size:10px;font-weight:700;margin-left:4px;">' + str(n_count) + '</span>'
     ) if n_count > 0 else ""
 
-    is_dev = os.getenv("ENVIRONMENT") == "dev"
-    dd_top = "88px" if is_dev else "56px"
-
-    # ── Visual menu (pure CSS checkbox toggle, no hrefs) ─────────────────────
-    list_rows = ""
-    for key, em, label in nav_options:
-        is_active = (key == cur_nav)
-        alert_badge = (
-            '<span style="margin-left:auto;background:#ef4444;color:#fff;border-radius:50%;'
-            'width:16px;height:16px;display:flex;align-items:center;justify-content:center;'
-            'font-size:9px;font-weight:700;">' + str(n_count) + '</span>'
-        ) if (key == "alerts" and n_count > 0) else ""
-        if is_active:
-            rs = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
-                  "background:rgba(0,255,135,.06);border-left:3px solid #00ff87;cursor:pointer;")
-            lc = "color:#00ff87;"
-            ec = "opacity:1;"
-        else:
-            rs = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
-                  "background:none;border-left:3px solid transparent;cursor:pointer;")
-            lc = "color:#94a3b8;"
-            ec = "opacity:.55;"
-        # Visual row — pointer-events:none so clicks fall through to Streamlit buttons below
-        list_rows += (
-            '<div class="qntm-row" style="' + rs + 'pointer-events:none;">'
-            '<span style="font-size:15px;width:20px;text-align:center;' + ec + '">' + em + '</span>'
-            '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:' + ('700' if is_active else '500') + ';' + lc + '">' + label + '</span>'
-            + alert_badge + '</div>'
-        )
-    # Sign out row
-    list_rows += (
-        '<div class="qntm-row" style="display:flex;align-items:center;gap:14px;padding:11px 20px;'
-        'background:none;border-left:3px solid transparent;border-top:1px solid rgba(255,255,255,.05);'
-        'cursor:pointer;margin-top:4px;pointer-events:none;">'
-        '<span style="font-size:15px;width:20px;text-align:center;opacity:.55;">🚪</span>'
-        '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:500;color:#ef4444;">Sign Out</span>'
-        '</div>'
+    plan_badge = (
+        '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
+        'border:1px solid ' + plan_color + '44;border-radius:3px;padding:2px 8px;'
+        'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">' + plan.upper() + '</span>'
     )
 
-    css = (
-        '<style>'
-        '#qntm-toggle{display:none;}'
-        '#qntm-dd{position:fixed;top:' + dd_top + ';left:0;width:260px;'
-        'background:rgba(7,10,18,.99);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'
-        'border-right:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);'
-        'border-radius:0 0 12px 0;z-index:2000;'
-        'max-height:0;overflow:hidden;opacity:0;pointer-events:none;'
-        'transition:max-height .28s cubic-bezier(.4,0,.2,1),opacity .2s ease;}'
-        '#qntm-toggle:checked ~ #qntm-dd{max-height:520px;opacity:1;pointer-events:all;'
-        'box-shadow:8px 16px 48px rgba(0,0,0,.85);}'
-        '#qntm-ov{display:none;position:fixed;inset:0;z-index:1999;}'
-        '#qntm-toggle:checked ~ #qntm-ov{display:block;}'
-        '.qntm-row:hover{background:rgba(255,255,255,.03)!important;border-left-color:rgba(0,255,135,.2)!important;}'
-        '#qntm-hbr-l,#qntm-hbr-b{transition:transform .2s ease;}'
-        '#qntm-hbr-m{transition:opacity .15s ease;}'
-        '#qntm-toggle:checked ~ div label #qntm-hbr-l{transform:translateY(6px) rotate(45deg);}'
-        '#qntm-toggle:checked ~ div label #qntm-hbr-m{opacity:0;}'
-        '#qntm-toggle:checked ~ div label #qntm-hbr-b{transform:translateY(-6px) rotate(-45deg);}'
-        '.qntm-nav-stack{position:fixed;top:' + dd_top + ';left:0;width:260px;z-index:2001;'
-        'display:none;}'
-        '#qntm-toggle:checked ~ .qntm-nav-stack{display:block;}'
-        '.qntm-nav-stack .stButton>button{'
-        'width:260px!important;height:44px!important;padding:0!important;'
-        'background:transparent!important;border:none!important;'
-        'box-shadow:none!important;color:transparent!important;'
-        'font-size:1px!important;cursor:pointer!important;'
-        'border-radius:0!important;margin:0!important;}'
-        '.qntm-nav-stack .stButton>button:hover{background:transparent!important;}'
-        '</style>'
-    )
-
-    bar_html = (
-        css
-        + '<input type="checkbox" id="qntm-toggle">'
-        + '<div id="qntm-dd">'
-        '<div style="padding:10px 20px 8px;border-bottom:1px solid rgba(255,255,255,.05);">'
-        '<span style="font-family:DM Mono,monospace;font-size:9px;color:#334155;letter-spacing:.14em;">MENU</span>'
-        '</div>'
-        + list_rows
-        + '</div>'
-        + '<label for="qntm-toggle" id="qntm-ov"></label>'
-        + '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+    # ── Top bar (pure HTML, no interactivity needed here) ────────────────────
+    st.markdown(
+        '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
         'border-bottom:1px solid rgba(255,255,255,.06);'
         'padding:0 20px;height:56px;display:flex;align-items:center;'
-        'justify-content:space-between;position:sticky;top:0;z-index:1001;">'
-        + '<label for="qntm-toggle" style="'
-        'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);'
-        'border-radius:7px;padding:8px 10px;cursor:pointer;'
-        'display:flex;flex-direction:column;gap:4px;align-items:center;">'
-        '<span id="qntm-hbr-l" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
-        '<span id="qntm-hbr-m" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
-        '<span id="qntm-hbr-b" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
-        '</label>'
-        + '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
+        'justify-content:space-between;margin-bottom:0;">'
+        '<div style="font-size:11px;color:#475569;font-family:DM Mono,monospace;'
+        'border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 10px;'
+        'background:rgba(255,255,255,.03);">☰</div>'
+        '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
         '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
         'Q<span style="color:#00ff87;">NTM</span></div>'
         '<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">' + cur_label + '</div>'
         '</div>'
-        + '<div style="display:flex;align-items:center;gap:10px;">'
-        + notif_dot
-        + '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
-        'border:1px solid ' + plan_color + '44;border-radius:3px;padding:2px 8px;'
-        'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
-        + plan.upper() + '</span>'
+        '<div style="display:flex;align-items:center;gap:10px;">' + notif_dot + plan_badge
         + '<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
-        'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-        + display_name + '</span>'
-        + '</div></div>'
+        'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + display_name + '</span>'
+        + '</div></div>',
+        unsafe_allow_html=True
     )
 
-    st.markdown(bar_html, unsafe_allow_html=True)
+    # ── Navigation selectbox styled to look like a dropdown menu ─────────────
+    # Hide all Streamlit selectbox chrome, show only when interacting
+    st.markdown("""
+    <style>
+    /* Wrapper we control */
+    div[data-testid="stSelectbox"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /* The visible select control */
+    div[data-testid="stSelectbox"] > div > div {
+        background: rgba(7,10,18,.99) !important;
+        border: 1px solid rgba(0,255,135,.25) !important;
+        border-radius: 0 0 10px 10px !important;
+        color: #e2e8f0 !important;
+        font-family: Syne, sans-serif !important;
+        font-size: 13px !important;
+    }
+    /* Label — hide it */
+    div[data-testid="stSelectbox"] label { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # ── Real Streamlit buttons — transparent, stacked over visual rows ────────
-    # CSS class qntm-nav-stack makes them visible only when checkbox is checked.
-    # Each button is 260px wide × 44px tall, exactly covering its visual row.
-    # The top offset accounts for the 38px MENU header inside the dropdown.
-    st.markdown('<div class="qntm-nav-stack">', unsafe_allow_html=True)
-    # Spacer for the MENU header row (38px)
-    st.markdown('<div style="height:38px;"></div>', unsafe_allow_html=True)
-    for key, _, label in nav_options:
-        if st.button(label, key="_xnav_" + key, use_container_width=True):
-            nav(key)
-    # Sign out — extra 5px spacer for the divider margin
-    st.markdown('<div style="height:9px;"></div>', unsafe_allow_html=True)
-    if st.button("Sign Out", key="_xnav_signout", use_container_width=True):
+    cur_idx = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
+    selected = st.selectbox(
+        "nav",
+        options=nav_labels,
+        index=cur_idx,
+        label_visibility="collapsed",
+        key="platform_nav_select"
+    )
+
+    selected_key = nav_keys[nav_labels.index(selected)]
+    if selected_key == "__signout__":
         for k in ["logged_in","user","mfa_verified","scan_results",
                   "macro_data","mfa_recovery_mode","live_refresh_running"]:
             st.session_state[k] = False if k == "logged_in" else None
         st.session_state.signed_out = True
         _clear_localstorage_token()
         go("landing")
-    st.markdown('</div>', unsafe_allow_html=True)
+    elif selected_key != cur_nav:
+        nav(selected_key)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
