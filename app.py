@@ -602,6 +602,7 @@ if not st.session_state.logged_in:
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
                     st.session_state.signed_out   = False
+                    st.session_state.nav          = "screener"
                     st.session_state.page         = "platform"
         except Exception:
             pass
@@ -2465,6 +2466,8 @@ def page_auth():
                             st.query_params["uid"]  = _signed
                             st.query_params["plan"] = user.get("plan","free")
                             _write_localstorage_token(user["id"], user.get("plan","free"))
+                            st.session_state.nav = "screener"
+
                             go("platform")
                     else:
                         st.error(res.get("error", "Invalid email or password"))
@@ -2610,6 +2613,8 @@ def page_mfa():
                     st.query_params["uid"]  = _signed
                     st.query_params["plan"] = user.get("plan","free")
                     _write_localstorage_token(user["id"], user.get("plan","free"))
+                    st.session_state.nav = "screener"
+
                     go("platform")
                 else:
                     st.error("Invalid code — check your app and try again")
@@ -2657,6 +2662,8 @@ def page_mfa():
                         st.session_state.show_mfa_setup     = True   # trigger re-enroll flow
                         st.success("2FA reset. Setting up new authenticator...")
                         import time; time.sleep(1)
+                        st.session_state.nav = "screener"
+
                         go("platform")
                     else:
                         st.error("Incorrect password — try again")
