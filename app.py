@@ -2427,7 +2427,7 @@ def page_auth():
         if "auth_tab" not in st.session_state:
             st.session_state.auth_tab = "signin"
 
-        tab_signin, tab_register = st.tabs(["Sign In", "Create Free Account"])
+        tab_signin, tab_register = st.tabs(["Sign In", "Register"])
 
         # ── SIGN IN ───────────────────────────────────────────────────────────
         with tab_signin:
@@ -2845,16 +2845,17 @@ def page_screener():
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
     # ── Search any stock — prominent ──────────────────────────────────────────
-    st.markdown('''<div style="background:linear-gradient(135deg,rgba(0,255,135,.06),rgba(0,255,135,.02));
-        border:1px solid rgba(0,255,135,.2);border-radius:10px;padding:16px 20px 12px;margin-bottom:16px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.14em;margin-bottom:8px;">⚡ SEARCH ANY STOCK — INSTANT CONVICTION SCORE</div>''',
+    st.markdown('''<div style="background:linear-gradient(135deg,rgba(0,255,135,.1),rgba(0,255,135,.03));
+        border:2px solid rgba(0,255,135,.4);border-radius:12px;padding:18px 20px 16px;margin-bottom:16px;
+        box-shadow:0 0 24px rgba(0,255,135,.08);">
+      <div style="font-family:DM Mono,monospace;font-size:12px;color:#00ff87;letter-spacing:.14em;margin-bottom:10px;font-weight:700;">
+        ⚡ SEARCH ANY STOCK — INSTANT CONVICTION SCORE
+      </div>''',
         unsafe_allow_html=True)
-    search_col, _ = st.columns([3, 2])
-    with search_col:
-        search_ticker = st.text_input(
-            "Search ticker", placeholder="Ticker or company name — e.g. AAPL, Tesla, Nvidia...",
-            key="screener_search", label_visibility="collapsed"
-        ).strip().upper()
+    search_ticker = st.text_input(
+        "Search ticker", placeholder="Enter ticker or company name — AAPL, Tesla, NVDA...",
+        key="screener_search", label_visibility="collapsed"
+    ).strip().upper()
     st.markdown('</div>', unsafe_allow_html=True)
 
     if search_ticker:
@@ -2863,18 +2864,49 @@ def page_screener():
             try:
                 price_data = fetch_price_data([search_ticker], period="1y")
                 hist = price_data.get(search_ticker, [])
-                scored = score_stock(search_ticker, hist)
-                macro = st.session_state.get("macro_data") or fetch_macro_overlay(use_live_feeds=True)
-                scored_list = apply_macro_overlay([scored], macro)
-                sr = scored_list[0]
-                sr["pct_rank"] = 50  # unknown rank for ad-hoc search
-                is_gem = False
-                ci = get_company_info(search_ticker)
-                st.markdown(factor_panel_html(sr, is_gem, company_info=ci), unsafe_allow_html=True)
-                if search_ticker not in ALL_SECTORS:
-                    st.markdown('<div style="font-size:14px;color:#94a3b8;margin-bottom:16px;">⚠ Ticker scored from live price data — not in core universe. Fundamental data may be limited.</div>', unsafe_allow_html=True)
+                if not hist or len(hist) < 10:
+                    st.markdown(
+                        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+                        f'border-radius:8px;padding:20px 24px;">'
+                        f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:#94a3b8;margin-bottom:6px;">'
+                        f'"{search_ticker}" not found</div>'
+                        f'<div style="font-size:13px;color:#475569;line-height:1.6;">'
+                        f'No price data available for this ticker. Try the exact ticker symbol — e.g. <strong style="color:#94a3b8;">AAPL</strong>, '
+                        f'<strong style="color:#94a3b8;">NVDA</strong>, <strong style="color:#94a3b8;">TSLA</strong>.</div>'
+                        f'</div>',
+                        unsafe_allow_html=True)
+                else:
+                    scored = score_stock(search_ticker, hist)
+                    # Assign sector before macro overlay
+                    scored["sector"] = ALL_SECTORS.get(search_ticker, "Unknown")
+                    macro = st.session_state.get("macro_data") or fetch_macro_overlay(use_live_feeds=True)
+                    # Score via full apply_macro_overlay for accuracy,
+                    # then undo any min-position floor promotion (flags promoted=True)
+                    scored_list = apply_macro_overlay([scored], macro)
+                    sr = scored_list[0]
+                    # If this stock was force-promoted by the floor, correct it
+                    if sr.get("promoted"):
+                        from model_engine import EXIT_THRESHOLD
+                        regime = macro.get("regime","NEUTRAL")
+                        eff_threshold = 62 if regime in ("RISK_OFF","HIGH VOLATILITY") else 60
+                        adj = float(sr.get("adj_composite", sr.get("composite", 50)))
+                        sr["adj_action"] = "BUY" if adj >= eff_threshold else ("SELL" if adj < EXIT_THRESHOLD else "HOLD")
+                        sr["promoted"] = False
+                    sr["pct_rank"] = 50
+                    is_gem = False
+                    ci = get_company_info(search_ticker)
+                    st.markdown(factor_panel_html(sr, is_gem, company_info=ci), unsafe_allow_html=True)
+                    if search_ticker not in ALL_SECTORS:
+                        st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception as e:
-                st.markdown(f'<div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:12px 16px;font-size:13px;color:#ef4444;">Could not score {search_ticker}: {e}</div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+                    f'border-radius:8px;padding:20px 24px;">'
+                    f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:#94a3b8;margin-bottom:6px;">'
+                    f'"{search_ticker}" not found</div>'
+                    f'<div style="font-size:13px;color:#475569;">Could not retrieve data for this ticker. Check the symbol and try again.</div>'
+                    f'</div>',
+                    unsafe_allow_html=True)
         st.markdown('<div style="height:8px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:20px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -5405,30 +5437,26 @@ def page_platform():
         mfa  = get_user_mfa(uid())
         if not mfa.get("mfa_enabled"):
             # Show as a clean centered page — no fixed overlays that cover buttons
-            st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
             _, mc, _ = st.columns([1, 2, 1])
             with mc:
                 st.markdown(
-                    "<div style='background:#0d1117;border:1px solid rgba(212,168,67,.4);"
-                    "border-radius:12px;padding:36px 40px;text-align:center;'>",
+                    '<div style="background:#0d1117;border:1px solid rgba(212,168,67,.4);border-radius:12px;padding:28px 24px;text-align:center;">'
+                    '<div style="font-size:28px;margin-bottom:12px;">🔒</div>'
+                    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:12px;">Secure Your Account</div>'
+                    '<div style="font-size:13px;color:#94a3b8;line-height:1.7;">'
+                    'QNTM holds your portfolio data. We <strong style="color:#e2e8f0;">strongly recommend</strong> enabling 2FA before continuing. Takes 60 seconds.'
+                    '</div></div>',
                     unsafe_allow_html=True
                 )
-                st.markdown("## 🔒 Secure Your Account")
-                st.markdown(
-                    "QNTM holds your financial data and portfolio positions. "
-                    "We **strongly recommend** enabling two-factor authentication before continuing.\n\n"
-                    "Takes 60 seconds with Google Authenticator or Authy."
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
                 b1, b2 = st.columns(2)
                 with b1:
-                    if st.button("⚡ Enable 2FA Now", key="force_mfa_yes", use_container_width=True):
+                    if st.button("⚡ Enable 2FA", key="force_mfa_yes", use_container_width=True):
                         st.session_state.force_mfa_setup = False
                         nav("account")
                         st.session_state.show_mfa_setup = True
                 with b2:
-                    if st.button("Skip for Now", key="force_mfa_skip", use_container_width=True):
+                    if st.button("Skip", key="force_mfa_skip", use_container_width=True):
                         st.session_state.force_mfa_setup = False
                         st.rerun()
             return
