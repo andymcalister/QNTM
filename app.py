@@ -3251,6 +3251,8 @@ def page_mfa():
 # PLATFORM — TOP NAV
 # ══════════════════════════════════════════════════════════════════════════════
 def platform_nav():
+    import streamlit.components.v1 as components
+
     user  = st.session_state.user or {}
     plan  = user.get("plan","free")
     n_count = get_unread_count(uid()) if plan in ("pro","institutional") else 0
@@ -3259,238 +3261,198 @@ def platform_nav():
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
-        display_name = em[:20] + ("…" if len(em) > 20 else "")
+        display_name = em[:20] + ("..." if len(em) > 20 else "")
 
     cur_nav = st.session_state.get("nav", "screener")
     nav_options = [
-        ("screener",        "📊", "Screener"),
-        ("gems",            "💎", "Hidden Gems"),
-        ("backtest",        "📈", "Backtest"),
-        ("portfolio",       "💼", "My Portfolio"),
-        ("simulator",       "🧮", "Simulator"),
-        ("model_portfolio", "🏆", "Model Portfolio"),
-        ("alerts",          "🔔", "Alerts"),
-        ("account",         "⚙️", "Account"),
+        ("screener",        "SS", "Screener"),
+        ("gems",            "GG", "Hidden Gems"),
+        ("backtest",        "BT", "Backtest"),
+        ("portfolio",       "PF", "Portfolio"),
+        ("simulator",       "SM", "Simulator"),
+        ("model_portfolio", "MP", "Model Port."),
+        ("alerts",          "AL", "Alerts"),
+        ("account",         "AC", "Account"),
     ]
+    emoji_map = {
+        "screener":"📊","gems":"💎","backtest":"📈","portfolio":"💼",
+        "simulator":"🧮","model_portfolio":"🏆","alerts":"🔔","account":"⚙️",
+    }
 
-    cur_label = next((f"{e} {l}" for k,e,l in nav_options if k == cur_nav), "📊 Screener")
+    cur_label = next((emoji_map.get(k,"") + " " + l for k,_,l in nav_options if k == cur_nav), "📊 Screener")
     notif_dot = (
-        f'<span style="background:#ef4444;color:#fff;border-radius:50%;'
-        f'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
-        f'font-size:10px;font-weight:700;margin-left:4px;">{n_count}</span>'
+        '<span style="background:#ef4444;color:#fff;border-radius:50%;'
+        'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
+        'font-size:10px;font-weight:700;margin-left:4px;">' + str(n_count) + '</span>'
     ) if n_count > 0 else ""
 
-    # ── Build tile buttons for dropdown grid ──────────────────────────────────
+    # Build tile HTML — one per nav option + sign out
     tiles_html = ""
-    for key, emoji, label in nav_options:
-        is_active = key == cur_nav
+    for key, _, label in nav_options:
+        is_active = (key == cur_nav)
+        em = emoji_map.get(key, "")
         alert_badge = (
-            f'<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;'
-            f'border-radius:50%;width:14px;height:14px;display:flex;align-items:center;'
-            f'justify-content:center;font-size:8px;font-weight:700;">{n_count}</span>'
+            '<span style="position:absolute;top:5px;right:5px;background:#ef4444;color:#fff;'
+            'border-radius:50%;width:13px;height:13px;display:flex;align-items:center;'
+            'justify-content:center;font-size:8px;font-weight:700;">' + str(n_count) + '</span>'
         ) if (key == "alerts" and n_count > 0) else ""
 
         if is_active:
-            tile_bg    = "background:linear-gradient(135deg,rgba(0,255,135,.12) 0%,rgba(0,255,135,.04) 100%);"
-            tile_border = "border:1px solid rgba(0,255,135,.4);"
-            emoji_col  = "color:#00ff87;"
-            label_col  = "color:#00ff87;"
-            glow       = "box-shadow:0 0 12px rgba(0,255,135,.12),inset 0 1px 0 rgba(0,255,135,.1);"
+            tb = "background:linear-gradient(135deg,rgba(0,255,135,.14),rgba(0,255,135,.04));"
+            tb += "border:1px solid rgba(0,255,135,.45);"
+            tb += "box-shadow:0 0 14px rgba(0,255,135,.1),inset 0 1px 0 rgba(0,255,135,.12);"
+            ec = "color:#00ff87;"
+            lc = "color:#00ff87;"
         else:
-            tile_bg    = "background:linear-gradient(135deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);"
-            tile_border = "border:1px solid rgba(255,255,255,.07);"
-            emoji_col  = "color:#64748b;"
-            label_col  = "color:#94a3b8;"
-            glow       = ""
+            tb = "background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01));"
+            tb += "border:1px solid rgba(255,255,255,.07);"
+            ec = "color:#475569;"
+            lc = "color:#64748b;"
 
         tiles_html += (
-            f'<button onclick="qntmNav(\'{key}\')" '
-            f'class="qntm-tile" '
-            f'style="position:relative;{tile_bg}{tile_border}{glow}'
-            f'border-radius:8px;padding:14px 8px 12px;cursor:pointer;'
-            f'display:flex;flex-direction:column;align-items:center;justify-content:center;'
-            f'gap:6px;width:100%;transition:all .18s ease;">'
-            f'<span style="font-size:20px;line-height:1;{emoji_col}">{emoji}</span>'
-            f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
-            f'letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;'
-            f'overflow:hidden;text-overflow:ellipsis;max-width:100%;{label_col}">{label}</span>'
-            f'{alert_badge}'
-            f'</button>'
+            '<button onclick="qntmNav(\'' + key + '\')" class="qntm-tile" style="'
+            'position:relative;' + tb +
+            'border-radius:8px;padding:13px 6px 11px;cursor:pointer;'
+            'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+            'gap:5px;width:100%;transition:all .18s ease;outline:none;">'
+            '<span style="font-size:18px;line-height:1;' + ec + '">' + em + '</span>'
+            '<span style="font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
+            'letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;'
+            'overflow:hidden;text-overflow:ellipsis;max-width:90%;' + lc + '">' + label + '</span>'
+            + alert_badge +
+            '</button>'
         )
 
-    # Sign out tile (red variant)
+    # Sign out tile
     tiles_html += (
-        f'<button onclick="qntmSignOut()" class="qntm-tile" '
-        f'style="background:linear-gradient(135deg,rgba(239,68,68,.08) 0%,rgba(239,68,68,.02) 100%);'
-        f'border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:14px 8px 12px;'
-        f'cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;'
-        f'gap:6px;width:100%;transition:all .18s ease;">'
-        f'<span style="font-size:20px;line-height:1;">🚪</span>'
-        f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
-        f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;">Sign Out</span>'
-        f'</button>'
+        '<button onclick="qntmSignOut()" class="qntm-tile" style="'
+        'position:relative;background:linear-gradient(135deg,rgba(239,68,68,.09),rgba(239,68,68,.02));'
+        'border:1px solid rgba(239,68,68,.22);border-radius:8px;padding:13px 6px 11px;'
+        'cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;'
+        'gap:5px;width:100%;transition:all .18s ease;outline:none;">'
+        '<span style="font-size:18px;line-height:1;">🚪</span>'
+        '<span style="font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
+        'letter-spacing:.05em;text-transform:uppercase;color:#ef4444;">Sign Out</span>'
+        '</button>'
     )
 
-    # ── Render top bar + dropdown shell ───────────────────────────────────────
-    st.markdown(f"""
-    <style>
-      /* Dropdown animation */
-      #qntm-dd {{
-        position:fixed;top:56px;left:0;width:320px;
-        background:rgba(8,11,20,.98);backdrop-filter:blur(20px);
-        border:1px solid rgba(255,255,255,.08);border-top:none;
-        border-radius:0 0 16px 0;z-index:1000;
-        box-shadow:8px 16px 48px rgba(0,0,0,.7);
-        max-height:0;overflow:hidden;
-        transition:max-height .3s cubic-bezier(.4,0,.2,1),
-                   opacity .25s ease,
-                   box-shadow .25s ease;
-        opacity:0;pointer-events:none;
-      }}
-      #qntm-dd.open {{
-        max-height:600px;opacity:1;pointer-events:all;
-        box-shadow:8px 16px 48px rgba(0,0,0,.8),0 0 0 1px rgba(0,255,135,.06);
-      }}
-      /* Tile hover */
-      .qntm-tile:hover {{
-        background:linear-gradient(135deg,rgba(0,255,135,.08) 0%,rgba(0,255,135,.02) 100%) !important;
-        border-color:rgba(0,255,135,.25) !important;
-        transform:translateY(-1px);
-      }}
-      .qntm-tile:active {{ transform:translateY(0) !important; }}
-      /* Hamburger line animation */
-      #qntm-hbr span {{ transition: transform .22s ease, opacity .18s ease; }}
-      #qntm-hbr.open span:nth-child(1) {{ transform:translateY(6px) rotate(45deg); }}
-      #qntm-hbr.open span:nth-child(2) {{ opacity:0; }}
-      #qntm-hbr.open span:nth-child(3) {{ transform:translateY(-6px) rotate(-45deg); }}
-      /* Overlay */
-      #qntm-ov {{
-        display:none;position:fixed;inset:0;z-index:999;
-        background:rgba(0,0,0,.3);backdrop-filter:blur(1px);
-      }}
-      #qntm-ov.open {{ display:block; }}
-    </style>
+    # Preserve existing query params so uid/plan/ck survive nav
+    existing_qp = ""
+    for qk in ["uid", "plan", "ck"]:
+        v = st.query_params.get(qk, "")
+        if v:
+            existing_qp += "&" + qk + "=" + v
 
-    <!-- TOP BAR -->
-    <div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);
-         border-bottom:1px solid rgba(255,255,255,.06);
-         padding:0 20px;height:56px;display:flex;align-items:center;
-         justify-content:space-between;position:sticky;top:0;z-index:1001;">
+    bar_html = (
+        '<style>'
+        '#qntm-dd{position:fixed;top:56px;left:0;width:310px;'
+        'background:rgba(7,10,18,.98);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);'
+        'border-right:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);'
+        'border-radius:0 0 16px 0;z-index:1000;'
+        'max-height:0;overflow:hidden;opacity:0;pointer-events:none;'
+        'transition:max-height .3s cubic-bezier(.4,0,.2,1),opacity .22s ease;}'
+        '#qntm-dd.open{max-height:560px;opacity:1;pointer-events:all;'
+        'box-shadow:10px 20px 60px rgba(0,0,0,.8),0 0 0 1px rgba(0,255,135,.05);}'
+        '.qntm-tile:hover{background:linear-gradient(135deg,rgba(0,255,135,.09),rgba(0,255,135,.02))!important;'
+        'border-color:rgba(0,255,135,.3)!important;transform:translateY(-1px);}'
+        '.qntm-tile:active{transform:translateY(0)!important;}'
+        '#qntm-hbr-l{transition:transform .22s ease,opacity .18s ease;}'
+        '#qntm-hbr-m{transition:opacity .18s ease;}'
+        '#qntm-hbr-b{transition:transform .22s ease,opacity .18s ease;}'
+        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.35);}'
+        '#qntm-ov.open{display:block;}'
+        '</style>'
 
-      <!-- Hamburger -->
-      <button id="qntm-hbr" onclick="qntmToggle()"
-        style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);
-               border-radius:7px;padding:8px 10px;cursor:pointer;
-               display:flex;flex-direction:column;gap:4px;align-items:center;
-               transition:border-color .2s,background .2s;">
-        <span style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:center;"></span>
-        <span style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>
-        <span style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:center;"></span>
-      </button>
+        '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        'border-bottom:1px solid rgba(255,255,255,.06);'
+        'padding:0 20px;height:56px;display:flex;align-items:center;'
+        'justify-content:space-between;position:sticky;top:0;z-index:1001;">'
 
-      <!-- Logo + current page -->
-      <div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">
-        <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">
-          Q<span style="color:#00ff87;">NTM</span>
-        </div>
-        <div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">{cur_label}</div>
-      </div>
+        # Hamburger
+        '<button id="qntm-hbr" onclick="qntmToggle()" style="'
+        'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);'
+        'border-radius:7px;padding:8px 10px;cursor:pointer;'
+        'display:flex;flex-direction:column;gap:4px;align-items:center;">'
+        '<span id="qntm-hbr-l" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
+        '<span id="qntm-hbr-m" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
+        '<span id="qntm-hbr-b" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
+        '</button>'
 
-      <!-- Right: plan + user + notif -->
-      <div style="display:flex;align-items:center;gap:10px;">
-        {notif_dot}
-        <span style="background:rgba({plan_rgb},.15);color:{plan_color};
-              border:1px solid {plan_color}44;border-radius:3px;padding:2px 8px;
-              font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">
-          {plan.upper()}
-        </span>
-        <span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;
-              max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          {display_name}
-        </span>
-      </div>
-    </div>
+        # Logo
+        '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
+        '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
+        'Q<span style="color:#00ff87;">NTM</span></div>'
+        '<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">' + cur_label + '</div>'
+        '</div>'
 
-    <!-- OVERLAY -->
-    <div id="qntm-ov" onclick="qntmClose()"></div>
+        # Right
+        '<div style="display:flex;align-items:center;gap:10px;">'
+        + notif_dot +
+        '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
+        'border:1px solid ' + plan_color + '44;border-radius:3px;padding:2px 8px;'
+        'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
+        + plan.upper() + '</span>'
+        '<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
+        'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+        + display_name + '</span>'
+        '</div></div>'
 
-    <!-- DROPDOWN -->
-    <div id="qntm-dd">
-      <div style="padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,.05);
-           display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-family:DM Mono,monospace;font-size:10px;
-              color:#475569;letter-spacing:.12em;">NAVIGATION</span>
-        <span style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">{cur_label}</span>
-      </div>
-      <!-- 3-col tile grid -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 14px 6px;">
-        {tiles_html}
-      </div>
-      <div style="height:10px;"></div>
-    </div>
-    """, unsafe_allow_html=True)
+        # Overlay
+        '<div id="qntm-ov" onclick="qntmClose()"></div>'
 
-    # ── JS toggle logic (in components.html so scripts execute) ──────────────
-    import streamlit.components.v1 as components
-    nav_keys_js = str([k for k, _, _ in nav_options] + ["signout"])
-    components.html(f"""
-    <script>
-    function qntmToggle() {{
-      var dd  = window.parent.document.getElementById('qntm-dd');
-      var hbr = window.parent.document.getElementById('qntm-hbr');
-      var ov  = window.parent.document.getElementById('qntm-ov');
-      var opening = !dd.classList.contains('open');
-      dd.classList.toggle('open');
-      hbr.classList.toggle('open');
-      ov.classList.toggle('open');
-    }}
-    function qntmClose() {{
-      var dd  = window.parent.document.getElementById('qntm-dd');
-      var hbr = window.parent.document.getElementById('qntm-hbr');
-      var ov  = window.parent.document.getElementById('qntm-ov');
-      dd.classList.remove('open');
-      hbr.classList.remove('open');
-      ov.classList.remove('open');
-    }}
-    function qntmNav(key) {{
-      qntmClose();
-      var btns = window.parent.document.querySelectorAll('button[data-qntm-nav]');
-      btns.forEach(function(b) {{
-        if (b.getAttribute('data-qntm-nav') === key) b.click();
-      }});
-    }}
-    function qntmSignOut() {{
-      qntmClose();
-      var b = window.parent.document.querySelector('button[data-qntm-nav="signout"]');
-      if (b) b.click();
-    }}
-    // Tag hidden buttons once DOM is ready
-    (function tag() {{
-      var keys = {nav_keys_js};
-      var hidden = window.parent.document.querySelectorAll('.qntm-hidden-nav button');
-      hidden.forEach(function(b, i) {{
-        if (keys[i] !== undefined) b.setAttribute('data-qntm-nav', keys[i]);
-      }});
-    }})();
-    </script>
-    """, height=0)
+        # Dropdown panel
+        '<div id="qntm-dd">'
+        '<div style="padding:12px 14px 9px;border-bottom:1px solid rgba(255,255,255,.05);">'
+        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#334155;letter-spacing:.12em;">NAVIGATION</span>'
+        '</div>'
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:12px 12px 14px;">'
+        + tiles_html +
+        '</div></div>'
+    )
 
-    # ── Hidden Streamlit buttons — JS clicks these to trigger reruns ──────────
-    st.markdown('<div class="qntm-hidden-nav" style="position:absolute;left:-9999px;top:0;'
-                'width:1px;overflow:hidden;">', unsafe_allow_html=True)
-    for key, _, _ in nav_options:
-        if st.button(key, key=f"_nav_{key}"):
-            nav(key)
-    if st.button("signout", key="_nav_signout"):
-        for k in ["logged_in","user","mfa_verified","scan_results",
-                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
-            st.session_state[k] = False if k == "logged_in" else None
-        st.session_state.signed_out = True
-        for qp in ["uid","plan"]:
-            st.query_params.pop(qp, None)
-        _clear_localstorage_token()
-        go("landing")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(bar_html, unsafe_allow_html=True)
+
+    # JS runs in components.html iframe so scripts actually execute.
+    # Navigation sets ?qnav=<key> which main() reads on the next Streamlit rerun.
+    components.html(
+        '<script>'
+        'var _qp = "' + existing_qp + '";'
+        'function qntmToggle(){'
+        '  var dd=window.parent.document.getElementById("qntm-dd");'
+        '  var ov=window.parent.document.getElementById("qntm-ov");'
+        '  var l=window.parent.document.getElementById("qntm-hbr-l");'
+        '  var m=window.parent.document.getElementById("qntm-hbr-m");'
+        '  var b=window.parent.document.getElementById("qntm-hbr-b");'
+        '  var opening=!dd.classList.contains("open");'
+        '  dd.classList.toggle("open");ov.classList.toggle("open");'
+        '  if(opening){'
+        '    l.style.transform="rotate(45deg)";'
+        '    m.style.opacity="0";'
+        '    b.style.transform="rotate(-45deg)";'
+        '  }else{'
+        '    l.style.transform="";m.style.opacity="";b.style.transform="";'
+        '  }'
+        '}'
+        'function qntmClose(){'
+        '  var dd=window.parent.document.getElementById("qntm-dd");'
+        '  var ov=window.parent.document.getElementById("qntm-ov");'
+        '  var l=window.parent.document.getElementById("qntm-hbr-l");'
+        '  var m=window.parent.document.getElementById("qntm-hbr-m");'
+        '  var b=window.parent.document.getElementById("qntm-hbr-b");'
+        '  dd.classList.remove("open");ov.classList.remove("open");'
+        '  l.style.transform="";m.style.opacity="";b.style.transform="";'
+        '}'
+        'function qntmNav(key){'
+        '  qntmClose();'
+        '  window.parent.location.href="?qnav="+key+_qp;'
+        '}'
+        'function qntmSignOut(){'
+        '  qntmClose();'
+        '  window.parent.location.href="?qnav=signout";'
+        '}'
+        '</script>',
+        height=0,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -6272,7 +6234,20 @@ def main():
         st.session_state.page = "auth"
         st.query_params.pop("nav", None)
 
-    # ── Public model portfolio — bypass cookie gate ───────────────────────────
+    # ── Platform tab switching via hamburger menu ─────────────────────────────
+    _VALID_TABS = {"screener","gems","backtest","portfolio","simulator","model_portfolio","alerts","account"}
+    _qnav = st.query_params.get("qnav","")
+    if _qnav in _VALID_TABS:
+        st.session_state.nav = _qnav
+        st.query_params.pop("qnav", None)
+    if st.query_params.get("qnav") == "signout":
+        for k in ["logged_in","user","mfa_verified","scan_results",
+                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
+            st.session_state[k] = False if k == "logged_in" else None
+        st.session_state.signed_out = True
+        st.query_params.clear()
+        _clear_localstorage_token()
+        go("landing")
     if st.query_params.get("page") == "model":
         st.session_state.page = "model"
 
