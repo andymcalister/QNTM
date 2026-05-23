@@ -3282,12 +3282,16 @@ def platform_nav():
         'font-size:10px;font-weight:700;margin-left:4px;">' + str(n_count) + '</span>'
     ) if n_count > 0 else ""
 
-    # Preserve session params across nav
+    # Embed uid + plan from session state so session survives nav reloads
+    _user     = st.session_state.get("user") or {}
+    _uid_val  = _sign_token(_user.get("id",""), _user.get("plan","free"))
+    _plan_val = _user.get("plan","free")
+    _ck       = "1" if st.session_state.get("cookies_accepted") else ""
     existing_qp = ""
-    for qk in ["uid", "plan", "ck"]:
-        v = st.query_params.get(qk, "")
-        if v:
-            existing_qp += "&" + qk + "=" + v
+    if _uid_val and _user.get("id"):
+        existing_qp += "&uid=" + str(_uid_val) + "&plan=" + _plan_val
+    if _ck:
+        existing_qp += "&ck=1"
 
     # Dev banner adds ~32px above navbar — detect and offset dropdown accordingly
     is_dev = os.getenv("ENVIRONMENT") == "dev"
