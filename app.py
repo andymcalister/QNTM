@@ -3260,42 +3260,147 @@ def platform_nav():
     if not display_name:
         em = user.get("email","")
         display_name = em[:20] + ("…" if len(em) > 20 else "")
-    notif_html = (
-        f'<span style="background:rgba(239,68,68,.2);color:#ef4444;border-radius:50%;'
-        f'width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;'
-        f'font-size:13px;font-weight:700;">{n_count}</span>'
+
+    cur_nav = st.session_state.get("nav", "screener")
+    nav_options = [
+        ("screener",       "📊", "Screener"),
+        ("gems",           "💎", "Hidden Gems"),
+        ("backtest",       "📈", "Backtest"),
+        ("portfolio",      "💼", "My Portfolio"),
+        ("simulator",      "🧮", "Simulator"),
+        ("model_portfolio","🏆", "Model Portfolio"),
+        ("alerts",         "🔔", "Alerts"),
+        ("account",        "⚙️", "Account"),
+    ]
+
+    # Current page label for display in the bar
+    cur_label = next((f"{e} {l}" for k,e,l in nav_options if k == cur_nav), "📊 Screener")
+    notif_dot = (
+        f'<span style="background:#ef4444;color:#fff;border-radius:50%;'
+        f'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
+        f'font-size:10px;font-weight:700;margin-left:4px;">{n_count}</span>'
     ) if n_count > 0 else ""
 
+    # ── Top bar: hamburger left | QNTM center | plan+user right ──────────────
     st.markdown(
-        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        f'<div id="qntm-navbar" style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
         f'border-bottom:1px solid rgba(255,255,255,.06);'
-        f'padding:0 32px;height:56px;display:flex;align-items:center;'
-        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
+        f'padding:0 20px;height:56px;display:flex;align-items:center;'
+        f'justify-content:space-between;position:sticky;top:0;z-index:1000;">'
+        # Left — hamburger button
+        f'<button onclick="document.getElementById(\'qntm-dropdown\').classList.toggle(\'qntm-open\')" '
+        f'style="background:none;border:1px solid rgba(255,255,255,.12);border-radius:6px;'
+        f'padding:7px 10px;cursor:pointer;display:flex;flex-direction:column;gap:4px;align-items:center;">'
+        f'<span style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
+        f'<span style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
+        f'<span style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
+        f'</button>'
+        # Center — logo + current page
+        f'<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
         f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
         f'Q<span style="color:#00ff87;">NTM</span></div>'
-        f'<div style="display:flex;align-items:center;gap:16px;">'
+        f'<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">{cur_label}</div>'
+        f'</div>'
+        # Right — plan badge + name + notif dot
+        f'<div style="display:flex;align-items:center;gap:10px;">'
+        f'{notif_dot}'
         f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
-        f'font-size:13px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
+        f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 8px;'
+        f'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
         f'{plan.upper()}</span>'
-        f'{notif_html}'
-        f'<span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>'
-        f'</div></div>',
+        f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;max-width:80px;'
+        f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{display_name}</span>'
+        f'</div>'
+        f'</div>',
         unsafe_allow_html=True
     )
 
-    nav_options = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio","🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account"]
-    nav_keys    = ["screener","gems","backtest","portfolio","simulator","model_portfolio","alerts","account"]
-    cur_nav     = st.session_state.get("nav","screener")
-    cur_idx     = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
+    # ── Dropdown overlay ──────────────────────────────────────────────────────
+    menu_items_html = ""
+    for key, emoji, label in nav_options:
+        active = "background:rgba(0,255,135,.08);color:#00ff87;border-left:3px solid #00ff87;" if key == cur_nav else "color:#94a3b8;border-left:3px solid transparent;"
+        badge = f'<span style="background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;margin-left:6px;">{n_count}</span>' if (key == "alerts" and n_count > 0) else ""
+        menu_items_html += (
+            f'<button onclick="qntmNav(\'{key}\')" '
+            f'style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 20px;'
+            f'background:none;border:none;cursor:pointer;font-family:Outfit,sans-serif;'
+            f'font-size:14px;font-weight:500;{active}transition:all .15s;">'
+            f'<span style="font-size:16px;width:20px;text-align:center;">{emoji}</span>'
+            f'<span>{label}</span>{badge}'
+            f'</button>'
+        )
 
-    selected_tab = st.radio("nav", nav_options, index=cur_idx,
-                            horizontal=True, label_visibility="collapsed", key="nav_radio")
-    selected_key = nav_keys[nav_options.index(selected_tab)]
-    if selected_key != cur_nav:
-        nav(selected_key)
+    st.markdown(
+        f'<style>'
+        f'#qntm-dropdown{{display:none;position:fixed;top:56px;left:0;width:240px;'
+        f'background:#0d1117;border:1px solid rgba(255,255,255,.08);border-top:none;'
+        f'border-radius:0 0 12px 0;z-index:999;box-shadow:4px 8px 32px rgba(0,0,0,.6);'
+        f'overflow:hidden;}}'
+        f'#qntm-dropdown.qntm-open{{display:block;}}'
+        f'#qntm-dropdown button:hover{{background:rgba(255,255,255,.04)!important;color:#e2e8f0!important;}}'
+        f'#qntm-dropdown-signout{{border-top:1px solid rgba(255,255,255,.06);padding:12px 20px;}}'
+        f'#qntm-dropdown-signout button{{display:flex;align-items:center;gap:12px;width:100%;'
+        f'padding:10px 0;background:none;border:none;cursor:pointer;font-family:Outfit,sans-serif;'
+        f'font-size:13px;color:#ef4444;}}'
+        f'#qntm-overlay{{display:none;position:fixed;inset:0;z-index:998;}}'
+        f'#qntm-overlay.qntm-open{{display:block;}}'
+        f'</style>'
+        f'<div id="qntm-overlay" onclick="document.getElementById(\'qntm-dropdown\').classList.remove(\'qntm-open\');this.classList.remove(\'qntm-open\');"></div>'
+        f'<div id="qntm-dropdown">'
+        f'<div style="padding:14px 20px 10px;border-bottom:1px solid rgba(255,255,255,.06);">'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.1em;">NAVIGATION</div>'
+        f'</div>'
+        f'{menu_items_html}'
+        f'<div id="qntm-dropdown-signout">'
+        f'<button onclick="qntmSignOut()">→ Sign Out</button>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
-    if st.button("→ Sign Out", key="signout_btn"):
+    # ── JS: nav clicks set session key via Streamlit button clicks ────────────
+    # We render hidden Streamlit buttons for each nav option + sign out,
+    # then JS clicks the matching one so Python state updates correctly.
+    import streamlit.components.v1 as components
+    components.html(
+        f"""
+        <script>
+        function qntmNav(key) {{
+            // Close dropdown
+            var dd = window.parent.document.getElementById('qntm-dropdown');
+            var ov = window.parent.document.getElementById('qntm-overlay');
+            if (dd) dd.classList.remove('qntm-open');
+            if (ov) ov.classList.remove('qntm-open');
+            // Click the hidden Streamlit button matching this key
+            var btns = window.parent.document.querySelectorAll('button[data-qntm-nav]');
+            btns.forEach(function(b) {{
+                if (b.getAttribute('data-qntm-nav') === key) b.click();
+            }});
+        }}
+        function qntmSignOut() {{
+            var b = window.parent.document.querySelector('button[data-qntm-nav="signout"]');
+            if (b) b.click();
+        }}
+        // Tag the hidden buttons after render
+        (function tag() {{
+            var keys = {str([k for k,_,_ in nav_options] + ['signout'])};
+            var allBtns = window.parent.document.querySelectorAll('.qntm-hidden-nav button');
+            allBtns.forEach(function(b, i) {{
+                if (keys[i]) b.setAttribute('data-qntm-nav', keys[i]);
+            }});
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+    # ── Hidden Streamlit buttons (off-screen, JS clicks these) ───────────────
+    st.markdown('<div class="qntm-hidden-nav" style="position:absolute;left:-9999px;top:0;">', unsafe_allow_html=True)
+    nav_keys = [k for k,_,_ in nav_options]
+    for key in nav_keys:
+        if st.button(key, key=f"_nav_{key}"):
+            nav(key)
+    if st.button("signout", key="_nav_signout"):
         for k in ["logged_in","user","mfa_verified","scan_results",
                   "macro_data","mfa_recovery_mode","live_refresh_running"]:
             st.session_state[k] = False if k == "logged_in" else None
@@ -3304,6 +3409,7 @@ def platform_nav():
             st.query_params.pop(qp, None)
         _clear_localstorage_token()
         go("landing")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
