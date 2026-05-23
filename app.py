@@ -3289,116 +3289,103 @@ def platform_nav():
         if v:
             existing_qp += "&" + qk + "=" + v
 
-    # Build tile links — <a href> tags, no JS needed
-    tiles_html = ""
+    # Dev banner adds ~32px above navbar — detect and offset dropdown accordingly
+    is_dev = os.getenv("ENVIRONMENT") == "dev"
+    dd_top = "88px" if is_dev else "56px"
+
+    # Build clean list rows
+    list_rows = ""
     for key, em, label in nav_options:
         is_active = (key == cur_nav)
+        href = "?qnav=" + key + existing_qp
+        if is_active:
+            row_style = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
+                         "background:rgba(0,255,135,.06);border-left:3px solid #00ff87;"
+                         "text-decoration:none;transition:background .15s;")
+            em_style  = "font-size:15px;width:20px;text-align:center;opacity:1;"
+            lbl_style = ("font-family:Syne,sans-serif;font-size:13px;font-weight:700;"
+                         "letter-spacing:.04em;color:#00ff87;")
+        else:
+            row_style = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
+                         "background:none;border-left:3px solid transparent;"
+                         "text-decoration:none;transition:background .15s;")
+            em_style  = "font-size:15px;width:20px;text-align:center;opacity:.55;"
+            lbl_style = ("font-family:Syne,sans-serif;font-size:13px;font-weight:500;"
+                         "letter-spacing:.03em;color:#94a3b8;")
+
         alert_badge = (
-            '<span style="position:absolute;top:5px;right:5px;background:#ef4444;color:#fff;'
-            'border-radius:50%;width:13px;height:13px;display:flex;align-items:center;'
-            'justify-content:center;font-size:8px;font-weight:700;">' + str(n_count) + '</span>'
+            '<span style="margin-left:auto;background:#ef4444;color:#fff;border-radius:50%;'
+            'width:16px;height:16px;display:flex;align-items:center;justify-content:center;'
+            'font-size:9px;font-weight:700;">' + str(n_count) + '</span>'
         ) if (key == "alerts" and n_count > 0) else ""
 
-        if is_active:
-            tb = ("background:linear-gradient(135deg,rgba(0,255,135,.14),rgba(0,255,135,.04));"
-                  "border:1px solid rgba(0,255,135,.45);"
-                  "box-shadow:0 0 14px rgba(0,255,135,.1),inset 0 1px 0 rgba(0,255,135,.12);")
-            ec = "color:#00ff87;"
-            lc = "color:#00ff87;"
-        else:
-            tb = ("background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01));"
-                  "border:1px solid rgba(255,255,255,.07);")
-            ec = "color:#475569;"
-            lc = "color:#64748b;"
-
-        href = "?qnav=" + key + existing_qp
-        tiles_html += (
-            '<a href="' + href + '" class="qntm-tile" style="'
-            'position:relative;text-decoration:none;' + tb +
-            'border-radius:8px;padding:13px 6px 11px;cursor:pointer;'
-            'display:flex;flex-direction:column;align-items:center;justify-content:center;'
-            'gap:5px;transition:all .18s ease;">'
-            '<span style="font-size:18px;line-height:1;' + ec + '">' + em + '</span>'
-            '<span style="font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
-            'letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;'
-            'overflow:hidden;text-overflow:ellipsis;max-width:90%;' + lc + '">' + label + '</span>'
+        list_rows += (
+            '<a href="' + href + '" class="qntm-row" style="' + row_style + '">'
+            '<span style="' + em_style + '">' + em + '</span>'
+            '<span style="' + lbl_style + '">' + label + '</span>'
             + alert_badge + '</a>'
         )
 
-    # Sign out tile
-    tiles_html += (
-        '<a href="?qnav=signout" class="qntm-tile" style="'
-        'position:relative;text-decoration:none;'
-        'background:linear-gradient(135deg,rgba(239,68,68,.09),rgba(239,68,68,.02));'
-        'border:1px solid rgba(239,68,68,.22);border-radius:8px;padding:13px 6px 11px;'
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;'
-        'gap:5px;transition:all .18s ease;">'
-        '<span style="font-size:18px;line-height:1;">🚪</span>'
-        '<span style="font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
-        'letter-spacing:.05em;text-transform:uppercase;color:#ef4444;">Sign Out</span>'
+    # Sign out row
+    list_rows += (
+        '<a href="?qnav=signout" class="qntm-row" style="'
+        'display:flex;align-items:center;gap:14px;padding:11px 20px;'
+        'background:none;border-left:3px solid transparent;border-top:1px solid rgba(255,255,255,.05);'
+        'text-decoration:none;transition:background .15s;margin-top:4px;">'
+        '<span style="font-size:15px;width:20px;text-align:center;opacity:.55;">🚪</span>'
+        '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:500;'
+        'letter-spacing:.03em;color:#ef4444;">Sign Out</span>'
         '</a>'
     )
 
-    # Pure CSS checkbox toggle — no JS required, works in st.markdown
     css = (
         '<style>'
-        # Hide the real checkbox
         '#qntm-toggle{display:none;}'
-        # Dropdown closed by default
         '#qntm-dd{'
-        'position:fixed;top:56px;left:0;width:310px;'
-        'background:rgba(7,10,18,.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'
+        'position:fixed;top:' + dd_top + ';left:0;width:260px;'
+        'background:rgba(7,10,18,.99);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'
         'border-right:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);'
-        'border-radius:0 0 16px 0;z-index:1000;'
+        'border-radius:0 0 12px 0;z-index:1000;'
         'max-height:0;overflow:hidden;opacity:0;pointer-events:none;'
-        'transition:max-height .32s cubic-bezier(.4,0,.2,1),opacity .22s ease;}'
-        # Overlay hidden
-        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.4);}'
-        # CHECKED STATE — dropdown open
+        'transition:max-height .28s cubic-bezier(.4,0,.2,1),opacity .2s ease;}'
         '#qntm-toggle:checked ~ #qntm-dd{'
-        'max-height:580px;opacity:1;pointer-events:all;'
-        'box-shadow:10px 20px 60px rgba(0,0,0,.8),0 0 0 1px rgba(0,255,135,.05);}'
+        'max-height:520px;opacity:1;pointer-events:all;'
+        'box-shadow:8px 16px 48px rgba(0,0,0,.85);}'
+        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;}'
         '#qntm-toggle:checked ~ #qntm-ov{display:block;}'
-        # Hamburger lines animate to X when checked
-        '#qntm-toggle:checked ~ div #qntm-hbr-l{transform:translateY(6px) rotate(45deg);}'
-        '#qntm-toggle:checked ~ div #qntm-hbr-m{opacity:0;}'
-        '#qntm-toggle:checked ~ div #qntm-hbr-b{transform:translateY(-6px) rotate(-45deg);}'
-        # Hamburger line transitions
-        '#qntm-hbr-l,#qntm-hbr-b{transition:transform .22s ease;}'
-        '#qntm-hbr-m{transition:opacity .18s ease;}'
-        # Tile hover
-        '.qntm-tile:hover{'
-        'background:linear-gradient(135deg,rgba(0,255,135,.1),rgba(0,255,135,.03))!important;'
-        'border-color:rgba(0,255,135,.35)!important;transform:translateY(-1px);}'
-        '.qntm-tile:active{transform:translateY(0)!important;}'
+        '.qntm-row:hover{background:rgba(255,255,255,.03)!important;'
+        'border-left-color:rgba(0,255,135,.2)!important;}'
+        '#qntm-hbr-l,#qntm-hbr-b{transition:transform .2s ease;}'
+        '#qntm-hbr-m{transition:opacity .15s ease;}'
+        '#qntm-toggle:checked ~ div label #qntm-hbr-l{transform:translateY(6px) rotate(45deg);}'
+        '#qntm-toggle:checked ~ div label #qntm-hbr-m{opacity:0;}'
+        '#qntm-toggle:checked ~ div label #qntm-hbr-b{transform:translateY(-6px) rotate(-45deg);}'
         '</style>'
     )
 
     bar_html = (
-        css +
-        # Checkbox must be BEFORE the elements it controls via ~ sibling selector
-        '<input type="checkbox" id="qntm-toggle">'
+        css
+        + '<input type="checkbox" id="qntm-toggle">'
 
-        # Dropdown panel (sibling of checkbox)
-        '<div id="qntm-dd">'
-        '<div style="padding:12px 14px 9px;border-bottom:1px solid rgba(255,255,255,.05);">'
-        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#334155;letter-spacing:.12em;">NAVIGATION</span>'
+        # Dropdown
+        + '<div id="qntm-dd">'
+        '<div style="padding:10px 20px 8px;border-bottom:1px solid rgba(255,255,255,.05);">'
+        '<span style="font-family:DM Mono,monospace;font-size:9px;color:#334155;letter-spacing:.14em;">MENU</span>'
         '</div>'
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:12px 12px 14px;">'
-        + tiles_html +
-        '</div></div>'
+        + list_rows
+        + '</div>'
 
-        # Click-outside overlay — label targets the checkbox to uncheck it
-        '<label for="qntm-toggle" id="qntm-ov"></label>'
+        # Overlay
+        + '<label for="qntm-toggle" id="qntm-ov"></label>'
 
-        # Top bar (sibling of checkbox — hamburger label inside)
-        '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        # Top bar
+        + '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
         'border-bottom:1px solid rgba(255,255,255,.06);'
         'padding:0 20px;height:56px;display:flex;align-items:center;'
         'justify-content:space-between;position:sticky;top:0;z-index:1001;">'
 
-        # Hamburger — label toggles the checkbox
-        '<label for="qntm-toggle" style="'
+        # Hamburger label
+        + '<label for="qntm-toggle" style="'
         'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);'
         'border-radius:7px;padding:8px 10px;cursor:pointer;'
         'display:flex;flex-direction:column;gap:4px;align-items:center;">'
@@ -3408,23 +3395,23 @@ def platform_nav():
         '</label>'
 
         # Logo
-        '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
+        + '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
         '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
         'Q<span style="color:#00ff87;">NTM</span></div>'
         '<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">' + cur_label + '</div>'
         '</div>'
 
-        # Right: plan badge + username + notif
-        '<div style="display:flex;align-items:center;gap:10px;">'
-        + notif_dot +
-        '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
+        # Right
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+        + notif_dot
+        + '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
         'border:1px solid ' + plan_color + '44;border-radius:3px;padding:2px 8px;'
         'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
         + plan.upper() + '</span>'
-        '<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
+        + '<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
         'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
         + display_name + '</span>'
-        '</div></div>'
+        + '</div></div>'
     )
 
     st.markdown(bar_html, unsafe_allow_html=True)
