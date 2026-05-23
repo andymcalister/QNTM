@@ -1804,6 +1804,7 @@ def _get_spy_return(start_date: str) -> float:
 
 def page_public_track_record():
     from model_engine import run_full_scan, fetch_macro_overlay, apply_macro_overlay
+    bt = BACKTEST_DATA
 
     st.markdown("""
     <style>
@@ -2533,7 +2534,10 @@ def page_landing():
     with st.columns(1)[0]:
         st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
         if st.button("📊 Live Signals →", key="hero_model", use_container_width=True):
-            go("model")
+            if st.session_state.get("logged_in"):
+                nav("model_portfolio")
+            else:
+                go("model")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ── TICKER TAPE — live from model scores ─────────────────────────────────
@@ -3415,13 +3419,9 @@ def page_screener():
             st.session_state.scan_results = None
             st.rerun()
     with _rc2:
-        if st.button("⚡ Refresh", key="live_refresh_main", use_container_width=True):
+        if st.button("⚡ Refresh (3-4 min)", key="live_refresh_main", use_container_width=True):
             st.session_state.live_refresh_running = True
             st.rerun()
-
-    # ── Live Refresh pipeline (runs immediately after button press) ────────────
-    if st.session_state.get("live_refresh_running"):
-        _live_refresh_pipeline()
 
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
@@ -4909,14 +4909,24 @@ def page_simulator():
     with _s1:
         if st.button("🔄 Rescan", key="sim_rescan", use_container_width=True):
             st.session_state.scan_results = None
+            # Run the scan immediately (same as screener auto-load)
+            from model_engine import fetch_macro_overlay, apply_macro_overlay, run_full_scan
+            from model_engine import SECTORS as _SIM_SECTORS
+            with st.spinner("Rescanning universe..."):
+                _raw = run_full_scan(use_live_prices=False)
+                _mac = fetch_macro_overlay()
+                for _r in _raw:
+                    if not _r.get("sector") or _r.get("sector") == "Unknown":
+                        _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")
+                _scored = apply_macro_overlay(_raw, _mac)
+                from db import get_signal_snapshot as _gss
+                st.session_state.scan_results = _scored
+                st.session_state.macro_data = _mac
             st.rerun()
     with _s2:
-        if st.button("⚡ Refresh", key="sim_live", use_container_width=True):
+        if st.button("⚡ Refresh (3-4 min)", key="sim_live", use_container_width=True):
             st.session_state.live_refresh_running = True
             st.rerun()
-    if st.session_state.get("live_refresh_running"):
-        _live_refresh_pipeline()
-
     scan = st.session_state.get("scan_results") or []
     all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
@@ -6017,6 +6027,12 @@ def page_platform():
         st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
+
+    # ── Live refresh runs here regardless of which tab is active ─────────────
+    # This means navigating between pages never interrupts an in-progress refresh.
+    if st.session_state.get("live_refresh_running"):
+        _live_refresh_pipeline()
+        return  # pipeline calls st.rerun() on completion/error
 
     nav_map = {
         "screener":       page_screener,
