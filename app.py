@@ -1920,31 +1920,33 @@ def page_public_track_record():
     spy_ret = _get_spy_return(earliest_date) if earliest_date else None
     alpha   = round(avg_return - spy_ret, 1) if avg_return is not None and spy_ret is not None else None
 
-    # Hero stats
-    stat_cols = st.columns(4)
-    stats = [
-        ("Portfolio Avg Return", f"+{avg_return:.1f}%" if avg_return and avg_return >= 0
-          else f"{avg_return:.1f}%" if avg_return else "—",
-         "Equal-weight BUY signals", "#00ff87" if (avg_return or 0) >= 0 else "#ef4444"),
-        ("SPY Same Period", f"+{spy_ret:.1f}%" if spy_ret and spy_ret >= 0
-          else f"{spy_ret:.1f}%" if spy_ret else "—",
-         f"From {earliest_date or '—'}", "#475569"),
-        ("Alpha vs SPY", f"+{alpha:.1f}pp" if alpha and alpha >= 0
-          else f"{alpha:.1f}pp" if alpha else "—",
-         "Outperformance", "#d4a843" if (alpha or 0) >= 0 else "#ef4444"),
-        ("Signals Active", str(len(buys)),
-         f"{len(returns)} with return data", "#94a3b8"),
-    ]
-    for col, (label, val, sub, color) in zip(stat_cols, stats):
-        with col:
-            st.markdown(
-                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-                f'border-left:2px solid {color};border-radius:6px;padding:16px 20px;">'
-                f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
-                f'<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:{color};line-height:1;">{val}</div>'
-                f'<div style="font-size:13px;color:#94a3b8;margin-top:6px;">{sub}</div>'
-                f'</div>',
-                unsafe_allow_html=True)
+    # Hero stats — responsive 2x2 grid, no st.columns (prevents mobile wrapping)
+    _avg_val = f"+{avg_return:.1f}%" if avg_return and avg_return >= 0 else (f"{avg_return:.1f}%" if avg_return else "—")
+    _spy_val = f"+{spy_ret:.1f}%"   if spy_ret   and spy_ret   >= 0 else (f"{spy_ret:.1f}%"   if spy_ret   else "—")
+    _alp_val = f"+{alpha:.1f}pp"    if alpha      and alpha      >= 0 else (f"{alpha:.1f}pp"    if alpha      else "—")
+    _avg_col = "#00ff87" if (avg_return or 0) >= 0 else "#ef4444"
+    _alp_col = "#d4a843" if (alpha      or 0) >= 0 else "#ef4444"
+    def _stat_card(label, val, sub, color):
+        return (
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);' +
+            f'border-left:3px solid {color};border-radius:6px;padding:14px 16px;min-width:0;">' +
+            f'<div style="font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;'
+            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{label}</div>' +
+            f'<div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
+            f'color:{color};line-height:1;white-space:nowrap;">{val}</div>' +
+            f'<div style="font-size:10px;color:#64748b;margin-top:5px;'
+            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sub}</div>' +
+            '</div>'
+        )
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px;">' +
+        _stat_card("AVG RETURN",        _avg_val,       "Equal-weight HIGH signals", _avg_col) +
+        _stat_card("SPY SAME PERIOD",   _spy_val,       f"From {earliest_date or '—'}", "#475569") +
+        _stat_card("ALPHA vs SPY",      _alp_val,       "Outperformance", _alp_col) +
+        _stat_card("SIGNALS ACTIVE",    str(len(buys)), f"{len(returns)} with return data", "#94a3b8") +
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
 
@@ -1956,7 +1958,7 @@ def page_public_track_record():
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ ACTIVE BUY SIGNALS — LIVE TRACK RECORD
+        ▲ ACTIVE HIGH CONVICTION SIGNALS — LIVE TRACK RECORD
       </div>
       <div style="font-size:13px;color:#94a3b8;">{data_note}</div>
     </div>
@@ -2166,7 +2168,7 @@ def page_public_track_record():
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ TOP {len(buys)} BUY SIGNALS — CURRENT MODEL OUTPUT
+        ▲ TOP {len(buys)} HIGH CONVICTION SIGNALS — CURRENT MODEL OUTPUT
       </div>
       <div style="font-size:13px;color:#94a3b8;">Equal-weight · Quarterly rebalance</div>
     </div>
@@ -4503,7 +4505,7 @@ def page_portfolio():
                                     st.warning(f"⚠ Note: Model currently shows EXIT signal on {tk_clean} (score {comp:.0f})")
                                 elif act == "BUY":
                                     create_notification(uid(), tk_clean, "buy_signal",
-                                        f"BUY signal active: {tk_clean}",
+                                        f"HIGH conviction active: {tk_clean}",
                                         f"Score {comp:.0f} — {sc.get('signal','')}")
                             else:
                                 st.info(f"{tk_clean} is outside the model universe — no signal available")
@@ -5167,7 +5169,7 @@ def page_alerts():
 
     page_summary(
         "🔔", "Alerts",
-        "Signal changes on your holdings — the moment the model issues a BUY or EXIT signal, you'll know. "
+        "Signal changes on your holdings — the moment the model issues a HIGH or LOW conviction signal, you'll know. "
         "Macro regime shifts (war, oil spikes, rate changes) trigger alerts too. "
         "Pro members get email notifications on every signal change across their portfolio.",
 
@@ -5294,10 +5296,10 @@ def page_alerts():
                   <div>
                     <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:600;
                          color:{'#e2e8f0' if not is_read else '#94a3b8'};">
-                      {n.get('title','')}
+                      {n.get('title','').replace('BUY','HIGH').replace('SELL','LOW').replace('HOLD','MODERATE')}
                     </div>
                     <div style="font-size:13px;color:#94a3b8;margin-top:3px;line-height:1.5;">
-                      {n.get('body','')}
+                      {n.get('body','').replace('BUY','HIGH').replace('SELL','LOW').replace('HOLD','MODERATE')}
                     </div>
                   </div>
                 </div>
@@ -5788,7 +5790,7 @@ def page_model_portfolio():
       <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
            letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>
       <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
-        This portfolio holds QNTM's top 20 BUY-rated stocks, equal-weighted at $10,000 per position.
+        This portfolio holds QNTM's top 20 HIGH conviction stocks, equal-weighted at $10,000 per position.
         Positions are entered when a stock's blended conviction score reaches <strong style="color:#00ff87;">≥60</strong> —
         combining 5-pillar quantitative analysis (Momentum, Quality, Value, Volume, Sentiment) with a live macro regime overlay.
         <br><br>
@@ -6022,15 +6024,31 @@ def page_platform():
         st.session_state.last_refresh = 0
     import time as _time
     now = int(_time.time())
-    if now - st.session_state.last_refresh >= 60:
-        st.session_state.last_refresh = now
-        st.session_state.scan_results = None
+    # Never clear scan_results while a live refresh is in progress
+    if not st.session_state.get("live_refresh_running"):
+        if now - st.session_state.last_refresh >= 60:
+            st.session_state.last_refresh = now
+            st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
 
     # ── Live refresh runs here regardless of which tab is active ─────────────
-    # This means navigating between pages never interrupts an in-progress refresh.
+    # Navigating between pages never interrupts an in-progress refresh.
     if st.session_state.get("live_refresh_running"):
+        st.markdown("""
+        <div style="background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.25);
+             border-radius:8px;padding:12px 20px;margin:8px 32px 0;
+             display:flex;align-items:center;gap:12px;">
+          <span style="font-size:18px;">⚡</span>
+          <div>
+            <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
+                 color:#00ff87;letter-spacing:.08em;">LIVE REFRESH IN PROGRESS</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;">
+              Do not close this tab — fetching live data for 834 tickers (3–4 min)
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
         _live_refresh_pipeline()
         return  # pipeline calls st.rerun() on completion/error
 
