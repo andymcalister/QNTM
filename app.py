@@ -143,13 +143,17 @@ section[data-testid="stMain"] > div,
   border-radius: 6px !important;
   font-family: 'Syne', sans-serif !important;
   font-weight: 700 !important;
-  font-size: 13px !important;
-  letter-spacing: .1em !important;
-  padding: 10px 26px !important;
+  font-size: 12px !important;
+  letter-spacing: .06em !important;
+  padding: 10px 12px !important;
   text-transform: uppercase !important;
   cursor: pointer !important;
   position: relative !important;
   overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  min-height: 42px !important;
+  height: 42px !important;
   transition: border-color .2s, box-shadow .2s, transform .15s !important;
   box-shadow: 0 0 0 0 rgba(0,255,135,0), inset 0 1px 0 rgba(0,255,135,.12) !important;
 }
@@ -3405,13 +3409,13 @@ def page_screener():
 
     # ── Rescan + Last Refresh — top of page ───────────────────────────────────
     data_freshness_banner()
-    _rc1, _rc2, _rc3 = st.columns([1, 1, 3])
+    _rc1, _rc2, _rc3 = st.columns([1, 1, 2])
     with _rc1:
-        if st.button("🔄 Rescan Universe", key="rescan_main", use_container_width=True):
+        if st.button("🔄 Rescan", key="rescan_main", use_container_width=True):
             st.session_state.scan_results = None
             st.rerun()
     with _rc2:
-        if st.button("⚡ Live Refresh", key="live_refresh_main", use_container_width=True):
+        if st.button("⚡ Refresh", key="live_refresh_main", use_container_width=True):
             st.session_state.live_refresh_running = True
             st.rerun()
 
@@ -3550,16 +3554,7 @@ def page_screener():
         f'<div style="display:flex;gap:5px;margin-bottom:12px;">{stats_html}</div>',
         unsafe_allow_html=True)
 
-    # Rescan + Live Refresh — always visible on main screener
-    rb1, rb2 = st.columns(2)
-    with rb1:
-        if st.button("🔄 Rescan Universe", key="rescan_main", use_container_width=True):
-            st.session_state.scan_results = None
-            st.rerun()
-    with rb2:
-        if st.button("⚡ Live Refresh", key="live_refresh_main", use_container_width=True):
-            st.session_state.live_refresh_running = True
-            st.rerun()
+
     buys_ranked  = sorted([r for r in results if r.get("adj_action",r.get("action"))=="BUY"],
                           key=lambda x: x.get("adj_composite",x.get("composite",0)), reverse=True)
     sells_ranked = sorted([r for r in results if r.get("adj_action",r.get("action"))=="SELL"],
@@ -4387,9 +4382,9 @@ def page_portfolio():
                         f'<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);'
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                        f'color:#ef4444;letter-spacing:.1em;">▼ EXIT SIGNAL: {chg["ticker"]}</span>'
+                        f'color:#ef4444;letter-spacing:.1em;">▼ LOW CONVICTION: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'{chg["from"]} → SELL · Check Alerts tab for details</span></div>',
+                        f'Score dropping — check Alerts tab</span></div>',
                         unsafe_allow_html=True)
 
                 elif change_type == "action_change" and chg["to"] == "BUY":
@@ -4397,9 +4392,9 @@ def page_portfolio():
                         f'<div style="background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.3);'
                         f'border-radius:6px;padding:12px 16px;margin-bottom:8px;">'
                         f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                        f'color:#00ff87;letter-spacing:.1em;">▲ BUY SIGNAL: {chg["ticker"]}</span>'
+                        f'color:#00ff87;letter-spacing:.1em;">▲ HIGH CONVICTION: {chg["ticker"]}</span>'
                         f'<span style="font-size:14px;color:#94a3b8;margin-left:12px;">'
-                        f'{chg["from"]} → BUY · Conviction strengthening</span></div>',
+                        f'Conviction strengthening</span></div>',
                         unsafe_allow_html=True)
 
                 elif change_type == "deterioration":
@@ -4704,7 +4699,8 @@ def page_portfolio():
 
         if sc:
             comp   = sc.get("adj_composite", sc.get("composite", 50))
-            act    = sc.get("adj_action", sc.get("action", "HOLD"))
+            # Override stale cached signal using live score thresholds
+            act    = "SELL" if comp < 45 else ("BUY" if comp >= 60 else "HOLD")
             sig    = sc.get("signal", "")
             mom    = sc.get("momentum", 50)
             qual   = sc.get("quality", 50)
@@ -4735,6 +4731,7 @@ def page_portfolio():
         }
         act_c, act_bg, act_brd = act_colors.get(act, act_colors["N/A"])
         arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
+        act_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MOD"
 
         # Pillar bars — clean horizontal with gradient fill
         def pbar_row(name, v):
@@ -4908,13 +4905,13 @@ def page_simulator():
         return
 
     # Rescan buttons — right here so users don't have to go back to Screener
-    _s1, _s2, _s3 = st.columns([1, 1, 4])
+    _s1, _s2, _s3 = st.columns([1, 1, 2])
     with _s1:
-        if st.button("🔄 Rescan Universe", key="sim_rescan", use_container_width=True):
+        if st.button("🔄 Rescan", key="sim_rescan", use_container_width=True):
             st.session_state.scan_results = None
             st.rerun()
     with _s2:
-        if st.button("⚡ Live Refresh", key="sim_live", use_container_width=True):
+        if st.button("⚡ Refresh", key="sim_live", use_container_width=True):
             st.session_state.live_refresh_running = True
             st.rerun()
     if st.session_state.get("live_refresh_running"):
@@ -5228,7 +5225,7 @@ def page_alerts():
             mark_notifications_read(uid())
             st.rerun()
     with ac3:
-        filter_type = st.selectbox("Filter", ["All","HIGH","LOW","Macro","Gems"], key="notif_filter", label_visibility="collapsed")
+        filter_type = st.selectbox("Filter", ["All","HIGH","LOW","Macro","Gems"], key="notif_filter", label_visibility="collapsed", label_visibility="collapsed")
 
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
@@ -5258,8 +5255,8 @@ def page_alerts():
         }
         type_filter_map = {
             "All": None,
-            "BUY": "buy_signal",
-            "SELL": "sell_signal",
+            "HIGH": "buy_signal",
+            "LOW": "sell_signal",
             "Macro": "macro_alert",
             "Gems": "hidden_gem",
         }
@@ -5289,7 +5286,7 @@ def page_alerts():
                          color:{'#e2e8f0' if not is_read else '#94a3b8'};">
                       {n.get('title','')}
                     </div>
-                    <div style="font-size:14px;color:#94a3b8;margin-top:3px;line-height:1.5;">
+                    <div style="font-size:13px;color:#94a3b8;margin-top:3px;line-height:1.5;">
                       {n.get('body','')}
                     </div>
                   </div>
@@ -5752,10 +5749,18 @@ def page_model_portfolio():
             earliest = min(entry_dates)
             spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
             if not spy_hist.empty:
-                spy_start  = float(spy_hist["Close"].iloc[0])
-                spy_end    = float(spy_hist["Close"].iloc[-1])
-                spy_return = (spy_end / spy_start - 1) * 100
-                spy_pnl    = total_invested * (spy_return / 100)
+                close = spy_hist["Close"]
+                if hasattr(close, "columns"):
+                    close = close.iloc[:, 0]
+                if hasattr(close, "squeeze"):
+                    close = close.squeeze()
+                close = close.dropna()
+                if len(close) >= 2:
+                    spy_start = float(close.iloc[0])
+                    spy_end   = float(close.iloc[-1])
+                    if spy_start > 0:
+                        spy_return = (spy_end / spy_start - 1) * 100
+                        spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
 
