@@ -1922,15 +1922,65 @@ def page_public_track_record():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Get top 15 BUYs and fetch track record data ───────────────────────────
-    buys = [s for s in scores
-            if s.get("adj_action","") == "BUY" or s.get("action","") == "BUY"][:15]
+    # ── Load from model_portfolio_positions (live portfolio, May 19 inception) ─
+    # This gives clean apples-to-apples comparison: same entry date, current prices.
+    score_map = {s["ticker"]: s for s in scores}
+    positions = []
+    try:
+        from data_refresh import _get_supabase
+        _sb = _get_supabase()
+        if _sb:
+            _resp = _sb.table("model_portfolio_positions").select("*").eq("is_active", True).order("entry_date").execute()
+            positions = _resp.data or []
+    except Exception:
+        pass
+
+    # Fall back to current HIGH signals if no positions in DB
+    if not positions:
+        buys = [s for s in scores if s.get("adj_action","") == "BUY" or s.get("action","") == "BUY"][:20]
+    else:
+        buys = [score_map[p["ticker"]] for p in positions if p["ticker"] in score_map]
+
     tickers = [s["ticker"] for s in buys]
 
-    with st.spinner("Fetching signal entry prices and returns..."):
-        track = _get_signal_entry_data(tickers)
+    # Fetch current prices via yfinance
+    import yfinance as yf
+    from datetime import date as _d
+    spy_hist_full = None
+    try:
+        spy_hist_full = yf.Ticker("SPY").history(period="1y", auto_adjust=True)["Close"].squeeze().dropna()
+    except Exception:
+        pass
 
-    # ── Portfolio summary stats — per-position SPY comparison ───────────────
+    track = {}
+    for pos in (positions if positions else []):
+        tk = pos["ticker"]
+        try:
+            h = yf.Ticker(tk).history(period="1y", auto_adjust=True)
+            if h.empty:
+                continue
+            cur = float(h["Close"].iloc[-1])
+            ep  = float(pos.get("entry_price") or 0)
+            ed  = str(pos.get("entry_date",""))[:10]
+            ret = round((cur - ep) / ep * 100, 1) if ep > 0 else None
+            spy_ret_pos = None
+            if spy_hist_full is not None and ed:
+                try:
+                    ed_d = _d.fromisoformat(ed)
+                    sw = spy_hist_full[spy_hist_full.index.date >= ed_d]
+                    if not sw.empty:
+                        spy_ret_pos = round((float(spy_hist_full.iloc[-1]) - float(sw.iloc[0])) / float(sw.iloc[0]) * 100, 1)
+                except Exception:
+                    pass
+            track[tk] = {"entry_date": ed, "entry_price": ep, "current_price": round(cur,2),
+                         "return_pct": ret, "spy_return": spy_ret_pos,
+                         "holding_days": (_d.today() - _d.fromisoformat(ed)).days if ed else 0,
+                         "pos_size": pos.get("position_size", 10000)}
+        except Exception:
+            track[tk] = {"entry_date": str(pos.get("entry_date",""))[:10], "entry_price": pos.get("entry_price"),
+                         "current_price": None, "return_pct": None, "spy_return": None, "holding_days": 0}
+
+    # ── Portfolio summary stats ────────────────────────────────────────────────
     returns      = [track[tk]["return_pct"] for tk in tickers if tk in track and track[tk].get("return_pct") is not None]
     spy_returns  = [track[tk]["spy_return"]  for tk in tickers if tk in track and track[tk].get("spy_return")  is not None]
     holding_days = [track[tk].get("holding_days", 0) for tk in tickers if tk in track and track[tk].get("holding_days")]
@@ -1972,94 +2022,72 @@ def page_public_track_record():
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
 
     # ── Track record table ────────────────────────────────────────────────────
-    from_log_count = sum(1 for tk in tickers if track.get(tk,{}).get("from_log"))
-    data_note = (f"⚡ {from_log_count} entry dates from model signal log · "
-                 f"{len(tickers)-from_log_count} using 90-day fallback")
+    st.markdown(
+        '<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+        'letter-spacing:.1em;margin-bottom:10px;">▲ ACTIVE MODEL PORTFOLIO — LIVE TRACK RECORD</div>',
+        unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.15em;">
-        ▲ ACTIVE HIGH CONVICTION SIGNALS — LIVE TRACK RECORD
-      </div>
-      <div style="font-size:13px;color:#94a3b8;">{data_note}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Table header — wrapped in horizontal scroll container for mobile
+    # Mobile-first table: 4 columns, no horizontal scroll
     st.markdown("""
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <div style="min-width:680px;">
-    <div style="display:grid;grid-template-columns:40px 110px 1fr 80px 80px 80px 90px 90px 80px;
-         gap:6px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;
+         gap:4px;padding:8px 12px;background:#050a0f;border-radius:6px 6px 0 0;
          border:1px solid rgba(255,255,255,.07);">
-      <div style="font-size:13px;color:#94a3b8;">#</div>
-      <div style="font-size:13px;color:#94a3b8;">TICKER</div>
-      <div style="font-size:13px;color:#94a3b8;">SECTOR</div>
-      <div style="font-size:13px;color:#94a3b8;">ENTRY DATE</div>
-      <div style="font-size:13px;color:#94a3b8;">ENTRY $</div>
-      <div style="font-size:13px;color:#94a3b8;">NOW $</div>
-      <div style="font-size:13px;color:#94a3b8;">RETURN</div>
-      <div style="font-size:13px;color:#94a3b8;">SCORE</div>
-      <div style="font-size:13px;color:#94a3b8;">SIGNAL</div>
+      <div style="font-size:10px;color:#64748b;letter-spacing:.08em;">TICKER / SECTOR</div>
+      <div style="font-size:10px;color:#64748b;letter-spacing:.08em;text-align:right;">ENTRY</div>
+      <div style="font-size:10px;color:#64748b;letter-spacing:.08em;text-align:right;">NOW</div>
+      <div style="font-size:10px;color:#64748b;letter-spacing:.08em;text-align:right;">RETURN / SPY</div>
     </div>
     """, unsafe_allow_html=True)
 
+    from model_engine import SECTORS as _TR_SECTORS
     for i, s in enumerate(buys):
-        tk   = s["ticker"]
-        t    = track.get(tk, {})
-        adj  = float(s.get("adj_composite", s.get("composite", 0)) or 0)
-        sect = s.get("sector","Unknown")[:16]
+        tk  = s["ticker"]
+        t   = track.get(tk, {})
+        adj = float(s.get("adj_composite", s.get("composite", 0)) or 0)
+        sect = s.get("sector", "") or _TR_SECTORS.get(tk, "—")
+        if sect in ("Unknown", ""):
+            sect = _TR_SECTORS.get(tk, "—")
+        sect = sect[:16]
         ci   = get_company_info(tk)
-        name = (ci.get("name", tk) if ci else tk)[:14] + ("…" if len(ci.get("name",tk) if ci else tk) > 14 else "")
-
-        entry_date    = t.get("entry_date","—")[:10]
-        entry_price   = t.get("entry_price")
-        current_price = t.get("current_price")
-        ret_pct       = t.get("return_pct")
-        from_log      = t.get("from_log", False)
-
-        ret_color  = "#00ff87" if (ret_pct or 0) >= 0 else "#ef4444"
-        ret_str    = (f"+{ret_pct:.1f}%" if ret_pct and ret_pct >= 0
-                      else f"{ret_pct:.1f}%" if ret_pct is not None else "—")
-        score_col  = "#00ff87" if adj >= 65 else "#d4a843" if adj >= 60 else "#94a3b8"
-        bg         = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
-        log_dot    = '<span style="color:#00ff87;font-size:8px;" title="From signal log">●</span> ' if from_log else ""
-
-        row = (
-            f'<div style="display:grid;grid-template-columns:40px 110px 1fr 80px 80px 80px 90px 90px 80px;'
-            f'gap:6px;padding:10px 14px;background:{bg};'
-            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+        name = (ci.get("name", tk) if ci else tk)[:22]
+        ep   = t.get("entry_price")
+        cur  = t.get("current_price")
+        ret  = t.get("return_pct")
+        spy_r = t.get("spy_return")
+        ed   = str(t.get("entry_date","—"))[:10]
+        rc   = "#00ff87" if (ret or 0) >= 0 else "#ef4444"
+        rs   = (f"+{ret:.1f}%" if ret is not None and ret >= 0 else f"{ret:.1f}%" if ret is not None else "—")
+        sc   = "#00ff87" if adj >= 65 else "#d4a843" if adj >= 60 else "#94a3b8"
+        bg   = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        ep_s = f"${ep:,.0f}" if ep else "—"
+        cur_s = f"${cur:,.2f}" if cur else "—"
+        spy_s = f"spy:{spy_r:+.1f}%" if spy_r is not None else ""
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;'
+            f'gap:4px;padding:10px 12px;background:{bg};'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div style="font-size:13px;color:#94a3b8;">{i+1}</div>'
             f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{tk}</div>'
-            f'<div style="font-size:14px;color:#94a3b8;">{name}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{tk}</div>'
+            f'<div style="font-size:10px;color:#475569;">{sect}</div>'
+            f'<div style="font-size:10px;color:#475569;">{ed}</div>'
             f'</div>'
-            f'<div style="font-size:13px;color:#94a3b8;">{sect}</div>'
-            f'<div style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{log_dot}{entry_date}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;">'
-            f'{"$"+f"{entry_price:,.0f}" if entry_price else "—"}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">'
-            f'{"$"+f"{current_price:,.0f}" if current_price else "—"}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{ret_color};">'
-            f'{ret_str}</div>'
-            f'<div style="font-size:9px;color:#475569;font-family:DM Mono,monospace;margin-top:1px;">spy: {t.get("spy_return",0):+.0f}%</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
-            f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 6px;border-radius:3px;">▲ HIGH</span></div>'
+            f'<div style="text-align:right;font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{ep_s}</div>'
+            f'<div style="text-align:right;font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{cur_s}</div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{rs}</div>'
+            f'<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;">{spy_s}</div>'
+            f'<div style="font-size:10px;color:{sc};">score:{adj:.0f}</div>'
             f'</div>'
+            f'</div>',
+            unsafe_allow_html=True
         )
-        st.markdown(row, unsafe_allow_html=True)
 
-    # Table footer
-    st.markdown(f"""
-    <div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);
-         border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">
-      ● = Entry date from QNTM signal log (verified) · No dot = 90-day fallback estimate ·
-      Returns are price-only, not total return · Equal-weight portfolio assumed
-    </div>
-    </div></div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div style="padding:8px 12px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
+        'border-radius:0 0 6px 6px;font-size:11px;color:#475569;">'
+        '$10K equal weight per position · Entry: May 19 2026 · Price-only returns · Not investment advice'
+        '</div>',
+        unsafe_allow_html=True)
 
     # ── Methodology + disclaimer ──────────────────────────────────────────────
     st.markdown("""
