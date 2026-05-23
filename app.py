@@ -3265,32 +3265,34 @@ def platform_nav():
 
     cur_nav = st.session_state.get("nav", "screener")
     nav_options = [
-        ("screener",        "SS", "Screener"),
-        ("gems",            "GG", "Hidden Gems"),
-        ("backtest",        "BT", "Backtest"),
-        ("portfolio",       "PF", "Portfolio"),
-        ("simulator",       "SM", "Simulator"),
-        ("model_portfolio", "MP", "Model Port."),
-        ("alerts",          "AL", "Alerts"),
-        ("account",         "AC", "Account"),
+        ("screener",        "📊", "Screener"),
+        ("gems",            "💎", "Hidden Gems"),
+        ("backtest",        "📈", "Backtest"),
+        ("portfolio",       "💼", "Portfolio"),
+        ("simulator",       "🧮", "Simulator"),
+        ("model_portfolio", "🏆", "Model Port."),
+        ("alerts",          "🔔", "Alerts"),
+        ("account",         "⚙️", "Account"),
     ]
-    emoji_map = {
-        "screener":"📊","gems":"💎","backtest":"📈","portfolio":"💼",
-        "simulator":"🧮","model_portfolio":"🏆","alerts":"🔔","account":"⚙️",
-    }
 
-    cur_label = next((emoji_map.get(k,"") + " " + l for k,_,l in nav_options if k == cur_nav), "📊 Screener")
+    cur_label = next((e + " " + l for k,e,l in nav_options if k == cur_nav), "📊 Screener")
     notif_dot = (
         '<span style="background:#ef4444;color:#fff;border-radius:50%;'
         'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
         'font-size:10px;font-weight:700;margin-left:4px;">' + str(n_count) + '</span>'
     ) if n_count > 0 else ""
 
-    # Build tile HTML — one per nav option + sign out
+    # Preserve session params across nav
+    existing_qp = ""
+    for qk in ["uid", "plan", "ck"]:
+        v = st.query_params.get(qk, "")
+        if v:
+            existing_qp += "&" + qk + "=" + v
+
+    # Build tile links — <a href> tags, no JS needed
     tiles_html = ""
-    for key, _, label in nav_options:
+    for key, em, label in nav_options:
         is_active = (key == cur_nav)
-        em = emoji_map.get(key, "")
         alert_badge = (
             '<span style="position:absolute;top:5px;right:5px;background:#ef4444;color:#fff;'
             'border-radius:50%;width:13px;height:13px;display:flex;align-items:center;'
@@ -3298,85 +3300,112 @@ def platform_nav():
         ) if (key == "alerts" and n_count > 0) else ""
 
         if is_active:
-            tb = "background:linear-gradient(135deg,rgba(0,255,135,.14),rgba(0,255,135,.04));"
-            tb += "border:1px solid rgba(0,255,135,.45);"
-            tb += "box-shadow:0 0 14px rgba(0,255,135,.1),inset 0 1px 0 rgba(0,255,135,.12);"
+            tb = ("background:linear-gradient(135deg,rgba(0,255,135,.14),rgba(0,255,135,.04));"
+                  "border:1px solid rgba(0,255,135,.45);"
+                  "box-shadow:0 0 14px rgba(0,255,135,.1),inset 0 1px 0 rgba(0,255,135,.12);")
             ec = "color:#00ff87;"
             lc = "color:#00ff87;"
         else:
-            tb = "background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01));"
-            tb += "border:1px solid rgba(255,255,255,.07);"
+            tb = ("background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01));"
+                  "border:1px solid rgba(255,255,255,.07);")
             ec = "color:#475569;"
             lc = "color:#64748b;"
 
+        href = "?qnav=" + key + existing_qp
         tiles_html += (
-            '<button onclick="qntmNav(\'' + key + '\')" class="qntm-tile" style="'
-            'position:relative;' + tb +
+            '<a href="' + href + '" class="qntm-tile" style="'
+            'position:relative;text-decoration:none;' + tb +
             'border-radius:8px;padding:13px 6px 11px;cursor:pointer;'
             'display:flex;flex-direction:column;align-items:center;justify-content:center;'
-            'gap:5px;width:100%;transition:all .18s ease;outline:none;">'
+            'gap:5px;transition:all .18s ease;">'
             '<span style="font-size:18px;line-height:1;' + ec + '">' + em + '</span>'
             '<span style="font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
             'letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;'
             'overflow:hidden;text-overflow:ellipsis;max-width:90%;' + lc + '">' + label + '</span>'
-            + alert_badge +
-            '</button>'
+            + alert_badge + '</a>'
         )
 
     # Sign out tile
     tiles_html += (
-        '<button onclick="qntmSignOut()" class="qntm-tile" style="'
-        'position:relative;background:linear-gradient(135deg,rgba(239,68,68,.09),rgba(239,68,68,.02));'
+        '<a href="?qnav=signout" class="qntm-tile" style="'
+        'position:relative;text-decoration:none;'
+        'background:linear-gradient(135deg,rgba(239,68,68,.09),rgba(239,68,68,.02));'
         'border:1px solid rgba(239,68,68,.22);border-radius:8px;padding:13px 6px 11px;'
-        'cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;'
-        'gap:5px;width:100%;transition:all .18s ease;outline:none;">'
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+        'gap:5px;transition:all .18s ease;">'
         '<span style="font-size:18px;line-height:1;">🚪</span>'
         '<span style="font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
         'letter-spacing:.05em;text-transform:uppercase;color:#ef4444;">Sign Out</span>'
-        '</button>'
+        '</a>'
     )
 
-    # Preserve existing query params so uid/plan/ck survive nav
-    existing_qp = ""
-    for qk in ["uid", "plan", "ck"]:
-        v = st.query_params.get(qk, "")
-        if v:
-            existing_qp += "&" + qk + "=" + v
-
-    bar_html = (
+    # Pure CSS checkbox toggle — no JS required, works in st.markdown
+    css = (
         '<style>'
-        '#qntm-dd{position:fixed;top:56px;left:0;width:310px;'
-        'background:rgba(7,10,18,.98);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);'
+        # Hide the real checkbox
+        '#qntm-toggle{display:none;}'
+        # Dropdown closed by default
+        '#qntm-dd{'
+        'position:fixed;top:56px;left:0;width:310px;'
+        'background:rgba(7,10,18,.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'
         'border-right:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);'
         'border-radius:0 0 16px 0;z-index:1000;'
         'max-height:0;overflow:hidden;opacity:0;pointer-events:none;'
-        'transition:max-height .3s cubic-bezier(.4,0,.2,1),opacity .22s ease;}'
-        '#qntm-dd.open{max-height:560px;opacity:1;pointer-events:all;'
+        'transition:max-height .32s cubic-bezier(.4,0,.2,1),opacity .22s ease;}'
+        # Overlay hidden
+        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.4);}'
+        # CHECKED STATE — dropdown open
+        '#qntm-toggle:checked ~ #qntm-dd{'
+        'max-height:580px;opacity:1;pointer-events:all;'
         'box-shadow:10px 20px 60px rgba(0,0,0,.8),0 0 0 1px rgba(0,255,135,.05);}'
-        '.qntm-tile:hover{background:linear-gradient(135deg,rgba(0,255,135,.09),rgba(0,255,135,.02))!important;'
-        'border-color:rgba(0,255,135,.3)!important;transform:translateY(-1px);}'
-        '.qntm-tile:active{transform:translateY(0)!important;}'
-        '#qntm-hbr-l{transition:transform .22s ease,opacity .18s ease;}'
+        '#qntm-toggle:checked ~ #qntm-ov{display:block;}'
+        # Hamburger lines animate to X when checked
+        '#qntm-toggle:checked ~ div #qntm-hbr-l{transform:translateY(6px) rotate(45deg);}'
+        '#qntm-toggle:checked ~ div #qntm-hbr-m{opacity:0;}'
+        '#qntm-toggle:checked ~ div #qntm-hbr-b{transform:translateY(-6px) rotate(-45deg);}'
+        # Hamburger line transitions
+        '#qntm-hbr-l,#qntm-hbr-b{transition:transform .22s ease;}'
         '#qntm-hbr-m{transition:opacity .18s ease;}'
-        '#qntm-hbr-b{transition:transform .22s ease,opacity .18s ease;}'
-        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.35);}'
-        '#qntm-ov.open{display:block;}'
+        # Tile hover
+        '.qntm-tile:hover{'
+        'background:linear-gradient(135deg,rgba(0,255,135,.1),rgba(0,255,135,.03))!important;'
+        'border-color:rgba(0,255,135,.35)!important;transform:translateY(-1px);}'
+        '.qntm-tile:active{transform:translateY(0)!important;}'
         '</style>'
+    )
 
+    bar_html = (
+        css +
+        # Checkbox must be BEFORE the elements it controls via ~ sibling selector
+        '<input type="checkbox" id="qntm-toggle">'
+
+        # Dropdown panel (sibling of checkbox)
+        '<div id="qntm-dd">'
+        '<div style="padding:12px 14px 9px;border-bottom:1px solid rgba(255,255,255,.05);">'
+        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#334155;letter-spacing:.12em;">NAVIGATION</span>'
+        '</div>'
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:12px 12px 14px;">'
+        + tiles_html +
+        '</div></div>'
+
+        # Click-outside overlay — label targets the checkbox to uncheck it
+        '<label for="qntm-toggle" id="qntm-ov"></label>'
+
+        # Top bar (sibling of checkbox — hamburger label inside)
         '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
         'border-bottom:1px solid rgba(255,255,255,.06);'
         'padding:0 20px;height:56px;display:flex;align-items:center;'
         'justify-content:space-between;position:sticky;top:0;z-index:1001;">'
 
-        # Hamburger
-        '<button id="qntm-hbr" onclick="qntmToggle()" style="'
+        # Hamburger — label toggles the checkbox
+        '<label for="qntm-toggle" style="'
         'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);'
         'border-radius:7px;padding:8px 10px;cursor:pointer;'
         'display:flex;flex-direction:column;gap:4px;align-items:center;">'
         '<span id="qntm-hbr-l" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
         '<span id="qntm-hbr-m" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
         '<span id="qntm-hbr-b" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
-        '</button>'
+        '</label>'
 
         # Logo
         '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
@@ -3385,7 +3414,7 @@ def platform_nav():
         '<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">' + cur_label + '</div>'
         '</div>'
 
-        # Right
+        # Right: plan badge + username + notif
         '<div style="display:flex;align-items:center;gap:10px;">'
         + notif_dot +
         '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
@@ -3396,63 +3425,9 @@ def platform_nav():
         'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
         + display_name + '</span>'
         '</div></div>'
-
-        # Overlay
-        '<div id="qntm-ov" onclick="qntmClose()"></div>'
-
-        # Dropdown panel
-        '<div id="qntm-dd">'
-        '<div style="padding:12px 14px 9px;border-bottom:1px solid rgba(255,255,255,.05);">'
-        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#334155;letter-spacing:.12em;">NAVIGATION</span>'
-        '</div>'
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:12px 12px 14px;">'
-        + tiles_html +
-        '</div></div>'
     )
 
     st.markdown(bar_html, unsafe_allow_html=True)
-
-    # JS runs in components.html iframe so scripts actually execute.
-    # Navigation sets ?qnav=<key> which main() reads on the next Streamlit rerun.
-    components.html(
-        '<script>'
-        'var _qp = "' + existing_qp + '";'
-        'function qntmToggle(){'
-        '  var dd=window.parent.document.getElementById("qntm-dd");'
-        '  var ov=window.parent.document.getElementById("qntm-ov");'
-        '  var l=window.parent.document.getElementById("qntm-hbr-l");'
-        '  var m=window.parent.document.getElementById("qntm-hbr-m");'
-        '  var b=window.parent.document.getElementById("qntm-hbr-b");'
-        '  var opening=!dd.classList.contains("open");'
-        '  dd.classList.toggle("open");ov.classList.toggle("open");'
-        '  if(opening){'
-        '    l.style.transform="rotate(45deg)";'
-        '    m.style.opacity="0";'
-        '    b.style.transform="rotate(-45deg)";'
-        '  }else{'
-        '    l.style.transform="";m.style.opacity="";b.style.transform="";'
-        '  }'
-        '}'
-        'function qntmClose(){'
-        '  var dd=window.parent.document.getElementById("qntm-dd");'
-        '  var ov=window.parent.document.getElementById("qntm-ov");'
-        '  var l=window.parent.document.getElementById("qntm-hbr-l");'
-        '  var m=window.parent.document.getElementById("qntm-hbr-m");'
-        '  var b=window.parent.document.getElementById("qntm-hbr-b");'
-        '  dd.classList.remove("open");ov.classList.remove("open");'
-        '  l.style.transform="";m.style.opacity="";b.style.transform="";'
-        '}'
-        'function qntmNav(key){'
-        '  qntmClose();'
-        '  window.parent.location.href="?qnav="+key+_qp;'
-        '}'
-        'function qntmSignOut(){'
-        '  qntmClose();'
-        '  window.parent.location.href="?qnav=signout";'
-        '}'
-        '</script>',
-        height=0,
-    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
