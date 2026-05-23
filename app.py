@@ -1780,6 +1780,25 @@ def _get_signal_entry_data(tickers: list) -> dict:
             result[ticker] = {"entry_date": fallback_date, "entry_price": None,
                               "current_price": None, "return_pct": None, "from_log": False}
 
+    # Add per-ticker SPY return over same holding period as each position
+    try:
+        import yfinance as yf
+        from datetime import date as _d2
+        spy_h = yf.Ticker("SPY").history(period="5y", auto_adjust=True)
+        spy_c = spy_h["Close"].squeeze().dropna() if not spy_h.empty else None
+        if spy_c is not None:
+            spy_now = float(spy_c.iloc[-1])
+            for tk, r in result.items():
+                try:
+                    ed = _d2.fromisoformat(str(r.get("entry_date",""))[:10])
+                    w = spy_c[spy_c.index.date >= ed]
+                    if not w.empty:
+                        r["spy_return"] = round((spy_now - float(w.iloc[0])) / float(w.iloc[0]) * 100, 1)
+                        r["holding_days"] = (_d2.today() - ed).days
+                except Exception:
+                    pass
+    except Exception:
+        pass
     return result
 
 
@@ -1787,17 +1806,16 @@ def _get_spy_return(start_date: str) -> float:
     """Get SPY return from start_date to today."""
     try:
         import yfinance as yf
-        from datetime import date, timedelta
-        hist = yf.Ticker("SPY").history(period="1y", auto_adjust=True)
+        from datetime import date
+        hist = yf.Ticker("SPY").history(period="5y", auto_adjust=True)
         if hist.empty:
             return 0.0
+        close = hist["Close"].squeeze().dropna()
         ed = date.fromisoformat(str(start_date)[:10])
-        window = hist[hist.index.date >= ed]
+        window = close[close.index.date >= ed]
         if window.empty:
             return 0.0
-        entry = float(window["Close"].iloc[0])
-        current = float(hist["Close"].iloc[-1])
-        return round((current - entry) / entry * 100, 1)
+        return round((float(close.iloc[-1]) - float(window.iloc[0])) / float(window.iloc[0]) * 100, 1)
     except Exception:
         return 0.0
 
@@ -1853,8 +1871,12 @@ def page_public_track_record():
 
     # ── Load scores ───────────────────────────────────────────────────────────
     with st.spinner("Loading model signals..."):
+        from model_engine import SECTORS as _PTR_SECTORS
         raw    = run_full_scan(use_live_prices=False)
         macro  = fetch_macro_overlay()
+        for _r in raw:
+            if not _r.get("sector") or _r.get("sector") == "Unknown":
+                _r["sector"] = _PTR_SECTORS.get(_r["ticker"], "Unknown")
         scores = apply_macro_overlay(raw, macro)
 
     regime      = macro.get("regime", "NEUTRAL")
@@ -1908,17 +1930,16 @@ def page_public_track_record():
     with st.spinner("Fetching signal entry prices and returns..."):
         track = _get_signal_entry_data(tickers)
 
-    # ── Portfolio summary stats ───────────────────────────────────────────────
-    returns = [track[tk]["return_pct"] for tk in tickers
-               if tk in track and track[tk].get("return_pct") is not None]
-    avg_return = sum(returns) / len(returns) if returns else None
-
-    # SPY return from earliest signal date
-    all_entry_dates = [track[tk]["entry_date"] for tk in tickers
-                       if tk in track and track[tk].get("entry_date")]
-    earliest_date = min(all_entry_dates) if all_entry_dates else None
-    spy_ret = _get_spy_return(earliest_date) if earliest_date else None
-    alpha   = round(avg_return - spy_ret, 1) if avg_return is not None and spy_ret is not None else None
+    # ── Portfolio summary stats — per-position SPY comparison ───────────────
+    returns      = [track[tk]["return_pct"] for tk in tickers if tk in track and track[tk].get("return_pct") is not None]
+    spy_returns  = [track[tk]["spy_return"]  for tk in tickers if tk in track and track[tk].get("spy_return")  is not None]
+    holding_days = [track[tk].get("holding_days", 0) for tk in tickers if tk in track and track[tk].get("holding_days")]
+    avg_return   = round(sum(returns) / len(returns), 1) if returns else None
+    spy_ret      = round(sum(spy_returns) / len(spy_returns), 1) if spy_returns else None
+    alpha        = round(avg_return - spy_ret, 1) if avg_return is not None and spy_ret is not None else None
+    avg_hold_days = int(sum(holding_days) / len(holding_days)) if holding_days else 0
+    all_entry_dates = [track[tk]["entry_date"] for tk in tickers if tk in track and track[tk].get("entry_date")]
+    earliest_date   = min(all_entry_dates) if all_entry_dates else None
 
     # Hero stats — responsive 2x2 grid, no st.columns (prevents mobile wrapping)
     _avg_val = f"+{avg_return:.1f}%" if avg_return and avg_return >= 0 else (f"{avg_return:.1f}%" if avg_return else "—")
@@ -1932,18 +1953,18 @@ def page_public_track_record():
             f'border-left:3px solid {color};border-radius:6px;padding:14px 16px;min-width:0;">' +
             f'<div style="font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;'
             f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{label}</div>' +
-            f'<div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
-            f'color:{color};line-height:1;white-space:nowrap;">{val}</div>' +
+            f'<div style="font-family:Syne,sans-serif;font-size:{"16px" if len(str(val))>7 else "20px"};font-weight:800;'
+            f'color:{color};line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{val}</div>' +
             f'<div style="font-size:10px;color:#64748b;margin-top:5px;'
             f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sub}</div>' +
             '</div>'
         )
     st.markdown(
         '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px;">' +
-        _stat_card("AVG RETURN",        _avg_val,       "Equal-weight HIGH signals", _avg_col) +
-        _stat_card("SPY SAME PERIOD",   _spy_val,       f"From {earliest_date or '—'}", "#475569") +
-        _stat_card("ALPHA vs SPY",      _alp_val,       "Outperformance", _alp_col) +
-        _stat_card("SIGNALS ACTIVE",    str(len(buys)), f"{len(returns)} with return data", "#94a3b8") +
+        _stat_card("AVG RETURN",         _avg_val, f"Avg {avg_hold_days}d hold · {len(returns)} signals", _avg_col) +
+        _stat_card("SPY SAME WINDOWS",  _spy_val, "Avg SPY over each hold period", "#475569") +
+        _stat_card("ALPHA vs SPY",      _alp_val, "Per-position comparison", _alp_col) +
+        _stat_card("SIGNALS ACTIVE", str(len(buys)), f"Earliest entry: {earliest_date or '—'}", "#94a3b8") +
         '</div>',
         unsafe_allow_html=True
     )
@@ -2020,10 +2041,12 @@ def page_public_track_record():
             f'{"$"+f"{entry_price:,.0f}" if entry_price else "—"}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">'
             f'{"$"+f"{current_price:,.0f}" if current_price else "—"}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{ret_color};">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{ret_color};">'
+            f'{ret_str}</div>'
+            f'<div style="font-size:9px;color:#475569;font-family:DM Mono,monospace;margin-top:1px;">spy: {t.get("spy_return",0):+.0f}%</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{score_col};font-weight:700;">{adj:.0f}</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 6px;border-radius:3px;">▲ HIGH</span></div>'
             f'</div>'
         )
         st.markdown(row, unsafe_allow_html=True)
@@ -2219,7 +2242,7 @@ def page_public_track_record():
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{qual:.0f}</div>'
             f'<div style="font-size:13px;color:#94a3b8;">{rank:.0f}th pct</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:#00ff87;background:rgba(0,255,135,.12);'
-            f'border:1px solid rgba(0,255,135,.3);padding:2px 8px;border-radius:3px;">▲ BUY</span></div>'
+            f'border:1px solid rgba(0,255,135,.3);padding:2px 6px;border-radius:3px;">▲ HIGH</span></div>'
             f'</div>'
         )
         st.markdown(row_html, unsafe_allow_html=True)
@@ -2728,8 +2751,8 @@ def page_landing():
     st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
     signals_html = ""
     for label, score, desc, color, brd in [
-        ("▲ BUY SIGNAL",  "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
-        ("─ HOLD",        "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
+        ("▲ HIGH",        "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
+        ("─ MODERATE",    "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
         ("▼ EXIT SIGNAL", "Score < 45",  "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                "#E24B4A", "rgba(226,75,74,.25)"),
     ]:
         signals_html += (
