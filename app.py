@@ -3409,7 +3409,7 @@ def page_screener():
 
     # ── Rescan + Last Refresh — top of page ───────────────────────────────────
     data_freshness_banner()
-    _rc1, _rc2, _rc3 = st.columns([1, 1, 2])
+    _rc1, _rc2 = st.columns(2)
     with _rc1:
         if st.button("🔄 Rescan", key="rescan_main", use_container_width=True):
             st.session_state.scan_results = None
@@ -4905,7 +4905,7 @@ def page_simulator():
         return
 
     # Rescan buttons — right here so users don't have to go back to Screener
-    _s1, _s2, _s3 = st.columns([1, 1, 2])
+    _s1, _s2 = st.columns(2)
     with _s1:
         if st.button("🔄 Rescan", key="sim_rescan", use_container_width=True):
             st.session_state.scan_results = None
@@ -5221,7 +5221,7 @@ def page_alerts():
         </div>
         """, unsafe_allow_html=True)
     with ac2:
-        if unread > 0 and st.button("Mark All Read", key="mark_read"):
+        if unread > 0 and st.button("✓ Read", key="mark_read", use_container_width=True):
             mark_notifications_read(uid())
             st.rerun()
     with ac3:

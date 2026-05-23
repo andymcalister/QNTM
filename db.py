@@ -531,6 +531,11 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
 # SIGNAL CHANGE DETECTION  (pro/institutional only)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _sig_label(action: str) -> str:
+    """Convert internal BUY/HOLD/SELL to display HIGH/MODERATE/LOW."""
+    return {"BUY": "HIGH", "HOLD": "MODERATE", "SELL": "LOW"}.get(action, action)
+
+
 def check_and_notify_signal_changes(user_id: str, plan: str,
                                      current_scores: dict,
                                      prev_signals: dict = None) -> list:
@@ -585,7 +590,7 @@ def check_and_notify_signal_changes(user_id: str, plan: str,
             create_notification(
                 user_id, ticker, "sell_signal",
                 f"⚠ {ticker}: Score deteriorating ({prev_score:.0f} → {curr_score:.0f})",
-                f"Score dropped {abs(score_delta):.0f} points. Still HOLD but approaching exit threshold. "
+                f"Score dropped {abs(score_delta):.0f} points. Still MODERATE but approaching LOW threshold. "
                 f"Momentum {curr_mom:.0f} · Quality {curr_qual:.0f}. Monitor closely."
             )
             changes.append({"ticker": ticker, "from": prev_action, "to": curr_action,
@@ -595,8 +600,8 @@ def check_and_notify_signal_changes(user_id: str, plan: str,
         elif curr_action == "BUY" and prev_action == "HOLD" and score_delta >= 10:
             create_notification(
                 user_id, ticker, "buy_signal",
-                f"▲ {ticker}: Signal strengthening ({prev_score:.0f} → {curr_score:.0f})",
-                f"Score recovered {score_delta:.0f} points. Strong BUY signal reinforced. "
+                f"▲ {ticker}: Conviction strengthening ({prev_score:.0f} → {curr_score:.0f})",
+                f"Score recovered {score_delta:.0f} points. HIGH conviction reinforced. "
                 f"Momentum {curr_mom:.0f} · Quality {curr_qual:.0f}."
             )
             changes.append({"ticker": ticker, "from": prev_action, "to": curr_action,
