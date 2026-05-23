@@ -3251,8 +3251,6 @@ def page_mfa():
 # PLATFORM — TOP NAV
 # ══════════════════════════════════════════════════════════════════════════════
 def platform_nav():
-    import streamlit.components.v1 as components
-
     user  = st.session_state.user or {}
     plan  = user.get("plan","free")
     n_count = get_unread_count(uid()) if plan in ("pro","institutional") else 0
@@ -3282,113 +3280,91 @@ def platform_nav():
         'font-size:10px;font-weight:700;margin-left:4px;">' + str(n_count) + '</span>'
     ) if n_count > 0 else ""
 
-    # Embed uid + plan from session state so session survives nav reloads
-    _user     = st.session_state.get("user") or {}
-    _uid_val  = _sign_token(_user.get("id",""), _user.get("plan","free"))
-    _plan_val = _user.get("plan","free")
-    _ck       = "1" if st.session_state.get("cookies_accepted") else ""
-    existing_qp = ""
-    if _uid_val and _user.get("id"):
-        existing_qp += "&uid=" + str(_uid_val) + "&plan=" + _plan_val
-    if _ck:
-        existing_qp += "&ck=1"
-
-    # Dev banner adds ~32px above navbar — detect and offset dropdown accordingly
     is_dev = os.getenv("ENVIRONMENT") == "dev"
     dd_top = "88px" if is_dev else "56px"
 
-    # Build clean list rows
+    # ── Visual menu (pure CSS checkbox toggle, no hrefs) ─────────────────────
     list_rows = ""
     for key, em, label in nav_options:
         is_active = (key == cur_nav)
-        href = "?qnav=" + key + existing_qp
-        if is_active:
-            row_style = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
-                         "background:rgba(0,255,135,.06);border-left:3px solid #00ff87;"
-                         "text-decoration:none;transition:background .15s;")
-            em_style  = "font-size:15px;width:20px;text-align:center;opacity:1;"
-            lbl_style = ("font-family:Syne,sans-serif;font-size:13px;font-weight:700;"
-                         "letter-spacing:.04em;color:#00ff87;")
-        else:
-            row_style = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
-                         "background:none;border-left:3px solid transparent;"
-                         "text-decoration:none;transition:background .15s;")
-            em_style  = "font-size:15px;width:20px;text-align:center;opacity:.55;"
-            lbl_style = ("font-family:Syne,sans-serif;font-size:13px;font-weight:500;"
-                         "letter-spacing:.03em;color:#94a3b8;")
-
         alert_badge = (
             '<span style="margin-left:auto;background:#ef4444;color:#fff;border-radius:50%;'
             'width:16px;height:16px;display:flex;align-items:center;justify-content:center;'
             'font-size:9px;font-weight:700;">' + str(n_count) + '</span>'
         ) if (key == "alerts" and n_count > 0) else ""
-
+        if is_active:
+            rs = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
+                  "background:rgba(0,255,135,.06);border-left:3px solid #00ff87;cursor:pointer;")
+            lc = "color:#00ff87;"
+            ec = "opacity:1;"
+        else:
+            rs = ("display:flex;align-items:center;gap:14px;padding:11px 20px;"
+                  "background:none;border-left:3px solid transparent;cursor:pointer;")
+            lc = "color:#94a3b8;"
+            ec = "opacity:.55;"
+        # Visual row — pointer-events:none so clicks fall through to Streamlit buttons below
         list_rows += (
-            '<a href="' + href + '" class="qntm-row" style="' + row_style + '">'
-            '<span style="' + em_style + '">' + em + '</span>'
-            '<span style="' + lbl_style + '">' + label + '</span>'
-            + alert_badge + '</a>'
+            '<div class="qntm-row" style="' + rs + 'pointer-events:none;">'
+            '<span style="font-size:15px;width:20px;text-align:center;' + ec + '">' + em + '</span>'
+            '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:' + ('700' if is_active else '500') + ';' + lc + '">' + label + '</span>'
+            + alert_badge + '</div>'
         )
-
     # Sign out row
     list_rows += (
-        '<a href="?qnav=signout" class="qntm-row" style="'
-        'display:flex;align-items:center;gap:14px;padding:11px 20px;'
+        '<div class="qntm-row" style="display:flex;align-items:center;gap:14px;padding:11px 20px;'
         'background:none;border-left:3px solid transparent;border-top:1px solid rgba(255,255,255,.05);'
-        'text-decoration:none;transition:background .15s;margin-top:4px;">'
+        'cursor:pointer;margin-top:4px;pointer-events:none;">'
         '<span style="font-size:15px;width:20px;text-align:center;opacity:.55;">🚪</span>'
-        '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:500;'
-        'letter-spacing:.03em;color:#ef4444;">Sign Out</span>'
-        '</a>'
+        '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:500;color:#ef4444;">Sign Out</span>'
+        '</div>'
     )
 
     css = (
         '<style>'
         '#qntm-toggle{display:none;}'
-        '#qntm-dd{'
-        'position:fixed;top:' + dd_top + ';left:0;width:260px;'
+        '#qntm-dd{position:fixed;top:' + dd_top + ';left:0;width:260px;'
         'background:rgba(7,10,18,.99);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'
         'border-right:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);'
-        'border-radius:0 0 12px 0;z-index:1000;'
+        'border-radius:0 0 12px 0;z-index:2000;'
         'max-height:0;overflow:hidden;opacity:0;pointer-events:none;'
         'transition:max-height .28s cubic-bezier(.4,0,.2,1),opacity .2s ease;}'
-        '#qntm-toggle:checked ~ #qntm-dd{'
-        'max-height:520px;opacity:1;pointer-events:all;'
+        '#qntm-toggle:checked ~ #qntm-dd{max-height:520px;opacity:1;pointer-events:all;'
         'box-shadow:8px 16px 48px rgba(0,0,0,.85);}'
-        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;}'
+        '#qntm-ov{display:none;position:fixed;inset:0;z-index:1999;}'
         '#qntm-toggle:checked ~ #qntm-ov{display:block;}'
-        '.qntm-row:hover{background:rgba(255,255,255,.03)!important;'
-        'border-left-color:rgba(0,255,135,.2)!important;}'
+        '.qntm-row:hover{background:rgba(255,255,255,.03)!important;border-left-color:rgba(0,255,135,.2)!important;}'
         '#qntm-hbr-l,#qntm-hbr-b{transition:transform .2s ease;}'
         '#qntm-hbr-m{transition:opacity .15s ease;}'
         '#qntm-toggle:checked ~ div label #qntm-hbr-l{transform:translateY(6px) rotate(45deg);}'
         '#qntm-toggle:checked ~ div label #qntm-hbr-m{opacity:0;}'
         '#qntm-toggle:checked ~ div label #qntm-hbr-b{transform:translateY(-6px) rotate(-45deg);}'
+        '.qntm-nav-stack{position:fixed;top:' + dd_top + ';left:0;width:260px;z-index:2001;'
+        'display:none;}'
+        '#qntm-toggle:checked ~ .qntm-nav-stack{display:block;}'
+        '.qntm-nav-stack .stButton>button{'
+        'width:260px!important;height:44px!important;padding:0!important;'
+        'background:transparent!important;border:none!important;'
+        'box-shadow:none!important;color:transparent!important;'
+        'font-size:1px!important;cursor:pointer!important;'
+        'border-radius:0!important;margin:0!important;}'
+        '.qntm-nav-stack .stButton>button:hover{background:transparent!important;}'
         '</style>'
     )
 
     bar_html = (
         css
         + '<input type="checkbox" id="qntm-toggle">'
-
-        # Dropdown
         + '<div id="qntm-dd">'
         '<div style="padding:10px 20px 8px;border-bottom:1px solid rgba(255,255,255,.05);">'
         '<span style="font-family:DM Mono,monospace;font-size:9px;color:#334155;letter-spacing:.14em;">MENU</span>'
         '</div>'
         + list_rows
         + '</div>'
-
-        # Overlay
         + '<label for="qntm-toggle" id="qntm-ov"></label>'
-
-        # Top bar
         + '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
         'border-bottom:1px solid rgba(255,255,255,.06);'
         'padding:0 20px;height:56px;display:flex;align-items:center;'
         'justify-content:space-between;position:sticky;top:0;z-index:1001;">'
-
-        # Hamburger label
         + '<label for="qntm-toggle" style="'
         'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);'
         'border-radius:7px;padding:8px 10px;cursor:pointer;'
@@ -3397,15 +3373,11 @@ def platform_nav():
         '<span id="qntm-hbr-m" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;"></span>'
         '<span id="qntm-hbr-b" style="display:block;width:18px;height:2px;background:#94a3b8;border-radius:2px;transform-origin:9px 1px;"></span>'
         '</label>'
-
-        # Logo
         + '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
         '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
         'Q<span style="color:#00ff87;">NTM</span></div>'
         '<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">' + cur_label + '</div>'
         '</div>'
-
-        # Right
         + '<div style="display:flex;align-items:center;gap:10px;">'
         + notif_dot
         + '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
@@ -3419,6 +3391,27 @@ def platform_nav():
     )
 
     st.markdown(bar_html, unsafe_allow_html=True)
+
+    # ── Real Streamlit buttons — transparent, stacked over visual rows ────────
+    # CSS class qntm-nav-stack makes them visible only when checkbox is checked.
+    # Each button is 260px wide × 44px tall, exactly covering its visual row.
+    # The top offset accounts for the 38px MENU header inside the dropdown.
+    st.markdown('<div class="qntm-nav-stack">', unsafe_allow_html=True)
+    # Spacer for the MENU header row (38px)
+    st.markdown('<div style="height:38px;"></div>', unsafe_allow_html=True)
+    for key, _, label in nav_options:
+        if st.button(label, key="_xnav_" + key, use_container_width=True):
+            nav(key)
+    # Sign out — extra 5px spacer for the divider margin
+    st.markdown('<div style="height:9px;"></div>', unsafe_allow_html=True)
+    if st.button("Sign Out", key="_xnav_signout", use_container_width=True):
+        for k in ["logged_in","user","mfa_verified","scan_results",
+                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
+            st.session_state[k] = False if k == "logged_in" else None
+        st.session_state.signed_out = True
+        _clear_localstorage_token()
+        go("landing")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
