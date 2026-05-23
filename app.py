@@ -2859,11 +2859,15 @@ def page_screener():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if search_ticker:
-        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {search_ticker}</div>', unsafe_allow_html=True)
-        with st.spinner(f"Scoring {search_ticker}..."):
+        # Resolve company name → ticker first
+        resolved_tk, resolved_name = resolve_ticker(search_ticker)
+        display_query = f"{resolved_name} ({resolved_tk})" if resolved_name and resolved_name != resolved_tk else resolved_tk
+
+        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {display_query}</div>', unsafe_allow_html=True)
+        with st.spinner(f"Scoring {resolved_tk}..."):
             try:
-                price_data = fetch_price_data([search_ticker], period="1y")
-                hist = price_data.get(search_ticker, [])
+                price_data = fetch_price_data([resolved_tk], period="1y")
+                hist = price_data.get(resolved_tk, [])
                 if not hist or len(hist) < 10:
                     st.markdown(
                         f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
@@ -2871,20 +2875,16 @@ def page_screener():
                         f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:#94a3b8;margin-bottom:6px;">'
                         f'"{search_ticker}" not found</div>'
                         f'<div style="font-size:13px;color:#475569;line-height:1.6;">'
-                        f'No price data available for this ticker. Try the exact ticker symbol — e.g. <strong style="color:#94a3b8;">AAPL</strong>, '
+                        f'No price data available. Try the exact ticker symbol — e.g. <strong style="color:#94a3b8;">AAPL</strong>, '
                         f'<strong style="color:#94a3b8;">NVDA</strong>, <strong style="color:#94a3b8;">TSLA</strong>.</div>'
                         f'</div>',
                         unsafe_allow_html=True)
                 else:
-                    scored = score_stock(search_ticker, hist)
-                    # Assign sector before macro overlay
-                    scored["sector"] = ALL_SECTORS.get(search_ticker, "Unknown")
+                    scored = score_stock(resolved_tk, hist)
+                    scored["sector"] = ALL_SECTORS.get(resolved_tk, "Unknown")
                     macro = st.session_state.get("macro_data") or fetch_macro_overlay(use_live_feeds=True)
-                    # Score via full apply_macro_overlay for accuracy,
-                    # then undo any min-position floor promotion (flags promoted=True)
                     scored_list = apply_macro_overlay([scored], macro)
                     sr = scored_list[0]
-                    # If this stock was force-promoted by the floor, correct it
                     if sr.get("promoted"):
                         from model_engine import EXIT_THRESHOLD
                         regime = macro.get("regime","NEUTRAL")
@@ -2893,18 +2893,17 @@ def page_screener():
                         sr["adj_action"] = "BUY" if adj >= eff_threshold else ("SELL" if adj < EXIT_THRESHOLD else "HOLD")
                         sr["promoted"] = False
                     sr["pct_rank"] = 50
-                    is_gem = False
-                    ci = get_company_info(search_ticker)
-                    st.markdown(factor_panel_html(sr, is_gem, company_info=ci), unsafe_allow_html=True)
-                    if search_ticker not in ALL_SECTORS:
+                    ci = get_company_info(resolved_tk)
+                    st.markdown(factor_panel_html(sr, False, company_info=ci), unsafe_allow_html=True)
+                    if resolved_tk not in ALL_SECTORS:
                         st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
-            except Exception as e:
+            except Exception:
                 st.markdown(
                     f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
                     f'border-radius:8px;padding:20px 24px;">'
                     f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:#94a3b8;margin-bottom:6px;">'
                     f'"{search_ticker}" not found</div>'
-                    f'<div style="font-size:13px;color:#475569;">Could not retrieve data for this ticker. Check the symbol and try again.</div>'
+                    f'<div style="font-size:13px;color:#475569;">Could not retrieve data. Check the symbol and try again.</div>'
                     f'</div>',
                     unsafe_allow_html=True)
         st.markdown('<div style="height:8px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:20px;"></div>', unsafe_allow_html=True)
