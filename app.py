@@ -846,23 +846,14 @@ def scan_health_check():
 
 # ── PAGE SUMMARY BANNERS ──────────────────────────────────────────────────────
 def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
-    """Consistent page header with summary and optional stat pills."""
-    pills_html = ""
-    if pills:
-        pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + "".join(
-            f'<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);'
-            f'border-radius:20px;padding:4px 12px;font-size:14px;color:#94a3b8;'
-            f'font-family:DM Mono,monospace;">{p}</div>'
-            for p in pills
-        ) + '</div>'
+    """Consistent page header — pills param accepted but ignored (removed from UI)."""
     st.markdown(f"""
-    <div style="padding:24px 32px 16px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-        <span style="font-size:26px;">{icon}</span>
-        <h1 style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;margin:0;">{title}</h1>
+    <div style="padding:20px 32px 12px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <span style="font-size:24px;">{icon}</span>
+        <h1 style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#e2e8f0;margin:0;">{title}</h1>
       </div>
-      <p style="color:#94a3b8;font-size:14px;line-height:1.7;max-width:680px;margin:0;">{subtitle}</p>
-      {pills_html}
+      <p style="color:#94a3b8;font-size:14px;line-height:1.6;max-width:680px;margin:0;">{subtitle}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -999,7 +990,7 @@ def macro_regime_banner_html(macro: dict) -> str:
     n_hdl     = macro.get("headlines_scanned", 0)
 
     # Regime-scaled macro weight (matches apply_macro_overlay)
-    macro_w = {"RISK_OFF":35,"HIGH VOLATILITY":35,"RISK_ON":15,"MILDLY BULLISH":15,"NEUTRAL":10}.get(regime,25)
+    macro_w = {"RISK_OFF":25,"HIGH VOLATILITY":25,"RISK_ON":15,"MILDLY BULLISH":15,"NEUTRAL":10}.get(regime,25)
     quant_w = 100 - macro_w
 
     cfg = {
@@ -1165,6 +1156,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
     gem_badge = ' 💎' if is_gem else ""
+    action_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MODERATE"
     action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
     ci_name = (company_info or {}).get("name","")
     ci_desc = (company_info or {}).get("description","")
@@ -1195,7 +1187,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         f'{ticker_html}'
         f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
         f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
-        f'letter-spacing:.1em;white-space:nowrap;">{action_arrow} {act}</span>'
+        f'letter-spacing:.1em;white-space:nowrap;">{action_arrow} {action_label}</span>'
         f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:16]}</span>'
         f'</div>'
         f'{name_html}{price_html}'
@@ -1355,6 +1347,7 @@ def resolve_ticker(query: str) -> tuple[str, str]:
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
 
     gem_badge = '<span style="font-size:13px;margin-left:6px;">💎</span>' if is_gem else ""
+    action_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MODERATE"
     action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
 
     # Build HTML as a variable first — no comments, no risk of comment stripping
@@ -1390,7 +1383,7 @@ def resolve_ticker(query: str) -> tuple[str, str]:
         f'</div>',
         f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{act_c};'
         f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
-        f'letter-spacing:.1em;">{action_arrow} {act}</span>',
+        f'letter-spacing:.1em;">{action_arrow} {action_label}</span>',
         f'<span style="font-size:13px;color:#94a3b8;">{r.get("sector","")[:16]}</span>',
         f'</div>',
         f'<div style="text-align:right;">',
@@ -1545,7 +1538,7 @@ DISCLAIMER_FULL = """
 QNTM provides quantitative factor analysis, model scores, and signal generation as an educational
 and research resource. The following must be understood before using any QNTM output:
 
-**No Investment Advice:** Model BUY, HOLD, and SELL signals are algorithmic outputs based on
+**No Investment Advice:** Model HIGH, MODERATE, and LOW conviction signals are algorithmic outputs based on
 historical factor analysis. They are NOT recommendations to purchase or sell any security.
 
 **Past Performance:** The 5-year backtest results shown are based on historical data using the
@@ -2485,7 +2478,7 @@ def page_landing():
     </style>
     <div style="display:flex;justify-content:flex-end;padding:0 16px;margin-top:-52px;position:relative;z-index:1000;height:52px;align-items:center;">
       <div class="qntm-nav-btns">
-        <a href="?nav=signin" class="qntm-nav-btn-ghost">Sign In</a>
+        <a href="?nav=signin" target="_self" class="qntm-nav-btn-ghost">Sign In</a>
         <a href="?nav=register" class="qntm-nav-btn-primary">Get Started</a>
       </div>
     </div>
@@ -2552,14 +2545,14 @@ def page_landing():
     else:
         # Static fallback — updated to current model signals
         tape_items = [
-            ("NVDA","BUY","#00ff87"),("META","BUY","#00ff87"),
-            ("AVGO","BUY","#00ff87"),("JPM","BUY","#00ff87"),
-            ("NFLX","BUY","#00ff87"),("COST","BUY","#00ff87"),
-            ("GS","BUY","#00ff87"),("WMT","BUY","#00ff87"),
-            ("MA","BUY","#00ff87"),("MSFT","BUY","#00ff87"),
-            ("TSLA","HOLD","#d4a843"),
-            ("UNH","SELL","#E24B4A"),("NKE","SELL","#E24B4A"),
-            ("PFE","SELL","#E24B4A"),("SNAP","SELL","#E24B4A"),
+            ("NVDA","HIGH","#00ff87"),("META","HIGH","#00ff87"),
+            ("AVGO","HIGH","#00ff87"),("JPM","HIGH","#00ff87"),
+            ("NFLX","HIGH","#00ff87"),("COST","HIGH","#00ff87"),
+            ("GS","HIGH","#00ff87"),("WMT","HIGH","#00ff87"),
+            ("MA","HIGH","#00ff87"),("MSFT","HIGH","#00ff87"),
+            ("TSLA","MOD","#d4a843"),
+            ("UNH","LOW","#E24B4A"),("NKE","LOW","#E24B4A"),
+            ("PFE","LOW","#E24B4A"),("SNAP","LOW","#E24B4A"),
         ]
 
     def tape_span(ticker, action, color):
@@ -3037,7 +3030,9 @@ def page_auth():
                             st.session_state.user         = user
                             st.session_state.mfa_verified = True
                             st.session_state.scan_results = None
-                            st.session_state.force_mfa_setup = True
+                            # Only prompt MFA if never offered before
+                            if not user.get("mfa_offered"):
+                                st.session_state.force_mfa_setup = True
                             # Always persist — signed 30-day token
                             _signed = _sign_token(user["id"], user.get("plan","free"))
                             st.query_params["uid"]  = _signed
@@ -3069,7 +3064,7 @@ def page_auth():
                 <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#e2e4f0;">$0</div>
                 <div style="font-size:13px;color:#94a3b8;margin-top:4px;">forever</div>
                 <div style="font-size:13px;color:#94a3b8;margin-top:8px;line-height:1.6;">
-                  Screener · BUY/HOLD/SELL signals<br>Up to 10 portfolio positions<br>5-yr backtest data
+                  Screener · HIGH/MODERATE/LOW conviction signals<br>Up to 10 portfolio positions<br>5-yr backtest data
                 </div>
               </div>
               <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.4);
@@ -3259,90 +3254,138 @@ def platform_nav():
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
-        display_name = em[:20] + ("..." if len(em) > 20 else "")
-
-    cur_nav = st.session_state.get("nav", "screener")
-    nav_labels = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 Portfolio",
-                  "🧮 Simulator","🏆 Model Port.","🔔 Alerts","⚙️ Account","🚪 Sign Out"]
-    nav_keys   = ["screener","gems","backtest","portfolio",
-                  "simulator","model_portfolio","alerts","account","__signout__"]
-
-    cur_label = next((nav_labels[i] for i,k in enumerate(nav_keys) if k == cur_nav), "📊 Screener")
-    notif_dot = (
-        '<span style="background:#ef4444;color:#fff;border-radius:50%;'
-        'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
-        'font-size:10px;font-weight:700;margin-left:4px;">' + str(n_count) + '</span>'
+        display_name = em[:20] + ("…" if len(em) > 20 else "")
+    notif_html = (
+        f'<span style="background:rgba(239,68,68,.2);color:#ef4444;border-radius:50%;'
+        f'width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;'
+        f'font-size:13px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
 
-    plan_badge = (
-        '<span style="background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';'
-        'border:1px solid ' + plan_color + '44;border-radius:3px;padding:2px 8px;'
-        'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">' + plan.upper() + '</span>'
-    )
-
-    # ── Top bar (pure HTML, no interactivity needed here) ────────────────────
     st.markdown(
-        '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
-        'border-bottom:1px solid rgba(255,255,255,.06);'
-        'padding:0 20px;height:56px;display:flex;align-items:center;'
-        'justify-content:space-between;margin-bottom:0;">'
-        '<div style="font-size:11px;color:#475569;font-family:DM Mono,monospace;'
-        'border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 10px;'
-        'background:rgba(255,255,255,.03);">☰</div>'
-        '<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">'
-        '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
-        'Q<span style="color:#00ff87;">NTM</span></div>'
-        '<div style="font-size:10px;color:#475569;font-family:DM Mono,monospace;letter-spacing:.06em;">' + cur_label + '</div>'
-        '</div>'
-        '<div style="display:flex;align-items:center;gap:10px;">' + notif_dot + plan_badge
-        + '<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
-        'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + display_name + '</span>'
-        + '</div></div>',
+        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        f'border-bottom:1px solid rgba(255,255,255,.06);'
+        f'padding:0 32px;height:56px;display:flex;align-items:center;'
+        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
+        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
+        f'Q<span style="color:#00ff87;">NTM</span></div>'
+        f'<div style="display:flex;align-items:center;gap:16px;">'
+        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
+        f'font-size:13px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
+        f'{plan.upper()}</span>'
+        f'{notif_html}'
+        f'<span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>'
+        f'</div></div>',
         unsafe_allow_html=True
     )
 
-    # ── Navigation selectbox styled to look like a dropdown menu ─────────────
-    # Hide all Streamlit selectbox chrome, show only when interacting
+    nav_labels = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio",
+                  "🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account","🚪 Sign Out"]
+    nav_keys   = ["screener","gems","backtest","portfolio",
+                  "simulator","model_portfolio","alerts","account","__signout__"]
+    cur_nav    = st.session_state.get("nav","screener")
+    cur_idx    = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
+
+    # Sticky nav bar CSS
     st.markdown("""
     <style>
-    /* Wrapper we control */
-    div[data-testid="stSelectbox"] {
-        margin: 0 !important;
-        padding: 0 !important;
+    [data-testid="stMainBlockContainer"] > div:first-child {
+        position: sticky; top: 0; z-index: 999; background: #0a0b14;
     }
-    /* The visible select control */
+    div[data-testid="stSelectbox"] label { display:none !important; }
     div[data-testid="stSelectbox"] > div > div {
-        background: rgba(7,10,18,.99) !important;
-        border: 1px solid rgba(0,255,135,.25) !important;
-        border-radius: 0 0 10px 10px !important;
-        color: #e2e8f0 !important;
+        background: rgba(13,17,23,.97) !important;
+        border: 1px solid rgba(0,255,135,.2) !important;
+        border-radius: 6px !important;
         font-family: Syne, sans-serif !important;
         font-size: 13px !important;
+        color: #e2e8f0 !important;
     }
-    /* Label — hide it */
-    div[data-testid="stSelectbox"] label { display: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    cur_idx = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
-    selected = st.selectbox(
-        "nav",
-        options=nav_labels,
-        index=cur_idx,
-        label_visibility="collapsed",
-        key="platform_nav_select"
-    )
-
-    selected_key = nav_keys[nav_labels.index(selected)]
-    if selected_key == "__signout__":
+    sel = st.selectbox("nav", nav_labels, index=cur_idx,
+                       label_visibility="collapsed", key="nav_select")
+    sel_key = nav_keys[nav_labels.index(sel)]
+    if sel_key == "__signout__":
         for k in ["logged_in","user","mfa_verified","scan_results",
                   "macro_data","mfa_recovery_mode","live_refresh_running"]:
             st.session_state[k] = False if k == "logged_in" else None
         st.session_state.signed_out = True
+        for qp in ["uid","plan"]:
+            st.query_params.pop(qp, None)
         _clear_localstorage_token()
         go("landing")
-    elif selected_key != cur_nav:
-        nav(selected_key)
+    elif sel_key != cur_nav:
+        nav(sel_key)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LIVE REFRESH HELPER
+# ══════════════════════════════════════════════════════════════════════════════
+def _live_refresh_pipeline():
+    """Shared live refresh pipeline — used by Screener and Simulator pages."""
+    st.markdown("""
+    <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
+         border-radius:8px;padding:14px 18px;margin:8px 0 12px;">
+      <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
+           color:#00ff87;letter-spacing:.08em;margin-bottom:4px;">⚡ LIVE DATA REFRESH IN PROGRESS</div>
+      <div style="font-size:13px;color:#94a3b8;">Fetching live fundamentals for all 834 tickers. Takes 3–4 min.</div>
+    </div>
+    """, unsafe_allow_html=True)
+    progress_bar = st.progress(0, text="Starting...")
+    status_text  = st.empty()
+    try:
+        from data_refresh import fetch_ticker_fundamentals, write_fundamentals_cache, write_signal_snapshot
+        from universe_data import SECTORS as ALL_SECTORS, FUNDAMENTALS
+        from model_engine import score_stock, apply_macro_overlay, fetch_macro_overlay
+        import time as _time
+        tickers   = list(ALL_SECTORS.keys())
+        total     = len(tickers)
+        live_data = {}
+        static_ct = 0
+        for i, ticker in enumerate(tickers):
+            progress_bar.progress(int(i/total*80), text=f"Fetching {ticker} ({i+1}/{total})...")
+            data = fetch_ticker_fundamentals(ticker)
+            if data:
+                live_data[ticker] = {**FUNDAMENTALS.get(ticker,{}), **data}
+            else:
+                live_data[ticker] = FUNDAMENTALS.get(ticker, {})
+                static_ct += 1
+            _time.sleep(0.25)
+        progress_bar.progress(82, text="Writing to cache...")
+        write_fundamentals_cache(live_data)
+        progress_bar.progress(86, text="Scoring universe...")
+        scores = []
+        for ticker in tickers:
+            f  = live_data.get(ticker, {})
+            s  = score_stock(ticker, [], live_fundamentals=f, vol_ratio=f.get("vol_ratio"))
+            s["has_live_price"] = bool(f.get("price"))
+            scores.append(s)
+        composites = [s["composite"] for s in scores]
+        for s in scores:
+            s["pct_rank"] = round(sum(1 for c in composites if c<=s["composite"])/len(composites)*100, 1)
+        scores.sort(key=lambda x: x["composite"], reverse=True)
+        progress_bar.progress(93, text="Applying macro overlay...")
+        macro = fetch_macro_overlay()
+        for s in scores:
+            if not s.get("sector") or s.get("sector")=="Unknown":
+                s["sector"] = ALL_SECTORS.get(s["ticker"],"Unknown")
+        scored = apply_macro_overlay(scores, macro)
+        progress_bar.progress(97, text="Saving snapshot...")
+        write_signal_snapshot(scored)
+        st.session_state.scan_results         = scored
+        st.session_state.macro_data           = macro
+        st.session_state.live_refresh_running = False
+        progress_bar.progress(100, text="✓ Complete!")
+        live_ct = total - static_ct
+        st.success(f"✓ {live_ct} tickers refreshed live · Macro: {macro.get('regime','—')}")
+        _time.sleep(1.5)
+        st.rerun()
+    except Exception as e:
+        st.session_state.live_refresh_running = False
+        st.error(f"Live refresh failed: {e}")
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3354,22 +3397,42 @@ def page_screener():
 
     page_summary(
         "📊", "Market Screener",
-        "834 stocks scored weekly across 5 research-backed pillars — Momentum, Quality, Volume, Value, and Sentiment — "
-        "then blended with a live macro overlay. Every score tells you exactly what to buy, hold, or exit, and why. "
-        "Search any ticker for an instant live score, or run a full universe rescan.",
-        pills=[f"834 tickers", "S&P 500 + Russell 1000", "75/25 quant/macro", "5 pillars", "Walk-forward validated"]
+        "834 tickers across S&P 500 + Russell 1000, scored weekly on Momentum, Quality, Volume, Value, and Sentiment — "
+        "then blended with a live macro regime overlay (75/25 quant/macro). "
+        "Search any stock for an instant conviction score, or rescan the full universe."
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
-    data_freshness_banner()
 
-    # ── Stock search box ──────────────────────────────────────────────────────
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">SEARCH ANY STOCK</div>', unsafe_allow_html=True)
-    search_col, _ = st.columns([2, 5])
+    # ── Rescan + Last Refresh — top of page ───────────────────────────────────
+    data_freshness_banner()
+    _rc1, _rc2, _rc3 = st.columns([1, 1, 3])
+    with _rc1:
+        if st.button("🔄 Rescan Universe", key="rescan_main", use_container_width=True):
+            st.session_state.scan_results = None
+            st.rerun()
+    with _rc2:
+        if st.button("⚡ Live Refresh", key="live_refresh_main", use_container_width=True):
+            st.session_state.live_refresh_running = True
+            st.rerun()
+
+    # ── Live Refresh pipeline (runs immediately after button press) ────────────
+    if st.session_state.get("live_refresh_running"):
+        _live_refresh_pipeline()
+
+    st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
+
+    # ── Search any stock — prominent ──────────────────────────────────────────
+    st.markdown('''<div style="background:linear-gradient(135deg,rgba(0,255,135,.06),rgba(0,255,135,.02));
+        border:1px solid rgba(0,255,135,.2);border-radius:10px;padding:16px 20px 12px;margin-bottom:16px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.14em;margin-bottom:8px;">⚡ SEARCH ANY STOCK — INSTANT CONVICTION SCORE</div>''',
+        unsafe_allow_html=True)
+    search_col, _ = st.columns([3, 2])
     with search_col:
         search_ticker = st.text_input(
-            "Search ticker or company", placeholder="e.g. AAPL, Tesla, Nvidia...",
+            "Search ticker", placeholder="Ticker or company name — e.g. AAPL, Tesla, Nvidia...",
             key="screener_search", label_visibility="collapsed"
         ).strip().upper()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if search_ticker:
         st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {search_ticker}</div>', unsafe_allow_html=True)
@@ -3459,41 +3522,6 @@ def page_screener():
     </div>
     """, unsafe_allow_html=True)
     bt = BACKTEST_DATA
-    st.markdown(f"""
-    <div style="background:linear-gradient(135deg,rgba(212,168,67,.05) 0%,rgba(29,158,117,.05) 100%);
-         border:1px solid rgba(212,168,67,.18);border-radius:10px;
-         padding:18px 22px;margin-bottom:20px;
-         display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
-      <div style="flex:1;min-width:220px;">
-        <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;
-             letter-spacing:.12em;margin-bottom:6px;">⚡ WHY QNTM IS DIFFERENT</div>
-        <div style="font-size:13px;color:#64748b;line-height:1.7;">
-          Most screeners give you a score.
-          <strong style="color:#94a3b8;">QNTM shows you the reasoning.</strong>
-          Every BUY, HOLD, or SELL names the exact factors that moved the needle —
-          and shows how the 75/25 macro blend shifted conviction.
-        </div>
-      </div>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;flex-shrink:0;">
-        <div style="text-align:center;">
-          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#d4a843;">5</div>
-          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Pillars</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#d4a843;">75/25</div>
-          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Quant/Macro</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#1D9E75;">+40%</div>
-          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">vs SPY 5yr</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#1D9E75;">2.1×</div>
-          <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Sharpe vs SPY</div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
@@ -3504,9 +3532,9 @@ def page_screener():
 
     # Summary strip — single HTML row, no Streamlit columns
     stat_items = [
-        ("BUY",   "#00ff87", str(buys)),
-        ("HOLD",  "#fbbf24", str(holds)),
-        ("SELL",  "#ef4444", str(sells)),
+        ("HIGH",     "#00ff87", str(buys)),
+        ("MODERATE", "#fbbf24", str(holds)),
+        ("LOW",      "#ef4444", str(sells)),
         ("GEMS",  "#00ff87", str(len(gems))),
         ("UNIV",  "#475569", f"{len(results)}"),
     ]
@@ -3537,7 +3565,8 @@ def page_screener():
     sells_ranked = sorted([r for r in results if r.get("adj_action",r.get("action"))=="SELL"],
                           key=lambda x: x.get("adj_composite",x.get("composite",100)))
 
-    scr_tab1, scr_tab2, scr_tab3 = st.tabs(["📊 Top 10 Summary", "🔍 Full Universe", "📈 Sector Breakdown"])
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+    scr_tab1, scr_tab2, scr_tab3 = st.tabs(["⭐ TOP 10 SIGNALS", "🔍 FULL UNIVERSE", "📈 SECTOR BREAKDOWN"])
 
     # ── TAB 1: TOP 10 ──────────────────────────────────────────────────────────
     with scr_tab1:
@@ -3549,8 +3578,8 @@ def page_screener():
         """, unsafe_allow_html=True)
         col_b, col_s = st.columns(2)
         for col, label, color, ranked, action_lbl in [
-            (col_b, "▲ TOP 10 BUY SIGNALS",  "#00ff87", buys_ranked[:10],  "▲ BUY"),
-            (col_s, "▼ TOP 10 SELL / EXIT",  "#ef4444", sells_ranked[:10], "▼ SELL"),
+            (col_b, "▲ TOP 10 HIGH CONVICTION", "#00ff87", buys_ranked[:10],  "▲ HIGH"),
+            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10], "▼ LOW"),
         ]:
             with col:
                 count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
@@ -3609,7 +3638,7 @@ def page_screener():
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
-            filter_act = st.selectbox("Action", ["All","BUY","HOLD","SELL"], key="f_act")
+            filter_act = st.selectbox("Signal", ["All","BUY","HOLD","SELL"], key="f_act", label_visibility="collapsed")
         with fc3:
             filter_sig = st.selectbox("Signal Strength", ["All","STRONG ALIGN","HIGH ALIGN","MODERATE","LOW ALIGN","WEAK/NEG"], key="f_sig")
         rb1, rb2 = st.columns(2)
@@ -3622,97 +3651,7 @@ def page_screener():
                 st.session_state.live_refresh_running = True
                 st.rerun()
 
-        # ── Live Refresh Pipeline ──────────────────────────────────────────────
-        if st.session_state.get("live_refresh_running"):
-            st.markdown("""
-            <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
-                 border-radius:8px;padding:16px 20px;margin:12px 0;">
-              <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
-                   color:#00ff87;letter-spacing:.08em;margin-bottom:6px;">
-                ⚡ LIVE DATA REFRESH
-              </div>
-              <div style="font-size:14px;color:#94a3b8;margin-bottom:12px;">
-                Fetching live fundamentals from market data for all 834 tickers.
-                This runs once per day and takes 3–4 minutes. All users benefit from the result.
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
 
-            progress_bar  = st.progress(0, text="Starting live data refresh...")
-            status_text   = st.empty()
-
-            try:
-                from data_refresh import fetch_ticker_fundamentals, write_fundamentals_cache
-                from data_refresh import write_signal_snapshot
-                from universe_data import SECTORS as ALL_SECTORS, FUNDAMENTALS
-                import time as _time
-
-                tickers    = list(ALL_SECTORS.keys())
-                total      = len(tickers)
-                live_data  = {}
-                static_ct  = 0
-
-                for i, ticker in enumerate(tickers):
-                    pct = int((i / total) * 80)  # first 80% = fetching
-                    progress_bar.progress(pct, text=f"Fetching {ticker} ({i+1}/{total})...")
-
-                    data = fetch_ticker_fundamentals(ticker)
-                    if data:
-                        static_f = FUNDAMENTALS.get(ticker, {})
-                        live_data[ticker] = {**static_f, **data}
-                    else:
-                        live_data[ticker] = FUNDAMENTALS.get(ticker, {})
-                        static_ct += 1
-
-                    _time.sleep(0.25)
-
-                status_text.markdown(
-                    '<div style="font-size:14px;color:#94a3b8;">Writing to cache...</div>',
-                    unsafe_allow_html=True)
-                progress_bar.progress(82, text="Writing fundamentals to Supabase...")
-                write_fundamentals_cache(live_data)
-
-                # Score with live data
-                progress_bar.progress(86, text="Scoring universe with live data...")
-                from model_engine import score_stock, apply_macro_overlay, fetch_macro_overlay
-                scores = []
-                for i, ticker in enumerate(tickers):
-                    f         = live_data.get(ticker, {})
-                    vol_ratio = f.get("vol_ratio")
-                    s         = score_stock(ticker, [], live_fundamentals=f, vol_ratio=vol_ratio)
-                    s["has_live_price"] = bool(f.get("price"))
-                    scores.append(s)
-
-                composites = [s["composite"] for s in scores]
-                for s in scores:
-                    rank = sum(1 for c in composites if c <= s["composite"]) / len(composites) * 100
-                    s["pct_rank"] = round(rank, 1)
-                scores.sort(key=lambda x: x["composite"], reverse=True)
-
-                progress_bar.progress(93, text="Applying macro overlay...")
-                macro  = fetch_macro_overlay()
-                for s in scores:
-                    if not s.get("sector") or s.get("sector") == "Unknown":
-                        s["sector"] = ALL_SECTORS.get(s["ticker"], "Unknown")
-                scored = apply_macro_overlay(scores, macro)
-
-                progress_bar.progress(97, text="Saving signal snapshot...")
-                write_signal_snapshot(scored)
-
-                st.session_state.scan_results          = scored
-                st.session_state.macro_data            = macro
-                st.session_state.live_refresh_running  = False
-
-                progress_bar.progress(100, text="✓ Live refresh complete!")
-                live_ct = total - static_ct
-                st.success(f"✓ Refreshed {live_ct} tickers live · {static_ct} used model estimates · Macro: {macro.get('regime','—')} ({macro.get('source','—')})")
-                _time.sleep(1.5)
-                st.rerun()
-
-            except Exception as e:
-                st.session_state.live_refresh_running = False
-                st.error(f"Live refresh failed: {e}")
-                st.rerun()
 
 
         filtered = results
@@ -3753,9 +3692,9 @@ def page_screener():
                 f'<div style="width:{sp:.0f}%;background:rgba(239,68,68,.5);"></div>'
                 f'</div>'
                 f'<div style="font-size:14px;color:#94a3b8;width:130px;flex-shrink:0;">'
-                f'<span style="color:#00ff87;">{b} BUY</span> '
-                f'<span style="color:#fbbf24;">{h} HOLD</span> '
-                f'<span style="color:#ef4444;">{s} SELL</span>'
+                f'<span style="color:#00ff87;">{b} HIGH</span> '
+                f'<span style="color:#fbbf24;">{h} MOD</span> '
+                f'<span style="color:#ef4444;">{s} LOW</span>'
                 f'</div></div>',
                 unsafe_allow_html=True)
 
@@ -3767,7 +3706,7 @@ def page_gems():
         "Mid-cap stocks with institutional-grade factor scores that fly under Wall Street's radar. "
         "QNTM screens for revenue acceleration, earnings beats, low short interest, and low analyst coverage — "
         "the stocks that show up before the crowd notices. Regime-adjusted thresholds mean the bar rises in volatile markets.",
-        pills=["Mid-cap focus", "Revenue + earnings screen", "Low analyst coverage", "Regime-adjusted threshold"]
+
     )
 
     if not is_pro():
@@ -3900,7 +3839,7 @@ def page_backtest():
         f"bear/rate hike, AI boom, concentration rally, and tariff correction. Same rules every year, no tuning between regimes. "
         f"Real prices, 10bps transaction costs, 124 tickers × 20 quarters. "
         f"Result: +{bt['model_total_ret']:.0f}% cumulative vs SPY +{bt['spy_total_ret']:.0f}% over the same period.",
-        pills=[f"+{bt['model_total_ret']:.0f}% cumulative", f"Sharpe {bt['sharpe']:.2f}", f"Max DD {bt['max_dd_model']:.1f}%", "6 market regimes", "No look-ahead bias"]
+
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
@@ -4508,7 +4447,17 @@ def page_portfolio():
     # ── Add position form ──────────────────────────────────────────────────────
     at_limit = n_holdings >= max_h
 
-    with st.expander("➕ Add Position", expanded=(n_holdings == 0)):
+    # Prominent Add Position header
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,rgba(0,255,135,.08),rgba(0,255,135,.02));
+         border:1px solid rgba(0,255,135,.3);border-radius:10px;padding:14px 20px;margin-bottom:4px;">
+      <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:#00ff87;">
+        ➕ Add Position
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-top:2px;">Search a ticker and enter your shares + cost basis</div>
+    </div>
+    """, unsafe_allow_html=True)
+    with st.expander("", expanded=(n_holdings == 0)):
         if at_limit and plan == "free":
             st.markdown("""
             <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);
@@ -4643,20 +4592,16 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "1M"
 
-        # Period toggle row — real st.buttons, session state only, no URL
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO VALUE — SELECT PERIOD</div>', unsafe_allow_html=True)
-        period_cols = st.columns(len(PERIOD_DATA))
-        for col, (pkey, plbl, pdays) in zip(period_cols, PERIOD_DATA):
-            with col:
-                active = st.session_state.port_period == pkey
-                st.markdown(
-                    f'<div style="background:{"rgba(0,255,135,.15)" if active else "rgba(255,255,255,.04)"};'
-                    f'border:1px solid {"rgba(0,255,135,.5)" if active else "rgba(255,255,255,.1)"};'
-                    f'border-radius:4px;padding:1px;">', unsafe_allow_html=True)
-                if st.button(pkey, key=f"pp_{pkey}", use_container_width=True):
-                    st.session_state.port_period = pkey
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+        # Period selectbox — clean dropdown, no cramped buttons
+        _pp_labels = [f"{plbl} ({pkey})" for pkey,plbl,_ in PERIOD_DATA]
+        _pp_keys   = [pkey for pkey,_,_ in PERIOD_DATA]
+        _pp_idx    = _pp_keys.index(st.session_state.port_period) if st.session_state.port_period in _pp_keys else 2
+        _pp_sel = st.selectbox("View period", _pp_labels, index=_pp_idx, key="port_period_sel",
+                               label_visibility="visible")
+        _pp_chosen = _pp_keys[_pp_labels.index(_pp_sel)]
+        if _pp_chosen != st.session_state.port_period:
+            st.session_state.port_period = _pp_chosen
+            st.rerun()
 
         # Compute return for selected period
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
@@ -4943,8 +4888,7 @@ def page_simulator():
     page_summary(
         "🧮", "Portfolio Simulator",
         "Build a hypothetical portfolio from current HIGH conviction signals. "
-        "Adjust amount, add or remove positions, and see allocation, sector exposure, and conviction breakdown.",
-        pills=["Pro feature", "3 risk profiles", "Top 20 default", "Custom weights"]
+        "Requires a universe scan — hit Rescan if scores look stale.",
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
@@ -4963,6 +4907,19 @@ def page_simulator():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
+    # Rescan buttons — right here so users don't have to go back to Screener
+    _s1, _s2, _s3 = st.columns([1, 1, 4])
+    with _s1:
+        if st.button("🔄 Rescan Universe", key="sim_rescan", use_container_width=True):
+            st.session_state.scan_results = None
+            st.rerun()
+    with _s2:
+        if st.button("⚡ Live Refresh", key="sim_live", use_container_width=True):
+            st.session_state.live_refresh_running = True
+            st.rerun()
+    if st.session_state.get("live_refresh_running"):
+        _live_refresh_pipeline()
+
     scan = st.session_state.get("scan_results") or []
     all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
@@ -4971,13 +4928,7 @@ def page_simulator():
     ticker_map = {r["ticker"]: r for r in scan}
 
     if not all_buys:
-        st.markdown(
-            '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
-            'border-radius:8px;padding:32px;text-align:center;">'
-            '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
-            '<div style="font-size:16px;color:#cbd5e1;margin-bottom:8px;">No scan data loaded</div>'
-            '<div style="font-size:13px;color:#64748b;">Go to Screener → Rescan Universe first.</div>'
-            '</div>', unsafe_allow_html=True)
+        st.info("No HIGH conviction signals loaded. Hit 🔄 Rescan Universe above to load scores.")
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -5212,7 +5163,7 @@ def page_alerts():
         "Signal changes on your holdings — the moment the model issues a BUY or EXIT signal, you'll know. "
         "Macro regime shifts (war, oil spikes, rate changes) trigger alerts too. "
         "Pro members get email notifications on every signal change across their portfolio.",
-        pills=["BUY/SELL signal changes", "Macro regime alerts", "Portfolio-level monitoring", "Pro: email notifications"]
+
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
@@ -5277,7 +5228,7 @@ def page_alerts():
             mark_notifications_read(uid())
             st.rerun()
     with ac3:
-        filter_type = st.selectbox("Filter", ["All","BUY","SELL","Macro","Gems"], key="notif_filter", label_visibility="collapsed")
+        filter_type = st.selectbox("Filter", ["All","HIGH","LOW","Macro","Gems"], key="notif_filter", label_visibility="collapsed")
 
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
@@ -5543,7 +5494,7 @@ def page_account():
           <div style="font-size:13px;color:#94a3b8;margin-top:6px;">
             {"Unlimited holdings · Hidden Gems · Signal alerts · Email notifications"
              if plan in ('pro','institutional')
-             else "10 holdings · Market screener · BUY/HOLD/SELL signals · 5-yr backtest"}
+             else "10 holdings · Market screener · HIGH/MODERATE/LOW conviction signals · 5-yr backtest"}
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -5562,7 +5513,7 @@ def page_account():
                 <div style="font-size:13px;color:#94a3b8;margin-bottom:18px;">forever</div>
                 <div style="font-size:13px;color:#94a3b8;line-height:2;">
                   ✓ Full market screener (61 stocks)<br>
-                  ✓ BUY / HOLD / SELL signals<br>
+                  ✓ HIGH / MODERATE / LOW conviction signals<br>
                   ✓ 5-pillar factor breakdown<br>
                   ✓ Up to 10 portfolio positions<br>
                   ✓ 5-year backtest data<br>
@@ -5801,21 +5752,10 @@ def page_model_portfolio():
             earliest = min(entry_dates)
             spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
             if not spy_hist.empty:
-                # Handle MultiIndex (multi-ticker download) vs flat (single ticker)
-                close = spy_hist["Close"]
-                if hasattr(close, "columns"):
-                    # MultiIndex — shouldn't happen for single ticker but guard anyway
-                    close = close.iloc[:, 0]
-                # Squeeze to Series if needed
-                if hasattr(close, "squeeze"):
-                    close = close.squeeze()
-                close = close.dropna()
-                if len(close) >= 2:
-                    spy_start  = float(close.iloc[0])
-                    spy_end    = float(close.iloc[-1])
-                    if spy_start > 0:
-                        spy_return = (spy_end / spy_start - 1) * 100
-                        spy_pnl    = total_invested * (spy_return / 100)
+                spy_start  = float(spy_hist["Close"].iloc[0])
+                spy_end    = float(spy_hist["Close"].iloc[-1])
+                spy_return = (spy_end / spy_start - 1) * 100
+                spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
 
@@ -5915,28 +5855,26 @@ def page_model_portfolio():
         border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:90px 1fr 100px 56px;'
-            f'gap:6px;padding:7px 12px;background:{bg};margin-bottom:1px;'
-            f'border-left:3px solid {border_c};align-items:center;min-width:0;">'
-            # Col 1 — Ticker + name (stacked, tight)
-            f'<div style="min-width:0;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1.1;white-space:nowrap;">{gem_badge}{h["ticker"]}</div>'
+            f'<div style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
+            f'gap:8px;padding:8px 16px;background:{bg};margin-bottom:1px;'
+            f'border-left:3px solid {border_c};align-items:center;">'
+            # Ticker + name
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
             f'<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">{co_name}</div>'
             f'</div>'
-            # Col 2 — Entry date + entry→current price (stacked)
-            f'<div style="min-width:0;overflow:hidden;">'
-            f'<div style="font-size:10px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sec_short}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;white-space:nowrap;">{entry_str}→{cur_str}</div>'
-            f'</div>'
-            # Col 3 — P&L $ + return % (stacked, right-aligned)
-            f'<div style="text-align:right;min-width:0;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};white-space:nowrap;">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{rc};white-space:nowrap;">{ret_str}</div>'
-            f'</div>'
-            # Col 4 — Score (always visible, right-aligned)
-            f'<div style="text-align:right;min-width:0;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{score_col};line-height:1;">{score:.0f}</div>'
-            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;">SCORE</div>'
+            # Sector + entry date
+            f'<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sec_short} · {h["entry_date"]}</div>'
+            # Entry → current
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;text-align:right;white-space:nowrap;">{entry_str}→{cur_str}</div>'
+            # Shares
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;text-align:right;">{shares_str}</div>'
+            # P&L
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
+            # Return + score
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">s:{score:.0f}</div>'
             f'</div>'
             f'</div>', unsafe_allow_html=True)
 
@@ -6124,20 +6062,7 @@ def main():
         st.session_state.page = "auth"
         st.query_params.pop("nav", None)
 
-    # ── Platform tab switching via hamburger menu ─────────────────────────────
-    _VALID_TABS = {"screener","gems","backtest","portfolio","simulator","model_portfolio","alerts","account"}
-    _qnav = st.query_params.get("qnav","")
-    if _qnav in _VALID_TABS:
-        st.session_state.nav = _qnav
-        st.query_params.pop("qnav", None)
-    if st.query_params.get("qnav") == "signout":
-        for k in ["logged_in","user","mfa_verified","scan_results",
-                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
-            st.session_state[k] = False if k == "logged_in" else None
-        st.session_state.signed_out = True
-        st.query_params.clear()
-        _clear_localstorage_token()
-        go("landing")
+    # ── Public model portfolio — bypass cookie gate ───────────────────────────
     if st.query_params.get("page") == "model":
         st.session_state.page = "model"
 
