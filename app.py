@@ -5225,7 +5225,7 @@ def page_alerts():
             mark_notifications_read(uid())
             st.rerun()
     with ac3:
-        filter_type = st.selectbox("Filter", ["All","HIGH","LOW","Macro","Gems"], key="notif_filter", label_visibility="collapsed", label_visibility="collapsed")
+        filter_type = st.selectbox("Filter", ["All","HIGH","LOW","Macro","Gems"], key="notif_filter", label_visibility="collapsed")
 
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
