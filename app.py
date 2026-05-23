@@ -5762,10 +5762,21 @@ def page_model_portfolio():
             earliest = min(entry_dates)
             spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
             if not spy_hist.empty:
-                spy_start  = float(spy_hist["Close"].iloc[0])
-                spy_end    = float(spy_hist["Close"].iloc[-1])
-                spy_return = (spy_end / spy_start - 1) * 100
-                spy_pnl    = total_invested * (spy_return / 100)
+                # Handle MultiIndex (multi-ticker download) vs flat (single ticker)
+                close = spy_hist["Close"]
+                if hasattr(close, "columns"):
+                    # MultiIndex — shouldn't happen for single ticker but guard anyway
+                    close = close.iloc[:, 0]
+                # Squeeze to Series if needed
+                if hasattr(close, "squeeze"):
+                    close = close.squeeze()
+                close = close.dropna()
+                if len(close) >= 2:
+                    spy_start  = float(close.iloc[0])
+                    spy_end    = float(close.iloc[-1])
+                    if spy_start > 0:
+                        spy_return = (spy_end / spy_start - 1) * 100
+                        spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
 
@@ -5865,26 +5876,28 @@ def page_model_portfolio():
         border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
-            f'gap:8px;padding:8px 16px;background:{bg};margin-bottom:1px;'
-            f'border-left:3px solid {border_c};align-items:center;">'
-            # Ticker + name
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
+            f'<div style="display:grid;grid-template-columns:90px 1fr 100px 56px;'
+            f'gap:6px;padding:7px 12px;background:{bg};margin-bottom:1px;'
+            f'border-left:3px solid {border_c};align-items:center;min-width:0;">'
+            # Col 1 — Ticker + name (stacked, tight)
+            f'<div style="min-width:0;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1.1;white-space:nowrap;">{gem_badge}{h["ticker"]}</div>'
             f'<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">{co_name}</div>'
             f'</div>'
-            # Sector + entry date
-            f'<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sec_short} · {h["entry_date"]}</div>'
-            # Entry → current
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;text-align:right;white-space:nowrap;">{entry_str}→{cur_str}</div>'
-            # Shares
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;text-align:right;">{shares_str}</div>'
-            # P&L
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
-            # Return + score
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">s:{score:.0f}</div>'
+            # Col 2 — Entry date + entry→current price (stacked)
+            f'<div style="min-width:0;overflow:hidden;">'
+            f'<div style="font-size:10px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sec_short}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;white-space:nowrap;">{entry_str}→{cur_str}</div>'
+            f'</div>'
+            # Col 3 — P&L $ + return % (stacked, right-aligned)
+            f'<div style="text-align:right;min-width:0;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};white-space:nowrap;">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{rc};white-space:nowrap;">{ret_str}</div>'
+            f'</div>'
+            # Col 4 — Score (always visible, right-aligned)
+            f'<div style="text-align:right;min-width:0;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:{score_col};line-height:1;">{score:.0f}</div>'
+            f'<div style="font-size:9px;color:#475569;letter-spacing:.04em;">SCORE</div>'
             f'</div>'
             f'</div>', unsafe_allow_html=True)
 
