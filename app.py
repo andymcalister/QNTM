@@ -5272,9 +5272,18 @@ def page_portfolio():
         )
         st.markdown(card_html, unsafe_allow_html=True)
 
-        if st.button(f"🗑 Remove {tk}", key=f"del_{tk}"):
-            delete_holding(uid(), tk)
-            st.rerun()
+        _uid_val  = (st.session_state.user or {}).get("id", "")
+        _plan_val = (st.session_state.user or {}).get("plan", "free")
+        _rm_url   = f"?qnav=portfolio&uid={_uid_val}&plan={_plan_val}&ck=1&port_action=remove&port_ticker={tk}"
+        st.markdown(
+            f'<a href="{_rm_url}" target="_self" style="'
+            f'display:block;width:100%;text-align:center;padding:8px;margin-top:6px;'
+            f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);'
+            f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
+            f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
+            f'box-sizing:border-box;">🗑 Remove {tk}</a>',
+            unsafe_allow_html=True
+        )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -6584,8 +6593,9 @@ def page_platform():
     if not st.session_state.get("live_refresh_running"):
         if now - st.session_state.last_refresh >= 60:
             st.session_state.last_refresh = now
-            # Don't wipe scan if on gems — button clicks would trigger 4-min rescan
-            if st.session_state.get("nav") != "gems":
+            # Only clear scan on screener page — other pages don't need it and clearing
+            # causes nav drops when buttons trigger reruns
+            if st.session_state.get("nav") == "screener":
                 st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
@@ -6657,7 +6667,7 @@ def main():
 
 
 
-    # ── Watchlist add/remove via URL action (used by gems page links) ────────
+    # ── Watchlist add/remove via URL action ──────────────────────────────────
     _wl_action = st.query_params.get("wl_action", "")
     _wl_ticker = st.query_params.get("wl_ticker", "")
     if _wl_action and _wl_ticker and st.session_state.get("logged_in"):
@@ -6667,6 +6677,14 @@ def main():
             remove_from_watchlist(uid(), _wl_ticker)
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
+
+    # ── Portfolio remove via URL action ───────────────────────────────────────
+    _port_action = st.query_params.get("port_action", "")
+    _port_ticker = st.query_params.get("port_ticker", "")
+    if _port_action == "remove" and _port_ticker and st.session_state.get("logged_in"):
+        delete_holding(uid(), _port_ticker)
+        st.query_params.pop("port_action", None)
+        st.query_params.pop("port_ticker", None)
     _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
                    "model_portfolio","alerts","account","methodology"}
     _qnav = st.query_params.get("qnav","")
