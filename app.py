@@ -1478,6 +1478,116 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     )
 
 
+def signal_history_chart(ticker: str, current_score: float) -> str:
+    """
+    Fetch last 30 days of adj_composite from signal_log and render an SVG sparkline.
+    Returns HTML string — empty string if fewer than 3 data points.
+    """
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return ""
+        resp = sb.table("signal_log") \
+            .select("signal_date,adj_composite,composite") \
+            .eq("ticker", ticker) \
+            .order("signal_date", desc=False) \
+            .limit(60) \
+            .execute()
+        rows = resp.data or []
+        # Deduplicate by date, keep most recent per date
+        seen = {}
+        for row in rows:
+            d = str(row.get("signal_date", ""))[:10]
+            if d:
+                seen[d] = float(row.get("adj_composite") or row.get("composite") or 50)
+        # Sort by date, take last 30
+        dates  = sorted(seen.keys())[-30:]
+        scores = [seen[d] for d in dates]
+
+        if len(scores) < 3:
+            return (
+                '<div style="font-size:11px;color:#334155;padding:8px 0 4px;">'
+                '⏳ Building score history — check back after a few nightly refreshes.</div>'
+            )
+
+        # Add current score as the latest point if newer than last stored
+        scores.append(current_score)
+
+        # SVG sparkline
+        W, H   = 100, 32   # viewBox units — scales with CSS
+        lo, hi = min(scores), max(scores)
+        rng    = hi - lo if hi != lo else 10
+        pad    = 2
+
+        def _x(i):
+            return pad + (i / (len(scores) - 1)) * (W - pad * 2)
+
+        def _y(v):
+            return H - pad - ((v - lo) / rng) * (H - pad * 2)
+
+        pts = " ".join(f"{_x(i):.1f},{_y(v):.1f}" for i, v in enumerate(scores))
+
+        # Trend
+        first5_avg = sum(scores[:5]) / 5
+        last5_avg  = sum(scores[-5:]) / 5
+        trend_delta = last5_avg - first5_avg
+        if trend_delta >= 3:
+            trend_label, trend_color, trend_arrow = "Improving", "#00ff87", "↑"
+        elif trend_delta <= -3:
+            trend_label, trend_color, trend_arrow = "Deteriorating", "#ef4444", "↓"
+        else:
+            trend_label, trend_color, trend_arrow = "Stable", "#fbbf24", "→"
+
+        # Conviction zone bands (background)
+        hi_y  = _y(60)
+        lo_y  = _y(45)
+        mid_y = _y(45)
+
+        n_days = len(dates)
+        days_label = f"{n_days}d history" if n_days >= 7 else f"{n_days} data points"
+
+        svg = (
+            f'<svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" '
+            f'xmlns="http://www.w3.org/2000/svg" style="width:100%;height:32px;">'
+            # High conviction zone (>=60) — subtle green tint
+            f'<rect x="0" y="0" width="{W}" height="{hi_y:.1f}" '
+            f'fill="rgba(0,255,135,.04)"/>'
+            # Low conviction zone (<45) — subtle red tint
+            f'<rect x="0" y="{mid_y:.1f}" width="{W}" height="{H - mid_y:.1f}" '
+            f'fill="rgba(239,68,68,.04)"/>'
+            # 60 threshold line
+            f'<line x1="0" y1="{hi_y:.1f}" x2="{W}" y2="{hi_y:.1f}" '
+            f'stroke="rgba(0,255,135,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>'
+            # 45 threshold line
+            f'<line x1="0" y1="{lo_y:.1f}" x2="{W}" y2="{lo_y:.1f}" '
+            f'stroke="rgba(239,68,68,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>'
+            # Sparkline
+            f'<polyline points="{pts}" fill="none" stroke="{trend_color}" '
+            f'stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
+            # Current score dot
+            f'<circle cx="{_x(len(scores)-1):.1f}" cy="{_y(scores[-1]):.1f}" '
+            f'r="2" fill="{trend_color}"/>'
+            f'</svg>'
+        )
+
+        return (
+            f'<div style="margin-top:10px;padding:10px 12px;'
+            f'background:rgba(255,255,255,.02);border-radius:6px;'
+            f'border:1px solid rgba(255,255,255,.06);">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.08em;">CONVICTION TREND</div>'
+            f'<div style="display:flex;align-items:center;gap:8px;">'
+            f'<span style="font-size:11px;color:{trend_color};font-weight:700;">{trend_arrow} {trend_label}</span>'
+            f'<span style="font-size:10px;color:#334155;">{days_label}</span>'
+            f'</div></div>'
+            + svg +
+            f'</div>'
+        )
+    except Exception:
+        return ""
+
+
 def resolve_ticker(query: str) -> tuple[str, str]:
     """
     Given a ticker or company name, return (ticker, display_name).
@@ -3310,6 +3420,10 @@ def page_screener():
                     sr["pct_rank"] = 50
                     ci = get_company_info(resolved_tk)
                     st.markdown(factor_panel_html(sr, False, company_info=ci), unsafe_allow_html=True)
+                    # Signal history sparkline
+                    _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
+                    if _chart_html:
+                        st.markdown(_chart_html, unsafe_allow_html=True)
                     # Watchlist — HTML link with action params, same pattern as gems
                     wl = get_watchlist(uid())
                     wl_tickers = {w["ticker"] for w in wl}
