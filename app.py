@@ -2837,10 +2837,10 @@ def platform_nav():
         ("backtest",        "📈", "Backtest"),
         ("portfolio",       "💼", "Portfolio"),
         ("simulator",       "🧮", "Simulator"),
-        ("model_portfolio", "🏆", "Model Portfolio"),
+        ("model_portfolio", "🏆", "Model Port."),
         ("alerts",          "🔔", "Alerts"),
         ("account",         "⚙️", "Account"),
-        ("methodology",     "📖", "Methodology"),
+        ("methodology",     "📖", "How It Works"),
     ]
     cur_em    = next((e for k,e,l in nav_items if k==cur_nav), "📊")
     cur_label = next((l for k,e,l in nav_items if k==cur_nav), "Screener")
@@ -2865,9 +2865,9 @@ def platform_nav():
                 'box-shadow:0 0 12px rgba(0,255,135,.1);'
             )
             em_style  = 'font-size:20px;line-height:1;'
-            lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
-                         'letter-spacing:.05em;text-transform:uppercase;color:#00ff87;'
-                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90%;text-align:center;')
+            lbl_style = ('font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
+                         'letter-spacing:.03em;text-transform:uppercase;color:#00ff87;'
+                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%;text-align:center;')
         else:
             btn_style = (
                 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
@@ -2877,9 +2877,9 @@ def platform_nav():
                 'transition:all .18s ease;'
             )
             em_style  = 'font-size:20px;line-height:1;opacity:.6;'
-            lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:600;'
-                         'letter-spacing:.05em;text-transform:uppercase;color:#64748b;'
-                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90%;text-align:center;')
+            lbl_style = ('font-family:Syne,sans-serif;font-size:9px;font-weight:600;'
+                         'letter-spacing:.03em;text-transform:uppercase;color:#64748b;'
+                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%;text-align:center;')
 
         badge = (
             f'<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;'
@@ -2991,15 +2991,10 @@ def page_screener():
 
     # ── Rescan + Last Refresh — top of page ───────────────────────────────────
     data_freshness_banner()
-    _rc1, _rc2 = st.columns(2)
-    with _rc1:
-        if st.button("🔄 Rescan", key="rescan_main", use_container_width=True):
-            st.session_state.scan_results = None
-            st.rerun()
-    with _rc2:
-        if st.button("⚡ Refresh (3-4 min)", key="live_refresh_main", use_container_width=True):
-            st.session_state.live_refresh_running = True
-            st.rerun()
+    if st.button("🔄 Rescan Universe", key="rescan_main", use_container_width=True):
+        st.session_state.scan_results = None
+        st.rerun()
+
 
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
@@ -3252,7 +3247,7 @@ def page_screener():
                 st.rerun()
         with rb2:
             if st.button("⚡ Live Refresh", key="live_refresh", use_container_width=True):
-                st.session_state.live_refresh_running = True
+                pass  # live refresh removed
                 st.rerun()
 
 
@@ -4592,10 +4587,7 @@ def page_simulator():
                 st.session_state.scan_results = _scored
                 st.session_state.macro_data = _mac
             st.rerun()
-    with _s2:
-        if st.button("⚡ Refresh (3-4 min)", key="sim_live", use_container_width=True):
-            st.session_state.live_refresh_running = True
-            st.rerun()
+
     scan = st.session_state.get("scan_results") or []
     all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
@@ -5795,25 +5787,6 @@ def page_platform():
     platform_nav()
     show_onboarding()
 
-    # ── Live refresh runs here regardless of which tab is active ─────────────
-    # Navigating between pages never interrupts an in-progress refresh.
-    if st.session_state.get("live_refresh_running"):
-        st.markdown("""
-        <div style="background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.25);
-             border-radius:8px;padding:12px 20px;margin:8px 32px 0;
-             display:flex;align-items:center;gap:12px;">
-          <span style="font-size:18px;">⚡</span>
-          <div>
-            <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
-                 color:#00ff87;letter-spacing:.08em;">LIVE REFRESH IN PROGRESS</div>
-            <div style="font-size:12px;color:#64748b;margin-top:2px;">
-              Do not close this tab — fetching live data for 834 tickers (3–4 min)
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        _live_refresh_pipeline()
-        return  # pipeline calls st.rerun() on completion/error
 
     nav_map = {
         "screener":       page_screener,
