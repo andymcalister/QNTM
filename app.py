@@ -1702,6 +1702,30 @@ def cookie_banner():
     """No-op — cookie consent is now handled as a dedicated page in the router."""
     pass
 
+
+def _cta_gold(label: str, href: str, full_width: bool = True) -> str:
+    """Gold primary CTA — HTML link styled as gold button."""
+    w = "width:100%;display:block;" if full_width else "display:inline-block;"
+    return (
+        f'<a href="{href}" target="_self" style="{w}text-align:center;padding:12px 20px;'
+        f'background:linear-gradient(135deg,#d4a843 0%,#b8922e 50%,#d4a843 100%);'
+        f'border:none;border-radius:6px;font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+        f'letter-spacing:.06em;text-transform:uppercase;color:#0a0b14;text-decoration:none;'
+        f'box-sizing:border-box;margin-top:4px;">{label}</a>'
+    )
+
+
+def _cta_ghost(label: str, href: str, full_width: bool = True) -> str:
+    """Ghost secondary CTA — HTML link styled as ghost button."""
+    w = "width:100%;display:block;" if full_width else "display:inline-block;"
+    return (
+        f'<a href="{href}" target="_self" style="{w}text-align:center;padding:12px 20px;'
+        f'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);'
+        f'border-radius:6px;font-family:Syne,sans-serif;font-size:13px;font-weight:700;'
+        f'letter-spacing:.06em;text-transform:uppercase;color:#e2e8f0;text-decoration:none;'
+        f'box-sizing:border-box;margin-top:4px;">{label}</a>'
+    )
+
 # ── DISCLAIMER ────────────────────────────────────────────────────────────────
 DISCLAIMER = """<div style="background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);
 border-radius:4px;padding:12px 16px;font-size:13px;color:#64748b;line-height:1.7;margin:1rem 0;">
@@ -2230,21 +2254,12 @@ def page_landing():
     )
     st.markdown(hero_html, unsafe_allow_html=True)
 
-    # Hero CTA buttons — equal width, text that fits on mobile
+    # Hero CTA buttons — equal width HTML links
     hb1, hb2 = st.columns(2)
     with hb1:
-        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Join Free →", key="hero_register", use_container_width=True):
-            st.session_state.auth_tab = "register"
-            st.session_state.nav = "screener"
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_gold("Join Free →", "?nav=register"), unsafe_allow_html=True)
     with hb2:
-        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
-        if st.button("Sign In", key="hero_signin", use_container_width=True):
-            st.session_state.auth_tab = "signin"
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_ghost("Sign In", "?nav=signin"), unsafe_allow_html=True)
 
 
     # ── TICKER TAPE — live from model scores ─────────────────────────────────
@@ -2609,26 +2624,11 @@ def page_landing():
 
     pb1, pb2, pb3 = st.columns(3)
     with pb1:
-        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
-        if st.button("Start Free →", key="price_free", use_container_width=True):
-            st.session_state.auth_tab = "register"
-            st.session_state.auto_upgrade = False
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_ghost("Start Free →", "?nav=register"), unsafe_allow_html=True)
     with pb2:
-        st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
-        if st.button("Claim Founding Spot →", key="price_founding", use_container_width=True):
-            st.session_state.auth_tab = "register"
-            st.session_state.auto_upgrade = True
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_gold("Claim Founding Spot →", "?nav=register"), unsafe_allow_html=True)
     with pb3:
-        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Get Pro — $29/mo", key="price_pro", use_container_width=True):
-            st.session_state.auth_tab = "register"
-            st.session_state.auto_upgrade = True
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_gold("Get Pro — $29/mo", "?nav=register"), unsafe_allow_html=True)
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
@@ -3759,11 +3759,18 @@ def page_watchlist():
             f'</div>',
             unsafe_allow_html=True
         )
-        _, btn_col = st.columns([5, 1])
-        with btn_col:
-            if st.button(f"✕ {tk}", key=f"wl_rm_{tk}_{i}", use_container_width=True):
-                remove_from_watchlist(uid(), tk)
-                st.rerun()
+        _uid_val = (st.session_state.user or {}).get("id", "")
+        _plan_val = (st.session_state.user or {}).get("plan", "free")
+        _rm_url = f"?qnav=watchlist&uid={_uid_val}&plan={_plan_val}&ck=1&wl_action=remove&wl_ticker={tk}"
+        st.markdown(
+            f'<a href="{_rm_url}" target="_self" style="'
+            f'display:block;width:100%;text-align:center;padding:8px;margin-top:6px;'
+            f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);'
+            f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
+            f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
+            f'box-sizing:border-box;">✕ Remove</a>',
+            unsafe_allow_html=True
+        )
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
@@ -3825,11 +3832,7 @@ def page_gems():
           </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Join Free — First 50 Spots", key="gems_upgrade", use_container_width=True):
-            st.session_state.auth_tab = "register"
-            go("auth")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_gold("Join Free — First 50 Spots", "?nav=register"), unsafe_allow_html=True)
         return
 
     if st.session_state.scan_results is None:
@@ -4535,10 +4538,7 @@ def page_portfolio():
           </div>
         </div>
         """, unsafe_allow_html=True)
-        _, uc, _ = st.columns([4,2,4])
-        with uc:
-            if st.button("Upgrade to Pro — $29/mo", key="port_upgrade"):
-                nav("account")
+        st.markdown(_cta_gold("Upgrade to Pro — $29/mo", "?nav=register"), unsafe_allow_html=True)
 
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
@@ -5074,10 +5074,7 @@ def page_simulator():
             'Build a hypothetical portfolio from current HIGH conviction signals.</div>'
             '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
             '</div>', unsafe_allow_html=True)
-        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Upgrade to Pro — $29/mo →", key="sim_upgrade", use_container_width=True):
-            nav("account")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", "?nav=register"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -5384,10 +5381,7 @@ def page_alerts():
           </div>
         </div>
         """, unsafe_allow_html=True)
-        _, cc, _ = st.columns([1, 2, 1])
-        with cc:
-            if st.button("Upgrade to Pro — Unlock Alerts", key="alerts_upgrade", use_container_width=True):
-                nav("account")
+        st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", "?nav=register"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
