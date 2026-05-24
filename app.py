@@ -1618,16 +1618,19 @@ def get_watchlist(user_id: str) -> list:
         return []
 
 
-def add_to_watchlist(user_id: str, ticker: str) -> bool:
+def add_to_watchlist(user_id: str, ticker: str, price_at_add: float = None) -> bool:
     """Add ticker to watchlist. Returns True on success."""
     try:
         from data_refresh import _get_supabase
         from datetime import datetime
         sb = _get_supabase()
         if not sb: return False
+        payload = {"user_id": user_id, "ticker": ticker,
+                   "added_at": datetime.utcnow().isoformat()}
+        if price_at_add:
+            payload["price_at_add"] = round(price_at_add, 4)
         sb.table("user_watchlist").upsert(
-            {"user_id": user_id, "ticker": ticker, "added_at": datetime.utcnow().isoformat()},
-            on_conflict="user_id,ticker"
+            payload, on_conflict="user_id,ticker"
         ).execute()
         return True
     except Exception:
@@ -3182,7 +3185,8 @@ def page_screener():
                                 remove_from_watchlist(uid(), resolved_tk)
                                 st.toast(f"{resolved_tk} removed from watchlist")
                             else:
-                                add_to_watchlist(uid(), resolved_tk)
+                                _add_price = sr.get("price") or sr.get("adj_composite")
+                                add_to_watchlist(uid(), resolved_tk, price_at_add=sr.get("price"))
                                 st.toast(f"✓ {resolved_tk} added to watchlist")
                             st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
@@ -3500,18 +3504,59 @@ def page_watchlist():
         unsafe_allow_html=True
     )
 
+    # Fetch live prices + prev close for day change via yfinance
+    wl_tickers = [w["ticker"] for w in watchlist]
+    day_change  = {}   # ticker -> {price, prev_close, chg_pct, chg_dollar}
+    if wl_tickers:
+        try:
+            import yfinance as yf
+            hist = yf.download(wl_tickers, period="5d", auto_adjust=True,
+                               progress=False, threads=True)
+            if not hist.empty:
+                close = hist["Close"]
+                if hasattr(close, "columns"):
+                    for tk in wl_tickers:
+                        if tk in close.columns:
+                            vals = close[tk].dropna()
+                            if len(vals) >= 2:
+                                cur  = float(vals.iloc[-1])
+                                prev = float(vals.iloc[-2])
+                                day_change[tk] = {
+                                    "price":      cur,
+                                    "prev_close": prev,
+                                    "chg_pct":    (cur - prev) / prev * 100,
+                                    "chg_dollar": cur - prev,
+                                }
+                else:
+                    vals = close.dropna()
+                    if len(vals) >= 2 and len(wl_tickers) == 1:
+                        cur  = float(vals.iloc[-1])
+                        prev = float(vals.iloc[-2])
+                        day_change[wl_tickers[0]] = {
+                            "price":      cur,
+                            "prev_close": prev,
+                            "chg_pct":    (cur - prev) / prev * 100,
+                            "chg_dollar": cur - prev,
+                        }
+        except Exception:
+            pass
+
+    # Also fetch entry prices from watchlist record if stored, else use first observed price
+    wl_entry = {w["ticker"]: w.get("entry_price") or w.get("price_at_add") for w in watchlist}
+
     # Table header
     st.markdown(
-        '<div style="display:grid;grid-template-columns:160px 120px 90px 70px 120px 1fr 130px;'
+        '<div style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
         'gap:8px;padding:10px 16px;background:#0d1117;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.1);">'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">TICKER</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">SECTOR</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">PRICE</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SCORE</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">DAY</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SINCE ADDED</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SIGNAL</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">FACTOR DRIVERS</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:center;">ACTION</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">DRIVERS</div>'
         '</div>',
         unsafe_allow_html=True
     )
@@ -3520,7 +3565,6 @@ def page_watchlist():
         tk  = w["ticker"]
         sc  = score_map.get(tk, {})
         adj = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
-        price = sc.get("price")
         mom   = float(sc.get("momentum",  0) or 0)
         qual  = float(sc.get("quality",   0) or 0)
         vol   = float(sc.get("volume",    0) or 0)
@@ -3530,23 +3574,49 @@ def page_watchlist():
         ci    = get_company_info(tk)
         name  = (ci.get("name", tk) if ci else tk)[:24]
 
+        # Price + day change from yfinance
+        dc = day_change.get(tk, {})
+        cur_price  = dc.get("price") or sc.get("price")
+        chg_pct    = dc.get("chg_pct")
+        chg_dollar = dc.get("chg_dollar")
+
+        # Since watching — compare to entry price stored in DB
+        entry_p    = wl_entry.get(tk)
+        if entry_p and cur_price and float(entry_p) > 0:
+            since_pct = (cur_price - float(entry_p)) / float(entry_p) * 100
+        else:
+            since_pct = None
+
+        def _chg(pct, dollar=None):
+            if pct is None: return "—", "#64748b"
+            sign = "+" if pct >= 0 else ""
+            color = "#00ff87" if pct >= 0 else "#ef4444"
+            dollar_str = f" (${abs(dollar):.2f})" if dollar is not None else ""
+            return f"{sign}{pct:.2f}%{dollar_str}", color
+
+        day_str,    day_col    = _chg(chg_pct, chg_dollar)
+        since_str,  since_col  = _chg(since_pct)
+        price_str  = f"${cur_price:,.2f}" if cur_price else "—"
+        score_str  = f"{adj:.0f}" if adj else "—"
+
         sig_label = "High Conviction" if adj >= 60 else ("Low Conviction" if adj < 45 else "Moderate")
         sig_color = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
         score_col = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
         border_c  = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#334155")
         bg = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
-        price_str = f"${price:,.2f}" if price else "—"
-        score_str = f"{adj:.0f}" if adj else "—"
 
-        # Top 2 factors
         pillars = sorted([("MOM",mom),("QUAL",qual),("VOL",vol),("VAL",val),("SENT",sent)],
                          key=lambda x: x[1], reverse=True)
-        top2 = " · ".join(f'<span style="color:#e2e8f0;">{p[0]}</span> <span style="color:{("#00ff87" if p[1]>=65 else "#fbbf24")};">{p[1]:.0f}</span>' for p in pillars[:2])
+        top2 = " · ".join(
+            f'<span style="color:#94a3b8;">{p[0]}</span> '
+            f'<span style="color:{("#00ff87" if p[1]>=65 else "#fbbf24")};">{p[1]:.0f}</span>'
+            for p in pillars[:2]
+        )
         weak = [p for p in pillars if p[1] < 45]
-        weak_str = f' &nbsp;·&nbsp; <span style="color:#ef4444;">watch {weak[0][0]}</span>' if weak else ""
+        weak_str = f' · <span style="color:#ef4444;">⚠ {weak[0][0]}</span>' if weak else ""
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:160px 120px 90px 70px 120px 1fr 130px;'
+            f'<div style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
             f'gap:8px;padding:12px 16px;background:{bg};'
             f'border-left:3px solid {border_c};'
             f'border-right:1px solid rgba(255,255,255,.04);'
@@ -3558,13 +3628,13 @@ def page_watchlist():
             f'<div style="font-size:12px;color:#64748b;">{sector}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;text-align:right;">{price_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{score_col};text-align:right;">{score_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{day_col};text-align:right;">{day_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{since_col};text-align:right;">{since_str}</div>'
             f'<div style="font-size:12px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
             f'<div style="font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
-            f'<div></div>'
             f'</div>',
             unsafe_allow_html=True
         )
-        # Remove button in the last column
         _, btn_col = st.columns([6, 1])
         with btn_col:
             if st.button(f"Remove {tk}", key=f"wl_rm_{tk}_{i}", use_container_width=True):
