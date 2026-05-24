@@ -5517,9 +5517,9 @@ def page_simulator():
     _plan_val = (st.session_state.user or {}).get("plan", "free")
     _rescan_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_rescan=1&_n=simulator"
 
-    scan = st.session_state.get("scan_results") or []
+    scan = st.session_state.get("sim_data") or st.session_state.get("scan_results") or []
 
-    # Auto-load from signal_log if no scan in session
+    # Auto-load from signal_log into sim_data (separate from scan_results so timer never clears it)
     if not scan:
         try:
             from data_refresh import _get_supabase as _sim_sb
@@ -5538,7 +5538,7 @@ def page_simulator():
                         _r["adj_action"] = "BUY" if _adj >= 60 else ("SELL" if _adj < 45 else "HOLD")
                         _seen[_r["ticker"]] = _r
                 scan = list(_seen.values())
-                st.session_state.scan_results = scan
+                st.session_state.sim_data = scan  # dedicated key — never cleared by timer
         except Exception:
             pass
 
@@ -5562,6 +5562,14 @@ def page_simulator():
         else:
             ranked = all_buys
         return [r["ticker"] for r in ranked[:20]]
+
+    # Profile from URL param — read without navigation
+    _sp = st.query_params.get("_sp", "")
+    if _sp in ("HIGH", "MEDIUM", "LOW"):
+        if st.session_state.get("sim_profile") != _sp:
+            st.session_state.sim_profile = _sp
+            st.session_state.sim_weights = {}
+            st.session_state.sim_profile_applied = None
 
     if "sim_profile" not in st.session_state:
         st.session_state.sim_profile = "MEDIUM"
@@ -5594,7 +5602,7 @@ def page_simulator():
             tc     = "#d4a843" if pk=="HIGH" else "#00ff87" if pk=="LOW" else "#94a3b8"
             if active:
                 bg = bg.replace(",.12",",.2").replace(",.10",",.18").replace(",.06",",.12")
-            _prof_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_profile={pk}&_n=simulator"
+            _prof_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&_sp={pk}&_n=simulator"
             _btn_label = "✓ Selected" if active else "Select"
             st.markdown(
                 f'<a href="{_prof_url}" target="_self" style="display:block;text-decoration:none;">'
@@ -6920,7 +6928,9 @@ def main():
             for _r in _raw:
                 if not _r.get("sector") or _r.get("sector") == "Unknown":
                     _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")
-            st.session_state.scan_results = apply_macro_overlay(_raw, _mac)
+            _scored = apply_macro_overlay(_raw, _mac)
+            st.session_state.scan_results = _scored
+            st.session_state.sim_data     = _scored  # also update sim_data
             st.session_state.macro_data   = _mac
         except Exception:
             pass
