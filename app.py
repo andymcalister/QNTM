@@ -2455,7 +2455,7 @@ def page_landing():
             _sb = _tape_sb()
             if _sb:
                 _latest = _sb.table("signal_log") \
-                    .select("ticker,adj_composite,signal,adj_action") \
+                    .select("ticker,adj_composite,signal") \
                     .order("signal_date", desc=True) \
                     .order("adj_composite", desc=True) \
                     .limit(200) \
@@ -5521,15 +5521,12 @@ def page_simulator():
 
     # Auto-load from signal_log if no scan in session
     if not scan:
-        _load_err = ""
         try:
             from data_refresh import _get_supabase as _sim_sb
             _sb = _sim_sb()
-            if not _sb:
-                _load_err = "No Supabase connection"
-            else:
+            if _sb:
                 _resp = _sb.table("signal_log") \
-                    .select("ticker,adj_composite,composite,signal,adj_action,momentum,quality,volume,value,sentiment,price,sector") \
+                    .select("ticker,adj_composite,composite,momentum,quality,volume,value,sentiment,price,sector") \
                     .order("signal_date", desc=True) \
                     .limit(5000) \
                     .execute()
@@ -5538,18 +5535,12 @@ def page_simulator():
                 for _r in _rows:
                     if _r["ticker"] not in _seen:
                         _adj = float(_r.get("adj_composite") or _r.get("composite") or 50)
-                        if not _r.get("adj_action"):
-                            _r["adj_action"] = "BUY" if _adj >= 60 else ("SELL" if _adj < 45 else "HOLD")
+                        _r["adj_action"] = "BUY" if _adj >= 60 else ("SELL" if _adj < 45 else "HOLD")
                         _seen[_r["ticker"]] = _r
                 scan = list(_seen.values())
                 st.session_state.scan_results = scan
-                if not scan:
-                    _load_err = "signal_log returned 0 rows"
-        except Exception as _e:
-            _load_err = str(_e)
-
-        if _load_err:
-            st.warning(f"DEBUG load error: {_load_err}")
+        except Exception:
+            pass
 
     all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
@@ -6949,7 +6940,7 @@ def main():
                 _sb2 = _sim_sb2()
                 if _sb2:
                     _resp2 = _sb2.table("signal_log") \
-                        .select("ticker,adj_composite,composite,signal,adj_action,momentum,quality,volume,value,sentiment,price,sector") \
+                        .select("ticker,adj_composite,composite,momentum,quality,volume,value,sentiment,price,sector") \
                         .order("signal_date", desc=True) \
                         .limit(5000) \
                         .execute()
@@ -6957,8 +6948,7 @@ def main():
                     for _r2 in (_resp2.data or []):
                         if _r2["ticker"] not in _seen2:
                             _adj2 = float(_r2.get("adj_composite") or _r2.get("composite") or 50)
-                            if not _r2.get("adj_action"):
-                                _r2["adj_action"] = "BUY" if _adj2 >= 60 else ("SELL" if _adj2 < 45 else "HOLD")
+                            _r2["adj_action"] = "BUY" if _adj2 >= 60 else ("SELL" if _adj2 < 45 else "HOLD")
                             _seen2[_r2["ticker"]] = _r2
                     st.session_state.scan_results = list(_seen2.values())
             except Exception:
