@@ -1691,65 +1691,45 @@ def page_legal(doc_key: str = "privacy"):
 # COOKIE CONSENT PAGE — full page, 100% reliable buttons
 # ══════════════════════════════════════════════════════════════════════════════
 def page_cookie_consent():
-    """Full-page cookie consent — persists via query param so it only shows once."""
+    """No-op — cookie banner is now shown inline at bottom of landing page."""
+    pass
+
+
+def _cookie_banner():
+    """Slim bottom banner shown on landing until user accepts. No page gate."""
     st.markdown(
-        "<style>"
-        "html,body,[data-testid='stAppViewContainer'],[data-testid='stMain'],"
-        "[data-testid='stMainBlockContainer'],.main{background:#08090f!important;}"
-        ".main .block-container{padding:0!important;max-width:100%!important;}"
-        "#MainMenu,header,footer,[data-testid='stHeader']{display:none!important;}"
-        "</style>",
+        '<style>'
+        '#qntm-cookie-banner{'
+        'position:fixed;bottom:0;left:0;right:0;z-index:9999;'
+        'background:rgba(8,10,18,.97);backdrop-filter:blur(16px);'
+        'border-top:1px solid rgba(212,168,67,.25);'
+        'padding:14px 24px;display:flex;align-items:center;'
+        'justify-content:space-between;gap:16px;flex-wrap:wrap;}'
+        '</style>'
+        '<div id="qntm-cookie-banner">'
+        '<div style="font-size:13px;color:#94a3b8;max-width:640px;line-height:1.5;">'
+        'QNTM uses essential cookies for login and session management. '
+        'By continuing you agree to our '
+        '<a href="?legal=privacy" style="color:#d4a843;text-decoration:none;">Privacy Policy</a> and '
+        '<a href="?legal=terms" style="color:#d4a843;text-decoration:none;">Terms of Service</a>. '
+        '<span style="color:#475569;">QNTM is a quantitative research tool — not investment advice.</span>'
+        '</div>'
+        '<div style="display:flex;gap:8px;flex-shrink:0;">'
+        '</div>'
+        '</div>',
         unsafe_allow_html=True
     )
-    st.markdown("<div style='height:5vh'></div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div style='text-align:center;font-family:Syne,sans-serif;font-size:30px;"
-        "font-weight:800;color:#e2e4f0;margin-bottom:4px;'>Q"
-        "<span style='color:#d4a843;'>NTM</span></div>"
-        "<div style='text-align:center;font-size:13px;color:#94a3b8;"
-        "letter-spacing:.2em;margin-bottom:28px;'>CONVICTION FACTOR MODEL</div>",
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        "<div style='max-width:580px;margin:0 auto;border:1px solid rgba(212,168,67,.4);"
-        "border-radius:12px;padding:32px 36px 24px;background:#0d1117;'>",
-        unsafe_allow_html=True
-    )
-
-    st.markdown("## 🍪 Cookie & Privacy Notice")
-    st.markdown(
-        "QNTM uses **essential cookies** for login and session management "
-        "and **analytical cookies** to improve the platform. "
-        "We never sell your data or use cookies for advertising.\n\n"
-        "By continuing you agree to our **Privacy Policy**, **Cookie Policy**, "
-        "and **Terms of Service**. QNTM is a quantitative research tool — *not investment advice*."
-    )
-    st.info(
-        "**Essential cookies** — login session, security. Required, cannot be disabled.  \n"
-        "**Analytical cookies** — anonymous usage stats. Can be declined below."
-    )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    def _accept():
-        st.session_state.cookies_accepted = True
-        st.query_params["ck"] = "1"   # persists across refreshes
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✓  Accept All Cookies", key="ck_accept", use_container_width=True):
-            _accept(); st.rerun()
-    with col2:
+    b1, b2, b3 = st.columns([4, 1, 1])
+    with b2:
+        if st.button("Accept", key="ck_accept", use_container_width=True):
+            st.session_state.cookies_accepted = True
+            st.query_params["ck"] = "1"
+            st.rerun()
+    with b3:
         if st.button("Essential Only", key="ck_essential", use_container_width=True):
-            _accept(); st.rerun()
-
-    st.markdown(
-        "<div style='text-align:center;margin-top:10px;font-size:13px;color:#64748b;'>"
-        "Your choice is remembered across sessions.</div>",
-        unsafe_allow_html=True
-    )
+            st.session_state.cookies_accepted = True
+            st.query_params["ck"] = "1"
+            st.rerun()
 
 
 
@@ -5794,19 +5774,19 @@ def main():
 
 
 
-    # ── Cookie consent gate — persists via ?ck=1 query param ─────────────────
+    # ── Cookie consent — restore from query param, show banner on landing ───────
     if st.query_params.get("ck") == "1":
         st.session_state.cookies_accepted = True
-    if not st.session_state.cookies_accepted and st.session_state.page not in ("legal",):
-        page_cookie_consent()
-        return
 
     # Handle nav button side effects — re-route if needed
     if st.session_state.page == "landing" and st.session_state.logged_in:
         st.session_state.page = "platform"
 
     route = st.session_state.page
-    if   route == "landing":  page_landing()
+    if   route == "landing":
+        page_landing()
+        if not st.session_state.get("cookies_accepted"):
+            _cookie_banner()
     elif route == "auth":     page_auth()
     elif route == "mfa":      page_mfa()
     elif route == "model":    go("landing")  # page removed
