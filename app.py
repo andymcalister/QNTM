@@ -3794,7 +3794,12 @@ def page_gems():
     </div>
     """, unsafe_allow_html=True)
 
-    gem_cards_html = ""
+    # Load current watchlist to know which gems are already added
+    wl_tickers = {w["ticker"] for w in get_watchlist(uid())}
+
+    grid_open = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:0 4px;">'
+    st.markdown(grid_open, unsafe_allow_html=True)
+
     for g in gems:
         try:
             adj   = float(g.get("adj_composite") or g.get("composite") or 0)
@@ -3832,12 +3837,15 @@ def page_gems():
                 f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:14px;color:#94a3b8;">SENT</div></div>'
             )
 
+            tk = g["ticker"]
+            in_wl = tk in wl_tickers
+
             card = (
                 '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.25);'
                 'border-radius:10px;padding:20px 16px;">'
                 '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
                 '<div style="min-width:0;">'
-                f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;line-height:1;">{g["ticker"]}</div>'
+                f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;line-height:1;">{tk}</div>'
                 f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">{name_short}</div>'
                 f'<div style="font-size:13px;color:#94a3b8;">{g.get("sector","")}</div>'
                 + price_html +
@@ -3862,12 +3870,23 @@ def page_gems():
                 )
                 + '</div></div>'
             )
-            gem_cards_html += card
+            st.markdown(card, unsafe_allow_html=True)
+
+            # Watchlist button below each card
+            wl_label = f"★ {tk} in Watchlist" if in_wl else f"☆ Add {tk} to Watchlist"
+            wl_style = "land-btn-ghost" if in_wl else "land-btn-primary"
+            st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
+            if st.button(wl_label, key=f"gem_wl_{tk}", use_container_width=True, disabled=in_wl):
+                add_to_watchlist(uid(), tk, price_at_add=float(price) if price else None)
+                wl_tickers.add(tk)
+                st.success(f"✓ {tk} added to Watchlist")
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
         except Exception:
             pass
 
-    grid_open = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:0 4px;">'
-    st.markdown(grid_open + gem_cards_html + '</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
