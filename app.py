@@ -2003,7 +2003,7 @@ def page_landing():
     hb1, hb2, hb3 = st.columns([2, 2, 3])
     with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Get Started Free →", key="hero_register", use_container_width=True):
+        if st.button("Create Free Account →", key="hero_register", use_container_width=True):
             st.session_state.auth_tab = "register"
             st.session_state.nav = "screener"
             go("auth")
@@ -2484,7 +2484,7 @@ def page_auth():
         if "auth_tab" not in st.session_state:
             st.session_state.auth_tab = "signin"
 
-        tab_signin, tab_register = st.tabs(["Sign In", "Register"])
+        tab_signin, tab_register = st.tabs(["Sign In", "Create Free Account"])
 
         # ── SIGN IN ───────────────────────────────────────────────────────────
         with tab_signin:
@@ -2579,7 +2579,7 @@ def page_auth():
             )
             st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
-            if st.button("Create Free Account", key="rg_btn", use_container_width=True):
+            if st.button("Create Free Account →", key="rg_btn", use_container_width=True):
                 if not rg_agree:
                     st.error("Please acknowledge the disclaimer to continue")
                 elif not rg_name or not rg_name.strip():
