@@ -5512,22 +5512,47 @@ def page_simulator():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # Rescan — URL action to avoid session drop on mobile
+    # Rescan button — kept as fallback for live price refresh
     _uid_val  = (st.session_state.user or {}).get("id", "")
     _plan_val = (st.session_state.user or {}).get("plan", "free")
     _rescan_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_rescan=1&_n=simulator"
-    st.markdown(_cta_ghost("🔄 Rescan Universe", _rescan_url), unsafe_allow_html=True)
-    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     scan = st.session_state.get("scan_results") or []
+
+    # Auto-load from signal_log if no scan in session — no manual rescan needed
+    if not scan:
+        try:
+            from data_refresh import _get_supabase as _sim_sb
+            _sb = _sim_sb()
+            if _sb:
+                _resp = _sb.table("signal_log") \
+                    .select("ticker,adj_composite,composite,signal,adj_action,momentum,quality,volume,value,sentiment,price,sector") \
+                    .order("signal_date", desc=True) \
+                    .limit(5000) \
+                    .execute()
+                _rows = _resp.data or []
+                # Deduplicate — keep most recent per ticker
+                _seen = {}
+                for _r in _rows:
+                    if _r["ticker"] not in _seen:
+                        if not _r.get("adj_action"):
+                            _adj = float(_r.get("adj_composite") or _r.get("composite") or 50)
+                            _r["adj_action"] = "BUY" if _adj >= 60 else ("SELL" if _adj < 45 else "HOLD")
+                        _seen[_r["ticker"]] = _r
+                scan = list(_seen.values())
+                st.session_state.scan_results = scan
+        except Exception:
+            pass
+
     all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
-        key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True
+        key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
     )
     ticker_map = {r["ticker"]: r for r in scan}
 
     if not all_buys:
-        st.info("No HIGH conviction signals loaded. Hit 🔄 Rescan Universe above to load scores.")
+        st.info("No conviction signals available — data loads from the nightly refresh.")
+        st.markdown(_cta_ghost("🔄 Force Rescan", _rescan_url), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -6908,18 +6933,29 @@ def main():
         st.query_params.pop("sim_profile", None)
         st.session_state.sim_profile = _sim_profile
         st.session_state.sim_weights = {}
-        st.session_state.sim_profile_applied = _sim_profile
-        _scan = st.session_state.get("scan_results") or []
-        if _scan:
-            _buys = sorted([r for r in _scan if r.get("adj_action", r.get("action")) == "BUY"],
-                           key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)
-            if _sim_profile == "HIGH":
-                _picks = sorted(_buys, key=lambda x: x.get("momentum", 0), reverse=True)
-            elif _sim_profile == "LOW":
-                _picks = sorted(_buys, key=lambda x: (x.get("quality", 0) + x.get("value", 0)) / 2, reverse=True)
-            else:
-                _picks = _buys
-            st.session_state.sim_selected = [r["ticker"] for r in _picks[:20]]
+        st.session_state.sim_profile_applied = None  # force rebuild of sim_selected in page
+
+        # Ensure scan data is loaded so profile_tickers works immediately
+        if not st.session_state.get("scan_results"):
+            try:
+                from data_refresh import _get_supabase as _sim_sb2
+                _sb2 = _sim_sb2()
+                if _sb2:
+                    _resp2 = _sb2.table("signal_log") \
+                        .select("ticker,adj_composite,composite,signal,adj_action,momentum,quality,volume,value,sentiment,price,sector") \
+                        .order("signal_date", desc=True) \
+                        .limit(5000) \
+                        .execute()
+                    _seen2 = {}
+                    for _r2 in (_resp2.data or []):
+                        if _r2["ticker"] not in _seen2:
+                            _adj2 = float(_r2.get("adj_composite") or _r2.get("composite") or 50)
+                            if not _r2.get("adj_action"):
+                                _r2["adj_action"] = "BUY" if _adj2 >= 60 else ("SELL" if _adj2 < 45 else "HOLD")
+                            _seen2[_r2["ticker"]] = _r2
+                    st.session_state.scan_results = list(_seen2.values())
+            except Exception:
+                pass
 
     # ── Simulator add/remove ticker via URL action ────────────────────────────
     _sim_add = st.query_params.get("sim_add", "")
