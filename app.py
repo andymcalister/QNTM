@@ -5571,18 +5571,17 @@ def page_simulator():
             tc     = "#d4a843" if pk=="HIGH" else "#00ff87" if pk=="LOW" else "#94a3b8"
             if active:
                 bg = bg.replace(",.12",",.2").replace(",.10",",.18").replace(",.06",",.12")
+            _prof_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_profile={pk}&_n=simulator"
+            _btn_label = "✓ Selected" if active else "Select"
             st.markdown(
+                f'<a href="{_prof_url}" target="_self" style="display:block;text-decoration:none;">'
                 f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
                 f'padding:10px 8px;text-align:center;margin-bottom:4px;">'
                 f'<div style="font-size:13px;font-weight:700;color:{tc};">{plbl}</div>'
                 f'<div style="font-size:10px;color:#64748b;margin-top:3px;line-height:1.3;">{pdesc[:55]}</div>'
-                f'</div>', unsafe_allow_html=True)
-            if st.button("✓ Selected" if active else "Select", key=f"prof_{pk}", use_container_width=True):
-                st.session_state.sim_profile = pk
-                st.session_state.sim_selected = profile_tickers(pk)
-                st.session_state.sim_weights  = {}
-                st.session_state.sim_profile_applied = pk
-                st.rerun()
+                f'<div style="font-size:11px;color:{tc};margin-top:6px;font-weight:700;">{_btn_label}</div>'
+                f'</div></a>',
+                unsafe_allow_html=True)
 
     st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>', unsafe_allow_html=True)
@@ -5599,10 +5598,16 @@ def page_simulator():
                 tk    = r["ticker"]
                 score = r.get("adj_composite", r.get("composite", 0))
                 already = tk in st.session_state.sim_selected
-                if st.button(f"{"✓ In portfolio" if already else "+ Add"}  {tk} · score {score:.0f}",
-                              key=f"simadd_{tk}", use_container_width=True, disabled=already):
-                    st.session_state.sim_selected.append(tk)
-                    st.rerun()
+                if already:
+                    st.markdown(f'<div style="padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;font-size:13px;color:#475569;margin-bottom:4px;">✓ {tk} · score {score:.0f} — in portfolio</div>', unsafe_allow_html=True)
+                else:
+                    _add_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_add={tk}&_n=simulator"
+                    st.markdown(
+                        f'<a href="{_add_url}" target="_self" style="display:block;padding:8px 12px;margin-bottom:4px;'
+                        f'background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.2);border-radius:6px;'
+                        f'font-size:13px;color:#00ff87;text-decoration:none;">+ {tk} · score {score:.0f}</a>',
+                        unsafe_allow_html=True
+                    )
         else:
             st.caption("No matches in current scan.")
 
@@ -5709,11 +5714,15 @@ def page_simulator():
                                      help="Normalised to 100% across all positions")
                 if new_pct != raw_pct:
                     st.session_state.sim_weights[a["ticker"]] = new_pct
-                    st.rerun()
-            if st.button(f"✕ Remove {a['ticker']}", key=f"sim_rm_{a['ticker']}", use_container_width=True):
-                st.session_state.sim_selected.remove(a["ticker"])
-                st.session_state.sim_weights.pop(a["ticker"], None)
-                st.rerun()
+            _rm_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_remove={a['ticker']}&_n=simulator"
+            st.markdown(
+                f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
+                f'padding:7px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);'
+                f'border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.06em;'
+                f'text-transform:uppercase;color:#ef4444;text-decoration:none;'
+                f'box-sizing:border-box;">✕ Remove {a["ticker"]}</a>',
+                unsafe_allow_html=True
+            )
 
     st.markdown(
         f'<div style="font-size:11px;color:#475569;padding-top:12px;margin-top:8px;'
@@ -6892,6 +6901,41 @@ def main():
             st.session_state.macro_data   = _mac
         except Exception:
             pass
+
+    # ── Simulator profile select via URL action ───────────────────────────────
+    _sim_profile = st.query_params.get("sim_profile", "")
+    if _sim_profile in ("HIGH", "MEDIUM", "LOW") and st.session_state.get("logged_in"):
+        st.query_params.pop("sim_profile", None)
+        st.session_state.sim_profile = _sim_profile
+        st.session_state.sim_weights = {}
+        st.session_state.sim_profile_applied = _sim_profile
+        _scan = st.session_state.get("scan_results") or []
+        if _scan:
+            _buys = sorted([r for r in _scan if r.get("adj_action", r.get("action")) == "BUY"],
+                           key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)
+            if _sim_profile == "HIGH":
+                _picks = sorted(_buys, key=lambda x: x.get("momentum", 0), reverse=True)
+            elif _sim_profile == "LOW":
+                _picks = sorted(_buys, key=lambda x: (x.get("quality", 0) + x.get("value", 0)) / 2, reverse=True)
+            else:
+                _picks = _buys
+            st.session_state.sim_selected = [r["ticker"] for r in _picks[:20]]
+
+    # ── Simulator add/remove ticker via URL action ────────────────────────────
+    _sim_add = st.query_params.get("sim_add", "")
+    if _sim_add and st.session_state.get("logged_in"):
+        st.query_params.pop("sim_add", None)
+        if _sim_add not in st.session_state.get("sim_selected", []):
+            if "sim_selected" not in st.session_state:
+                st.session_state.sim_selected = []
+            st.session_state.sim_selected.append(_sim_add)
+
+    _sim_remove = st.query_params.get("sim_remove", "")
+    if _sim_remove and st.session_state.get("logged_in"):
+        st.query_params.pop("sim_remove", None)
+        if "sim_selected" in st.session_state and _sim_remove in st.session_state.sim_selected:
+            st.session_state.sim_selected.remove(_sim_remove)
+        st.session_state.get("sim_weights", {}).pop(_sim_remove, None)
 
     # ── Plan upgrade via URL action ───────────────────────────────────────────
     if st.query_params.get("upgrade") == "pro" and st.session_state.get("logged_in"):
