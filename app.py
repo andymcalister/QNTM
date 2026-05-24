@@ -3662,9 +3662,20 @@ def page_screener():
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;'
             f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM</div>',
             unsafe_allow_html=True)
+        _show_sparkline = len(filtered) <= 20
+        if not _show_sparkline and len(filtered) < 834:
+            st.markdown(
+                '<div style="font-size:12px;color:#475569;margin-bottom:8px;">'
+                '⚡ Filter to 20 or fewer stocks to see conviction trend charts.</div>',
+                unsafe_allow_html=True)
         for r in filtered:
             ci = get_company_info(r["ticker"])
             st.markdown(factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci), unsafe_allow_html=True)
+            if _show_sparkline:
+                _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
+                _ch = signal_history_chart(r["ticker"], _sc)
+                if _ch:
+                    st.markdown(_ch, unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -3852,9 +3863,41 @@ def page_watchlist():
     # Also fetch entry prices from watchlist record if stored, else use first observed price
     wl_entry = {w["ticker"]: w.get("entry_price") or w.get("price_at_add") for w in watchlist}
 
+    # Batch fetch last 2 signal_log rows per ticker for trend arrows
+    wl_trend = {}  # ticker -> (arrow, color, delta_str)
+    try:
+        from data_refresh import _get_supabase as _wl_sb
+        _sb = _wl_sb()
+        if _sb and wl_tickers:
+            _trend_resp = _sb.table("signal_log") \
+                .select("ticker,signal_date,adj_composite,composite") \
+                .in_("ticker", wl_tickers) \
+                .order("signal_date", desc=True) \
+                .limit(len(wl_tickers) * 5) \
+                .execute()
+            # Group by ticker, keep last 2 dates
+            _by_tk = {}
+            for row in (_trend_resp.data or []):
+                tk2 = row["ticker"]
+                if tk2 not in _by_tk:
+                    _by_tk[tk2] = []
+                if len(_by_tk[tk2]) < 2:
+                    _by_tk[tk2].append(float(row.get("adj_composite") or row.get("composite") or 50))
+            for tk2, scores in _by_tk.items():
+                if len(scores) >= 2:
+                    delta = scores[0] - scores[1]
+                    if delta >= 3:
+                        wl_trend[tk2] = ("↑", "#00ff87", f"+{delta:.0f}")
+                    elif delta <= -3:
+                        wl_trend[tk2] = ("↓", "#ef4444", f"{delta:.0f}")
+                    else:
+                        wl_trend[tk2] = ("→", "#fbbf24", f"{delta:+.0f}")
+    except Exception:
+        pass
+
     # Table header — hidden on mobile (cards show labels inline)
     st.markdown(
-        '<div class="wl-table-header" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
+        '<div class="wl-table-header" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 60px 110px 1fr;'
         'gap:8px;padding:10px 16px;background:#0d1117;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.1);">'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">TICKER</div>'
@@ -3863,6 +3906,7 @@ def page_watchlist():
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SCORE</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">DAY</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SINCE ADDED</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:center;">TREND</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SIGNAL</div>'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">DRIVERS</div>'
         '</div>',
@@ -3923,8 +3967,16 @@ def page_watchlist():
         weak = [p for p in pillars if p[1] < 45]
         weak_str = f' · <span style="color:#ef4444;">⚠ {weak[0][0]}</span>' if weak else ""
 
+        trend_arrow, trend_color, trend_delta = wl_trend.get(tk, ("—", "#475569", ""))
+        trend_html = (
+            f'<div style="text-align:center;">'
+            f'<div style="font-size:16px;color:{trend_color};">{trend_arrow}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:{trend_color};">{trend_delta}</div>'
+            f'</div>'
+        )
+
         st.markdown(
-            f'<div class="wl-row" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
+            f'<div class="wl-row" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 60px 110px 1fr;'
             f'gap:8px;padding:12px 16px;background:{bg};'
             f'border-left:3px solid {border_c};'
             f'border-right:1px solid rgba(255,255,255,.04);'
@@ -3938,10 +3990,11 @@ def page_watchlist():
             f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{score_col};text-align:right;">{score_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{day_col};text-align:right;">{day_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{since_col};text-align:right;">{since_str}</div>'
+            + trend_html +
             f'<div style="font-size:12px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
             f'<div style="font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
             f'</div>'
-            # Mobile card — hidden on desktop, shown on mobile
+            # Mobile card
             f'<div class="wl-card" style="display:none;padding:14px 16px;background:{bg};'
             f'border-left:3px solid {border_c};border-bottom:1px solid rgba(255,255,255,.05);">'
             f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
@@ -3952,6 +4005,7 @@ def page_watchlist():
             f'<div style="text-align:right;">'
             f'<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:{score_col};">{score_str}</div>'
             f'<div style="font-size:11px;color:{sig_color};font-weight:600;">{sig_label}</div>'
+            f'<div style="font-size:13px;color:{trend_color};font-weight:700;">{trend_arrow} {trend_delta}</div>'
             f'</div>'
             f'</div>'
             f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
