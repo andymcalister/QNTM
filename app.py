@@ -686,27 +686,42 @@ def _clear_localstorage_token():
 if not st.session_state.logged_in:
     params = st.query_params
     if "uid" in params:
+        _restore_ok = False
         try:
             saved_uid = params["uid"]
             verified_uid, _ = _verify_token(saved_uid)
             if verified_uid:
                 user = get_user_by_id(verified_uid)
                 if user:
-                    # If DB returned free but query param says pro, trust query param
-                    # (handles case where upgrade happened but DB read is stale)
+                    # Trust query param plan if DB returns free (upgrade may not have propagated)
                     qp_plan = params.get("plan", "")
                     if qp_plan in ("pro", "institutional") and user.get("plan") == "free":
                         user["plan"] = qp_plan
-                    st.session_state.logged_in    = True
-                    st.session_state.user         = user
-                    st.session_state.mfa_verified = True
-                    st.session_state.signed_out   = False
-                    st.session_state.page         = "platform"
+                    st.session_state.logged_in       = True
+                    st.session_state.user            = user
+                    st.session_state.mfa_verified    = True
+                    st.session_state.signed_out      = False
+                    st.session_state.page            = "platform"
                     st.session_state.onboarding_done = True
-                    _dest = params.get("qnav","")
+                    _dest = params.get("qnav", "")
                     _VALID = {"screener","gems","backtest","portfolio","simulator",
                               "model_portfolio","alerts","account","methodology"}
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
+                    _restore_ok = True
+                else:
+                    # DB returned nothing — build minimal user from query params so session works
+                    qp_plan = params.get("plan", "free")
+                    st.session_state.logged_in       = True
+                    st.session_state.user            = {"id": verified_uid, "plan": qp_plan, "email": "", "full_name": ""}
+                    st.session_state.mfa_verified    = True
+                    st.session_state.signed_out      = False
+                    st.session_state.page            = "platform"
+                    st.session_state.onboarding_done = True
+                    _dest = params.get("qnav", "")
+                    _VALID = {"screener","gems","backtest","portfolio","simulator",
+                              "model_portfolio","alerts","account","methodology"}
+                    st.session_state.nav = _dest if _dest in _VALID else "screener"
+                    _restore_ok = True
         except Exception:
             pass
 
