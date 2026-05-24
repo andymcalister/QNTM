@@ -2757,13 +2757,12 @@ def platform_nav():
                   "simulator","model_portfolio","alerts","account","methodology","__signout__"]
     cur_nav    = st.session_state.get("nav","screener")
     cur_idx    = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
-    cur_label  = nav_labels[cur_idx] if cur_idx < len(nav_labels) else "📊 Screener"
 
-    # ── Nav CSS ───────────────────────────────────────────────────────────────
     st.markdown("""
     <style>
-    /* Nav selectbox — no label, styled dark */
+    /* Hide selectbox label */
     div[data-testid="stSelectbox"] label { display:none !important; }
+    /* Style the selectbox control */
     div[data-testid="stSelectbox"] > div > div {
         background: rgba(13,17,23,.95) !important;
         border: 1px solid rgba(255,255,255,.1) !important;
@@ -2771,47 +2770,49 @@ def platform_nav():
         font-family: Syne, sans-serif !important;
         font-size: 13px !important;
         color: #e2e8f0 !important;
-        padding: 6px 12px !important;
-        min-height: 40px !important;
+        min-height: 38px !important;
     }
-    /* Sticky wrapper for the whole nav block */
-    section[data-testid="stMain"] > div > div[data-testid="stVerticalBlock"] > div:first-child {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 999 !important;
-        background: rgba(2,4,8,.97) !important;
-        backdrop-filter: blur(12px) !important;
-        border-bottom: 1px solid rgba(255,255,255,.06) !important;
+    /* Remove extra padding Streamlit adds around the selectbox column */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) {
+        padding: 0 8px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Top bar: logo left | plan+user right ──────────────────────────────────
-    c_logo, c_right = st.columns([1, 1])
-    with c_logo:
+    # Single row: logo | selectbox | plan+user
+    c1, c2, c3 = st.columns([1, 3, 1])
+    with c1:
         st.markdown(
-            f'<div style="padding:10px 0 4px;">'
-            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
-            f'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
-            f'</div>',
+            '<div style="padding:8px 0 4px 4px;">'
+            '<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
+            'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
+            '</div>',
             unsafe_allow_html=True
         )
-    with c_right:
+    with c2:
+        sel = st.selectbox("nav", nav_labels, index=cur_idx,
+                           label_visibility="collapsed", key="nav_select")
+    with c3:
         st.markdown(
-            f'<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:10px 0 4px;">'
-            f'{notif_dot}'
-            f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-            f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 8px;'
-            f'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
+            '<div style="display:flex;align-items:center;justify-content:flex-end;'
+            'gap:8px;padding:8px 4px 4px 0;">'
+            + notif_dot
+            + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+            f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 7px;'
+            f'font-size:11px;font-weight:700;letter-spacing:.08em;font-family:Syne,sans-serif;">'
             f'{plan.upper()}</span>'
-            f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
-            f'</div>',
+            f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
+            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;">{display_name}</span>'
+            '</div>',
             unsafe_allow_html=True
         )
 
-    # ── Selectbox nav ─────────────────────────────────────────────────────────
-    sel = st.selectbox("nav", nav_labels, index=cur_idx,
-                       label_visibility="collapsed", key="nav_select")
+    # Bottom border line under the nav
+    st.markdown(
+        '<div style="border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:0;"></div>',
+        unsafe_allow_html=True
+    )
+
     sel_key = nav_keys[nav_labels.index(sel)]
     if sel_key == "__signout__":
         for k in ["logged_in","user","mfa_verified","scan_results",
