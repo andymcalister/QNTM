@@ -3251,7 +3251,7 @@ def page_screener():
                     in_wl = resolved_tk in wl_tickers
                     wl_col, _ = st.columns([1, 3])
                     with wl_col:
-                        wl_label = "★ In Watchlist" if in_wl else "☆ Add to Watchlist"
+                        wl_label = "★ Watchlist" if in_wl else "☆ + Watchlist"
                         wl_style = "land-btn-primary" if not in_wl else "land-btn-ghost"
                         st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
                         if st.button(wl_label, key=f"wl_add_{resolved_tk}", use_container_width=True):
@@ -3908,13 +3908,16 @@ def page_gems():
             st.markdown(card, unsafe_allow_html=True)
 
             # Watchlist button below each card
-            wl_label = f"★ {tk} in Watchlist" if in_wl else f"☆ Add {tk} to Watchlist"
+            wl_label = f"★ Watchlist" if in_wl else f"☆ + Watchlist"
             wl_style = "land-btn-ghost" if in_wl else "land-btn-primary"
             st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
             if st.button(wl_label, key=f"gem_wl_{tk}", use_container_width=True, disabled=in_wl):
-                add_to_watchlist(uid(), tk, price_at_add=float(price) if price else None)
-                wl_tickers.add(tk)
-                st.success(f"✓ {tk} added to Watchlist")
+                ok = add_to_watchlist(uid(), tk, price_at_add=float(price) if price else None)
+                if ok:
+                    wl_tickers.add(tk)
+                    st.success(f"✓ {tk} added to Watchlist")
+                else:
+                    st.error(f"Could not add {tk} — check DB connection")
             st.markdown('</div>', unsafe_allow_html=True)
 
         except Exception:
