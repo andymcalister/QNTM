@@ -5512,12 +5512,13 @@ def page_simulator():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # Rescan buttons — right here so users don't have to go back to Screener
+    # Rescan — runs inline, no rerun needed (session state already updated)
+    _uid_val  = (st.session_state.user or {}).get("id", "")
+    _plan_val = (st.session_state.user or {}).get("plan", "free")
     _s1, _s2 = st.columns(2)
     with _s1:
-        if st.button("🔄 Rescan", key="sim_rescan", use_container_width=True):
-            st.session_state.scan_results = None
-            # Run the scan immediately (same as screener auto-load)
+        if st.button("🔄 Rescan Universe", key="sim_rescan", use_container_width=True):
+            _pin_nav("simulator")
             from model_engine import fetch_macro_overlay, apply_macro_overlay, run_full_scan
             from model_engine import SECTORS as _SIM_SECTORS
             with st.spinner("Rescanning universe..."):
@@ -5527,10 +5528,8 @@ def page_simulator():
                     if not _r.get("sector") or _r.get("sector") == "Unknown":
                         _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")
                 _scored = apply_macro_overlay(_raw, _mac)
-                from db import get_signal_snapshot as _gss
                 st.session_state.scan_results = _scored
-                st.session_state.macro_data = _mac
-            st.rerun()
+                st.session_state.macro_data   = _mac
 
     scan = st.session_state.get("scan_results") or []
     all_buys = sorted(
