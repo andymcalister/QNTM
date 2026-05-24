@@ -3708,6 +3708,14 @@ def page_screener():
                     st.markdown(_ch, unsafe_allow_html=True)
 
         if _show_gate:
+            _uid_val  = (st.session_state.user or {}).get("id", "")
+            _plan_val = (st.session_state.user or {}).get("plan", "free")
+            if st.session_state.get("logged_in"):
+                _upgrade_url = f"?qnav=screener&uid={_uid_val}&plan={_plan_val}&ck=1&upgrade=pro&_n=screener"
+                _cta_label = f"Unlock Full Universe — {_total_filtered - FREE_LIMIT} more stocks"
+            else:
+                _upgrade_url = "?nav=register"
+                _cta_label = f"Upgrade to Pro — see all {_total_filtered} stocks"
             st.markdown(
                 f'<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);'
                 f'border-radius:10px;padding:24px;text-align:center;margin-top:16px;">'
@@ -3718,7 +3726,7 @@ def page_screener():
                 f'Hidden Gems, alerts, and unlimited portfolio tracking.</div>'
                 f'</div>',
                 unsafe_allow_html=True)
-            st.markdown(_cta_gold("Upgrade to Pro — $29/mo", "?nav=register"), unsafe_allow_html=True)
+            st.markdown(_cta_gold(_cta_label, _upgrade_url), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -4125,6 +4133,17 @@ def page_gems():
     )
 
     if not is_pro():
+        if st.session_state.get("logged_in"):
+            # Logged-in free user — upgrade directly, no Stripe yet
+            ok = upgrade_plan(uid(), "pro")
+            if ok:
+                if st.session_state.get("user"):
+                    st.session_state.user["plan"] = "pro"
+                st.rerun()
+            else:
+                st.error("Could not upgrade — contact hello@qntm.app")
+            return
+        # Not logged in — send to register
         st.markdown("""
         <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
              border-radius:8px;padding:48px;text-align:center;">
@@ -5457,6 +5476,12 @@ def page_simulator():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     if not is_pro():
+        if st.session_state.get("logged_in"):
+            ok = upgrade_plan(uid(), "pro")
+            if ok and st.session_state.get("user"):
+                st.session_state.user["plan"] = "pro"
+                st.rerun()
+            return
         st.markdown(
             '<div style="background:rgba(212,168,67,.07);border:1px solid rgba(212,168,67,.25);'
             'border-radius:10px;padding:28px 24px;text-align:center;margin:24px 0;">'
@@ -5740,6 +5765,12 @@ def page_alerts():
 
     # ── Free tier gate ─────────────────────────────────────────────────────────
     if not has_alerts:
+        if st.session_state.get("logged_in"):
+            ok = upgrade_plan(uid(), "pro")
+            if ok and st.session_state.get("user"):
+                st.session_state.user["plan"] = "pro"
+                st.rerun()
+            return
         st.markdown("""
         <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.2);
              border-radius:12px;padding:48px;text-align:center;margin-bottom:24px;">
@@ -5747,27 +5778,9 @@ def page_alerts():
           <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
                color:#d4a843;margin-bottom:12px;">Pro Feature — Signal Alerts</div>
           <div style="color:#64748b;max-width:520px;margin:0 auto;line-height:1.8;margin-bottom:32px;">
-            Get notified the moment the model issues a BUY or SELL signal on any of
+            Get notified the moment the model issues a conviction change on any of
             your holdings. Macro regime changes, hidden gem alerts, and weekly
             performance summaries all included.
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:480px;
-               margin:0 auto 32px;text-align:center;">
-            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
-                 border-radius:6px;padding:14px 10px;">
-              <div style="font-size:20px;margin-bottom:6px;">📈</div>
-              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">BUY / SELL<br>signal alerts</div>
-            </div>
-            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
-                 border-radius:6px;padding:14px 10px;">
-              <div style="font-size:20px;margin-bottom:6px;">⚡</div>
-              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Macro regime<br>change alerts</div>
-            </div>
-            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
-                 border-radius:6px;padding:14px 10px;">
-              <div style="font-size:20px;margin-bottom:6px;">💎</div>
-              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Hidden gem<br>detection</div>
-            </div>
           </div>
           <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;margin-bottom:8px;">
             PRO PLAN — $29/MO · FOUNDING MEMBER — FREE (FIRST 50)
@@ -6796,6 +6809,13 @@ def main():
         st.query_params.pop("nav", None)
 
 
+
+    # ── Plan upgrade via URL action ───────────────────────────────────────────
+    if st.query_params.get("upgrade") == "pro" and st.session_state.get("logged_in"):
+        ok = upgrade_plan(uid(), "pro")
+        if ok and st.session_state.get("user"):
+            st.session_state.user["plan"] = "pro"
+        st.query_params.pop("upgrade", None)
 
     # ── Watchlist add/remove via URL action ──────────────────────────────────
     _wl_action = st.query_params.get("wl_action", "")
