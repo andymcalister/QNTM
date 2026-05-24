@@ -22,7 +22,6 @@ log = logging.getLogger("qntm.seed50")
 
 # Target: 10 entries per day across 5 days = 50 total
 SEED_DATES = ["2026-05-19","2026-05-20","2026-05-21","2026-05-22","2026-05-23"]
-PER_DAY    = 10
 TOTAL      = 50
 POS_SIZE   = 2000.0
 
@@ -43,17 +42,21 @@ def get_supabase():
     raise RuntimeError("No Supabase credentials found")
 
 
-def fetch_top_signals(sb, signal_date: str, exclude: set, limit: int) -> list:
-    """Return top HIGH conviction tickers from signal_log for a given date."""
+def fetch_high_conviction(sb, signal_date: str, exclude: set, cap: int = 999) -> list:
+    """Return ALL HIGH conviction tickers for a date, excluding already-held ones.
+    
+    Monday: returns everything scored >= 60 (up to cap)
+    Tue-Fri: returns new entries not already in portfolio (up to cap remaining slots)
+    """
     resp = sb.table("signal_log") \
         .select("ticker,adj_composite,composite,price,momentum,quality,volume,value,sentiment") \
         .eq("signal_date", signal_date) \
         .gte("adj_composite", 60) \
         .order("adj_composite", desc=True) \
-        .limit(limit + len(exclude) + 20) \
+        .limit(cap + len(exclude) + 20) \
         .execute()
     rows = [r for r in (resp.data or []) if r["ticker"] not in exclude]
-    return rows[:limit]
+    return rows[:cap]
 
 
 def fetch_price_on_date(sb, ticker: str, signal_date: str):
@@ -67,6 +70,32 @@ def fetch_price_on_date(sb, ticker: str, signal_date: str):
     if resp.data and resp.data[0].get("price"):
         return float(resp.data[0]["price"])
     return None
+
+
+SECTOR_CAP_PCT = 0.30   # max 30% of portfolio in any one sector
+MAX_SECTOR     = int(TOTAL * SECTOR_CAP_PCT)   # = 15 positions
+
+
+# Load SECTORS from universe_data.py (same directory as this script)
+_SECTOR_CACHE: dict = {}
+
+def load_sector_cache(sb=None) -> None:
+    """Load sector data from universe_data.py."""
+    global _SECTOR_CACHE
+    if _SECTOR_CACHE:
+        return
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from universe_data import SECTORS
+        _SECTOR_CACHE = dict(SECTORS)
+        log.info(f"Loaded {len(_SECTOR_CACHE)} sectors from universe_data.py")
+    except Exception as e:
+        log.warning(f"Could not load universe_data: {e} — sector cap disabled")
+
+
+def get_ticker_sector(ticker: str) -> str:
+    return _SECTOR_CACHE.get(ticker, "Unknown")
 
 
 def main():
@@ -95,44 +124,78 @@ def main():
                 .eq("is_active", True) \
                 .execute()
 
-    portfolio: list[dict] = []
-    entered_tickers: set  = set()
+    # Load sector data from signal_log
+    load_sector_cache(sb)
 
-    for signal_date in SEED_DATES:
+    portfolio: list[dict]      = []
+    entered_tickers: set       = set()
+    sector_counts: dict        = {}   # sector -> count
+
+    for i, signal_date in enumerate(SEED_DATES):
         remaining = TOTAL - len(portfolio)
         if remaining <= 0:
             break
-        daily_target = min(PER_DAY, remaining)
 
-        log.info(f"\n── {signal_date} — targeting {daily_target} new entries ──")
-        rows = fetch_top_signals(sb, signal_date, entered_tickers, daily_target)
+        day_name = ["Monday","Tuesday","Wednesday","Thursday","Friday"][i]
+        log.info(f"\n── {signal_date} ({day_name}) — {remaining} slots remaining ──")
+
+        # Show current sector distribution
+        if sector_counts:
+            top_sectors = sorted(sector_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+            log.info(f"  Sector counts: {dict(top_sectors)}")
+
+        # Fetch ALL high conviction stocks for this date, up to remaining slots
+        # Fetch extra to account for sector cap rejections
+        rows = fetch_high_conviction(sb, signal_date, entered_tickers, cap=remaining * 3)
 
         if not rows:
-            log.warning(f"  No HIGH conviction signals found for {signal_date}")
+            log.warning(f"  No new HIGH conviction signals for {signal_date}")
             continue
 
+        added = 0
+        skipped_sector = 0
         for r in rows:
-            tk    = r["ticker"]
-            score = float(r.get("adj_composite") or r.get("composite") or 60)
-            price = r.get("price")
+            if len(portfolio) >= TOTAL:
+                break
+
+            tk     = r["ticker"]
+            score  = float(r.get("adj_composite") or r.get("composite") or 60)
+            price  = r.get("price")
+            sector = get_ticker_sector(tk) or "Unknown"
 
             if not price:
-                log.warning(f"  {tk}: no price on {signal_date}, skipping")
+                log.info(f"  ✗ {tk}: no price, skipping")
                 continue
 
-            entry = {
+            # Enforce 30% sector cap
+            current_sector_count = sector_counts.get(sector, 0)
+            if current_sector_count >= MAX_SECTOR:
+                log.info(f"  ✗ {tk} ({sector}): sector cap {current_sector_count}/{MAX_SECTOR}, skipping")
+                skipped_sector += 1
+                continue
+
+            portfolio.append({
                 "ticker":        tk,
                 "entry_date":    signal_date,
                 "entry_price":   float(price),
                 "entry_score":   round(score, 1),
                 "position_size": POS_SIZE,
                 "is_active":     True,
-            }
-            portfolio.append(entry)
+            })
             entered_tickers.add(tk)
-            log.info(f"  ✓ {tk}: score={score:.0f}, entry=${price:.2f}")
+            sector_counts[sector] = current_sector_count + 1
+            added += 1
+            log.info(f"  ✓ {tk} ({sector}): score={score:.0f}, ${price:.2f}")
 
-        log.info(f"  Portfolio size: {len(portfolio)}/{TOTAL}")
+        if skipped_sector:
+            log.info(f"  Skipped {skipped_sector} due to 30% sector cap")
+        log.info(f"  Added {added} · Portfolio: {len(portfolio)}/{TOTAL}")
+
+    # Log final sector breakdown
+    log.info(f"\n── Final sector breakdown ──────────────────────────")
+    for sec, cnt in sorted(sector_counts.items(), key=lambda x: x[1], reverse=True):
+        pct = cnt / max(len(portfolio), 1) * 100
+        log.info(f"  {sec}: {cnt} positions ({pct:.0f}%)")
 
     log.info(f"\n── Summary: {len(portfolio)} positions across {len(SEED_DATES)} days ──")
 
