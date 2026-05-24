@@ -2423,15 +2423,32 @@ def page_landing():
         st.markdown(_cta_ghost("Sign In", "?nav=signin"), unsafe_allow_html=True)
 
 
-    # ── TICKER TAPE — live from model scores ─────────────────────────────────
-    # Pull top BUYs and bottom SELLs from scan results if available
+    # ── TICKER TAPE — live from latest signal_log ─────────────────────────────
     tape_scores = st.session_state.get("scan_results") or []
+    if not tape_scores:
+        # Try fetching latest signal_log for tape — works for all visitors
+        try:
+            from data_refresh import _get_supabase as _tape_sb
+            _sb = _tape_sb()
+            if _sb:
+                _latest = _sb.table("signal_log") \
+                    .select("ticker,adj_composite,signal,adj_action") \
+                    .order("signal_date", desc=True) \
+                    .order("adj_composite", desc=True) \
+                    .limit(200) \
+                    .execute()
+                tape_scores = _latest.data or []
+        except Exception:
+            pass
+
     if tape_scores:
-        buys  = [s for s in tape_scores if s.get("adj_action","") == "BUY"  or s.get("action","") == "BUY"][:8]
-        sells = [s for s in tape_scores if s.get("adj_action","") == "SELL" or s.get("action","") == "SELL"][:5]
+        buys  = sorted([s for s in tape_scores if s.get("adj_action","") == "BUY"  or s.get("signal","") == "BUY"],
+                       key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:10]
+        sells = sorted([s for s in tape_scores if s.get("adj_action","") == "SELL" or s.get("signal","") == "SELL"],
+                       key=lambda x: float(x.get("adj_composite",100) or 100))[:5]
         tape_items = (
-            [(s["ticker"],"High","#00ff87") for s in buys] +
-            [(s["ticker"],"Low","#E24B4A")  for s in sells]
+            [(s["ticker"],"HIGH","#00ff87") for s in buys] +
+            [(s["ticker"],"LOW","#E24B4A")  for s in sells]
         )
     else:
         # Static fallback — updated to current model signals
@@ -3754,6 +3771,12 @@ def page_screener():
                 unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+def _pin_nav(page_key: str):
+    """Pin nav to current page — prevents text input reruns from dropping to screener."""
+    st.session_state.nav  = page_key
+    st.session_state.page = "platform"
+
 
 def _upgrade_url(feature: str, return_nav: str) -> str:
     """Build URL to the upgrade page preserving session."""
