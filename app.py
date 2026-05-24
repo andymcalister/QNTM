@@ -2121,12 +2121,14 @@ def page_landing():
     }
     .qntm-nav-btn-ghost { color:#d4a843 !important; border:1px solid rgba(212,168,67,.4); background:rgba(212,168,67,.04); }
     .qntm-nav-btn-primary { color:#000 !important; background:#d4a843; }
-    @media (max-width:600px) { .qntm-nav-btns { display:none !important; } }
+    @media (max-width:600px) {
+        .qntm-nav-btns a { font-size:11px; padding:7px 12px; letter-spacing:.04em; }
+    }
     </style>
     <div style="display:flex;justify-content:flex-end;padding:0 16px;margin-top:-52px;position:relative;z-index:1000;height:52px;align-items:center;">
       <div class="qntm-nav-btns">
         <a href="?nav=signin" target="_self" class="qntm-nav-btn-ghost">Sign In</a>
-        <a href="?nav=register" target="_self" class="qntm-nav-btn-primary">Create Free Account</a>
+        <a href="?nav=register" target="_self" class="qntm-nav-btn-primary">Join Free</a>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2950,7 +2952,8 @@ def platform_nav():
     cur_label = next((l for k,e,l in nav_items if k==cur_nav), "Screener")
 
     # Session params to preserve across navigation
-    _uid_val  = st.query_params.get("uid","")
+    # Always read uid from session state — query params may be empty after pop
+    _uid_val  = (st.session_state.user or {}).get("id", "")
     _plan_val = user.get("plan","free")
     qp_suffix = f"&plan={_plan_val}&ck=1"
     if _uid_val:
@@ -5604,11 +5607,13 @@ def page_account():
             st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
             if st.button("Join Founding Members — Claim Free Spot", key="upgrade_btn", use_container_width=True):
                 ok = upgrade_plan(uid(), "pro")
-                # Force plan into session state immediately — no rerun needed
+                # Force plan into session state immediately
                 if st.session_state.get("user"):
                     st.session_state.user["plan"] = "pro"
+                # Rewrite localStorage token with updated plan so nav restores correctly
+                _write_localstorage_token(uid(), "pro")
                 if ok:
-                    st.success("✓ Founding Member activated! Click Hidden Gems in the menu to access.")
+                    st.success("✓ Founding Member activated! Navigate to Hidden Gems via the menu.")
                     st.balloons()
                 else:
                     st.warning("Could not write to DB — contact hello@qntm.app")
