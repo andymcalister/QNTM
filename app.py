@@ -5020,11 +5020,11 @@ def page_portfolio():
         unsafe_allow_html=True)
 
     # ── Portfolio Value Tracker ───────────────────────────────────────────────
-    SIGNAL_ANNUAL_RATE = {"BUY": 0.409, "HOLD": 0.12, "SELL": -0.05, "N/A": 0.10}
     PERIOD_DATA = [
-        ("1D","Today",1), ("1W","1 Week",7), ("1M","1 Month",30),
-        ("3M","3 Months",90), ("1Y","1 Year",365), ("5Y","5 Years",1825),
-        ("10Y","10 Years",3650), ("ALL","All Time",None),
+        ("ACT", "Total Return",  None),
+        ("1M",  "1 Month",       30),
+        ("3M",  "3 Months",      90),
+        ("1Y",  "1 Year",        365),
     ]
 
     if holdings:
@@ -5033,44 +5033,80 @@ def page_portfolio():
             for h in holdings
         )
         if "port_period" not in st.session_state:
-            st.session_state.port_period = "1M"
+            st.session_state.port_period = "ACT"
 
-        # Period selectbox — clean dropdown, no cramped buttons
-        _pp_labels = [f"{plbl} ({pkey})" for pkey,plbl,_ in PERIOD_DATA]
+        _pp_labels = [plbl for pkey,plbl,_ in PERIOD_DATA]
         _pp_keys   = [pkey for pkey,_,_ in PERIOD_DATA]
-        _pp_idx    = _pp_keys.index(st.session_state.port_period) if st.session_state.port_period in _pp_keys else 2
-        _pp_sel = st.selectbox("View period", _pp_labels, index=_pp_idx, key="port_period_sel",
-                               label_visibility="visible")
+        _pp_idx    = _pp_keys.index(st.session_state.port_period) if st.session_state.port_period in _pp_keys else 0
+        _pp_sel    = st.selectbox("View", _pp_labels, index=_pp_idx, key="port_period_sel",
+                                  label_visibility="visible")
         _pp_chosen = _pp_keys[_pp_labels.index(_pp_sel)]
         if _pp_chosen != st.session_state.port_period:
             st.session_state.port_period = _pp_chosen
             st.rerun()
 
-        # Compute return for selected period
-        sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[2])
+        sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[0])
         pkey, plbl, pdays = sel
-        total_current = 0.0
-        from datetime import date as _date
-        for h in holdings:
-            cost   = float(h.get("avg_cost",0) or 0)
-            shares = float(h.get("shares",0) or 0)
-            sc2    = score_map.get(h["ticker"])
-            act2   = sc2.get("adj_action", sc2.get("action","N/A")) if sc2 else "N/A"
-            rate   = SIGNAL_ANNUAL_RATE.get(act2, 0.10)
-            if pdays:
-                period_ret = (1+rate)**(pdays/365) - 1
-            else:
-                try:
-                    ed = _date.fromisoformat(str(h.get("entry_date",""))[:10])
-                    period_ret = (1+rate)**(max(((_date.today()-ed).days),1)/365) - 1
-                except:
-                    period_ret = rate * 2
-            total_current += cost * shares * (1 + period_ret)
+        is_actual = (pkey == "ACT")
 
-        total_change     = total_current - total_cost_basis
-        chg_pct          = (total_change / total_cost_basis * 100) if total_cost_basis > 0 else 0
-        change_c         = "#00ff87" if total_change >= 0 else "#ef4444"
-        arrow            = "▲" if total_change >= 0 else "▼"
+        # Fetch live + historical prices via yfinance
+        tickers = [h["ticker"] for h in holdings]
+        live_prices  = {}  # ticker -> current price
+        start_prices = {}  # ticker -> price at start of period (or entry date)
+
+        try:
+            import yfinance as yf
+            from datetime import date as _date, timedelta as _td
+            fetch_days = (pdays or 0) + 5  # extra buffer for weekends/holidays
+            hist = yf.download(tickers, period=f"{max(fetch_days, 10)}d",
+                               auto_adjust=True, progress=False, threads=True)
+            if not hist.empty:
+                close = hist["Close"] if hasattr(hist["Close"], "columns") else hist[["Close"]]
+                # Handle single ticker case
+                if len(tickers) == 1:
+                    close = close.rename(columns={"Close": tickers[0]}) if "Close" in close.columns else close
+                for tk in tickers:
+                    col = close[tk] if tk in close.columns else None
+                    if col is None and len(tickers) == 1:
+                        col = close.iloc[:, 0]
+                    if col is not None:
+                        col = col.dropna()
+                        if len(col) >= 1:
+                            live_prices[tk] = float(col.iloc[-1])
+                        if not is_actual and len(col) >= 2:
+                            if pdays and len(col) >= pdays:
+                                start_prices[tk] = float(col.iloc[-min(pdays, len(col))])
+                            else:
+                                # Period longer than position age — use earliest available
+                                start_prices[tk] = float(col.iloc[0])
+        except Exception:
+            pass
+
+        from datetime import date as _date
+        total_current   = 0.0
+        total_start_val = 0.0
+        for h in holdings:
+            tk     = h["ticker"]
+            cost   = float(h.get("avg_cost", 0) or 0)
+            shares = float(h.get("shares", 0) or 0)
+            if is_actual:
+                # Total return: live price vs cost basis
+                live = live_prices.get(tk, cost)
+                total_current   += live * shares
+                total_start_val += cost * shares
+            else:
+                # Period lookback: end of period vs start of period
+                live  = live_prices.get(tk, cost)
+                start = start_prices.get(tk, cost)
+                total_current   += live  * shares
+                total_start_val += start * shares
+
+        ref_basis    = total_cost_basis if is_actual else total_start_val
+        total_change = total_current - ref_basis
+        chg_pct      = (total_change / ref_basis * 100) if ref_basis > 0 else 0
+        change_c     = "#00ff87" if total_change >= 0 else "#ef4444"
+        arrow        = "▲" if total_change >= 0 else "▼"
+        period_note  = "vs cost basis" if is_actual else f"{plbl} lookback (actual prices)"
 
         b2    = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="BUY")
         hold2 = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="HOLD")
@@ -5087,13 +5123,13 @@ def page_portfolio():
             f'border-left:3px solid {change_c};border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
             f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:5px;">$ CHANGE</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:clamp(16px,4vw,26px);font-weight:800;color:{change_c};line-height:1;">{arrow} ${abs(total_change):,.0f}</div>'
-            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{plbl}</div></div>'
+            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{period_note}</div></div>'
 
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-left:3px solid {change_c};border-radius:8px;padding:14px;min-width:0;overflow:hidden;">'
             f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:5px;">% CHANGE</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:clamp(16px,4vw,26px);font-weight:800;color:{change_c};line-height:1;">{arrow} {abs(chg_pct):.1f}%</div>'
-            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{plbl}</div></div>'
+            f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{period_note}</div></div>'
 
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-radius:8px;padding:14px;min-width:0;">'
@@ -5108,7 +5144,11 @@ def page_portfolio():
             f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:4px;">{vc_html}</div>',
             unsafe_allow_html=True)
 
-        st.markdown('<div style="font-size:13px;color:#64748b;margin:4px 0 20px;">Returns estimated from model signal rates. Add live price integration for real-time values.</div>', unsafe_allow_html=True)
+        _disclaimer = (
+            'Prices fetched live via yfinance. Total Return compares current price to your cost basis. '
+            'Period lookbacks compare current price to price at period start — or entry date if position is newer.'
+        )
+        st.markdown(f'<div style="font-size:13px;color:#64748b;margin:4px 0 20px;">{_disclaimer}</div>', unsafe_allow_html=True)
 
     # ── Holdings cards ─────────────────────────────────────────────────────────
     st.markdown("""
@@ -6630,7 +6670,10 @@ def page_platform():
         "alerts":         page_alerts,
         "account":        page_account,
     }
-    nav_map.get(st.session_state.nav, page_screener)()
+    # Persist nav in URL so WebSocket reconnects (mobile blur) can restore it
+    _cur_nav = st.session_state.get("nav", "screener")
+    st.query_params["_n"] = _cur_nav
+    nav_map.get(_cur_nav, page_screener)()
 
     # ── Persistent disclaimer footer ────────────────────────────────────
     st.markdown(
@@ -6722,6 +6765,18 @@ def main():
 
     # Handle nav button side effects — re-route if needed
     if st.session_state.page == "landing" and st.session_state.logged_in:
+        st.session_state.page = "platform"
+
+    # ── Reconnect recovery: if session wiped but uid in URL, restore nav from _n param ──
+    _saved_nav = st.query_params.get("_n", "")
+    _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
+                   "model_portfolio","alerts","account","methodology"}
+    if (not st.session_state.get("logged_in") and
+            st.session_state.get("page") != "auth" and
+            _saved_nav in _VALID_TABS and
+            "uid" in st.query_params):
+        # Session was wiped by reconnect — restore nav destination
+        st.session_state.nav  = _saved_nav
         st.session_state.page = "platform"
 
     route = st.session_state.page
