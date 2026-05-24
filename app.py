@@ -5041,9 +5041,7 @@ def page_portfolio():
         _pp_sel    = st.selectbox("View", _pp_labels, index=_pp_idx, key="port_period_sel",
                                   label_visibility="visible")
         _pp_chosen = _pp_keys[_pp_labels.index(_pp_sel)]
-        if _pp_chosen != st.session_state.port_period:
-            st.session_state.port_period = _pp_chosen
-            st.rerun()
+        st.session_state.port_period = _pp_chosen
 
         sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[0])
         pkey, plbl, pdays = sel
