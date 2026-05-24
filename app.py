@@ -3513,7 +3513,7 @@ def page_screener():
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
-            filter_act = st.selectbox("Signal", ["All","High Conviction","Moderate","Low Conviction"], key="f_act", label_visibility="collapsed")
+            filter_act = st.selectbox("Conviction", ["All","High Conviction","Moderate","Low Conviction"], key="f_act")
         with fc3:
             filter_min = st.selectbox("Min Score", ["All","60+","70+","80+"], key="f_min")
 
