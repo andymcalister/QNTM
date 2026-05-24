@@ -2684,7 +2684,7 @@ def page_auth():
         color: #64748b !important;
         font-size: 13px !important;
         font-weight: 700 !important;
-        letter-spacing: .06em !important;
+        letter-spacing: .02em !important;
         text-transform: uppercase !important;
         height: 44px !important;
         min-height: 44px !important;
@@ -2724,7 +2724,7 @@ def page_auth():
             st.session_state.auth_tab = "signin"
 
         t1_label = "▶ Sign In" if st.session_state.auth_tab == "signin" else "Sign In"
-        t2_label = "▶ Create Account" if st.session_state.auth_tab == "register" else "Create Account"
+        t2_label = "▶ Register" if st.session_state.auth_tab == "register" else "Register"
         tc1, tc2 = st.columns(2)
         with tc1:
             if st.button(t1_label, key="tab_signin_btn", use_container_width=True):
