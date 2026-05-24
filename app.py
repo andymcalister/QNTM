@@ -693,7 +693,6 @@ if not st.session_state.logged_in:
             if verified_uid:
                 user = get_user_by_id(verified_uid)
                 if user:
-                    # Trust query param plan if DB returns free (upgrade may not have propagated)
                     qp_plan = params.get("plan", "")
                     if qp_plan in ("pro", "institutional") and user.get("plan") == "free":
                         user["plan"] = qp_plan
@@ -709,7 +708,7 @@ if not st.session_state.logged_in:
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
                     _restore_ok = True
                 else:
-                    # DB returned nothing — build minimal user from query params so session works
+                    # DB returned nothing — build minimal session from query params
                     qp_plan = params.get("plan", "free")
                     st.session_state.logged_in       = True
                     st.session_state.user            = {"id": verified_uid, "plan": qp_plan, "email": "", "full_name": ""}
@@ -722,8 +721,11 @@ if not st.session_state.logged_in:
                               "model_portfolio","alerts","account","methodology"}
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
                     _restore_ok = True
-        except Exception:
-            pass
+        except Exception as _e:
+            # Surface restore failure — remove after debugging
+            st.session_state._restore_error = str(_e)
+    else:
+        st.session_state._restore_error = "no uid in params: " + str(dict(st.query_params))
 
     _nav_param = st.query_params.get("nav", "")
     _has_uid   = "uid" in st.query_params
@@ -3746,7 +3748,8 @@ def page_gems():
     if not is_pro():
         # DEBUG — remove after fix confirmed
         u = st.session_state.get("user") or {}
-        st.warning(f"DEBUG: logged_in={st.session_state.get('logged_in')} | plan={u.get('plan','?')} | user_id={u.get('id','none')[:8] if u.get('id') else 'none'} | is_pro={is_pro()}")
+        _err = st.session_state.get("_restore_error", "")
+        st.warning(f"DEBUG: logged_in={st.session_state.get('logged_in')} | plan={u.get('plan','?')} | user_id={u.get('id','none')[:8] if u.get('id') else 'none'} | is_pro={is_pro()} | err={_err} | uid_in_params={'uid' in st.query_params}")
         st.markdown("""
         <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
              border-radius:8px;padding:48px;text-align:center;">
