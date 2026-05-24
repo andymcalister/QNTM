@@ -5604,19 +5604,14 @@ def page_account():
             st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
             if st.button("Join Founding Members — Claim Free Spot", key="upgrade_btn", use_container_width=True):
                 ok = upgrade_plan(uid(), "pro")
-                # Force session state update regardless — upgrade_plan may already do this
-                # but being explicit ensures nav badge + is_pro() both update immediately
+                # Force plan into session state immediately — no rerun needed
                 if st.session_state.get("user"):
                     st.session_state.user["plan"] = "pro"
-                st.query_params["plan"] = "pro"
-                st.session_state.nav  = "account"
-                st.session_state.page = "platform"
                 if ok:
-                    st.success("✓ Welcome to Founding Member! Full access is now active — unlimited holdings, Hidden Gems, and signal alerts.")
+                    st.success("✓ Founding Member activated! Click Hidden Gems in the menu to access.")
                     st.balloons()
                 else:
-                    st.warning("Plan updated locally — refresh if anything looks off.")
-                st.rerun()
+                    st.warning("Could not write to DB — contact hello@qntm.app")
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif plan in ("pro","institutional"):
