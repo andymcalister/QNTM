@@ -1457,7 +1457,7 @@ def resolve_ticker(query: str) -> tuple[str, str]:
         ci = get_company_info(q)
         return q, ci.get("name", q)
 
-    # Search by name in KNOWN dict (case-insensitive substring)
+    # Search by name in KNOWN dict — key match first, then name substring
     q_lower = query.strip().lower()
     KNOWN_INLINE = {
         "AAPL":"Apple Inc.","MSFT":"Microsoft Corporation","NVDA":"NVIDIA Corporation",
@@ -1482,12 +1482,29 @@ def resolve_ticker(query: str) -> tuple[str, str]:
         "SNOW":"Snowflake Inc.","DDOG":"Datadog Inc.","NET":"Cloudflare Inc.",
         "ZS":"Zscaler Inc.","CRWD":"CrowdStrike Holdings","PANW":"Palo Alto Networks",
         "NOW":"ServiceNow Inc.","WDAY":"Workday Inc.","TEAM":"Atlassian Corporation",
-        "UBER":"Uber Technologies","LYFT":"Lyft Inc.","ABNB":"Airbnb Inc.",
-        "DASH":"DoorDash Inc.","SPOT":"Spotify Technology",
-        "TSLA":"Tesla Inc.","TESLA":"Tesla Inc.",
+        "NVIDIA":"NVIDIA Corporation",
+        "NVDA":"NVIDIA Corporation",
+        "APPLE":"Apple Inc.",
+        "MICROSOFT":"Microsoft Corporation",
+        "AMAZON":"Amazon.com Inc.",
+        "GOOGLE":"Alphabet Inc.",
+        "ALPHABET":"Alphabet Inc.",
+        "META":"Meta Platforms Inc.",
+        "FACEBOOK":"Meta Platforms Inc.",
+        "TESLA":"Tesla Inc.",
+        "NETFLIX":"Netflix Inc.",
+        "PALANTIR":"Palantir Technologies",
+        "COINBASE":"Coinbase Global",
+        "SNOWFLAKE":"Snowflake Inc.",
+        "CLOUDFLARE":"Cloudflare Inc.",
+        "CROWDSTRIKE":"CrowdStrike Holdings",
+        "UBER":"Uber Technologies",
+        "AIRBNB":"Airbnb Inc.",
+        "SPOTIFY":"Spotify Technology",
     }
     for ticker, name in KNOWN_INLINE.items():
-        if q_lower in name.lower() or q_lower == ticker.lower():
+        # Exact key match (e.g. "nvidia" → NVDA) or name substring
+        if q_lower == ticker.lower() or q_lower in name.lower() or q_lower == ticker.lower():
             return ticker, name
 
     # Try yfinance search as last resort
@@ -3249,21 +3266,17 @@ def page_screener():
                     wl = get_watchlist(uid())
                     wl_tickers = {w["ticker"] for w in wl}
                     in_wl = resolved_tk in wl_tickers
-                    wl_col, _ = st.columns([1, 3])
-                    with wl_col:
-                        wl_label = "★ Watchlist" if in_wl else "☆ + Watchlist"
-                        wl_style = "land-btn-primary" if not in_wl else "land-btn-ghost"
-                        st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
-                        if st.button(wl_label, key=f"wl_add_{resolved_tk}", use_container_width=True):
-                            if in_wl:
-                                remove_from_watchlist(uid(), resolved_tk)
-                                st.toast(f"{resolved_tk} removed from watchlist")
-                            else:
-                                _add_price = sr.get("price") or sr.get("adj_composite")
-                                add_to_watchlist(uid(), resolved_tk, price_at_add=sr.get("price"))
-                                st.toast(f"✓ {resolved_tk} added to watchlist")
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+                    wl_label = "★ Watchlist" if in_wl else "☆ + Watchlist"
+                    wl_style = "land-btn-primary" if not in_wl else "land-btn-ghost"
+                    st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
+                    if st.button(wl_label, key=f"wl_add_{resolved_tk}", use_container_width=True):
+                        if in_wl:
+                            remove_from_watchlist(uid(), resolved_tk)
+                            st.toast(f"{resolved_tk} removed from watchlist")
+                        else:
+                            add_to_watchlist(uid(), resolved_tk, price_at_add=sr.get("price"))
+                            st.toast(f"✓ {resolved_tk} added to watchlist")
+                    st.markdown('</div>', unsafe_allow_html=True)
                     if resolved_tk not in ALL_SECTORS:
                         st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception:
@@ -3836,6 +3849,7 @@ def page_gems():
     st.markdown(grid_open, unsafe_allow_html=True)
 
     for g in gems:
+        tk = g.get("ticker", "")
         try:
             adj   = float(g.get("adj_composite") or g.get("composite") or 0)
             raw   = float(g.get("composite") or 0)
@@ -3907,21 +3921,23 @@ def page_gems():
             )
             st.markdown(card, unsafe_allow_html=True)
 
-            # Watchlist button below each card
-            wl_label = f"★ Watchlist" if in_wl else f"☆ + Watchlist"
-            wl_style = "land-btn-ghost" if in_wl else "land-btn-primary"
-            st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
-            if st.button(wl_label, key=f"gem_wl_{tk}", use_container_width=True, disabled=in_wl):
-                ok = add_to_watchlist(uid(), tk, price_at_add=float(price) if price else None)
-                if ok:
-                    wl_tickers.add(tk)
-                    st.success(f"✓ {tk} added to Watchlist")
-                else:
-                    st.error(f"Could not add {tk} — check DB connection")
-            st.markdown('</div>', unsafe_allow_html=True)
-
         except Exception:
             pass
+
+        # Watchlist button — outside try/except so errors surface, identical to screener
+        in_wl = tk in wl_tickers
+        wl_label = "★ Watchlist" if in_wl else "☆ + Watchlist"
+        wl_style = "land-btn-ghost" if in_wl else "land-btn-primary"
+        st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
+        if st.button(wl_label, key=f"gem_wl_{tk}", use_container_width=True):
+            if in_wl:
+                remove_from_watchlist(uid(), tk)
+                st.toast(f"{tk} removed from watchlist")
+            else:
+                add_to_watchlist(uid(), tk, price_at_add=float(g.get("price")) if g.get("price") else None)
+                wl_tickers.add(tk)
+                st.toast(f"✓ {tk} added to watchlist")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
