@@ -1334,6 +1334,51 @@ def macro_regime_banner_html(macro: dict) -> str:
     )
 
 
+def _build_why_html(r: dict) -> str:
+    """Generate plain-English WHY THIS SCORE explanation from a score dict."""
+    mom  = float(r.get("momentum",  50) or 50)
+    qual = float(r.get("quality",   50) or 50)
+    vol  = float(r.get("volume",    50) or 50)
+    val  = float(r.get("value",     50) or 50)
+    sent = float(r.get("sentiment", 50) or 50)
+    adj  = float(r.get("adj_composite", r.get("composite", 50)) or 50)
+    raw  = float(r.get("composite", adj) or adj)
+    delta = adj - raw
+
+    pillars = sorted([("MOM",mom),("QUAL",qual),("VOL",vol),("VAL",val),("SENT",sent)],
+                     key=lambda x: x[1], reverse=True)
+    PILLAR_EXPLAIN = {
+        "MOM":  ("price trend and relative strength are strong",  "price trend is weakening"),
+        "QUAL": ("earnings quality and balance sheet are solid",  "earnings quality is a concern"),
+        "VOL":  ("volume confirms institutional interest",        "volume signal is weak"),
+        "VAL":  ("stock looks undervalued vs sector peers",       "stock looks stretched on valuation"),
+        "SENT": ("analyst sentiment is improving",                "analyst sentiment is negative"),
+    }
+    drivers_text = []
+    watches_text = []
+    for pname, pval in pillars:
+        pos, neg = PILLAR_EXPLAIN.get(pname, (pname, pname))
+        if pval >= 65:   drivers_text.append(pos)
+        elif pval < 45:  watches_text.append(neg)
+    why_parts = []
+    if drivers_text:
+        why_parts.append(f'<span style="color:#94a3b8;">{"; ".join(drivers_text[:2]).capitalize()}.</span>')
+    if watches_text:
+        why_parts.append(f'<span style="color:#ef4444;">Watch: {watches_text[0]}.</span>')
+    if abs(delta) >= 2:
+        macro_txt = "Macro regime is adding a tailwind." if delta > 0 else "Macro regime is dampening the score."
+        why_parts.append(f'<span style="color:{"#00ff87" if delta>0 else "#f97316"};">{macro_txt}</span>')
+    if not why_parts:
+        return ""
+    return (
+        f'<div style="font-size:12px;line-height:1.6;padding:8px 10px;margin-top:8px;'
+        f'background:rgba(255,255,255,.02);border-radius:4px;border-left:2px solid rgba(255,255,255,.08);">'
+        f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.08em;">WHY THIS SCORE · </span>'
+        + " ".join(why_parts) +
+        f'</div>'
+    )
+
+
 def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) -> str:
     act    = r.get("adj_action", r.get("action","HOLD"))
     score  = r.get("adj_composite", r.get("composite", 50))
@@ -1383,36 +1428,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     if weak: driver += f" — watch {weak[0]}"
 
     # Plain-English explainability
-    PILLAR_EXPLAIN = {
-        "MOM":  ("price trend and relative strength are strong",   "price trend is weakening"),
-        "QUAL": ("earnings quality and balance sheet are solid",   "earnings quality is a concern"),
-        "VOL":  ("volume confirms institutional interest",         "volume signal is weak"),
-        "VAL":  ("stock looks undervalued vs sector peers",        "stock looks stretched on valuation"),
-        "SENT": ("analyst sentiment is improving",                 "analyst sentiment is negative"),
-    }
-    drivers_text = []
-    watches_text = []
-    for pname, pval in sorted_pillars:
-        pos, neg = PILLAR_EXPLAIN.get(pname, (pname, pname))
-        if pval >= 65:
-            drivers_text.append(pos)
-        elif pval < 45:
-            watches_text.append(neg)
-    why_parts = []
-    if drivers_text:
-        why_parts.append(f'<span style="color:#94a3b8;">{"; ".join(drivers_text[:2]).capitalize()}.</span>')
-    if watches_text:
-        why_parts.append(f'<span style="color:#ef4444;">Watch: {watches_text[0]}.</span>')
-    if delta and abs(delta) >= 2:
-        macro_txt = "Macro regime is adding a tailwind." if delta > 0 else "Macro regime is dampening the score."
-        why_parts.append(f'<span style="color:{"#00ff87" if delta>0 else "#f97316"};">{macro_txt}</span>')
-    why_html = (
-        f'<div style="font-size:12px;line-height:1.6;padding:8px 10px;margin-top:8px;'
-        f'background:rgba(255,255,255,.02);border-radius:4px;border-left:2px solid rgba(255,255,255,.08);">'
-        f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.08em;">WHY THIS SCORE · </span>'
-        + " ".join(why_parts) +
-        f'</div>'
-    ) if why_parts else ""
+    why_html = _build_why_html(r)
     delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
     gem_badge = ' 💎' if is_gem else ""
@@ -3632,6 +3648,7 @@ def page_screener():
                             f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">VOL {vol:.0f}</div>{bar(vol)}'
                             f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">VAL {val:.0f}</div>{bar(val)}'
                             f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">SENT {sen:.0f}</div>{bar(sen)}'
+                            + _build_why_html(r) +
                             f'</div>',
                             unsafe_allow_html=True)
                 st.caption(f"{count} total signals in universe")
@@ -5343,7 +5360,9 @@ def page_portfolio():
             f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;overflow:hidden;">'
             f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">SIGNAL</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sig_disp}</div></div>'
-            f'</div></div>'
+            f'</div>'
+            + _build_why_html(sc or {}) +
+            f'</div>'
         )
         st.markdown(card_html, unsafe_allow_html=True)
 
@@ -6474,6 +6493,7 @@ def page_model_portfolio():
             f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">SHARES</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{shares_str}</div></div>'
             f'</div>'
+            + _build_why_html(h) +
             f'</div>',
             unsafe_allow_html=True)
 
