@@ -1606,6 +1606,46 @@ def resolve_ticker(query: str) -> tuple[str, str]:
     return "".join(html_parts)
 
 # ── COOKIE BANNER ─────────────────────────────────────────────────────────────
+def get_watchlist(user_id: str) -> list:
+    """Fetch user watchlist from Supabase."""
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb: return []
+        resp = sb.table("user_watchlist").select("*").eq("user_id", user_id).order("added_at", desc=True).execute()
+        return resp.data or []
+    except Exception:
+        return []
+
+
+def add_to_watchlist(user_id: str, ticker: str) -> bool:
+    """Add ticker to watchlist. Returns True on success."""
+    try:
+        from data_refresh import _get_supabase
+        from datetime import datetime
+        sb = _get_supabase()
+        if not sb: return False
+        sb.table("user_watchlist").upsert(
+            {"user_id": user_id, "ticker": ticker, "added_at": datetime.utcnow().isoformat()},
+            on_conflict="user_id,ticker"
+        ).execute()
+        return True
+    except Exception:
+        return False
+
+
+def remove_from_watchlist(user_id: str, ticker: str) -> bool:
+    """Remove ticker from watchlist."""
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb: return False
+        sb.table("user_watchlist").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
+        return True
+    except Exception:
+        return False
+
+
 def cookie_banner():
     """No-op — cookie consent is now handled as a dedicated page in the router."""
     pass
@@ -2882,6 +2922,7 @@ def platform_nav():
     cur_nav = st.session_state.get("nav","screener")
     nav_items = [
         ("screener",        "📊", "Screener"),
+        ("watchlist",       "★",  "Watchlist"),
         ("gems",            "💎", "Hidden Gems"),
         ("backtest",        "📈", "Backtest"),
         ("portfolio",       "💼", "Portfolio"),
@@ -3047,25 +3088,47 @@ def page_screener():
 
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
-    # ── Search any stock — clean unified input ────────────────────────────────
+    # ── Hero search box ───────────────────────────────────────────────────────
     st.markdown("""
     <style>
-    div[data-testid="stTextInput"] input {
+    /* Hero search input styling */
+    div[data-testid="stTextInput"][data-key="screener_search"] input {
+        background: rgba(255,255,255,.04) !important;
+        border: 2px solid rgba(0,255,135,.35) !important;
+        border-radius: 12px !important;
+        color: #e2e8f0 !important;
+        font-size: 16px !important;
+        font-family: 'Syne', sans-serif !important;
+        padding: 18px 24px !important;
+        height: 60px !important;
+        box-shadow: 0 0 32px rgba(0,255,135,.12), inset 0 1px 0 rgba(255,255,255,.06) !important;
+        transition: border-color .2s, box-shadow .2s !important;
+    }
+    div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
+        border-color: rgba(0,255,135,.7) !important;
+        box-shadow: 0 0 48px rgba(0,255,135,.2), inset 0 1px 0 rgba(255,255,255,.08) !important;
+        outline: none !important;
+    }
+    div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
+        color: #334155 !important;
         font-size: 15px !important;
-        padding: 14px 18px !important;
-        height: 52px !important;
     }
     </style>
-    <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;
-         letter-spacing:.12em;margin-bottom:6px;">⚡ INSTANT CONVICTION SCORE</div>
+    <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:#00ff87;
+           letter-spacing:.16em;text-transform:uppercase;">⚡ Instant Conviction Score</div>
+      <div style="font-size:10px;color:#334155;font-family:DM Mono,monospace;">
+        — search any of 834 stocks
+      </div>
+    </div>
     """, unsafe_allow_html=True)
     search_ticker = st.text_input(
         "Search ticker",
-        placeholder="Search any stock — ticker or company name (AAPL, Tesla, Nvidia...)",
+        placeholder="🔍  Enter ticker or company name — AAPL, Tesla, Nvidia, Microsoft...",
         key="screener_search",
         label_visibility="collapsed"
     ).strip().upper()
-    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
 
     if search_ticker:
         # Resolve company name → ticker first
@@ -3104,6 +3167,24 @@ def page_screener():
                     sr["pct_rank"] = 50
                     ci = get_company_info(resolved_tk)
                     st.markdown(factor_panel_html(sr, False, company_info=ci), unsafe_allow_html=True)
+                    # Watchlist button
+                    wl = get_watchlist(uid())
+                    wl_tickers = {w["ticker"] for w in wl}
+                    in_wl = resolved_tk in wl_tickers
+                    wl_col, _ = st.columns([1, 3])
+                    with wl_col:
+                        wl_label = "★ In Watchlist" if in_wl else "☆ Add to Watchlist"
+                        wl_style = "land-btn-primary" if not in_wl else "land-btn-ghost"
+                        st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
+                        if st.button(wl_label, key=f"wl_add_{resolved_tk}", use_container_width=True):
+                            if in_wl:
+                                remove_from_watchlist(uid(), resolved_tk)
+                                st.toast(f"{resolved_tk} removed from watchlist")
+                            else:
+                                add_to_watchlist(uid(), resolved_tk)
+                                st.toast(f"✓ {resolved_tk} added to watchlist")
+                            st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     if resolved_tk not in ALL_SECTORS:
                         st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception:
@@ -3354,7 +3435,133 @@ def page_screener():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-def _gem_why_tags(r: dict) -> list:
+def page_watchlist():
+    """User watchlist — tracked stocks with live conviction scores."""
+    page_summary("★", "Watchlist",
+        "Stocks you're tracking. Conviction scores update daily — add any stock from the Screener search.")
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+
+    watchlist = get_watchlist(uid())
+    scan      = st.session_state.get("scan_results") or []
+    score_map = {r["ticker"]: r for r in scan}
+
+    if not watchlist:
+        st.markdown(
+            '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            'border-radius:10px;padding:40px 24px;text-align:center;margin-top:16px;">'
+            '<div style="font-size:32px;margin-bottom:12px;">★</div>'
+            '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700;color:#64748b;margin-bottom:8px;">'
+            'Your watchlist is empty</div>'
+            '<div style="font-size:13px;color:#334155;line-height:1.6;">'
+            'Search any stock on the Screener and hit <strong style="color:#94a3b8;">Add to Watchlist</strong> '
+            'to track its conviction score here.</div>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # If no scan loaded, show scores from signal_log
+    if not score_map:
+        try:
+            from data_refresh import _get_supabase
+            sb = _get_supabase()
+            if sb:
+                tickers = [w["ticker"] for w in watchlist]
+                resp = sb.table("signal_log") \
+                    .select("ticker,adj_composite,composite,price,signal,momentum,quality,volume,value,sentiment") \
+                    .in_("ticker", tickers) \
+                    .order("signal_date", desc=True) \
+                    .limit(len(tickers) * 3) \
+                    .execute()
+                seen = set()
+                for row in (resp.data or []):
+                    tk = row["ticker"]
+                    if tk not in seen:
+                        seen.add(tk)
+                        score_map[tk] = row
+        except Exception:
+            pass
+
+    from model_engine import EXIT_THRESHOLD, ENTRY_THRESHOLD, SECTORS as _WL_SECTORS
+
+    # Summary header
+    n = len(watchlist)
+    n_hi  = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) >= 60)
+    n_lo  = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",50) or 50) < 45)
+    _lo_html = f'<div style="font-size:13px;color:#ef4444;">▼ {n_lo} Low Conviction</div>' if n_lo else ""
+    st.markdown(
+        f'<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">'
+        f'<div style="font-size:13px;color:#64748b;">{n} stocks tracked</div>'
+        f'<div style="font-size:13px;color:#00ff87;">▲ {n_hi} High Conviction</div>'
+        f'{_lo_html}'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+    # Table header
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:140px 1fr 80px 80px 80px 80px;'
+        'gap:8px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.07);">'
+        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;">TICKER</div>'
+        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;">SECTOR</div>'
+        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:right;">PRICE</div>'
+        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:right;">SCORE</div>'
+        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:right;">SIGNAL</div>'
+        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:center;">ACTION</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    for i, w in enumerate(watchlist):
+        tk  = w["ticker"]
+        sc  = score_map.get(tk, {})
+        adj = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
+        price = sc.get("price")
+        sector = _WL_SECTORS.get(tk, "—")
+        ci  = get_company_info(tk)
+        name = (ci.get("name", tk) if ci else tk)[:22]
+
+        sig_label = "High Conviction" if adj >= 60 else ("Low Conviction" if adj < 45 else "Moderate")
+        sig_color = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
+        score_col = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
+        bg = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
+        price_str = f"${price:,.2f}" if price else "—"
+        score_str = f"{adj:.0f}" if adj else "—"
+
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:140px 1fr 80px 80px 80px 80px;'
+            f'gap:8px;padding:10px 14px;background:{bg};'
+            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{tk}</div>'
+            f'<div style="font-size:10px;color:#475569;">{name}</div>'
+            f'</div>'
+            f'<div style="font-size:11px;color:#475569;">{sector}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;text-align:right;">{price_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score_str}</div>'
+            f'<div style="font-size:11px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
+            f'<div style="text-align:center;"></div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        # Remove button inline
+        if st.button("✕", key=f"wl_rm_{tk}_{i}", help=f"Remove {tk}"):
+            remove_from_watchlist(uid(), tk)
+            st.rerun()
+
+    st.markdown(
+        '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
+        'border-radius:0 0 6px 6px;font-size:11px;color:#334155;">'
+        'Scores updated daily via nightly refresh · Add stocks via Screener search</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+
     """Short reason tags for why this stock was surfaced as a Hidden Gem."""
     tags, comp = [], float(r.get("adj_composite", r.get("composite", 50)) or 50)
     mom  = float(r.get("momentum",  50) or 50)
@@ -5915,7 +6122,7 @@ def main():
 
 
     # ── Platform tab switching via nav ───────────────────────────────────────
-    _VALID_TABS = {"screener","gems","backtest","portfolio","simulator",
+    _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
                    "model_portfolio","alerts","account","methodology"}
     _qnav = st.query_params.get("qnav","")
     if _qnav in _VALID_TABS:
