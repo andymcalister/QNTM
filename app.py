@@ -5035,15 +5035,28 @@ def page_portfolio():
         if "port_period" not in st.session_state:
             st.session_state.port_period = "ACT"
 
-        _pp_labels = [plbl for pkey,plbl,_ in PERIOD_DATA]
-        _pp_keys   = [pkey for pkey,_,_ in PERIOD_DATA]
-        _pp_idx    = _pp_keys.index(st.session_state.port_period) if st.session_state.port_period in _pp_keys else 0
-        _pp_sel    = st.selectbox("View", _pp_labels, index=_pp_idx, key="port_period_sel",
-                                  label_visibility="visible")
-        _pp_chosen = _pp_keys[_pp_labels.index(_pp_sel)]
-        st.session_state.port_period = _pp_chosen
+        _uid_val  = (st.session_state.user or {}).get("id", "")
+        _plan_val = (st.session_state.user or {}).get("plan", "free")
 
-        sel = next((p for p in PERIOD_DATA if p[0]==st.session_state.port_period), PERIOD_DATA[0])
+        # Period selector — URL action links, no selectbox rerun
+        _cur_period = st.session_state.port_period
+        period_btns = ""
+        for _pk, _pl, _ in PERIOD_DATA:
+            _active = _pk == _cur_period
+            _bg     = "background:#00ff87;color:#0a0b14;" if _active else "background:rgba(255,255,255,.04);color:#94a3b8;"
+            _url    = f"?qnav=portfolio&uid={_uid_val}&plan={_plan_val}&ck=1&port_period={_pk}&_n=portfolio"
+            period_btns += (
+                f'<a href="{_url}" target="_self" style="'
+                f'padding:7px 14px;border-radius:6px;font-family:DM Mono,monospace;'
+                f'font-size:12px;font-weight:700;letter-spacing:.06em;text-decoration:none;'
+                f'border:1px solid rgba(255,255,255,.08);{_bg}">{_pl}</a>'
+            )
+        st.markdown(
+            f'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">{period_btns}</div>',
+            unsafe_allow_html=True
+        )
+
+        sel = next((p for p in PERIOD_DATA if p[0]==_cur_period), PERIOD_DATA[0])
         pkey, plbl, pdays = sel
         is_actual = (pkey == "ACT")
 
@@ -6736,13 +6749,17 @@ def main():
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
 
-    # ── Portfolio remove via URL action ───────────────────────────────────────
+    # ── Portfolio actions via URL ─────────────────────────────────────────────
     _port_action = st.query_params.get("port_action", "")
     _port_ticker = st.query_params.get("port_ticker", "")
     if _port_action == "remove" and _port_ticker and st.session_state.get("logged_in"):
         delete_holding(uid(), _port_ticker)
         st.query_params.pop("port_action", None)
         st.query_params.pop("port_ticker", None)
+    _port_period = st.query_params.get("port_period", "")
+    if _port_period in ("ACT","1M","3M","1Y"):
+        st.session_state.port_period = _port_period
+        st.query_params.pop("port_period", None)
     _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
                    "model_portfolio","alerts","account","methodology"}
     _qnav = st.query_params.get("qnav","")
