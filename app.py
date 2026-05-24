@@ -5518,13 +5518,13 @@ def page_simulator():
     scan = st.session_state.get("sim_data") or st.session_state.get("scan_results") or []
 
     if not scan:
-        with st.spinner("Loading conviction signals from latest scan..."):
+        with st.spinner("Loading signals..."):
             try:
                 from data_refresh import _get_supabase as _sim_sb
                 _sb = _sim_sb()
                 if _sb:
                     _resp = _sb.table("signal_log") \
-                        .select("ticker,adj_composite,composite,momentum,quality,volume,value,sentiment,price,sector") \
+                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,sector") \
                         .order("signal_date", desc=True) \
                         .limit(5000) \
                         .execute()
@@ -5532,14 +5532,16 @@ def page_simulator():
                     for _r in (_resp.data or []):
                         if _r["ticker"] not in _seen:
                             _a = float(_r.get("adj_composite") or _r.get("composite") or 50)
+                            # Derive adj_action from score (signal col = internal BUY/HOLD/SELL)
                             _r["adj_action"] = "BUY" if _a >= 60 else ("SELL" if _a < 45 else "HOLD")
                             _seen[_r["ticker"]] = _r
                     scan = list(_seen.values())
-                    st.session_state.sim_data = scan
-            except Exception:
-                pass
+                    if scan:
+                        st.session_state.sim_data = scan
+            except Exception as _e:
+                st.warning(f"Could not load signals: {_e}")
         if not scan:
-            st.warning("No signal data available yet — check back after the nightly refresh.")
+            st.warning("No signal data available — run a Rescan on the Screener first.")
             st.markdown('</div>', unsafe_allow_html=True)
             return
 
