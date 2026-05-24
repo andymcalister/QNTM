@@ -1975,87 +1975,58 @@ def page_landing():
 
     # ── HERO ──────────────────────────────────────────────────────────────────
     bt = BACKTEST_DATA
-    st.markdown(f"""
-    <div style="padding:48px clamp(16px,4vw,48px) 36px;max-width:1200px;margin:0 auto;
-         background:radial-gradient(ellipse 80% 50% at 30% 0%,rgba(212,168,67,.06) 0%,transparent 70%);
-         display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;">
+    _mr  = f"+{bt['model_total_ret']:.0f}%"
+    _sr  = f"+{bt['spy_total_ret']:.0f}%"
+    _sh  = f"{bt['sharpe']:.2f}"
+    _wr  = f"{bt['win_rate']:.0f}%"
+    _dd  = f"{bt['max_dd_model']:.1f}%"
+    _dds = f"{bt['max_dd_spy']:.1f}%"
 
-      <!-- Left: headline + subtext + CTAs -->
-      <div>
-        <div style="display:inline-flex;align-items:center;gap:8px;
-             background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.2);
-             border-radius:100px;padding:5px 14px;margin-bottom:20px;">
-          <div style="width:6px;height:6px;background:#00ff87;border-radius:50%;
-               animation:land-pulse 2s infinite;flex-shrink:0;"></div>
-          <span style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">
-            MODEL LIVE · 5-YR VALIDATED · 834 STOCKS
-          </span>
-        </div>
-
-        <h1 style="font-family:'Syne',sans-serif;font-size:clamp(34px,4.5vw,62px);
-             font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:16px;">
-          Know where<br>conviction is<br>
-          <span style="color:#d4a843;">strongest.</span>
-        </h1>
-
-        <p style="font-size:15px;color:#94a3b8;max-width:420px;line-height:1.7;margin-bottom:28px;">
-          A multi-factor quantitative model scoring 834 stocks daily across momentum,
-          quality, volume, value, and sentiment — blended with a live macro regime overlay.
-        </p>
-      </div>
-
-      <!-- Right: live stats panel -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.15);
-             border-radius:10px;padding:18px 16px;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
-               letter-spacing:.1em;margin-bottom:6px;">5-YR RETURN</div>
-          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">
-            +{bt['model_total_ret']:.0f}%
-          </div>
-          <div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY +{bt['spy_total_ret']:.0f}%</div>
-        </div>
-        <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
-             border-radius:10px;padding:18px 16px;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
-               letter-spacing:.1em;margin-bottom:6px;">SHARPE RATIO</div>
-          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">
-            {bt['sharpe']:.2f}
-          </div>
-          <div style="font-size:11px;color:#475569;margin-top:4px;">&gt;1.0 excellent</div>
-        </div>
-        <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.1);
-             border-radius:10px;padding:18px 16px;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
-               letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>
-          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">
-            {bt['win_rate']:.0f}%
-          </div>
-          <div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div>
-        </div>
-        <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
-             border-radius:10px;padding:18px 16px;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
-               letter-spacing:.1em;margin-bottom:6px;">MAX DRAWDOWN</div>
-          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">
-            {bt['max_dd_model']:.1f}%
-          </div>
-          <div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY {bt['max_dd_spy']:.1f}%</div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Mobile: stack the grid -->
-    <style>
-    @media (max-width:700px) {{
-      div[style*="grid-template-columns:1fr 1fr;gap:48px"] {{
-        grid-template-columns:1fr !important;
-        gap:24px !important;
-      }}
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+    # No f-string: avoids CSS brace conflicts and HTML comment stripping
+    hero_html = (
+        '<style>'
+        '.qntm-hero{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;'
+        'padding:48px clamp(16px,4vw,48px) 36px;max-width:1200px;margin:0 auto;'
+        'background:radial-gradient(ellipse 80% 50% at 30% 0%,rgba(212,168,67,.06) 0%,transparent 70%);}'
+        '.qntm-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}'
+        '@media(max-width:700px){.qntm-hero{grid-template-columns:1fr!important;gap:24px!important;}}'
+        '</style>'
+        '<div class="qntm-hero">'
+        '<div>'
+        '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(212,168,67,.08);'
+        'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;margin-bottom:20px;">'
+        '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
+        'animation:land-pulse 2s infinite;flex-shrink:0;"></div>'
+        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">'
+        'MODEL LIVE · 5-YR VALIDATED · 834 STOCKS</span></div>'
+        '<h1 style="font-family:Syne,sans-serif;font-size:clamp(34px,4.5vw,62px);'
+        'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:16px;">'
+        'Know where<br>conviction is<br>'
+        '<span style="color:#d4a843;">strongest.</span></h1>'
+        '<p style="font-size:15px;color:#94a3b8;max-width:420px;line-height:1.7;margin-bottom:28px;">'
+        'A multi-factor quantitative model scoring 834 stocks daily across momentum, '
+        'quality, volume, value, and sentiment — blended with a live macro regime overlay.'
+        '</p></div>'
+        '<div class="qntm-stat-grid">'
+        '<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.15);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">5-YR RETURN</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">' + _mr + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _sr + '</div></div>'
+        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">SHARPE RATIO</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _sh + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">&gt;1.0 excellent</div></div>'
+        '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.1);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">' + _wr + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div></div>'
+        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">MAX DRAWDOWN</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _dd + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _dds + '</div></div>'
+        '</div></div>'
+    )
+    st.markdown(hero_html, unsafe_allow_html=True)
 
     # Hero CTA buttons
     hb1, hb2, hb3 = st.columns([2, 2, 3])
