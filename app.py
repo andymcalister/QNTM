@@ -3676,9 +3676,21 @@ def page_screener():
             min_score = int(filter_min.replace("+",""))
             filtered = [r for r in filtered if float(r.get("adj_composite",r.get("composite",0)) or 0) >= min_score]
 
+        # Free tier: show top 50 results only
+        _user_plan = (st.session_state.user or {}).get("plan", "free")
+        FREE_LIMIT = 50
+        _total_filtered = len(filtered)
+        if _user_plan == "free" and _total_filtered > FREE_LIMIT:
+            filtered = filtered[:FREE_LIMIT]
+            _show_gate = True
+        else:
+            _show_gate = False
+
         st.markdown(
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;'
-            f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM</div>',
+            f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM'
+            + (f' · Showing {FREE_LIMIT} of {_total_filtered}' if _show_gate else '') +
+            f'</div>',
             unsafe_allow_html=True)
         _show_sparkline = len(filtered) <= 20
         if not _show_sparkline and len(filtered) < 834:
@@ -3694,6 +3706,19 @@ def page_screener():
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
                     st.markdown(_ch, unsafe_allow_html=True)
+
+        if _show_gate:
+            st.markdown(
+                f'<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);'
+                f'border-radius:10px;padding:24px;text-align:center;margin-top:16px;">'
+                f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700;color:#d4a843;margin-bottom:8px;">'
+                f'🔒 {_total_filtered - FREE_LIMIT} more stocks available on Pro</div>'
+                f'<div style="font-size:13px;color:#94a3b8;margin-bottom:16px;">'
+                f'Free accounts see the top {FREE_LIMIT} signals. Upgrade for the full {_total_filtered}-stock view, '
+                f'Hidden Gems, alerts, and unlimited portfolio tracking.</div>'
+                f'</div>',
+                unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — $29/mo", "?nav=register"), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -4181,7 +4206,7 @@ def page_gems():
             reasons_html = "".join(
                 f'<div style="font-size:14px;color:#4ade80;padding:4px 0;border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;"><span style="color:#00ff87;flex-shrink:0;">✓</span><span>{r}</span></div>'
                 for r in g.get("gem_reasons", [])
-            ) or '<div style="font-size:14px;color:#94a3b8;">Run Live Refresh for detailed factor reasons</div>'
+            ) or '<div style="font-size:14px;color:#94a3b8;">Run a Rescan on the Screener for detailed factor reasons.</div>'
 
             mom  = float(g.get("momentum")  or 0)
             qual = float(g.get("quality")   or 0)
@@ -5020,10 +5045,10 @@ def page_portfolio():
     port_na    = n_holdings - port_buys - port_holds - port_sells
 
     port_summary_data = [
-        ("▲ BUY Signals",     port_buys,  "#00ff87"),
-        ("─ Hold",            port_holds, "#fbbf24"),
-        ("▼ Sell / Exit",     port_sells, "#ef4444"),
-        ("Outside Universe",  port_na,    "#475569"),
+        ("▲ High Conviction",  port_buys,  "#00ff87"),
+        ("─ Moderate",         port_holds, "#fbbf24"),
+        ("▼ Low Conviction",   port_sells, "#ef4444"),
+        ("Outside Universe",   port_na,    "#475569"),
     ]
     ps_html = "".join([
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
@@ -5175,11 +5200,11 @@ def page_portfolio():
 
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-radius:8px;padding:14px;min-width:0;">'
-            f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SIGNAL MIX</div>'
+            f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">CONVICTION MIX</div>'
             f'<div style="display:flex;gap:10px;">'
-            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">BUY</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">HOLD</div></div>'
-            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">SELL</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#00ff87;font-family:Syne,sans-serif;">{b2}</div><div style="font-size:13px;color:#94a3b8;">High</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#fbbf24;font-family:Syne,sans-serif;">{hold2}</div><div style="font-size:13px;color:#94a3b8;">Moderate</div></div>'
+            f'<div><div style="font-size:20px;font-weight:800;color:#ef4444;font-family:Syne,sans-serif;">{sell2}</div><div style="font-size:13px;color:#94a3b8;">Low</div></div>'
             f'</div></div>'
         )
         st.markdown(
@@ -5194,10 +5219,10 @@ def page_portfolio():
 
     # ── Holdings cards ─────────────────────────────────────────────────────────
     st.markdown("""
-    <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">YOUR POSITIONS — MODEL SIGNALS APPLIED</div>
+    <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">YOUR POSITIONS — CONVICTION SIGNALS APPLIED</div>
     <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;">
-      ⚠ Prices pulled from market data — indicative only, may not reflect real-time intraday changes.
-      Run ⚡ Live Refresh in the Screener for the most current values.
+      ⚠ Prices are indicative snapshots from the last model scan — may not reflect real-time intraday changes.
+      Search any ticker on the Screener for a fresh live score.
     </div>
     """, unsafe_allow_html=True)
 
