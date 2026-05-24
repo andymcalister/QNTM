@@ -2465,9 +2465,9 @@ def page_landing():
             pass
 
     if tape_scores:
-        buys  = sorted([s for s in tape_scores if s.get("adj_action","") == "BUY"  or s.get("signal","") == "BUY"],
+        buys  = sorted([s for s in tape_scores if s.get("signal","") == "BUY"],
                        key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:10]
-        sells = sorted([s for s in tape_scores if s.get("adj_action","") == "SELL" or s.get("signal","") == "SELL"],
+        sells = sorted([s for s in tape_scores if s.get("signal","") == "SELL"],
                        key=lambda x: float(x.get("adj_composite",100) or 100))[:5]
         tape_items = (
             [(s["ticker"],"HIGH","#00ff87") for s in buys] +
@@ -5491,7 +5491,7 @@ def page_simulator():
     page_summary(
         "🧮", "Portfolio Simulator",
         "Build a hypothetical portfolio from current HIGH conviction signals. "
-        "Requires a universe scan — hit Rescan if scores look stale.",
+        "Build a hypothetical portfolio from current HIGH conviction signals. Scores update nightly.",
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
@@ -5524,7 +5524,7 @@ def page_simulator():
                 _sb = _sim_sb()
                 if _sb:
                     _resp = _sb.table("signal_log") \
-                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,sector") \
+                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
                         .order("signal_date", desc=True) \
                         .limit(5000) \
                         .execute()
@@ -6947,7 +6947,7 @@ def main():
                 _sb2 = _sim_sb2()
                 if _sb2:
                     _resp2 = _sb2.table("signal_log") \
-                        .select("ticker,adj_composite,composite,momentum,quality,volume,value,sentiment,price,sector") \
+                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
                         .order("signal_date", desc=True) \
                         .limit(5000) \
                         .execute()
