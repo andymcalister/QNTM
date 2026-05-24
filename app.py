@@ -347,23 +347,28 @@ div[data-baseweb="select"] span,
 
 /* ── CTA button: gold primary — available on all pages ── */
 .land-btn-primary > div > button,
-.land-btn-primary button {
+.land-btn-primary button,
+div.land-btn-primary .stButton > button,
+div.land-btn-primary button[kind="secondary"] {
   background: linear-gradient(135deg,#d4a843 0%,#b8922e 50%,#d4a843 100%) !important;
   color: #0a0b14 !important;
   border: none !important;
   border-radius: 6px !important;
   font-family: 'Syne', sans-serif !important;
   font-weight: 800 !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   letter-spacing: .08em !important;
   text-transform: uppercase !important;
   min-height: 48px !important;
+  height: auto !important;
   cursor: pointer !important;
   box-shadow: 0 0 20px rgba(212,168,67,.25) !important;
   transition: all .2s !important;
+  white-space: normal !important;
 }
 .land-btn-primary > div > button:hover,
-.land-btn-primary button:hover {
+.land-btn-primary button:hover,
+div.land-btn-primary .stButton > button:hover {
   background: linear-gradient(135deg,#e0b84e 0%,#c9a03e 50%,#e0b84e 100%) !important;
   box-shadow: 0 0 32px rgba(212,168,67,.4) !important;
   transform: translateY(-1px) !important;
@@ -3403,7 +3408,7 @@ def page_gems():
         _, c, _ = st.columns([1,2,1])
         with c:
             st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-            if st.button("Create Free Account →", key="gems_upgrade", use_container_width=True):
+            if st.button("Join Free — First 50 Spots Get Full Access", key="gems_upgrade", use_container_width=True):
                 st.session_state.auth_tab = "register"
                 go("auth")
             st.markdown('</div>', unsafe_allow_html=True)
