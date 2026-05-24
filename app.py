@@ -692,13 +692,17 @@ if not st.session_state.logged_in:
             if verified_uid:
                 user = get_user_by_id(verified_uid)
                 if user:
+                    # If DB returned free but query param says pro, trust query param
+                    # (handles case where upgrade happened but DB read is stale)
+                    qp_plan = params.get("plan", "")
+                    if qp_plan in ("pro", "institutional") and user.get("plan") == "free":
+                        user["plan"] = qp_plan
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
                     st.session_state.signed_out   = False
                     st.session_state.page         = "platform"
-                    st.session_state.onboarding_done = True  # skip onboarding for returning users
-                    # Respect qnav destination if present, else default to screener
+                    st.session_state.onboarding_done = True
                     _dest = params.get("qnav","")
                     _VALID = {"screener","gems","backtest","portfolio","simulator",
                               "model_portfolio","alerts","account","methodology"}
@@ -708,12 +712,8 @@ if not st.session_state.logged_in:
 
     _nav_param = st.query_params.get("nav", "")
     _has_uid   = "uid" in st.query_params
-    if (not st.session_state.logged_in
-            and not st.session_state.get("signed_out")
-            and not _has_uid
-            and _nav_param not in ("signin", "register")
-            and st.session_state.get("page") != "auth"):
-        _inject_localstorage_reader()
+    # Only inject localStorage reader on the landing page as a last resort
+    # Injecting it globally causes location.replace() to wipe nav params mid-session
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def uid():
@@ -1921,6 +1921,10 @@ def _cookie_banner():
 # PUBLIC MODEL PORTFOLIO PAGE — no auth required, shareable link
 def page_landing():
     bt = BACKTEST_DATA
+
+    # Returning user with no uid in URL — try localStorage to restore session
+    if not st.session_state.logged_in and not st.session_state.get("signed_out") and "uid" not in st.query_params:
+        _inject_localstorage_reader()
 
     # ── Global landing CSS — overrides Streamlit defaults completely ─────────────
     st.markdown("""
