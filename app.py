@@ -5367,6 +5367,34 @@ def page_model_portfolio():
                     f'</div>', unsafe_allow_html=True)
         return
 
+    # ── Fetch live prices via yfinance for all positions ─────────────────────
+    live_prices = {}
+    tickers_to_fetch = [p["ticker"] for p in positions]
+    if tickers_to_fetch:
+        try:
+            import yfinance as yf
+            with st.spinner("Fetching live prices..."):
+                hist = yf.download(
+                    tickers_to_fetch, period="1d",
+                    auto_adjust=True, progress=False, threads=True
+                )
+                if not hist.empty:
+                    close = hist["Close"]
+                    if hasattr(close, "columns"):
+                        # MultiIndex — multiple tickers
+                        for tk in tickers_to_fetch:
+                            if tk in close.columns:
+                                val = close[tk].dropna()
+                                if not val.empty:
+                                    live_prices[tk] = float(val.iloc[-1])
+                    else:
+                        # Single ticker
+                        val = close.dropna()
+                        if not val.empty and len(tickers_to_fetch) == 1:
+                            live_prices[tickers_to_fetch[0]] = float(val.iloc[-1])
+        except Exception:
+            pass  # fall back to signal_log prices
+
     # ── Calculate portfolio metrics ───────────────────────────────────────────
     today = datetime.date.today().isoformat()
     holdings = []
@@ -5378,7 +5406,8 @@ def page_model_portfolio():
         entry_price  = pos.get("entry_price")
         pos_size     = pos.get("position_size", 2000)
         current_data = score_map.get(tk, {})
-        current_price = current_data.get("price")
+        # Prefer live yfinance price, fall back to signal_log
+        current_price = live_prices.get(tk) or current_data.get("price")
 
         if entry_price and current_price and entry_price > 0:
             shares      = pos_size / entry_price
