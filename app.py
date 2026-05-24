@@ -3729,6 +3729,9 @@ def page_gems():
     )
 
     if not is_pro():
+        # DEBUG — remove after fix confirmed
+        u = st.session_state.get("user") or {}
+        st.warning(f"DEBUG: logged_in={st.session_state.get('logged_in')} | plan={u.get('plan','?')} | user_id={u.get('id','none')[:8] if u.get('id') else 'none'} | is_pro={is_pro()}")
         st.markdown("""
         <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
              border-radius:8px;padding:48px;text-align:center;">
