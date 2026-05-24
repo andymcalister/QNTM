@@ -553,7 +553,8 @@ if _tz_name_param and st.session_state.get("tz_name") is None:
     st.session_state.tz_name = _tz_name_param
     st.query_params.pop("_tzname", None)
 
-if st.session_state.get("tz_offset_hours") is None:
+# Only inject timezone detector after cookies accepted — avoids blank box on cookie screen
+if st.session_state.get("tz_offset_hours") is None and st.session_state.get("cookies_accepted"):
     import streamlit.components.v1 as _tz_cv1
     _tz_cv1.html("""
     <script>
@@ -2028,7 +2029,7 @@ def page_landing():
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
                letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>
           <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">
-            {bt['win_rate_quarterly']*100:.0f}%
+            {bt['win_rate']:.0f}%
           </div>
           <div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div>
         </div>
