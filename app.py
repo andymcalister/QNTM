@@ -592,6 +592,7 @@ for k, v in {
     "signed_out": False,
     "onboarding_done": True,
     "onboarding_step": 0,
+    "screener_search_val": "",
     "tz_offset_hours": None,  # browser timezone offset, injected on first load
     "tz_name": None,          # IANA timezone name e.g. America/Los_Angeles
 }.items():
@@ -3251,12 +3252,25 @@ def page_screener():
       </div>
     </div>
     """, unsafe_allow_html=True)
+    # Restore search query from session state (survives watchlist action navigation)
+    _sq_default = st.session_state.get("screener_search_val", "")
+    # Also pick up from query param if set
+    _sq_param = st.query_params.get("sq", "")
+    if _sq_param and not _sq_default:
+        _sq_default = _sq_param
+        st.session_state.screener_search_val = _sq_param
+        st.query_params.pop("sq", None)
+
     search_ticker = st.text_input(
         "Search ticker",
+        value=_sq_default,
         placeholder="🔍  Enter ticker or company name — AAPL, Tesla, Nvidia, Microsoft...",
         key="screener_search",
         label_visibility="collapsed"
     ).strip().upper()
+    # Persist to session state
+    if search_ticker:
+        st.session_state.screener_search_val = search_ticker
     st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
 
     if search_ticker:
@@ -3302,7 +3316,7 @@ def page_screener():
                     in_wl = resolved_tk in wl_tickers
                     _uid_val = (st.session_state.user or {}).get("id", "")
                     _plan_val = (st.session_state.user or {}).get("plan", "free")
-                    _qp = f"?qnav=screener&uid={_uid_val}&plan={_plan_val}&ck=1"
+                    _qp = f"?qnav=screener&uid={_uid_val}&plan={_plan_val}&ck=1&sq={resolved_tk}"
                     if in_wl:
                         _action_url = _qp + f"&wl_action=remove&wl_ticker={resolved_tk}"
                         st.markdown(
