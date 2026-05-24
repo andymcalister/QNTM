@@ -5532,9 +5532,15 @@ def page_simulator():
                     for _r in (_resp.data or []):
                         if _r["ticker"] not in _seen:
                             _a = float(_r.get("adj_composite") or _r.get("composite") or 50)
-                            # Derive adj_action from score (signal col = internal BUY/HOLD/SELL)
                             _r["adj_action"] = "BUY" if _a >= 60 else ("SELL" if _a < 45 else "HOLD")
                             _seen[_r["ticker"]] = _r
+                    # Enrich with sector from universe_data
+                    try:
+                        from model_engine import SECTORS as _SIM_SECTORS
+                        for _tk, _row in _seen.items():
+                            _row["sector"] = _SIM_SECTORS.get(_tk, "Unknown")
+                    except Exception:
+                        pass
                     scan = list(_seen.values())
                     if scan:
                         st.session_state.sim_data = scan
@@ -6957,6 +6963,12 @@ def main():
                             _adj2 = float(_r2.get("adj_composite") or _r2.get("composite") or 50)
                             _r2["adj_action"] = "BUY" if _adj2 >= 60 else ("SELL" if _adj2 < 45 else "HOLD")
                             _seen2[_r2["ticker"]] = _r2
+                    try:
+                        from model_engine import SECTORS as _SIM_SECTORS2
+                        for _tk2, _row2 in _seen2.items():
+                            _row2["sector"] = _SIM_SECTORS2.get(_tk2, "Unknown")
+                    except Exception:
+                        pass
                     st.session_state.scan_results = list(_seen2.values())
             except Exception:
                 pass
