@@ -2736,6 +2736,8 @@ def page_mfa():
 # PLATFORM — TOP NAV
 # ══════════════════════════════════════════════════════════════════════════════
 def platform_nav():
+    import streamlit.components.v1 as _cv1
+
     user  = st.session_state.user or {}
     plan  = user.get("plan","free")
     n_count = get_unread_count(uid()) if plan in ("pro","institutional") else 0
@@ -2744,166 +2746,141 @@ def platform_nav():
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
-        display_name = em[:14] + ("…" if len(em) > 14 else "")
-    notif_dot = (
-        f'<span style="background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;'
-        f'display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;">'
-        f'{n_count}</span>'
+        display_name = em[:14] + ("..." if len(em) > 14 else "")
+
+    cur_nav = st.session_state.get("nav","screener")
+    nav_items = [
+        ("screener",        "SS", "Screener"),
+        ("gems",            "GG", "Hidden Gems"),
+        ("backtest",        "BT", "Backtest"),
+        ("portfolio",       "PF", "Portfolio"),
+        ("simulator",       "SM", "Simulator"),
+        ("model_portfolio", "MP", "Model Portfolio"),
+        ("alerts",          "AL", "Alerts"),
+        ("account",         "AC", "Account"),
+        ("methodology",     "HW", "Methodology"),
+    ]
+    em_map = {
+        "screener":"📊","gems":"💎","backtest":"📈","portfolio":"💼",
+        "simulator":"🧮","model_portfolio":"🏆","alerts":"🔔",
+        "account":"⚙️","methodology":"📖",
+    }
+    cur_label = em_map.get(cur_nav,"📊") + " " + next((l for k,_,l in nav_items if k==cur_nav), "Screener")
+
+    _uid_val  = st.query_params.get("uid","")
+    _plan_val = user.get("plan","free")
+    qp_base   = f"&plan={_plan_val}&ck=1"
+    if _uid_val:
+        qp_base = f"&uid={_uid_val}" + qp_base
+
+    items_html = ""
+    for key, _, label in nav_items:
+        active = "qn-active" if key == cur_nav else ""
+        em     = em_map.get(key,"")
+        badge  = '<span class="qn-badge">' + str(n_count) + '</span>' if (key=="alerts" and n_count>0) else ""
+        items_html += (
+            '<a class="qn-item ' + active + '" href="?qnav=' + key + qp_base + '">' +
+            '<span class="qn-em">' + em + '</span>' +
+            '<span class="qn-lbl">' + label + '</span>' +
+            badge + '</a>'
+        )
+    items_html += (
+        '<div class="qn-divider"></div>' +
+        '<a class="qn-item qn-signout" href="?qnav=signout">' +
+        '<span class="qn-em">🚪</span>' +
+        '<span class="qn-lbl">Sign Out</span></a>'
+    )
+
+    notif_html = (
+        '<span style="background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;' +
+        'display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">' +
+        str(n_count) + '</span>'
     ) if n_count > 0 else ""
 
-    cur_nav = st.session_state.get("nav", "screener")
-
-    nav_items = [
-        ("screener",        "Screener"),
-        ("gems",            "Hidden Gems"),
-        ("backtest",        "Backtest"),
-        ("portfolio",       "Portfolio"),
-        ("simulator",       "Simulator"),
-        ("model_portfolio", "Model Port."),
-        ("alerts",          "Alerts"),
-        ("account",         "Account"),
-        ("methodology",     "Methodology"),
-    ]
-
-    st.markdown(
-        '<style>'
-        '.qntm-nav-bar{background:rgba(2,4,8,.97);border-bottom:1px solid rgba(255,255,255,.07);padding:0;}'
-        '.qntm-nav-bar .stButton>button{'
-        'background:transparent !important;border:none !important;'
-        'border-bottom:2px solid transparent !important;border-radius:0 !important;'
-        'color:#64748b !important;font-family:Syne,sans-serif !important;'
-        'font-size:12px !important;font-weight:600 !important;letter-spacing:.04em !important;'
-        'padding:12px 8px 10px !important;height:44px !important;min-height:44px !important;'
-        'white-space:nowrap !important;width:100% !important;'
-        'box-shadow:none !important;transition:color .15s,border-color .15s !important;}'
-        '.qntm-nav-bar .stButton>button:hover{'
-        'color:#94a3b8 !important;border-bottom-color:rgba(255,255,255,.2) !important;'
-        'background:transparent !important;}'
-        '.qntm-nav-active .stButton>button{'
-        'color:#00ff87 !important;border-bottom-color:#00ff87 !important;'
-        'background:transparent !important;}'
-        '</style>',
-        unsafe_allow_html=True
+    nav_html = (
+        '<!DOCTYPE html><html><head><style>' +
+        '*{margin:0;padding:0;box-sizing:border-box;}' +
+        'body{background:transparent;font-family:system-ui,sans-serif;}' +
+        '.qn-bar{background:rgba(2,4,8,.97);border-bottom:1px solid rgba(255,255,255,.07);' +
+        'padding:0 20px;height:56px;display:flex;align-items:center;' +
+        'justify-content:space-between;position:relative;}' +
+        '.qn-logo{font-family:Syne,sans-serif;font-size:20px;font-weight:800;' +
+        'letter-spacing:.15em;color:#e2e8f0;}' +
+        '.qn-logo span{color:#00ff87;}' +
+        '.qn-trigger{display:flex;align-items:center;gap:10px;' +
+        'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);' +
+        'border-radius:8px;padding:8px 16px;cursor:pointer;' +
+        'font-family:Syne,sans-serif;font-size:13px;font-weight:600;color:#e2e8f0;' +
+        'transition:border-color .2s,background .2s;user-select:none;' +
+        'min-width:200px;justify-content:space-between;}' +
+        '.qn-trigger:hover{border-color:rgba(0,255,135,.3);background:rgba(0,255,135,.05);}' +
+        '.qn-trigger.open{border-color:rgba(0,255,135,.4);background:rgba(0,255,135,.06);}' +
+        '.qn-chevron{width:14px;height:14px;opacity:.5;transition:transform .2s;flex-shrink:0;}' +
+        '.qn-trigger.open .qn-chevron{transform:rotate(180deg);}' +
+        '.qn-right{display:flex;align-items:center;gap:10px;}' +
+        '.qn-plan{background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';' +
+        'border:1px solid ' + plan_color + '44;border-radius:4px;' +
+        'padding:3px 9px;font-size:11px;font-weight:700;letter-spacing:.1em;' +
+        'font-family:Syne,sans-serif;}' +
+        '.qn-user{font-size:11px;color:#64748b;font-family:DM Mono,monospace;' +
+        'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+        '.qn-dropdown{position:absolute;top:62px;left:50%;width:280px;' +
+        'background:rgba(7,10,18,.98);border:1px solid rgba(255,255,255,.1);' +
+        'border-radius:12px;z-index:9999;overflow:hidden;' +
+        'opacity:0;pointer-events:none;transform:translateX(-50%) translateY(-8px);' +
+        'transition:opacity .2s ease,transform .2s ease;' +
+        'box-shadow:0 20px 60px rgba(0,0,0,.8);backdrop-filter:blur(20px);}' +
+        '.qn-dropdown.open{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0);}' +
+        '.qn-header{padding:10px 16px 8px;border-bottom:1px solid rgba(255,255,255,.06);' +
+        'font-size:9px;color:#334155;letter-spacing:.14em;font-family:DM Mono,monospace;}' +
+        '.qn-item{display:flex;align-items:center;gap:12px;padding:11px 16px;' +
+        'text-decoration:none;border-left:3px solid transparent;' +
+        'transition:background .15s,border-color .15s;cursor:pointer;}' +
+        '.qn-item:hover{background:rgba(255,255,255,.04);border-left-color:rgba(0,255,135,.3);}' +
+        '.qn-item.qn-active{background:rgba(0,255,135,.06);border-left-color:#00ff87;}' +
+        '.qn-em{font-size:15px;width:20px;text-align:center;flex-shrink:0;}' +
+        '.qn-lbl{font-family:Syne,sans-serif;font-size:13px;font-weight:500;color:#94a3b8;flex:1;}' +
+        '.qn-item.qn-active .qn-lbl{color:#00ff87;font-weight:700;}' +
+        '.qn-badge{background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;' +
+        'display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;}' +
+        '.qn-signout .qn-lbl{color:#ef4444;}' +
+        '.qn-divider{height:1px;background:rgba(255,255,255,.06);margin:4px 0;}' +
+        '.qn-overlay{display:none;position:fixed;inset:0;z-index:9998;}' +
+        '.qn-overlay.open{display:block;}' +
+        '</style></head><body>' +
+        '<div class="qn-overlay" id="qnOv" onclick="qnClose()"></div>' +
+        '<div class="qn-bar">' +
+        '<div class="qn-logo">Q<span>NTM</span></div>' +
+        '<div class="qn-trigger" id="qnTr" onclick="qnToggle()">' +
+        '<span>' + cur_label + '</span>' +
+        '<svg class="qn-chevron" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5">' +
+        '<polyline points="6 9 12 15 18 9"/></svg>' +
+        '</div>' +
+        '<div class="qn-right">' +
+        notif_html +
+        '<span class="qn-plan">' + plan.upper() + '</span>' +
+        '<span class="qn-user">' + display_name + '</span>' +
+        '</div></div>' +
+        '<div class="qn-dropdown" id="qnDd">' +
+        '<div class="qn-header">NAVIGATE TO</div>' +
+        items_html +
+        '</div>' +
+        '<script>' +
+        'var dd=document.getElementById("qnDd");' +
+        'var tr=document.getElementById("qnTr");' +
+        'var ov=document.getElementById("qnOv");' +
+        'function qnToggle(){dd.classList.contains("open")?qnClose():qnOpen();}' +
+        'function qnOpen(){dd.classList.add("open");tr.classList.add("open");ov.classList.add("open");}' +
+        'function qnClose(){dd.classList.remove("open");tr.classList.remove("open");ov.classList.remove("open");}' +
+        'document.querySelectorAll(".qn-item").forEach(function(a){' +
+        'a.addEventListener("click",function(e){e.preventDefault();qnClose();' +
+        'window.parent.location.href=a.getAttribute("href");});' +
+        '});' +
+        '<' + '/script></body></html>'
     )
-
-    # ── Top bar: logo | right info ────────────────────────────────────────────
-    st.markdown(
-        '<div class="qntm-nav-bar">'
-        '<div style="display:flex;align-items:center;justify-content:space-between;'
-        'padding:8px 20px 0;">'
-        '<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;'
-        'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
-        '<div style="display:flex;align-items:center;gap:8px;">'
-        + notif_dot
-        + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-        f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 7px;'
-        f'font-size:11px;font-weight:700;letter-spacing:.08em;font-family:Syne,sans-serif;">'
-        f'{plan.upper()}</span>'
-        f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
-        '</div></div></div>',
-        unsafe_allow_html=True
-    )
-
-    # ── Nav button row ────────────────────────────────────────────────────────
-    st.markdown('<div class="qntm-nav-bar" style="padding:0 12px;">', unsafe_allow_html=True)
-    cols = st.columns(len(nav_items) + 1)  # +1 for sign out
-    for col, (key, label) in zip(cols, nav_items):
-        with col:
-            is_active = (key == cur_nav)
-            if is_active:
-                st.markdown('<div class="qntm-nav-active">', unsafe_allow_html=True)
-            lbl = label + (" 🔴" if key == "alerts" and n_count > 0 else "")
-            if st.button(lbl, key=f"_nav2_{key}", use_container_width=True):
-                st.session_state.nav = key
-                st.rerun()
-            if is_active:
-                st.markdown('</div>', unsafe_allow_html=True)
-
-    # Sign out
-    with cols[-1]:
-        if st.button("Sign Out", key="_nav2_signout", use_container_width=True):
-            for k in ["logged_in","user","mfa_verified","scan_results",
-                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
-                st.session_state[k] = False if k == "logged_in" else None
-            st.session_state.signed_out = True
-            for qp in ["uid","plan"]:
-                st.query_params.pop(qp, None)
-            _clear_localstorage_token()
-            go("landing")
-    st.markdown('</div>', unsafe_allow_html=True)
+    _cv1.html(nav_html, height=60)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# LIVE REFRESH HELPER
-# ══════════════════════════════════════════════════════════════════════════════
-def _live_refresh_pipeline():
-    """Shared live refresh pipeline — used by Screener and Simulator pages."""
-    st.markdown("""
-    <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
-         border-radius:8px;padding:14px 18px;margin:8px 0 12px;">
-      <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;
-           color:#00ff87;letter-spacing:.08em;margin-bottom:4px;">⚡ LIVE DATA REFRESH IN PROGRESS</div>
-      <div style="font-size:13px;color:#94a3b8;">Fetching live fundamentals for all 834 tickers. Takes 3–4 min.</div>
-    </div>
-    """, unsafe_allow_html=True)
-    progress_bar = st.progress(0, text="Starting...")
-    status_text  = st.empty()
-    try:
-        from data_refresh import fetch_ticker_fundamentals, write_fundamentals_cache, write_signal_snapshot
-        from universe_data import SECTORS as ALL_SECTORS, FUNDAMENTALS
-        from model_engine import score_stock, apply_macro_overlay, fetch_macro_overlay
-        import time as _time
-        tickers   = list(ALL_SECTORS.keys())
-        total     = len(tickers)
-        live_data = {}
-        static_ct = 0
-        for i, ticker in enumerate(tickers):
-            progress_bar.progress(int(i/total*80), text=f"Fetching {ticker} ({i+1}/{total})...")
-            data = fetch_ticker_fundamentals(ticker)
-            if data:
-                live_data[ticker] = {**FUNDAMENTALS.get(ticker,{}), **data}
-            else:
-                live_data[ticker] = FUNDAMENTALS.get(ticker, {})
-                static_ct += 1
-            _time.sleep(0.25)
-        progress_bar.progress(82, text="Writing to cache...")
-        write_fundamentals_cache(live_data)
-        progress_bar.progress(86, text="Scoring universe...")
-        scores = []
-        for ticker in tickers:
-            f  = live_data.get(ticker, {})
-            s  = score_stock(ticker, [], live_fundamentals=f, vol_ratio=f.get("vol_ratio"))
-            s["has_live_price"] = bool(f.get("price"))
-            scores.append(s)
-        composites = [s["composite"] for s in scores]
-        for s in scores:
-            s["pct_rank"] = round(sum(1 for c in composites if c<=s["composite"])/len(composites)*100, 1)
-        scores.sort(key=lambda x: x["composite"], reverse=True)
-        progress_bar.progress(93, text="Applying macro overlay...")
-        macro = fetch_macro_overlay()
-        for s in scores:
-            if not s.get("sector") or s.get("sector")=="Unknown":
-                s["sector"] = ALL_SECTORS.get(s["ticker"],"Unknown")
-        scored = apply_macro_overlay(scores, macro)
-        progress_bar.progress(97, text="Saving snapshot...")
-        write_signal_snapshot(scored)
-        st.session_state.scan_results         = scored
-        st.session_state.macro_data           = macro
-        st.session_state.live_refresh_running = False
-        progress_bar.progress(100, text="✓ Complete!")
-        live_ct = total - static_ct
-        st.success(f"✓ {live_ct} tickers refreshed live · Macro: {macro.get('regime','—')}")
-        _time.sleep(1.5)
-        st.rerun()
-    except Exception as e:
-        st.session_state.live_refresh_running = False
-        st.error(f"Live refresh failed: {e}")
-        st.rerun()
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SCREENER PAGE
-# ══════════════════════════════════════════════════════════════════════════════
 def page_screener():
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
@@ -5771,7 +5748,21 @@ def main():
 
 
 
-    # ── Cookie consent — restore from query param, show banner on landing ───────
+    # ── Platform tab switching via nav ───────────────────────────────────────
+    _VALID_TABS = {"screener","gems","backtest","portfolio","simulator",
+                   "model_portfolio","alerts","account","methodology"}
+    _qnav = st.query_params.get("qnav","")
+    if _qnav in _VALID_TABS:
+        st.session_state.nav = _qnav
+        st.query_params.pop("qnav", None)
+    if st.query_params.get("qnav") == "signout":
+        for k in ["logged_in","user","mfa_verified","scan_results",
+                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
+            st.session_state[k] = False if k == "logged_in" else None
+        st.session_state.signed_out = True
+        st.query_params.clear()
+        _clear_localstorage_token()
+        go("landing")
     if st.query_params.get("ck") == "1":
         st.session_state.cookies_accepted = True
 
