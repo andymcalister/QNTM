@@ -707,8 +707,10 @@ if not st.session_state.logged_in:
             pass
 
     _nav_param = st.query_params.get("nav", "")
+    _has_uid   = "uid" in st.query_params
     if (not st.session_state.logged_in
             and not st.session_state.get("signed_out")
+            and not _has_uid
             and _nav_param not in ("signin", "register")
             and st.session_state.get("page") != "auth"):
         _inject_localstorage_reader()
