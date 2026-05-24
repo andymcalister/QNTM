@@ -2682,15 +2682,16 @@ def page_auth():
         border-bottom: 2px solid rgba(255,255,255,.08) !important;
         background: transparent !important;
         color: #64748b !important;
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
-        letter-spacing: .02em !important;
+        letter-spacing: .04em !important;
         text-transform: uppercase !important;
         height: 44px !important;
         min-height: 44px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        text-overflow: clip !important;
+        padding: 0 8px !important;
     }
     div[data-testid="column"] .stButton > button:hover {
         background: rgba(0,255,135,.05) !important;
@@ -2724,7 +2725,7 @@ def page_auth():
             st.session_state.auth_tab = "signin"
 
         t1_label = "▶ Sign In" if st.session_state.auth_tab == "signin" else "Sign In"
-        t2_label = "▶ Register" if st.session_state.auth_tab == "register" else "Register"
+        t2_label = "▶ Join Free" if st.session_state.auth_tab == "register" else "Join Free"
         tc1, tc2 = st.columns(2)
         with tc1:
             if st.button(t1_label, key="tab_signin_btn", use_container_width=True):
@@ -2779,7 +2780,7 @@ def page_auth():
             st.markdown("""
             <div style="text-align:center;margin-top:20px;">
               <span style="font-size:14px;color:#94a3b8;">
-                Don't have an account? Use the <strong style="color:#00ff87;">Create Free Account</strong> tab above.
+                No account? Hit <strong style="color:#00ff87;">Join Free</strong> above.
               </span>
             </div>
             """, unsafe_allow_html=True)
