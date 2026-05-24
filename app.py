@@ -624,8 +624,6 @@ def _clear_localstorage_token():
 
 # ── Auto-restore session from localStorage or query params ────────────────────
 if not st.session_state.logged_in:
-    # If we have a uid param, always try to restore regardless of signed_out
-    # (signed_out is only meaningful within a session, not across refreshes)
     params = st.query_params
     if "uid" in params:
         try:
@@ -638,12 +636,15 @@ if not st.session_state.logged_in:
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
                     st.session_state.signed_out   = False
-                    st.session_state.nav          = "screener"
                     st.session_state.page         = "platform"
+                    # Respect qnav destination if present, else default to screener
+                    _dest = params.get("qnav","")
+                    _VALID = {"screener","gems","backtest","portfolio","simulator",
+                              "model_portfolio","alerts","account","methodology"}
+                    st.session_state.nav = _dest if _dest in _VALID else "screener"
         except Exception:
             pass
 
-    # Only try localStorage if no uid param and not in this session's signed_out state
     if not st.session_state.logged_in and not st.session_state.get("signed_out"):
         _inject_localstorage_reader()
 
@@ -5208,8 +5209,9 @@ def page_model_portfolio():
 
     page_summary(
         "🏆", "Model Portfolio",
-        "QNTM's model portfolio — 20 High Conviction positions tracked from May 19, 2026. Equal-weighted $10K per position. Exits when conviction score drops below 45.",
-        pills=["Equal weighted", "Top 20 HIGH conviction", "$10K per position", "Auto-exit below score 45"]
+        "50 High Conviction positions built across May 19–23, 2026 — ~10 entries per day, "
+        "taking the top conviction signals each day until reaching 50. "
+        "Equal-weighted at $10K per position. Exits when conviction score drops below 45.",
     )
 
     sb = _get_supabase()
@@ -5336,27 +5338,30 @@ def page_model_portfolio():
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
     # ── SPY benchmark comparison ──────────────────────────────────────────────
+    # Per-position SPY comparison (each position vs SPY over its own holding window)
     spy_return = 0.0
     spy_pnl    = 0.0
     try:
         import yfinance as yf
-        entry_dates = [p.get("entry_date") for p in positions if p.get("entry_date")]
-        if entry_dates:
-            earliest = min(entry_dates)
-            spy_hist = yf.download("SPY", start=earliest, progress=False, auto_adjust=True)
-            if not spy_hist.empty:
-                close = spy_hist["Close"]
-                if hasattr(close, "columns"):
-                    close = close.iloc[:, 0]
-                if hasattr(close, "squeeze"):
-                    close = close.squeeze()
-                close = close.dropna()
-                if len(close) >= 2:
-                    spy_start = float(close.iloc[0])
-                    spy_end   = float(close.iloc[-1])
-                    if spy_start > 0:
-                        spy_return = (spy_end / spy_start - 1) * 100
-                        spy_pnl    = total_invested * (spy_return / 100)
+        from datetime import date as _dt
+        spy_hist = yf.download("SPY", start="2026-05-19", progress=False, auto_adjust=True)
+        if not spy_hist.empty:
+            spy_close = spy_hist["Close"]
+            if hasattr(spy_close, "columns"): spy_close = spy_close.iloc[:,0]
+            spy_close = spy_close.squeeze().dropna()
+            spy_now = float(spy_close.iloc[-1])
+            spy_rets = []
+            for pos in positions:
+                try:
+                    ed = _dt.fromisoformat(str(pos.get("entry_date",""))[:10])
+                    w  = spy_close[spy_close.index.date >= ed]
+                    if not w.empty:
+                        spy_rets.append((spy_now - float(w.iloc[0])) / float(w.iloc[0]) * 100)
+                except Exception:
+                    pass
+            if spy_rets:
+                spy_return = sum(spy_rets) / len(spy_rets)
+                spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
 
@@ -5368,23 +5373,24 @@ def page_model_portfolio():
 
 
     # ── Methodology banner ────────────────────────────────────────────────────
-    st.markdown("""
-    <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);
-         border-radius:8px;padding:16px 20px;margin-bottom:20px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
-           letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>
-      <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
-        This portfolio holds QNTM's top 20 HIGH conviction stocks, equal-weighted at $10,000 per position.
-        Positions are entered when a stock's blended conviction score reaches <strong style="color:#00ff87;">≥60</strong> —
-        combining 5-pillar quantitative analysis (Momentum, Quality, Value, Volume, Sentiment) with a live macro regime overlay.
-        <br><br>
-        <strong style="color:#cbd5e1;">Hold discipline:</strong> Positions are held until the model generates a SELL signal
-        (score drops below <strong style="color:#ef4444;">45</strong>), minimising unnecessary turnover, transaction costs, and
-        short-term capital gains tax events. When a position exits, capital is redeployed into the next highest-conviction
-        High Conviction signal not already held. No discretionary overrides — the model drives every entry and exit.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);'
+        'border-radius:8px;padding:16px 20px;margin-bottom:20px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;'
+        'letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>'
+        '<div style="font-size:13px;color:#94a3b8;line-height:1.7;">'
+        'Built across <strong style="color:#cbd5e1;">May 19–23, 2026</strong> — '
+        '~10 highest conviction signals entered each trading day until reaching 50 positions. '
+        'Entry threshold: blended conviction score '
+        '<strong style="color:#00ff87;">≥ 60</strong> across 5 factors + macro overlay. '
+        'Equal-weighted at <strong style="color:#cbd5e1;">$10,000 per position</strong> ($500K total).'
+        '<br><br>'
+        '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions are held until conviction '
+        'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into the next '
+        'highest conviction signal not already held. No discretionary overrides.'
+        '</div></div>',
+        unsafe_allow_html=True
+    )
 
     # ── Summary strip — CSS grid wraps to 2-3 cols on mobile ────────────────
     ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;text-align:center;"
@@ -5765,7 +5771,8 @@ def main():
                    "model_portfolio","alerts","account","methodology"}
     _qnav = st.query_params.get("qnav","")
     if _qnav in _VALID_TABS:
-        st.session_state.nav = _qnav
+        st.session_state.nav  = _qnav
+        st.session_state.page = "platform"
         st.query_params.pop("qnav", None)
     if st.query_params.get("qnav") == "signout":
         for k in ["logged_in","user","mfa_verified","scan_results",
