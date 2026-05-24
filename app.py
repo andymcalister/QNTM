@@ -1939,7 +1939,7 @@ def page_landing():
     <div style="display:flex;justify-content:flex-end;padding:0 16px;margin-top:-52px;position:relative;z-index:1000;height:52px;align-items:center;">
       <div class="qntm-nav-btns">
         <a href="?nav=signin" target="_self" class="qntm-nav-btn-ghost">Sign In</a>
-        <a href="?nav=register" class="qntm-nav-btn-primary">Get Started</a>
+        <a href="?nav=register" target="_self" class="qntm-nav-btn-primary">Create Free Account</a>
       </div>
     </div>
     """, unsafe_allow_html=True)
