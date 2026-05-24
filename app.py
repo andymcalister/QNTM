@@ -747,6 +747,33 @@ def go(page):
         st.query_params["plan"] = u.get("plan", "free")
     st.rerun()
 
+# ── UI HELPERS ────────────────────────────────────────────────────────────────
+
+def _pin_nav(page_key: str):
+    """Pin nav to current page — prevents text input reruns from dropping to screener."""
+    st.session_state.nav  = page_key
+    st.session_state.page = "platform"
+
+def _back_btn(href: str, label: str = "← Back") -> str:
+    """Styled ghost back button as HTML link."""
+    return (
+        f'<a href="{href}" target="_self" style="'
+        f'display:inline-flex;align-items:center;gap:6px;'
+        f'padding:8px 16px;border-radius:6px;'
+        f'border:1px solid rgba(255,255,255,.12);'
+        f'background:rgba(255,255,255,.03);'
+        f'font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+        f'letter-spacing:.06em;text-transform:uppercase;'
+        f'color:#94a3b8;text-decoration:none;">'
+        f'{label}</a>'
+    )
+
+def _upgrade_url(feature: str, return_nav: str) -> str:
+    """Build URL to the upgrade page preserving session."""
+    _uid  = (st.session_state.user or {}).get("id", "")
+    _plan = (st.session_state.user or {}).get("plan", "free")
+    return f"?upgrade_page=1&feature={feature}&return_nav={return_nav}&uid={_uid}&plan={_plan}&ck=1&_n={return_nav}"
+
 # ── ONBOARDING MODAL ──────────────────────────────────────────────────────────
 def show_onboarding():
     pass  # disabled
@@ -3765,38 +3792,6 @@ def page_screener():
                 unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-def _back_btn(href: str, label: str = "← Back") -> str:
-    """Styled ghost back button as HTML link."""
-    return (
-        f'<a href="{href}" target="_self" style="'
-        f'display:inline-flex;align-items:center;gap:6px;'
-        f'padding:8px 16px;border-radius:6px;'
-        f'border:1px solid rgba(255,255,255,.12);'
-        f'background:rgba(255,255,255,.03);'
-        f'font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-        f'letter-spacing:.06em;text-transform:uppercase;'
-        f'color:#94a3b8;text-decoration:none;'
-        f'transition:border-color .15s,color .15s;">'
-        f'{label}</a>'
-    )
-
-
-    """Pin nav to current page — prevents text input reruns from dropping to screener."""
-    st.session_state.nav  = page_key
-    st.session_state.page = "platform"
-
-
-def _upgrade_url(feature: str, return_nav: str) -> str:
-    """Build URL to the upgrade page preserving session."""
-    _uid  = (st.session_state.user or {}).get("id", "")
-    _plan = (st.session_state.user or {}).get("plan", "free")
-    return f"?upgrade_page=1&feature={feature}&return_nav={return_nav}&uid={_uid}&plan={_plan}&ck=1&_n={return_nav}"
-
-
-    """Pin nav to current page — prevents text input reruns from dropping to screener."""
-    st.session_state.nav  = page_key
-    st.session_state.page = "platform"
 
 
 def page_watchlist():
