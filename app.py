@@ -34,7 +34,7 @@ from db import (register_user, login_user, get_holdings, upsert_holding,
                 enable_mfa, disable_mfa, get_user_mfa, update_preferences,
                 upgrade_plan, plan_limit, PLAN_LIMITS,
                 check_and_notify_signal_changes, save_signal_snapshot,
-                get_signal_snapshot, get_unread_count)
+                get_signal_snapshot, get_unread_count, get_user_by_id)
 from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
                            ENTRY_THRESHOLD, EXIT_THRESHOLD, SECTORS,
                            fetch_macro_overlay, apply_macro_overlay)
@@ -722,10 +722,8 @@ if not st.session_state.logged_in:
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
                     _restore_ok = True
         except Exception as _e:
-            # Surface restore failure — remove after debugging
-            st.session_state._restore_error = str(_e)
-    else:
-        st.session_state._restore_error = "no uid in params: " + str(dict(st.query_params))
+            pass
+    
 
     _nav_param = st.query_params.get("nav", "")
     _has_uid   = "uid" in st.query_params
@@ -3746,10 +3744,6 @@ def page_gems():
     )
 
     if not is_pro():
-        # DEBUG — remove after fix confirmed
-        u = st.session_state.get("user") or {}
-        _err = st.session_state.get("_restore_error", "")
-        st.warning(f"DEBUG: logged_in={st.session_state.get('logged_in')} | plan={u.get('plan','?')} | user_id={u.get('id','none')[:8] if u.get('id') else 'none'} | is_pro={is_pro()} | err={_err} | uid_in_params={'uid' in st.query_params}")
         st.markdown("""
         <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
              border-radius:8px;padding:48px;text-align:center;">
