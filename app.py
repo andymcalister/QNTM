@@ -5512,24 +5512,12 @@ def page_simulator():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # Rescan — runs inline, no rerun needed (session state already updated)
+    # Rescan — URL action to avoid session drop on mobile
     _uid_val  = (st.session_state.user or {}).get("id", "")
     _plan_val = (st.session_state.user or {}).get("plan", "free")
-    _s1, _s2 = st.columns(2)
-    with _s1:
-        if st.button("🔄 Rescan Universe", key="sim_rescan", use_container_width=True):
-            _pin_nav("simulator")
-            from model_engine import fetch_macro_overlay, apply_macro_overlay, run_full_scan
-            from model_engine import SECTORS as _SIM_SECTORS
-            with st.spinner("Rescanning universe..."):
-                _raw = run_full_scan(use_live_prices=False)
-                _mac = fetch_macro_overlay()
-                for _r in _raw:
-                    if not _r.get("sector") or _r.get("sector") == "Unknown":
-                        _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")
-                _scored = apply_macro_overlay(_raw, _mac)
-                st.session_state.scan_results = _scored
-                st.session_state.macro_data   = _mac
+    _rescan_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_rescan=1&_n=simulator"
+    st.markdown(_cta_ghost("🔄 Rescan Universe", _rescan_url), unsafe_allow_html=True)
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     scan = st.session_state.get("scan_results") or []
     all_buys = sorted(
@@ -6888,6 +6876,22 @@ def main():
         st.query_params.pop("upgrade_page", None)
         st.query_params.pop("feature", None)
         st.query_params.pop("return_nav", None)
+
+    # ── Simulator rescan via URL action ──────────────────────────────────────
+    if st.query_params.get("sim_rescan") == "1" and st.session_state.get("logged_in"):
+        st.query_params.pop("sim_rescan", None)
+        try:
+            from model_engine import fetch_macro_overlay, apply_macro_overlay, run_full_scan
+            from model_engine import SECTORS as _SIM_SECTORS
+            _raw = run_full_scan(use_live_prices=False)
+            _mac = fetch_macro_overlay()
+            for _r in _raw:
+                if not _r.get("sector") or _r.get("sector") == "Unknown":
+                    _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")
+            st.session_state.scan_results = apply_macro_overlay(_raw, _mac)
+            st.session_state.macro_data   = _mac
+        except Exception:
+            pass
 
     # ── Plan upgrade via URL action ───────────────────────────────────────────
     if st.query_params.get("upgrade") == "pro" and st.session_state.get("logged_in"):
