@@ -5376,7 +5376,7 @@ def page_model_portfolio():
     for pos in positions:
         tk           = pos["ticker"]
         entry_price  = pos.get("entry_price")
-        pos_size     = pos.get("position_size", 10000)
+        pos_size     = pos.get("position_size", 2000)
         current_data = score_map.get(tk, {})
         current_price = current_data.get("price")
 
@@ -5464,7 +5464,7 @@ def page_model_portfolio():
         '~10 highest conviction signals entered each trading day until reaching 50 positions. '
         'Entry threshold: blended conviction score '
         '<strong style="color:#00ff87;">≥ 60</strong> across 5 factors + macro overlay. '
-        'Equal-weighted at <strong style="color:#cbd5e1;">$10,000 per position</strong> ($500K total).'
+        'Equal-weighted at <strong style="color:#cbd5e1;">$2,000 per position</strong> ($100K total).'
         '<br><br>'
         '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions are held until conviction '
         'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into the next '
@@ -5525,7 +5525,7 @@ def page_model_portfolio():
         entry_str = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
         cur_str   = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
         pnl_str   = f'{sg}${abs(h["pnl"]):,.0f}' if h["entry_price"] and h["current_price"] else "—"
-        ret_str   = f'{sg}{h["pnl_pct"]:.1f}%'   if h["entry_price"] and h["current_price"] else "—"
+        ret_str   = f'{sg}{h["pnl_pct"]:.2f}%'   if h["entry_price"] and h["current_price"] else "—"
         shares    = (h["pos_size"] / h["entry_price"]) if h.get("entry_price") and h["entry_price"] > 0 else None
         shares_str = f'{shares:,.1f} sh' if shares else "—"
         score     = h["current_score"]
@@ -5536,7 +5536,8 @@ def page_model_portfolio():
         sd       = score_map.get(h["ticker"], {})
         ci       = get_company_info(h["ticker"])
         co_name  = (ci.get("name","") if ci else "")[:28] or h["ticker"]
-        sector   = h.get("sector", sd.get("sector","")) or "—"
+        from model_engine import SECTORS as _MP_SECTORS
+        sector   = sd.get("sector","") or _MP_SECTORS.get(h["ticker"],"") or "—"
         sec_short = sector[:18] + "…" if len(sector) > 18 else sector
 
         # Left border accent by return
@@ -5618,12 +5619,15 @@ def page_model_portfolio():
                 .order("exit_date", desc=True) \
                 .limit(20) \
                 .execute()
-            if exits.data:
+            # Filter out reseeded entries — only show genuine exits
+            real_exits = [e for e in (exits.data or [])
+                          if e.get("exit_reason","") not in ("reseeded","")]
+            if real_exits:
                 st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
                 st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;'
                             'letter-spacing:.1em;margin-bottom:12px;">RECENT EXITS</div>',
                             unsafe_allow_html=True)
-                for ex in exits.data:
+                for ex in real_exits:
                     ep = ex.get("entry_price")
                     xp = ex.get("exit_price")
                     if ep and xp and ep > 0:
