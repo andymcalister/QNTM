@@ -5519,40 +5519,17 @@ def page_simulator():
 
     scan = st.session_state.get("sim_data") or st.session_state.get("scan_results") or []
 
-    # Auto-load from signal_log into sim_data (separate from scan_results so timer never clears it)
     if not scan:
-        try:
-            from data_refresh import _get_supabase as _sim_sb
-            _sb = _sim_sb()
-            if _sb:
-                _resp = _sb.table("signal_log") \
-                    .select("ticker,adj_composite,composite,momentum,quality,volume,value,sentiment,price,sector") \
-                    .order("signal_date", desc=True) \
-                    .limit(5000) \
-                    .execute()
-                _rows = _resp.data or []
-                _seen = {}
-                for _r in _rows:
-                    if _r["ticker"] not in _seen:
-                        _adj = float(_r.get("adj_composite") or _r.get("composite") or 50)
-                        _r["adj_action"] = "BUY" if _adj >= 60 else ("SELL" if _adj < 45 else "HOLD")
-                        _seen[_r["ticker"]] = _r
-                scan = list(_seen.values())
-                st.session_state.sim_data = scan  # dedicated key — never cleared by timer
-        except Exception:
-            pass
-
-    all_buys = sorted(
-        [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
-        key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
-    )
-    ticker_map = {r["ticker"]: r for r in scan}
-
-    if not all_buys:
-        st.info("No conviction signals available — data loads from the nightly refresh.")
+        st.info("Loading conviction signals...")
         st.markdown(_cta_ghost("🔄 Force Rescan", _rescan_url), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
+
+    all_buys = sorted(
+        [r for r in scan if r.get("adj_action") == "BUY"],
+        key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
+    )
+    ticker_map = {r["ticker"]: r for r in scan}
 
     def profile_tickers(profile):
         if profile == "HIGH":
@@ -6916,6 +6893,28 @@ def main():
         st.query_params.pop("upgrade_page", None)
         st.query_params.pop("feature", None)
         st.query_params.pop("return_nav", None)
+
+    # ── Ensure sim_data is always loaded from signal_log ─────────────────────
+    if not st.session_state.get("sim_data") and st.session_state.get("logged_in"):
+        try:
+            from data_refresh import _get_supabase as _rtr_sb
+            _rtr_client = _rtr_sb()
+            if _rtr_client:
+                _rtr_resp = _rtr_client.table("signal_log") \
+                    .select("ticker,adj_composite,composite,momentum,quality,volume,value,sentiment,price,sector") \
+                    .order("signal_date", desc=True) \
+                    .limit(5000) \
+                    .execute()
+                _rtr_seen = {}
+                for _rr in (_rtr_resp.data or []):
+                    if _rr["ticker"] not in _rtr_seen:
+                        _a = float(_rr.get("adj_composite") or _rr.get("composite") or 50)
+                        _rr["adj_action"] = "BUY" if _a >= 60 else ("SELL" if _a < 45 else "HOLD")
+                        _rtr_seen[_rr["ticker"]] = _rr
+                if _rtr_seen:
+                    st.session_state.sim_data = list(_rtr_seen.values())
+        except Exception:
+            pass
 
     # ── Simulator rescan via URL action ──────────────────────────────────────
     if st.query_params.get("sim_rescan") == "1" and st.session_state.get("logged_in"):
