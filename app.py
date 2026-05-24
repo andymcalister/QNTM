@@ -117,6 +117,17 @@ section[data-testid="stMain"] > div,
 ::-webkit-scrollbar-track{background:#0a0b14;}
 ::-webkit-scrollbar-thumb{background:#00ff87;border-radius:2px;}
 
+/* ── Mobile responsive: watchlist + model portfolio ── */
+@media (max-width: 520px) {
+  /* Watchlist: hide desktop table, show cards */
+  .wl-table-header { display: none !important; }
+  .wl-row           { display: none !important; }
+  .wl-card          { display: block !important; }
+  /* Model portfolio: hide desktop rows, show cards */
+  .mp-row  { display: none !important; }
+  .mp-card { display: block !important; }
+}
+
 /* Animations */
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -2175,11 +2186,11 @@ def page_landing():
     )
     st.markdown(hero_html, unsafe_allow_html=True)
 
-    # Hero CTA buttons
-    hb1, hb2, hb3 = st.columns([2, 2, 3])
+    # Hero CTA buttons — equal width, text that fits on mobile
+    hb1, hb2 = st.columns(2)
     with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Create Free Account →", key="hero_register", use_container_width=True):
+        if st.button("Join Free →", key="hero_register", use_container_width=True):
             st.session_state.auth_tab = "register"
             st.session_state.nav = "screener"
             go("auth")
@@ -2660,7 +2671,7 @@ def page_auth():
         if "auth_tab" not in st.session_state:
             st.session_state.auth_tab = "signin"
 
-        tab_signin, tab_register = st.tabs(["Sign In", "Create Free Account"])
+        tab_signin, tab_register = st.tabs(["Sign In", "Create Account"])
 
         # ── SIGN IN ───────────────────────────────────────────────────────────
         with tab_signin:
@@ -3544,9 +3555,9 @@ def page_watchlist():
     # Also fetch entry prices from watchlist record if stored, else use first observed price
     wl_entry = {w["ticker"]: w.get("entry_price") or w.get("price_at_add") for w in watchlist}
 
-    # Table header
+    # Table header — hidden on mobile (cards show labels inline)
     st.markdown(
-        '<div style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
+        '<div class="wl-table-header" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
         'gap:8px;padding:10px 16px;background:#0d1117;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.1);">'
         '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">TICKER</div>'
@@ -3616,7 +3627,7 @@ def page_watchlist():
         weak_str = f' · <span style="color:#ef4444;">⚠ {weak[0][0]}</span>' if weak else ""
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
+            f'<div class="wl-row" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 110px 1fr;'
             f'gap:8px;padding:12px 16px;background:{bg};'
             f'border-left:3px solid {border_c};'
             f'border-right:1px solid rgba(255,255,255,.04);'
@@ -3632,12 +3643,35 @@ def page_watchlist():
             f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{since_col};text-align:right;">{since_str}</div>'
             f'<div style="font-size:12px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
             f'<div style="font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
+            f'</div>'
+            # Mobile card — hidden on desktop, shown on mobile
+            f'<div class="wl-card" style="display:none;padding:14px 16px;background:{bg};'
+            f'border-left:3px solid {border_c};border-bottom:1px solid rgba(255,255,255,.05);">'
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:#e2e8f0;">{tk}</div>'
+            f'<div style="font-size:11px;color:#64748b;">{name} · {sector}</div>'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:{score_col};">{score_str}</div>'
+            f'<div style="font-size:11px;color:{sig_color};font-weight:600;">{sig_label}</div>'
+            f'</div>'
+            f'</div>'
+            f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.08em;">PRICE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">{price_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.08em;">DAY</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{day_col};">{day_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.08em;">SINCE ADDED</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{since_col};">{since_str}</div></div>'
+            f'</div>'
+            f'<div style="margin-top:8px;font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
             f'</div>',
             unsafe_allow_html=True
         )
-        _, btn_col = st.columns([6, 1])
+        _, btn_col = st.columns([5, 1])
         with btn_col:
-            if st.button(f"Remove {tk}", key=f"wl_rm_{tk}_{i}", use_container_width=True):
+            if st.button(f"✕ {tk}", key=f"wl_rm_{tk}_{i}", use_container_width=True):
                 remove_from_watchlist(uid(), tk)
                 st.rerun()
 
@@ -3701,13 +3735,11 @@ def page_gems():
           </div>
         </div>
         """, unsafe_allow_html=True)
-        _, c, _ = st.columns([1,2,1])
-        with c:
-            st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-            if st.button("Join Free — First 50 Spots Get Full Access", key="gems_upgrade", use_container_width=True):
-                st.session_state.auth_tab = "register"
-                go("auth")
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
+        if st.button("Join Free — First 50 Spots", key="gems_upgrade", use_container_width=True):
+            st.session_state.auth_tab = "register"
+            go("auth")
+        st.markdown('</div>', unsafe_allow_html=True)
         return
 
     if st.session_state.scan_results is None:
@@ -5567,16 +5599,25 @@ def page_account():
             </div>
             """, unsafe_allow_html=True)
 
-            _, bc, _ = st.columns([1, 2, 1])
-            with bc:
-                if st.button("Join Founding Members — Claim Free Spot", key="upgrade_btn", use_container_width=True):
-                    ok = upgrade_plan(uid(), "pro")
-                    if ok:
-                        st.success("✓ Welcome to Founding Member! Full access is now active — unlimited holdings, Hidden Gems, and signal alerts.")
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error("Something went wrong — please try again or contact hello@qntm.app")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
+            if st.button("Join Founding Members — Claim Free Spot", key="upgrade_btn", use_container_width=True):
+                ok = upgrade_plan(uid(), "pro")
+                if ok:
+                    # Refresh session state so is_pro() works immediately without re-login
+                    from db import get_user_by_id as _gubi
+                    refreshed = _gubi(uid())
+                    if refreshed:
+                        st.session_state.user = refreshed
+                    st.session_state.nav  = "account"
+                    st.session_state.page = "platform"
+                    st.success("✓ Welcome to Founding Member! Full access is now active — unlimited holdings, Hidden Gems, and signal alerts.")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("Something went wrong — please try again or contact hello@qntm.app")
+            st.markdown('</div>', unsafe_allow_html=True)
 
         elif plan in ("pro","institutional"):
             st.markdown("""
@@ -5916,7 +5957,8 @@ def page_model_portfolio():
         border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
 
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
+            # Desktop row (hidden on mobile via CSS class)
+            f'<div class="mp-row" style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
             f'gap:8px;padding:8px 16px;background:{bg};margin-bottom:1px;'
             f'border-left:3px solid {border_c};align-items:center;">'
             # Ticker + name
@@ -5937,7 +5979,32 @@ def page_model_portfolio():
             f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">s:{score:.0f}</div>'
             f'</div>'
-            f'</div>', unsafe_allow_html=True)
+            f'</div>'
+            # Mobile card (shown on mobile via CSS class)
+            f'<div class="mp-card" style="display:none;padding:12px 16px;background:{bg};margin-bottom:1px;'
+            f'border-left:3px solid {border_c};">'
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+            f'<div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{gem_badge}{h["ticker"]}</div>'
+            f'<div style="font-size:11px;color:#64748b;">{co_name}</div>'
+            f'<div style="font-size:10px;color:#475569;margin-top:2px;">{sec_short} · {h["entry_date"]}</div>'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{rc};">{ret_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};">{pnl_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">score: {score:.0f}</div>'
+            f'</div>'
+            f'</div>'
+            f'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">ENTRY</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{entry_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">CURRENT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{cur_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">SHARES</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{shares_str}</div></div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
