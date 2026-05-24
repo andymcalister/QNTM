@@ -3262,21 +3262,35 @@ def page_screener():
                     sr["pct_rank"] = 50
                     ci = get_company_info(resolved_tk)
                     st.markdown(factor_panel_html(sr, False, company_info=ci), unsafe_allow_html=True)
-                    # Watchlist button
+                    # Watchlist — HTML link with action params, same pattern as gems
                     wl = get_watchlist(uid())
                     wl_tickers = {w["ticker"] for w in wl}
                     in_wl = resolved_tk in wl_tickers
-                    wl_label = "★ Watchlist" if in_wl else "☆ + Watchlist"
-                    wl_style = "land-btn-primary" if not in_wl else "land-btn-ghost"
-                    st.markdown(f'<div class="{wl_style}">', unsafe_allow_html=True)
-                    if st.button(wl_label, key=f"wl_add_{resolved_tk}", use_container_width=True):
-                        if in_wl:
-                            remove_from_watchlist(uid(), resolved_tk)
-                            st.toast(f"{resolved_tk} removed from watchlist")
-                        else:
-                            add_to_watchlist(uid(), resolved_tk, price_at_add=sr.get("price"))
-                            st.toast(f"✓ {resolved_tk} added to watchlist")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    _uid_val = (st.session_state.user or {}).get("id", "")
+                    _plan_val = (st.session_state.user or {}).get("plan", "free")
+                    _qp = f"?qnav=screener&uid={_uid_val}&plan={_plan_val}&ck=1"
+                    if in_wl:
+                        _action_url = _qp + f"&wl_action=remove&wl_ticker={resolved_tk}"
+                        st.markdown(
+                            f'<a href="{_action_url}" target="_self" style="'
+                            f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
+                            f'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);'
+                            f'border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+                            f'letter-spacing:.06em;text-transform:uppercase;color:#e2e8f0;text-decoration:none;'
+                            f'box-sizing:border-box;">★ Watchlist</a>',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        _action_url = _qp + f"&wl_action=add&wl_ticker={resolved_tk}"
+                        st.markdown(
+                            f'<a href="{_action_url}" target="_self" style="'
+                            f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
+                            f'background:linear-gradient(135deg,#d4a843 0%,#b8922e 50%,#d4a843 100%);'
+                            f'border:none;border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:800;'
+                            f'letter-spacing:.06em;text-transform:uppercase;color:#0a0b14;text-decoration:none;'
+                            f'box-sizing:border-box;">☆ + Watchlist</a>',
+                            unsafe_allow_html=True
+                        )
                     if resolved_tk not in ALL_SECTORS:
                         st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception:
