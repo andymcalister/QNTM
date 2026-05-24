@@ -2880,7 +2880,7 @@ def page_auth():
     </style>
     """, unsafe_allow_html=True)
 
-    col_back, col_center, col_right = st.columns([1, 2, 1])
+    col_back, col_center, col_right = st.columns([1, 4, 1])
     with col_back:
         st.markdown('<div style="padding:24px 0 0 24px;">', unsafe_allow_html=True)
         if st.button("← Back", key="auth_back"):
