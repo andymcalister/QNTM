@@ -3502,15 +3502,16 @@ def page_watchlist():
 
     # Table header
     st.markdown(
-        '<div style="display:grid;grid-template-columns:140px 1fr 80px 80px 80px 80px;'
-        'gap:8px;padding:8px 14px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;">TICKER</div>'
-        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;">SECTOR</div>'
-        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:right;">PRICE</div>'
-        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:right;">SCORE</div>'
-        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:right;">SIGNAL</div>'
-        '<div style="font-size:10px;color:#475569;letter-spacing:.08em;text-align:center;">ACTION</div>'
+        '<div style="display:grid;grid-template-columns:160px 120px 90px 70px 120px 1fr 130px;'
+        'gap:8px;padding:10px 16px;background:#0d1117;border-radius:6px 6px 0 0;'
+        'border:1px solid rgba(255,255,255,.1);">'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">TICKER</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">SECTOR</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">PRICE</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SCORE</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SIGNAL</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">FACTOR DRIVERS</div>'
+        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:center;">ACTION</div>'
         '</div>',
         unsafe_allow_html=True
     )
@@ -3520,38 +3521,55 @@ def page_watchlist():
         sc  = score_map.get(tk, {})
         adj = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
         price = sc.get("price")
+        mom   = float(sc.get("momentum",  0) or 0)
+        qual  = float(sc.get("quality",   0) or 0)
+        vol   = float(sc.get("volume",    0) or 0)
+        val   = float(sc.get("value",     0) or 0)
+        sent  = float(sc.get("sentiment", 0) or 0)
         sector = _WL_SECTORS.get(tk, "—")
-        ci  = get_company_info(tk)
-        name = (ci.get("name", tk) if ci else tk)[:22]
+        ci    = get_company_info(tk)
+        name  = (ci.get("name", tk) if ci else tk)[:24]
 
         sig_label = "High Conviction" if adj >= 60 else ("Low Conviction" if adj < 45 else "Moderate")
         sig_color = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
         score_col = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
+        border_c  = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#334155")
         bg = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
         price_str = f"${price:,.2f}" if price else "—"
         score_str = f"{adj:.0f}" if adj else "—"
 
+        # Top 2 factors
+        pillars = sorted([("MOM",mom),("QUAL",qual),("VOL",vol),("VAL",val),("SENT",sent)],
+                         key=lambda x: x[1], reverse=True)
+        top2 = " · ".join(f'<span style="color:#e2e8f0;">{p[0]}</span> <span style="color:{("#00ff87" if p[1]>=65 else "#fbbf24")};">{p[1]:.0f}</span>' for p in pillars[:2])
+        weak = [p for p in pillars if p[1] < 45]
+        weak_str = f' &nbsp;·&nbsp; <span style="color:#ef4444;">watch {weak[0][0]}</span>' if weak else ""
+
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:140px 1fr 80px 80px 80px 80px;'
-            f'gap:8px;padding:10px 14px;background:{bg};'
-            f'border-left:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);'
+            f'<div style="display:grid;grid-template-columns:160px 120px 90px 70px 120px 1fr 130px;'
+            f'gap:8px;padding:12px 16px;background:{bg};'
+            f'border-left:3px solid {border_c};'
+            f'border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
             f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{tk}</div>'
-            f'<div style="font-size:10px;color:#475569;">{name}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{tk}</div>'
+            f'<div style="font-size:11px;color:#64748b;margin-top:1px;">{name}</div>'
             f'</div>'
-            f'<div style="font-size:11px;color:#475569;">{sector}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;text-align:right;">{price_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:{score_col};text-align:right;">{score_str}</div>'
-            f'<div style="font-size:11px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
-            f'<div style="text-align:center;"></div>'
+            f'<div style="font-size:12px;color:#64748b;">{sector}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;text-align:right;">{price_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{score_col};text-align:right;">{score_str}</div>'
+            f'<div style="font-size:12px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
+            f'<div style="font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
+            f'<div></div>'
             f'</div>',
             unsafe_allow_html=True
         )
-        # Remove button inline
-        if st.button("✕", key=f"wl_rm_{tk}_{i}", help=f"Remove {tk}"):
-            remove_from_watchlist(uid(), tk)
-            st.rerun()
+        # Remove button in the last column
+        _, btn_col = st.columns([6, 1])
+        with btn_col:
+            if st.button(f"Remove {tk}", key=f"wl_rm_{tk}_{i}", use_container_width=True):
+                remove_from_watchlist(uid(), tk)
+                st.rerun()
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
