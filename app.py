@@ -2674,6 +2674,31 @@ def page_auth():
     st.markdown("""
     <div style="position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% -10%,
          rgba(0,255,135,.06) 0%,transparent 65%);pointer-events:none;z-index:0;"></div>
+    <style>
+    /* Auth tab buttons — full width, equal size, active state highlighted */
+    div[data-testid="column"] .stButton > button {
+        border-radius: 0 !important;
+        border: none !important;
+        border-bottom: 2px solid rgba(255,255,255,.08) !important;
+        background: transparent !important;
+        color: #64748b !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        letter-spacing: .06em !important;
+        text-transform: uppercase !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    div[data-testid="column"] .stButton > button:hover {
+        background: rgba(0,255,135,.05) !important;
+        border-bottom-color: rgba(0,255,135,.4) !important;
+        color: #94a3b8 !important;
+        transform: none !important;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
     col_back, col_center, col_right = st.columns([1, 2, 1])
@@ -2698,10 +2723,19 @@ def page_auth():
         if "auth_tab" not in st.session_state:
             st.session_state.auth_tab = "signin"
 
-        tab_signin, tab_register = st.tabs(["Sign In", "Create Account"])
+        t1_label = "▶ Sign In" if st.session_state.auth_tab == "signin" else "Sign In"
+        t2_label = "▶ Create Account" if st.session_state.auth_tab == "register" else "Create Account"
+        tc1, tc2 = st.columns(2)
+        with tc1:
+            if st.button(t1_label, key="tab_signin_btn", use_container_width=True):
+                st.session_state.auth_tab = "signin"
+                st.rerun()
+        with tc2:
+            if st.button(t2_label, key="tab_register_btn", use_container_width=True):
+                st.session_state.auth_tab = "register"
+                st.rerun()
 
-        # ── SIGN IN ───────────────────────────────────────────────────────────
-        with tab_signin:
+        if st.session_state.auth_tab == "signin":
             st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
             si_email = st.text_input("Email address", key="si_email",
@@ -2751,7 +2785,7 @@ def page_auth():
             """, unsafe_allow_html=True)
 
         # ── REGISTER ──────────────────────────────────────────────────────────
-        with tab_register:
+        else:
             st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
             # Plan selection
@@ -3880,7 +3914,6 @@ def page_gems():
                 add_to_watchlist(uid(), tk, price_at_add=float(price) if price else None)
                 wl_tickers.add(tk)
                 st.success(f"✓ {tk} added to Watchlist")
-                st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         except Exception:
