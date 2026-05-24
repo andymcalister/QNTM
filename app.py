@@ -3049,7 +3049,6 @@ def page_portfolio():
         "Add your positions and QNTM applies the full conviction model to each one every scan. "
         "See your blended score, pillar breakdown, and whether the signal has changed since you entered. "
         "Free accounts track up to 10 positions. Pro unlocks unlimited holdings and real-time signal alerts.",
-        pills=[f"Up to {'∞' if max_h == 999 else max_h} positions", "Live model signals", "P&L tracking", "Signal change detection"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
@@ -4094,7 +4093,6 @@ def page_account():
         "Manage your profile, secure your account with two-factor authentication, and upgrade your plan. "
         "Founding Member gives you full Pro access free — unlimited holdings, Hidden Gems, and signal alerts — "
         "locked in for the first 50 users.",
-        pills=[f"Plan: {plan.upper()}", "2FA security", "Notification prefs"]
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
