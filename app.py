@@ -2876,7 +2876,7 @@ def platform_nav():
         '<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;'
         'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
         '<label for="qntm-toggle" class="qntm-menu-trigger">'
-        f'<span>{cur_em} {cur_label}</span>'
+        '<span>☰  MENU</span>'
         '<svg class="qntm-chevron" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5">'
         '<polyline points="6 9 12 15 18 9"/></svg>'
         '</label>'
