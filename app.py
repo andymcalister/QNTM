@@ -3819,7 +3819,11 @@ def page_gems():
         return
 
     if st.session_state.scan_results is None:
-        st.session_state.scan_results = run_full_scan(use_live_prices=False)
+        with st.spinner("Loading scores..."):
+            st.session_state.scan_results = run_full_scan(use_live_prices=False)
+        if not st.session_state.scan_results:
+            st.info("No scan data available. Run a Rescan on the Screener first.")
+            return
 
     gems = detect_hidden_gems(st.session_state.scan_results, macro_data=st.session_state.get("macro_data"))
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
@@ -6298,7 +6302,9 @@ def page_platform():
     if not st.session_state.get("live_refresh_running"):
         if now - st.session_state.last_refresh >= 60:
             st.session_state.last_refresh = now
-            st.session_state.scan_results = None
+            # Don't wipe scan if on gems — button clicks would trigger 4-min rescan
+            if st.session_state.get("nav") != "gems":
+                st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
 
