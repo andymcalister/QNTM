@@ -2085,12 +2085,8 @@ def page_legal(doc_key: str = "privacy"):
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <a href="/" style="display:inline-flex;align-items:center;gap:6px;
-       font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#00ff87;
-       text-decoration:none;padding:10px 16px;border:1px solid rgba(0,255,135,.3);
-       border-radius:6px;margin:16px 16px 0;">← Back</a>
-    """, unsafe_allow_html=True)
+    st.markdown(_back_btn("/"), unsafe_allow_html=True)
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     st.markdown('<div class="legal-body">', unsafe_allow_html=True)
     st.markdown(text)
@@ -2899,9 +2895,8 @@ def page_auth():
 
     col_back, col_center, col_right = st.columns([1, 4, 1])
     with col_back:
-        st.markdown('<div style="padding:24px 0 0 24px;">', unsafe_allow_html=True)
-        if st.button("← Back", key="auth_back"):
-            go("landing")
+        st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
+        st.markdown(_back_btn("?nav=landing"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_center:
@@ -3120,8 +3115,7 @@ def page_mfa():
                     st.error("Invalid code — check your app and try again")
 
             st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
-            if st.button("← Back to sign in", key="mfa_back"):
-                go("auth")
+            st.markdown(_back_btn("?nav=signin", "← Back to Sign In"), unsafe_allow_html=True)
 
             # Recovery option
             st.markdown("""
@@ -3772,7 +3766,22 @@ def page_screener():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-def _pin_nav(page_key: str):
+def _back_btn(href: str, label: str = "← Back") -> str:
+    """Styled ghost back button as HTML link."""
+    return (
+        f'<a href="{href}" target="_self" style="'
+        f'display:inline-flex;align-items:center;gap:6px;'
+        f'padding:8px 16px;border-radius:6px;'
+        f'border:1px solid rgba(255,255,255,.12);'
+        f'background:rgba(255,255,255,.03);'
+        f'font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+        f'letter-spacing:.06em;text-transform:uppercase;'
+        f'color:#94a3b8;text-decoration:none;'
+        f'transition:border-color .15s,color .15s;">'
+        f'{label}</a>'
+    )
+
+
     """Pin nav to current page — prevents text input reruns from dropping to screener."""
     st.session_state.nav  = page_key
     st.session_state.page = "platform"
@@ -6805,57 +6814,55 @@ def page_platform():
 def page_upgrade():
     """Upgrade to Pro page — handles upgrade flow, Stripe when ready."""
     _pin_nav("upgrade")
-    feature = st.session_state.get("upgrade_feature", "Pro")
+    feature    = st.session_state.get("upgrade_feature", "Pro")
+    return_nav = st.session_state.get("upgrade_return_nav", "screener")
 
-    # If already pro, redirect to the feature they came from
+    # Already pro — redirect back
     if is_pro():
-        _dest = st.session_state.get("upgrade_return_nav", "screener")
-        st.session_state.nav = _dest
+        st.session_state.nav  = return_nav
         st.session_state.page = "platform"
         st.rerun()
         return
 
-    _, col, _ = st.columns([1, 3, 1])
-    with col:
-        st.markdown(f"""
-        <div style="text-align:center;padding:48px 24px;">
-          <div style="font-size:56px;margin-bottom:20px;">⚡</div>
-          <div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;
-               color:#d4a843;margin-bottom:12px;">Upgrade to Pro</div>
-          <div style="font-size:16px;color:#94a3b8;margin-bottom:8px;">
-               You're unlocking: <strong style="color:#e2e8f0;">{feature}</strong></div>
-          <div style="font-size:14px;color:#64748b;margin-bottom:40px;line-height:1.7;">
-            Full access to Hidden Gems · Portfolio Simulator · Signal Alerts ·
-            Unlimited holdings · Full 834-stock universe
-          </div>
-          <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);
-               border-radius:10px;padding:24px;margin-bottom:32px;">
-            <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;
-                 letter-spacing:.08em;margin-bottom:8px;">FOUNDING MEMBER — FIRST 50 USERS</div>
-            <div style="font-family:Syne,sans-serif;font-size:40px;font-weight:800;color:#d4a843;">$0</div>
-            <div style="font-size:14px;color:#94a3b8;margin-top:4px;">free while founding · then $29/mo</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+    _uid_val  = (st.session_state.user or {}).get("id", "")
+    _plan_val = (st.session_state.user or {}).get("plan", "free")
+    _back_url    = f"?qnav={return_nav}&uid={_uid_val}&plan={_plan_val}&ck=1&_n={return_nav}"
+    _confirm_url = (
+        f"?qnav={return_nav}&uid={_uid_val}&plan={_plan_val}"
+        f"&ck=1&upgrade=pro&_n={return_nav}"
+    )
 
-        if st.button("✓ Claim Founding Member Access", key="upgrade_confirm", use_container_width=True):
-            ok = upgrade_plan(uid(), "pro")
-            if ok and st.session_state.get("user"):
-                st.session_state.user["plan"] = "pro"
-                st.session_state.page = "platform"
-                st.session_state.nav  = st.session_state.get("upgrade_return_nav", "screener")
-                st.rerun()
-            else:
-                st.error("Something went wrong — please try again or contact hello@qntm.app")
+    st.markdown(_back_btn(_back_url), unsafe_allow_html=True)
 
-        st.markdown("""
-        <div style="text-align:center;margin-top:16px;">
-          <div style="font-size:11px;color:#334155;line-height:1.7;">
-            QNTM provides quantitative research tools for informational purposes only.<br>
-            Not investment advice. Past model performance does not guarantee future results.
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="max-width:480px;margin:40px auto;padding:0 16px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">⚡</div>
+      <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;
+           color:#d4a843;margin-bottom:8px;">Upgrade to Pro</div>
+      <div style="font-size:14px;color:#94a3b8;margin-bottom:4px;">
+        Unlocking: <strong style="color:#e2e8f0;">{feature}</strong>
+      </div>
+      <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.25);
+           border-radius:10px;padding:20px;margin:20px 0;">
+        <div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;
+             letter-spacing:.1em;margin-bottom:6px;">FOUNDING MEMBER · FIRST 50 SPOTS</div>
+        <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
+        <div style="font-size:13px;color:#64748b;margin-top:4px;">free now · $29/mo after launch</div>
+      </div>
+      <div style="font-size:12px;color:#475569;margin-bottom:20px;line-height:1.6;">
+        Hidden Gems · Simulator · Alerts · Unlimited holdings · Full 834-stock universe
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(_cta_gold("✓ Claim Founding Member Access", _confirm_url), unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="text-align:center;margin-top:12px;font-size:11px;color:#334155;line-height:1.6;">
+      Quantitative research tool — not investment advice.<br>
+      Past model performance does not guarantee future results.
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def main():
@@ -6872,6 +6879,9 @@ def main():
     if st.query_params.get("nav") == "register":
         st.session_state.auth_tab = "register"
         st.session_state.page = "auth"
+        st.query_params.pop("nav", None)
+    if st.query_params.get("nav") == "landing":
+        st.session_state.page = "landing"
         st.query_params.pop("nav", None)
 
 
