@@ -1973,44 +1973,101 @@ def page_landing():
     """, unsafe_allow_html=True)
 
     # ── HERO ──────────────────────────────────────────────────────────────────
+    bt = BACKTEST_DATA
     st.markdown(f"""
-    <div style="padding:80px clamp(16px,4vw,48px) 60px;max-width:1200px;margin:0 auto;
-         background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(212,168,67,.08) 0%,transparent 70%);">
+    <div style="padding:48px clamp(16px,4vw,48px) 36px;max-width:1200px;margin:0 auto;
+         background:radial-gradient(ellipse 80% 50% at 30% 0%,rgba(212,168,67,.06) 0%,transparent 70%);
+         display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;">
 
-      <div style="display:inline-flex;align-items:center;gap:10px;
-           background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);
-           border-radius:100px;padding:6px 16px;margin-bottom:28px;">
-        <div style="width:7px;height:7px;background:#00ff87;border-radius:50%;
-             animation:land-pulse 2s infinite;flex-shrink:0;"></div>
-        <span style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;">
-          MODEL LIVE &middot; 5-YR VALIDATED &middot; 834 STOCKS &middot; RISK-OFF REGIME
-        </span>
+      <!-- Left: headline + subtext + CTAs -->
+      <div>
+        <div style="display:inline-flex;align-items:center;gap:8px;
+             background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.2);
+             border-radius:100px;padding:5px 14px;margin-bottom:20px;">
+          <div style="width:6px;height:6px;background:#00ff87;border-radius:50%;
+               animation:land-pulse 2s infinite;flex-shrink:0;"></div>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">
+            MODEL LIVE · 5-YR VALIDATED · 834 STOCKS
+          </span>
+        </div>
+
+        <h1 style="font-family:'Syne',sans-serif;font-size:clamp(34px,4.5vw,62px);
+             font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:16px;">
+          Know where<br>conviction is<br>
+          <span style="color:#d4a843;">strongest.</span>
+        </h1>
+
+        <p style="font-size:15px;color:#94a3b8;max-width:420px;line-height:1.7;margin-bottom:28px;">
+          A multi-factor quantitative model scoring 834 stocks daily across momentum,
+          quality, volume, value, and sentiment — blended with a live macro regime overlay.
+        </p>
       </div>
 
-      <h1 style="font-family:'Syne',sans-serif;font-size:clamp(38px,6.5vw,76px);
-           font-weight:800;line-height:.95;letter-spacing:-.02em;color:#ffffff;margin-bottom:22px;">
-        Know where conviction<br>
-        <span style="color:#d4a843;">is strongest.</span>
-      </h1>
+      <!-- Right: live stats panel -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.15);
+             border-radius:10px;padding:18px 16px;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
+               letter-spacing:.1em;margin-bottom:6px;">5-YR RETURN</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">
+            +{bt['model_total_ret']:.0f}%
+          </div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY +{bt['spy_total_ret']:.0f}%</div>
+        </div>
+        <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
+             border-radius:10px;padding:18px 16px;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
+               letter-spacing:.1em;margin-bottom:6px;">SHARPE RATIO</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">
+            {bt['sharpe']:.2f}
+          </div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;">&gt;1.0 excellent</div>
+        </div>
+        <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.1);
+             border-radius:10px;padding:18px 16px;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
+               letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">
+            {bt['win_rate_quarterly']*100:.0f}%
+          </div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div>
+        </div>
+        <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
+             border-radius:10px;padding:18px 16px;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;
+               letter-spacing:.1em;margin-bottom:6px;">MAX DRAWDOWN</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">
+            {bt['max_dd_model']:.1f}%
+          </div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY {bt['max_dd_spy']:.1f}%</div>
+        </div>
+      </div>
 
-      <p style="font-size:17px;color:#94a3b8;max-width:520px;line-height:1.75;margin-bottom:40px;">
-        QNTM surfaces high conviction opportunities, weakening signals, and market regime shifts
-        across 834 stocks — refreshed daily, grounded in a multi-factor quantitative model.
-      </p>
     </div>
+
+    <!-- Mobile: stack the grid -->
+    <style>
+    @media (max-width:700px) {{
+      div[style*="grid-template-columns:1fr 1fr;gap:48px"] {{
+        grid-template-columns:1fr !important;
+        gap:24px !important;
+      }}
+    }}
+    </style>
     """, unsafe_allow_html=True)
 
-    # Hero CTA buttons — real Streamlit, work immediately
-    hb1, hb2 = st.columns(2)
+    # Hero CTA buttons
+    hb1, hb2, hb3 = st.columns([2, 2, 3])
     with hb1:
         st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-        if st.button("Explore QNTM Free →", key="hero_register", use_container_width=True):
+        if st.button("Get Started Free →", key="hero_register", use_container_width=True):
             st.session_state.auth_tab = "register"
+            st.session_state.nav = "screener"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
     with hb2:
         st.markdown('<div class="land-btn-ghost">', unsafe_allow_html=True)
-        if st.button("Sign In →", key="hero_signin", use_container_width=True):
+        if st.button("Sign In", key="hero_signin", use_container_width=True):
             st.session_state.auth_tab = "signin"
             go("auth")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -2744,30 +2801,12 @@ def platform_nav():
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
-        display_name = em[:20] + ("…" if len(em) > 20 else "")
-    notif_html = (
-        f'<span style="background:rgba(239,68,68,.2);color:#ef4444;border-radius:50%;'
-        f'width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;'
-        f'font-size:13px;font-weight:700;">{n_count}</span>'
+        display_name = em[:16] + ("…" if len(em) > 16 else "")
+    notif_dot = (
+        f'<span style="background:#ef4444;color:#fff;border-radius:50%;'
+        f'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
+        f'font-size:10px;font-weight:700;">{n_count}</span>'
     ) if n_count > 0 else ""
-
-    st.markdown(
-        f'<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
-        f'border-bottom:1px solid rgba(255,255,255,.06);'
-        f'padding:0 32px;height:56px;display:flex;align-items:center;'
-        f'justify-content:space-between;position:sticky;top:0;z-index:999;">'
-        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;letter-spacing:.15em;color:#e2e8f0;">'
-        f'Q<span style="color:#00ff87;">NTM</span></div>'
-        f'<div style="display:flex;align-items:center;gap:16px;">'
-        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-        f'border:1px solid {plan_color}44;border-radius:3px;padding:3px 10px;'
-        f'font-size:13px;font-weight:700;letter-spacing:.12em;font-family:Syne,sans-serif;">'
-        f'{plan.upper()}</span>'
-        f'{notif_html}'
-        f'<span style="font-size:13px;color:#94a3b8;font-family:DM Mono,monospace;">{display_name}</span>'
-        f'</div></div>',
-        unsafe_allow_html=True
-    )
 
     nav_labels = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio",
                   "🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account","📖 Methodology","🚪 Sign Out"]
@@ -2775,25 +2814,59 @@ def platform_nav():
                   "simulator","model_portfolio","alerts","account","methodology","__signout__"]
     cur_nav    = st.session_state.get("nav","screener")
     cur_idx    = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
+    cur_label  = nav_labels[cur_idx] if cur_idx < len(nav_labels) else "📊 Screener"
 
-    # Sticky nav bar CSS
+    # ── Nav CSS ───────────────────────────────────────────────────────────────
     st.markdown("""
     <style>
-    [data-testid="stMainBlockContainer"] > div:first-child {
-        position: sticky; top: 0; z-index: 999; background: #0a0b14;
-    }
+    /* Nav selectbox — no label, styled dark */
     div[data-testid="stSelectbox"] label { display:none !important; }
     div[data-testid="stSelectbox"] > div > div {
-        background: rgba(13,17,23,.97) !important;
-        border: 1px solid rgba(0,255,135,.2) !important;
+        background: rgba(13,17,23,.95) !important;
+        border: 1px solid rgba(255,255,255,.1) !important;
         border-radius: 6px !important;
         font-family: Syne, sans-serif !important;
         font-size: 13px !important;
         color: #e2e8f0 !important;
+        padding: 6px 12px !important;
+        min-height: 40px !important;
+    }
+    /* Sticky wrapper for the whole nav block */
+    section[data-testid="stMain"] > div > div[data-testid="stVerticalBlock"] > div:first-child {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 999 !important;
+        background: rgba(2,4,8,.97) !important;
+        backdrop-filter: blur(12px) !important;
+        border-bottom: 1px solid rgba(255,255,255,.06) !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
+    # ── Top bar: logo left | plan+user right ──────────────────────────────────
+    c_logo, c_right = st.columns([1, 1])
+    with c_logo:
+        st.markdown(
+            f'<div style="padding:10px 0 4px;">'
+            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
+            f'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    with c_right:
+        st.markdown(
+            f'<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:10px 0 4px;">'
+            f'{notif_dot}'
+            f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+            f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 8px;'
+            f'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
+            f'{plan.upper()}</span>'
+            f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+    # ── Selectbox nav ─────────────────────────────────────────────────────────
     sel = st.selectbox("nav", nav_labels, index=cur_idx,
                        label_visibility="collapsed", key="nav_select")
     sel_key = nav_keys[nav_labels.index(sel)]
@@ -2807,7 +2880,8 @@ def platform_nav():
         _clear_localstorage_token()
         go("landing")
     elif sel_key != cur_nav:
-        nav(sel_key)
+        st.session_state.nav = sel_key
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
