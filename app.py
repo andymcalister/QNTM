@@ -1380,6 +1380,38 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     weak = [p[0] for p in sorted_pillars if p[1] < 45]
     driver = f"Driven by {top2[0]} + {top2[1]}"
     if weak: driver += f" — watch {weak[0]}"
+
+    # Plain-English explainability
+    PILLAR_EXPLAIN = {
+        "MOM":  ("price trend and relative strength are strong",   "price trend is weakening"),
+        "QUAL": ("earnings quality and balance sheet are solid",   "earnings quality is a concern"),
+        "VOL":  ("volume confirms institutional interest",         "volume signal is weak"),
+        "VAL":  ("stock looks undervalued vs sector peers",        "stock looks stretched on valuation"),
+        "SENT": ("analyst sentiment is improving",                 "analyst sentiment is negative"),
+    }
+    drivers_text = []
+    watches_text = []
+    for pname, pval in sorted_pillars:
+        pos, neg = PILLAR_EXPLAIN.get(pname, (pname, pname))
+        if pval >= 65:
+            drivers_text.append(pos)
+        elif pval < 45:
+            watches_text.append(neg)
+    why_parts = []
+    if drivers_text:
+        why_parts.append(f'<span style="color:#94a3b8;">{"; ".join(drivers_text[:2]).capitalize()}.</span>')
+    if watches_text:
+        why_parts.append(f'<span style="color:#ef4444;">Watch: {watches_text[0]}.</span>')
+    if delta and abs(delta) >= 2:
+        macro_txt = "Macro regime is adding a tailwind." if delta > 0 else "Macro regime is dampening the score."
+        why_parts.append(f'<span style="color:{"#00ff87" if delta>0 else "#f97316"};">{macro_txt}</span>')
+    why_html = (
+        f'<div style="font-size:12px;line-height:1.6;padding:8px 10px;margin-top:8px;'
+        f'background:rgba(255,255,255,.02);border-radius:4px;border-left:2px solid rgba(255,255,255,.08);">'
+        f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.08em;">WHY THIS SCORE · </span>'
+        + " ".join(why_parts) +
+        f'</div>'
+    ) if why_parts else ""
     delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
     delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
     gem_badge = ' 💎' if is_gem else ""
@@ -1439,7 +1471,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
         f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">RANK</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{r.get("pct_rank",50):.0f}th</div></div>'
-        f'</div></div>'
+        f'</div>'
+        + why_html +
+        f'</div>'
     )
 
 
@@ -3479,27 +3513,22 @@ def page_screener():
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
-            filter_act = st.selectbox("Signal", ["All","BUY","HOLD","SELL"], key="f_act", label_visibility="collapsed")
+            filter_act = st.selectbox("Signal", ["All","High Conviction","Moderate","Low Conviction"], key="f_act", label_visibility="collapsed")
         with fc3:
-            filter_sig = st.selectbox("Signal Strength", ["All","STRONG ALIGN","HIGH ALIGN","MODERATE","LOW ALIGN","WEAK/NEG"], key="f_sig")
-        rb1, rb2 = st.columns(2)
-        with rb1:
-            if st.button("🔄 Rescan", key="rescan", use_container_width=True):
-                st.session_state.scan_results = None
-                st.rerun()
-        with rb2:
-            if st.button("⚡ Live Refresh", key="live_refresh", use_container_width=True):
-                pass  # live refresh removed
-                st.rerun()
+            filter_min = st.selectbox("Min Score", ["All","60+","70+","80+"], key="f_min")
 
-
-
+        if st.button("🔄 Rescan", key="rescan", use_container_width=True):
+            st.session_state.scan_results = None
+            st.rerun()
 
         filtered = results
-        if filter_sig != "All": filtered = [r for r in filtered if r["signal"]==filter_sig]
-        if filter_sec != "All": filtered = [r for r in filtered if r["sector"]==filter_sec]
+        if filter_sec != "All": filtered = [r for r in filtered if r.get("sector")==filter_sec]
         if filter_act != "All":
-            filtered = [r for r in filtered if r.get("adj_action",r.get("action"))==filter_act]
+            act_map = {"High Conviction":"BUY","Moderate":"HOLD","Low Conviction":"SELL"}
+            filtered = [r for r in filtered if r.get("adj_action",r.get("action"))==act_map.get(filter_act)]
+        if filter_min != "All":
+            min_score = int(filter_min.replace("+",""))
+            filtered = [r for r in filtered if float(r.get("adj_composite",r.get("composite",0)) or 0) >= min_score]
 
         st.markdown(
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;'
@@ -3590,6 +3619,56 @@ def page_watchlist():
             pass
 
     from model_engine import EXIT_THRESHOLD, ENTRY_THRESHOLD, SECTORS as _WL_SECTORS
+
+    # ── Watchlist alerts — conviction changes ─────────────────────────────────
+    # Compare current score to entry score stored in DB — surface big moves
+    alerts = []
+    for w in watchlist:
+        tk = w["ticker"]
+        sc = score_map.get(tk, {})
+        cur = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
+        entry_score = float(w.get("entry_score") or w.get("adj_composite") or 0)
+        if cur == 0 or entry_score == 0:
+            continue
+        delta = cur - entry_score
+        # Conviction level change
+        def _level(s):
+            return "High" if s >= 60 else ("Low" if s < 45 else "Moderate")
+        cur_level   = _level(cur)
+        entry_level = _level(entry_score)
+        if cur_level != entry_level:
+            color = "#00ff87" if cur_level == "High" else ("#ef4444" if cur_level == "Low" else "#fbbf24")
+            arrow = "▲" if cur > entry_score else "▼"
+            alerts.append(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:8px 12px;background:rgba(255,255,255,.02);border-radius:4px;margin-bottom:4px;">'
+                f'<div><span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{tk}</span>'
+                f' <span style="font-size:12px;color:#64748b;">conviction changed</span></div>'
+                f'<span style="font-size:13px;font-weight:700;color:{color};">{arrow} {entry_level} → {cur_level}</span>'
+                f'</div>'
+            )
+        # Large score move (10+) without level change
+        elif abs(delta) >= 10:
+            color = "#00ff87" if delta > 0 else "#ef4444"
+            sign  = "+" if delta > 0 else ""
+            alerts.append(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:8px 12px;background:rgba(255,255,255,.02);border-radius:4px;margin-bottom:4px;">'
+                f'<div><span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{tk}</span>'
+                f' <span style="font-size:12px;color:#64748b;">score moved significantly</span></div>'
+                f'<span style="font-size:13px;font-weight:700;color:{color};">{sign}{delta:.0f} pts → {cur:.0f}</span>'
+                f'</div>'
+            )
+
+    if alerts:
+        st.markdown(
+            f'<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.2);'
+            f'border-radius:8px;padding:12px 16px;margin-bottom:16px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;margin-bottom:8px;">🔔 CONVICTION UPDATES</div>'
+            + "".join(alerts) +
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
     # Summary header
     n = len(watchlist)
@@ -4491,7 +4570,7 @@ def page_portfolio():
         ]:
             _fsz = "16px" if len(_vl)>3 else "22px"
             _html += (
-                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);"'
+                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
                 f'border-radius:8px;padding:12px 14px;text-align:center;">'
                 f'<div style="font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:4px;">{_lb}</div>'
                 f'<div style="font-family:Syne,sans-serif;font-size:{_fsz};font-weight:700;color:{_cl2};">{_vl}</div>'
