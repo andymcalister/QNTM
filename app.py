@@ -2736,8 +2736,6 @@ def page_mfa():
 # PLATFORM — TOP NAV
 # ══════════════════════════════════════════════════════════════════════════════
 def platform_nav():
-    import streamlit.components.v1 as _cv1
-
     user  = st.session_state.user or {}
     plan  = user.get("plan","free")
     n_count = get_unread_count(uid()) if plan in ("pro","institutional") else 0
@@ -2750,135 +2748,149 @@ def platform_nav():
 
     cur_nav = st.session_state.get("nav","screener")
     nav_items = [
-        ("screener",        "SS", "Screener"),
-        ("gems",            "GG", "Hidden Gems"),
-        ("backtest",        "BT", "Backtest"),
-        ("portfolio",       "PF", "Portfolio"),
-        ("simulator",       "SM", "Simulator"),
-        ("model_portfolio", "MP", "Model Portfolio"),
-        ("alerts",          "AL", "Alerts"),
-        ("account",         "AC", "Account"),
-        ("methodology",     "HW", "Methodology"),
+        ("screener",        "📊", "Screener"),
+        ("gems",            "💎", "Hidden Gems"),
+        ("backtest",        "📈", "Backtest"),
+        ("portfolio",       "💼", "Portfolio"),
+        ("simulator",       "🧮", "Simulator"),
+        ("model_portfolio", "🏆", "Model Portfolio"),
+        ("alerts",          "🔔", "Alerts"),
+        ("account",         "⚙️", "Account"),
+        ("methodology",     "📖", "Methodology"),
     ]
-    em_map = {
-        "screener":"📊","gems":"💎","backtest":"📈","portfolio":"💼",
-        "simulator":"🧮","model_portfolio":"🏆","alerts":"🔔",
-        "account":"⚙️","methodology":"📖",
-    }
-    cur_label = em_map.get(cur_nav,"📊") + " " + next((l for k,_,l in nav_items if k==cur_nav), "Screener")
+    cur_em    = next((e for k,e,l in nav_items if k==cur_nav), "📊")
+    cur_label = next((l for k,e,l in nav_items if k==cur_nav), "Screener")
 
+    # Session params to preserve across navigation
     _uid_val  = st.query_params.get("uid","")
     _plan_val = user.get("plan","free")
-    qp_base   = f"&plan={_plan_val}&ck=1"
+    qp_suffix = f"&plan={_plan_val}&ck=1"
     if _uid_val:
-        qp_base = f"&uid={_uid_val}" + qp_base
+        qp_suffix = f"&uid={_uid_val}" + qp_suffix
 
-    items_html = ""
-    for key, _, label in nav_items:
-        active = "qn-active" if key == cur_nav else ""
-        em     = em_map.get(key,"")
-        badge  = '<span class="qn-badge">' + str(n_count) + '</span>' if (key=="alerts" and n_count>0) else ""
-        items_html += (
-            '<a class="qn-item ' + active + '" href="?qnav=' + key + qp_base + '">' +
-            '<span class="qn-em">' + em + '</span>' +
-            '<span class="qn-lbl">' + label + '</span>' +
-            badge + '</a>'
+    # Build the 3-col grid of box buttons
+    grid_html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 16px 16px;">'
+    for key, em, label in nav_items:
+        href = f"?qnav={key}{qp_suffix}"
+        if key == cur_nav:
+            btn_style = (
+                'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+                'gap:6px;padding:14px 8px;text-decoration:none;border-radius:8px;'
+                'background:linear-gradient(135deg,rgba(0,255,135,.14),rgba(0,255,135,.04));'
+                'border:1px solid rgba(0,255,135,.5);'
+                'box-shadow:0 0 12px rgba(0,255,135,.1);'
+            )
+            em_style  = 'font-size:20px;line-height:1;'
+            lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
+                         'letter-spacing:.05em;text-transform:uppercase;color:#00ff87;'
+                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90%;text-align:center;')
+        else:
+            btn_style = (
+                'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+                'gap:6px;padding:14px 8px;text-decoration:none;border-radius:8px;'
+                'background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));'
+                'border:1px solid rgba(255,255,255,.08);'
+                'transition:all .18s ease;'
+            )
+            em_style  = 'font-size:20px;line-height:1;opacity:.6;'
+            lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:600;'
+                         'letter-spacing:.05em;text-transform:uppercase;color:#64748b;'
+                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90%;text-align:center;')
+
+        badge = (
+            f'<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;'
+            f'border-radius:50%;width:14px;height:14px;display:flex;align-items:center;'
+            f'justify-content:center;font-size:8px;font-weight:700;">{n_count}</span>'
+        ) if (key == "alerts" and n_count > 0) else ""
+
+        grid_html += (
+            f'<a href="{href}" style="position:relative;{btn_style}">'
+            f'<span style="{em_style}">{em}</span>'
+            f'<span style="{lbl_style}">{label}</span>'
+            f'{badge}</a>'
         )
-    items_html += (
-        '<div class="qn-divider"></div>' +
-        '<a class="qn-item qn-signout" href="?qnav=signout">' +
-        '<span class="qn-em">🚪</span>' +
-        '<span class="qn-lbl">Sign Out</span></a>'
-    )
 
-    notif_html = (
-        '<span style="background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;' +
-        'display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">' +
-        str(n_count) + '</span>'
+    # Sign out button
+    grid_html += (
+        f'<a href="?qnav=signout" style="'
+        f'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+        f'gap:6px;padding:14px 8px;text-decoration:none;border-radius:8px;'
+        f'background:linear-gradient(135deg,rgba(239,68,68,.08),rgba(239,68,68,.02));'
+        f'border:1px solid rgba(239,68,68,.2);">'
+        f'<span style="font-size:20px;line-height:1;opacity:.7;">🚪</span>'
+        f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:600;'
+        f'letter-spacing:.05em;text-transform:uppercase;color:#ef4444;">Sign Out</span>'
+        f'</a>'
+    )
+    grid_html += '</div>'
+
+    notif_dot = (
+        f'<span style="background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;'
+        f'display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">'
+        f'{n_count}</span>'
     ) if n_count > 0 else ""
 
+    is_dev = os.getenv("ENVIRONMENT") == "dev"
+    dd_top = "88px" if is_dev else "56px"
+
     nav_html = (
-        '<!DOCTYPE html><html><head><style>' +
-        '*{margin:0;padding:0;box-sizing:border-box;}' +
-        'body{background:transparent;font-family:system-ui,sans-serif;}' +
-        '.qn-bar{background:rgba(2,4,8,.97);border-bottom:1px solid rgba(255,255,255,.07);' +
-        'padding:0 20px;height:56px;display:flex;align-items:center;' +
-        'justify-content:space-between;position:relative;}' +
-        '.qn-logo{font-family:Syne,sans-serif;font-size:20px;font-weight:800;' +
-        'letter-spacing:.15em;color:#e2e8f0;}' +
-        '.qn-logo span{color:#00ff87;}' +
-        '.qn-trigger{display:flex;align-items:center;gap:10px;' +
-        'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);' +
-        'border-radius:8px;padding:8px 16px;cursor:pointer;' +
-        'font-family:Syne,sans-serif;font-size:13px;font-weight:600;color:#e2e8f0;' +
-        'transition:border-color .2s,background .2s;user-select:none;' +
-        'min-width:200px;justify-content:space-between;}' +
-        '.qn-trigger:hover{border-color:rgba(0,255,135,.3);background:rgba(0,255,135,.05);}' +
-        '.qn-trigger.open{border-color:rgba(0,255,135,.4);background:rgba(0,255,135,.06);}' +
-        '.qn-chevron{width:14px;height:14px;opacity:.5;transition:transform .2s;flex-shrink:0;}' +
-        '.qn-trigger.open .qn-chevron{transform:rotate(180deg);}' +
-        '.qn-right{display:flex;align-items:center;gap:10px;}' +
-        '.qn-plan{background:rgba(' + plan_rgb + ',.15);color:' + plan_color + ';' +
-        'border:1px solid ' + plan_color + '44;border-radius:4px;' +
-        'padding:3px 9px;font-size:11px;font-weight:700;letter-spacing:.1em;' +
-        'font-family:Syne,sans-serif;}' +
-        '.qn-user{font-size:11px;color:#64748b;font-family:DM Mono,monospace;' +
-        'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
-        '.qn-dropdown{position:absolute;top:62px;left:50%;width:280px;' +
-        'background:rgba(7,10,18,.98);border:1px solid rgba(255,255,255,.1);' +
-        'border-radius:12px;z-index:9999;overflow:hidden;' +
-        'opacity:0;pointer-events:none;transform:translateX(-50%) translateY(-8px);' +
-        'transition:opacity .2s ease,transform .2s ease;' +
-        'box-shadow:0 20px 60px rgba(0,0,0,.8);backdrop-filter:blur(20px);}' +
-        '.qn-dropdown.open{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0);}' +
-        '.qn-header{padding:10px 16px 8px;border-bottom:1px solid rgba(255,255,255,.06);' +
-        'font-size:9px;color:#334155;letter-spacing:.14em;font-family:DM Mono,monospace;}' +
-        '.qn-item{display:flex;align-items:center;gap:12px;padding:11px 16px;' +
-        'text-decoration:none;border-left:3px solid transparent;' +
-        'transition:background .15s,border-color .15s;cursor:pointer;}' +
-        '.qn-item:hover{background:rgba(255,255,255,.04);border-left-color:rgba(0,255,135,.3);}' +
-        '.qn-item.qn-active{background:rgba(0,255,135,.06);border-left-color:#00ff87;}' +
-        '.qn-em{font-size:15px;width:20px;text-align:center;flex-shrink:0;}' +
-        '.qn-lbl{font-family:Syne,sans-serif;font-size:13px;font-weight:500;color:#94a3b8;flex:1;}' +
-        '.qn-item.qn-active .qn-lbl{color:#00ff87;font-weight:700;}' +
-        '.qn-badge{background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;' +
-        'display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;}' +
-        '.qn-signout .qn-lbl{color:#ef4444;}' +
-        '.qn-divider{height:1px;background:rgba(255,255,255,.06);margin:4px 0;}' +
-        '.qn-overlay{display:none;position:fixed;inset:0;z-index:9998;}' +
-        '.qn-overlay.open{display:block;}' +
-        '</style></head><body>' +
-        '<div class="qn-overlay" id="qnOv" onclick="qnClose()"></div>' +
-        '<div class="qn-bar">' +
-        '<div class="qn-logo">Q<span>NTM</span></div>' +
-        '<div class="qn-trigger" id="qnTr" onclick="qnToggle()">' +
-        '<span>' + cur_label + '</span>' +
-        '<svg class="qn-chevron" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5">' +
-        '<polyline points="6 9 12 15 18 9"/></svg>' +
-        '</div>' +
-        '<div class="qn-right">' +
-        notif_html +
-        '<span class="qn-plan">' + plan.upper() + '</span>' +
-        '<span class="qn-user">' + display_name + '</span>' +
-        '</div></div>' +
-        '<div class="qn-dropdown" id="qnDd">' +
-        '<div class="qn-header">NAVIGATE TO</div>' +
-        items_html +
-        '</div>' +
-        '<script>' +
-        'var dd=document.getElementById("qnDd");' +
-        'var tr=document.getElementById("qnTr");' +
-        'var ov=document.getElementById("qnOv");' +
-        'function qnToggle(){dd.classList.contains("open")?qnClose():qnOpen();}' +
-        'function qnOpen(){dd.classList.add("open");tr.classList.add("open");ov.classList.add("open");}' +
-        'function qnClose(){dd.classList.remove("open");tr.classList.remove("open");ov.classList.remove("open");}' +
-        'document.querySelectorAll(".qn-item").forEach(function(a){' +
-        'a.addEventListener("click",function(e){e.preventDefault();qnClose();' +
-        'window.parent.location.href=a.getAttribute("href");});' +
-        '});' +
-        '<' + '/script></body></html>'
+        '<style>'
+        '#qntm-toggle{display:none;}'
+        '#qntm-dd{'
+        f'position:fixed;top:{dd_top};left:50%;transform:translateX(-50%);width:340px;'
+        'background:rgba(7,10,18,.99);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'
+        'border:1px solid rgba(255,255,255,.1);border-radius:12px;z-index:1000;'
+        'max-height:0;overflow:hidden;opacity:0;pointer-events:none;'
+        'transition:max-height .3s cubic-bezier(.4,0,.2,1),opacity .22s ease;'
+        'box-shadow:0 24px 64px rgba(0,0,0,.8);}'
+        '#qntm-toggle:checked ~ #qntm-dd{'
+        'max-height:600px;opacity:1;pointer-events:all;}'
+        '#qntm-ov{display:none;position:fixed;inset:0;z-index:999;}'
+        '#qntm-toggle:checked ~ #qntm-ov{display:block;}'
+        '.qntm-menu-trigger{'
+        'display:flex;align-items:center;gap:8px;cursor:pointer;'
+        'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);'
+        'border-radius:8px;padding:8px 14px;'
+        'font-family:Syne,sans-serif;font-size:13px;font-weight:600;color:#e2e8f0;'
+        'transition:border-color .2s,background .2s;user-select:none;'
+        'min-width:170px;justify-content:space-between;}'
+        '#qntm-toggle:checked ~ div label.qntm-menu-trigger{'
+        'border-color:rgba(0,255,135,.4);background:rgba(0,255,135,.06);}'
+        '.qntm-chevron{width:14px;height:14px;opacity:.5;transition:transform .2s;flex-shrink:0;}'
+        '#qntm-toggle:checked ~ div label.qntm-menu-trigger .qntm-chevron{'
+        'transform:rotate(180deg);}'
+        'a[href*="qnav"]:hover{background:linear-gradient(135deg,rgba(0,255,135,.1),rgba(0,255,135,.03))!important;'
+        'border-color:rgba(0,255,135,.35)!important;}'
+        '</style>'
+        '<input type="checkbox" id="qntm-toggle">'
+        f'<div id="qntm-dd">'
+        '<div style="padding:12px 16px 8px;border-bottom:1px solid rgba(255,255,255,.06);">'
+        '<span style="font-family:DM Mono,monospace;font-size:9px;color:#334155;letter-spacing:.14em;">MENU</span>'
+        '</div>'
+        + grid_html +
+        '</div>'
+        '<label for="qntm-toggle" id="qntm-ov"></label>'
+        '<div style="background:rgba(2,4,8,.97);backdrop-filter:blur(12px);'
+        'border-bottom:1px solid rgba(255,255,255,.07);'
+        'padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;">'
+        '<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;'
+        'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
+        '<label for="qntm-toggle" class="qntm-menu-trigger">'
+        f'<span>{cur_em} {cur_label}</span>'
+        '<svg class="qntm-chevron" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5">'
+        '<polyline points="6 9 12 15 18 9"/></svg>'
+        '</label>'
+        '<div style="display:flex;align-items:center;gap:10px;">'
+        + notif_dot
+        + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+        f'border:1px solid {plan_color}44;border-radius:4px;padding:3px 9px;'
+        f'font-size:11px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
+        f'{plan.upper()}</span>'
+        f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
+        '</div></div>'
     )
-    _cv1.html(nav_html, height=60)
+
+    st.markdown(nav_html, unsafe_allow_html=True)
 
 
 def page_screener():
