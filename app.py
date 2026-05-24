@@ -3047,19 +3047,25 @@ def page_screener():
 
     st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
-    # ── Search any stock — prominent ──────────────────────────────────────────
-    st.markdown('''<div style="background:linear-gradient(135deg,rgba(0,255,135,.1),rgba(0,255,135,.03));
-        border:2px solid rgba(0,255,135,.4);border-radius:12px;padding:18px 20px 16px;margin-bottom:16px;
-        box-shadow:0 0 24px rgba(0,255,135,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:12px;color:#00ff87;letter-spacing:.14em;margin-bottom:10px;font-weight:700;">
-        ⚡ SEARCH ANY STOCK — INSTANT CONVICTION SCORE
-      </div>''',
-        unsafe_allow_html=True)
+    # ── Search any stock — clean unified input ────────────────────────────────
+    st.markdown("""
+    <style>
+    div[data-testid="stTextInput"] input {
+        font-size: 15px !important;
+        padding: 14px 18px !important;
+        height: 52px !important;
+    }
+    </style>
+    <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;
+         letter-spacing:.12em;margin-bottom:6px;">⚡ INSTANT CONVICTION SCORE</div>
+    """, unsafe_allow_html=True)
     search_ticker = st.text_input(
-        "Search ticker", placeholder="Enter ticker or company name — AAPL, Tesla, NVDA...",
-        key="screener_search", label_visibility="collapsed"
+        "Search ticker",
+        placeholder="Search any stock — ticker or company name (AAPL, Tesla, Nvidia...)",
+        key="screener_search",
+        label_visibility="collapsed"
     ).strip().upper()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     if search_ticker:
         # Resolve company name → ticker first
