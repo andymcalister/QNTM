@@ -1696,40 +1696,31 @@ def page_cookie_consent():
 
 
 def _cookie_banner():
-    """Slim bottom banner shown on landing until user accepts. No page gate."""
+    """Slim informational bottom banner — no click required, implied consent on use."""
+    # Auto-accept on display — user is informed by seeing the banner
+    if not st.session_state.get("cookies_accepted"):
+        st.session_state.cookies_accepted = True
+        st.query_params["ck"] = "1"
+
     st.markdown(
         '<style>'
         '#qntm-cookie-banner{'
         'position:fixed;bottom:0;left:0;right:0;z-index:9999;'
-        'background:rgba(8,10,18,.97);backdrop-filter:blur(16px);'
-        'border-top:1px solid rgba(212,168,67,.25);'
-        'padding:14px 24px;display:flex;align-items:center;'
-        'justify-content:space-between;gap:16px;flex-wrap:wrap;}'
+        'background:rgba(8,10,18,.95);backdrop-filter:blur(16px);'
+        'border-top:1px solid rgba(255,255,255,.06);'
+        'padding:12px 24px;}'
         '</style>'
         '<div id="qntm-cookie-banner">'
-        '<div style="font-size:13px;color:#94a3b8;max-width:640px;line-height:1.5;">'
-        'QNTM uses essential cookies for login and session management. '
-        'By continuing you agree to our '
-        '<a href="?legal=privacy" style="color:#d4a843;text-decoration:none;">Privacy Policy</a> and '
-        '<a href="?legal=terms" style="color:#d4a843;text-decoration:none;">Terms of Service</a>. '
-        '<span style="color:#475569;">QNTM is a quantitative research tool — not investment advice.</span>'
-        '</div>'
-        '<div style="display:flex;gap:8px;flex-shrink:0;">'
+        '<div style="font-size:12px;color:#475569;line-height:1.5;max-width:900px;">'
+        'QNTM uses essential cookies for login and session management and anonymous analytics to improve the platform. '
+        'By using QNTM you agree to our '
+        '<a href="?legal=privacy" style="color:#64748b;text-decoration:underline;">Privacy Policy</a> and '
+        '<a href="?legal=terms" style="color:#64748b;text-decoration:underline;">Terms of Service</a>. '
+        'QNTM is a quantitative research tool — not investment advice.'
         '</div>'
         '</div>',
         unsafe_allow_html=True
     )
-    b1, b2, b3 = st.columns([4, 1, 1])
-    with b2:
-        if st.button("Accept", key="ck_accept", use_container_width=True):
-            st.session_state.cookies_accepted = True
-            st.query_params["ck"] = "1"
-            st.rerun()
-    with b3:
-        if st.button("Essential Only", key="ck_essential", use_container_width=True):
-            st.session_state.cookies_accepted = True
-            st.query_params["ck"] = "1"
-            st.rerun()
 
 
 
