@@ -637,6 +637,7 @@ if not st.session_state.logged_in:
                     st.session_state.mfa_verified = True
                     st.session_state.signed_out   = False
                     st.session_state.page         = "platform"
+                    st.session_state.onboarding_done = True  # skip onboarding for returning users
                     # Respect qnav destination if present, else default to screener
                     _dest = params.get("qnav","")
                     _VALID = {"screener","gems","backtest","portfolio","simulator",
