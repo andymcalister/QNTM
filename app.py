@@ -2744,88 +2744,93 @@ def platform_nav():
     display_name = (user.get("full_name") or "").split()[0] if user.get("full_name") else ""
     if not display_name:
         em = user.get("email","")
-        display_name = em[:16] + ("…" if len(em) > 16 else "")
+        display_name = em[:14] + ("…" if len(em) > 14 else "")
     notif_dot = (
-        f'<span style="background:#ef4444;color:#fff;border-radius:50%;'
-        f'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
-        f'font-size:10px;font-weight:700;">{n_count}</span>'
+        f'<span style="background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;'
+        f'display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;">'
+        f'{n_count}</span>'
     ) if n_count > 0 else ""
 
-    nav_labels = ["📊 Screener","💎 Hidden Gems","📈 Backtest","💼 My Portfolio",
-                  "🧮 Simulator","🏆 Model Portfolio","🔔 Alerts","⚙️ Account","📖 Methodology","🚪 Sign Out"]
-    nav_keys   = ["screener","gems","backtest","portfolio",
-                  "simulator","model_portfolio","alerts","account","methodology","__signout__"]
-    cur_nav    = st.session_state.get("nav","screener")
-    cur_idx    = nav_keys.index(cur_nav) if cur_nav in nav_keys else 0
+    cur_nav = st.session_state.get("nav", "screener")
 
-    st.markdown("""
-    <style>
-    /* Hide selectbox label */
-    div[data-testid="stSelectbox"] label { display:none !important; }
-    /* Style the selectbox control */
-    div[data-testid="stSelectbox"] > div > div {
-        background: rgba(13,17,23,.95) !important;
-        border: 1px solid rgba(255,255,255,.1) !important;
-        border-radius: 6px !important;
-        font-family: Syne, sans-serif !important;
-        font-size: 13px !important;
-        color: #e2e8f0 !important;
-        min-height: 38px !important;
-    }
-    /* Remove extra padding Streamlit adds around the selectbox column */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) {
-        padding: 0 8px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    nav_items = [
+        ("screener",        "Screener"),
+        ("gems",            "Hidden Gems"),
+        ("backtest",        "Backtest"),
+        ("portfolio",       "Portfolio"),
+        ("simulator",       "Simulator"),
+        ("model_portfolio", "Model Port."),
+        ("alerts",          "Alerts"),
+        ("account",         "Account"),
+        ("methodology",     "Methodology"),
+    ]
 
-    # Single row: logo | selectbox | plan+user
-    c1, c2, c3 = st.columns([1, 3, 1])
-    with c1:
-        st.markdown(
-            '<div style="padding:8px 0 4px 4px;">'
-            '<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
-            'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
-            '</div>',
-            unsafe_allow_html=True
-        )
-    with c2:
-        sel = st.selectbox("nav", nav_labels, index=cur_idx,
-                           label_visibility="collapsed", key="nav_select")
-    with c3:
-        st.markdown(
-            '<div style="display:flex;align-items:center;justify-content:flex-end;'
-            'gap:8px;padding:8px 4px 4px 0;">'
-            + notif_dot
-            + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
-            f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 7px;'
-            f'font-size:11px;font-weight:700;letter-spacing:.08em;font-family:Syne,sans-serif;">'
-            f'{plan.upper()}</span>'
-            f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;'
-            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;">{display_name}</span>'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-    # Bottom border line under the nav
     st.markdown(
-        '<div style="border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:0;"></div>',
+        '<style>'
+        '.qntm-nav-bar{background:rgba(2,4,8,.97);border-bottom:1px solid rgba(255,255,255,.07);padding:0;}'
+        '.qntm-nav-bar .stButton>button{'
+        'background:transparent !important;border:none !important;'
+        'border-bottom:2px solid transparent !important;border-radius:0 !important;'
+        'color:#64748b !important;font-family:Syne,sans-serif !important;'
+        'font-size:12px !important;font-weight:600 !important;letter-spacing:.04em !important;'
+        'padding:12px 8px 10px !important;height:44px !important;min-height:44px !important;'
+        'white-space:nowrap !important;width:100% !important;'
+        'box-shadow:none !important;transition:color .15s,border-color .15s !important;}'
+        '.qntm-nav-bar .stButton>button:hover{'
+        'color:#94a3b8 !important;border-bottom-color:rgba(255,255,255,.2) !important;'
+        'background:transparent !important;}'
+        '.qntm-nav-active .stButton>button{'
+        'color:#00ff87 !important;border-bottom-color:#00ff87 !important;'
+        'background:transparent !important;}'
+        '</style>',
         unsafe_allow_html=True
     )
 
-    sel_key = nav_keys[nav_labels.index(sel)]
-    if sel_key == "__signout__":
-        for k in ["logged_in","user","mfa_verified","scan_results",
-                  "macro_data","mfa_recovery_mode","live_refresh_running"]:
-            st.session_state[k] = False if k == "logged_in" else None
-        st.session_state.signed_out = True
-        for qp in ["uid","plan"]:
-            st.query_params.pop(qp, None)
-        _clear_localstorage_token()
-        go("landing")
-    elif sel_key != cur_nav:
-        st.session_state.nav = sel_key
-        st.rerun()
+    # ── Top bar: logo | right info ────────────────────────────────────────────
+    st.markdown(
+        '<div class="qntm-nav-bar">'
+        '<div style="display:flex;align-items:center;justify-content:space-between;'
+        'padding:8px 20px 0;">'
+        '<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;'
+        'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
+        '<div style="display:flex;align-items:center;gap:8px;">'
+        + notif_dot
+        + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+        f'border:1px solid {plan_color}44;border-radius:3px;padding:2px 7px;'
+        f'font-size:11px;font-weight:700;letter-spacing:.08em;font-family:Syne,sans-serif;">'
+        f'{plan.upper()}</span>'
+        f'<span style="font-size:11px;color:#64748b;font-family:DM Mono,monospace;">{display_name}</span>'
+        '</div></div></div>',
+        unsafe_allow_html=True
+    )
+
+    # ── Nav button row ────────────────────────────────────────────────────────
+    st.markdown('<div class="qntm-nav-bar" style="padding:0 12px;">', unsafe_allow_html=True)
+    cols = st.columns(len(nav_items) + 1)  # +1 for sign out
+    for col, (key, label) in zip(cols, nav_items):
+        with col:
+            is_active = (key == cur_nav)
+            if is_active:
+                st.markdown('<div class="qntm-nav-active">', unsafe_allow_html=True)
+            lbl = label + (" 🔴" if key == "alerts" and n_count > 0 else "")
+            if st.button(lbl, key=f"_nav2_{key}", use_container_width=True):
+                st.session_state.nav = key
+                st.rerun()
+            if is_active:
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    # Sign out
+    with cols[-1]:
+        if st.button("Sign Out", key="_nav2_signout", use_container_width=True):
+            for k in ["logged_in","user","mfa_verified","scan_results",
+                      "macro_data","mfa_recovery_mode","live_refresh_running"]:
+                st.session_state[k] = False if k == "logged_in" else None
+            st.session_state.signed_out = True
+            for qp in ["uid","plan"]:
+                st.query_params.pop(qp, None)
+            _clear_localstorage_token()
+            go("landing")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
