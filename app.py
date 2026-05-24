@@ -3562,7 +3562,7 @@ def page_watchlist():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-
+def _gem_why_tags(r: dict) -> list:
     """Short reason tags for why this stock was surfaced as a Hidden Gem."""
     tags, comp = [], float(r.get("adj_composite", r.get("composite", 50)) or 50)
     mom  = float(r.get("momentum",  50) or 50)
@@ -3579,12 +3579,6 @@ def page_watchlist():
     if delta > 2:  tags.append("Macro tailwind")
     if comp >= 68: tags.append("Rising conviction")
     reason = r.get("hidden_gem_reason", "")
-    why_tags = _gem_why_tags(r)
-    why_html = "".join(
-        f'<span style="background:rgba(212,168,67,.1);border:1px solid rgba(212,168,67,.18);"'
-        f'border-radius:10px;padding:2px 8px;font-size:10px;color:#d4a843;font-family:DM Mono,monospace;margin-right:4px;">{t}</span>'
-        for t in why_tags
-    )
     if "coverage" in reason.lower():  tags.append("Low analyst coverage")
     if "insider"  in reason.lower():  tags.append("Insider activity")
     return tags[:3]
