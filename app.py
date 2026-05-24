@@ -5336,9 +5336,10 @@ def page_model_portfolio():
 
     page_summary(
         "🏆", "Model Portfolio",
-        "50 High Conviction positions built across May 19–23, 2026 — ~10 entries per day, "
-        "taking the top conviction signals each day until reaching 50. "
-        "Equal-weighted at $10K per position. Exits when conviction score drops below 45.",
+        "50 High Conviction positions built across May 19–23, 2026 — all HIGH signals on Monday, "
+        "topped up daily with new HIGH conviction stocks until reaching 50. 30% sector cap enforced. "
+        "Equal-weighted at $2K per position ($100K total). Exits when conviction score drops below 45, "
+        "reinvests into next highest conviction stock available.",
     )
 
     sb = _get_supabase()
