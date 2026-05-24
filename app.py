@@ -345,7 +345,51 @@ div[data-baseweb="select"] span,
 </style>
 <style>
 
-/* ── Global text brightness + font sizes ── */
+/* ── CTA button: gold primary — available on all pages ── */
+.land-btn-primary > div > button,
+.land-btn-primary button {
+  background: linear-gradient(135deg,#d4a843 0%,#b8922e 50%,#d4a843 100%) !important;
+  color: #0a0b14 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  min-height: 48px !important;
+  cursor: pointer !important;
+  box-shadow: 0 0 20px rgba(212,168,67,.25) !important;
+  transition: all .2s !important;
+}
+.land-btn-primary > div > button:hover,
+.land-btn-primary button:hover {
+  background: linear-gradient(135deg,#e0b84e 0%,#c9a03e 50%,#e0b84e 100%) !important;
+  box-shadow: 0 0 32px rgba(212,168,67,.4) !important;
+  transform: translateY(-1px) !important;
+}
+/* ── Ghost button ── */
+.land-btn-ghost > div > button,
+.land-btn-ghost button {
+  background: rgba(255,255,255,.04) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  border-radius: 6px !important;
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  min-height: 48px !important;
+  cursor: pointer !important;
+  transition: all .2s !important;
+}
+.land-btn-ghost > div > button:hover,
+.land-btn-ghost button:hover {
+  border-color: rgba(255,255,255,.3) !important;
+  background: rgba(255,255,255,.08) !important;
+}
+/* ── CTA button: gold primary — available on all pages ── */
 html, body, [class*="css"], .main, .stApp {
   font-size: 16px !important;
 }
@@ -3358,8 +3402,11 @@ def page_gems():
         """, unsafe_allow_html=True)
         _, c, _ = st.columns([1,2,1])
         with c:
-            if st.button("Join Free — First 50 Spots Get Full Access", key="gems_upgrade"):
-                st.info("Founding member upgrades coming soon — you're on the list!")
+            st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
+            if st.button("Create Free Account →", key="gems_upgrade", use_container_width=True):
+                st.session_state.auth_tab = "register"
+                go("auth")
+            st.markdown('</div>', unsafe_allow_html=True)
         return
 
     if st.session_state.scan_results is None:
@@ -4563,8 +4610,10 @@ def page_simulator():
             'Build a hypothetical portfolio from current HIGH conviction signals.</div>'
             '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
             '</div>', unsafe_allow_html=True)
-        if st.button("Upgrade to Pro — $29/mo", key="sim_upgrade", use_container_width=True):
+        st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
+        if st.button("Upgrade to Pro — $29/mo →", key="sim_upgrade", use_container_width=True):
             nav("account")
+        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
