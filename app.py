@@ -5519,30 +5519,37 @@ def page_simulator():
 
     scan = st.session_state.get("scan_results") or []
 
-    # Auto-load from signal_log if no scan in session — no manual rescan needed
+    # Auto-load from signal_log if no scan in session
     if not scan:
+        _load_err = ""
         try:
             from data_refresh import _get_supabase as _sim_sb
             _sb = _sim_sb()
-            if _sb:
+            if not _sb:
+                _load_err = "No Supabase connection"
+            else:
                 _resp = _sb.table("signal_log") \
                     .select("ticker,adj_composite,composite,signal,adj_action,momentum,quality,volume,value,sentiment,price,sector") \
                     .order("signal_date", desc=True) \
                     .limit(5000) \
                     .execute()
                 _rows = _resp.data or []
-                # Deduplicate — keep most recent per ticker
                 _seen = {}
                 for _r in _rows:
                     if _r["ticker"] not in _seen:
+                        _adj = float(_r.get("adj_composite") or _r.get("composite") or 50)
                         if not _r.get("adj_action"):
-                            _adj = float(_r.get("adj_composite") or _r.get("composite") or 50)
                             _r["adj_action"] = "BUY" if _adj >= 60 else ("SELL" if _adj < 45 else "HOLD")
                         _seen[_r["ticker"]] = _r
                 scan = list(_seen.values())
                 st.session_state.scan_results = scan
-        except Exception:
-            pass
+                if not scan:
+                    _load_err = "signal_log returned 0 rows"
+        except Exception as _e:
+            _load_err = str(_e)
+
+        if _load_err:
+            st.warning(f"DEBUG load error: {_load_err}")
 
     all_buys = sorted(
         [r for r in scan if r.get("adj_action", r.get("action")) == "BUY"],
