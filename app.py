@@ -706,7 +706,8 @@ if not st.session_state.logged_in:
         except Exception:
             pass
 
-    if not st.session_state.logged_in and not st.session_state.get("signed_out"):
+    _nav_param = st.query_params.get("nav", "")
+    if not st.session_state.logged_in and not st.session_state.get("signed_out") and _nav_param not in ("signin", "register"):
         _inject_localstorage_reader()
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
