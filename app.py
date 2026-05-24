@@ -4225,7 +4225,9 @@ def page_gems():
                     f'border-radius:10px;padding:2px 8px;font-size:10px;color:#d4a843;font-family:DM Mono,monospace;">{t}</span>'
                     for t in _gem_why_tags(g)
                 )
-                + '</div></div>'
+                + '</div>'
+                + _build_why_html(g)
+                + '</div>'
             )
             st.markdown(card, unsafe_allow_html=True)
 
