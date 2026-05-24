@@ -5093,22 +5093,34 @@ def page_portfolio():
         except Exception:
             pass
 
-        from datetime import date as _date
+        from datetime import date as _date, timedelta as _td
         total_current   = 0.0
         total_start_val = 0.0
         for h in holdings:
             tk     = h["ticker"]
             cost   = float(h.get("avg_cost", 0) or 0)
             shares = float(h.get("shares", 0) or 0)
+
+            # Entry date — cap all lookbacks to this
+            try:
+                entry_date = _date.fromisoformat(str(h.get("entry_date", ""))[:10])
+            except Exception:
+                entry_date = _date.today()
+
+            live = live_prices.get(tk, cost)
+
             if is_actual:
-                # Total return: live price vs cost basis
-                live = live_prices.get(tk, cost)
-                total_current   += live * shares
-                total_start_val += cost * shares
+                # Total return: live vs cost basis
+                total_current   += live  * shares
+                total_start_val += cost  * shares
             else:
-                # Period lookback: end of period vs start of period
-                live  = live_prices.get(tk, cost)
-                start = start_prices.get(tk, cost)
+                # Period lookback — but never go before entry date
+                period_start = _date.today() - _td(days=pdays)
+                if period_start <= entry_date:
+                    # Position younger than period — use cost basis as start
+                    start = cost
+                else:
+                    start = start_prices.get(tk, cost)
                 total_current   += live  * shares
                 total_start_val += start * shares
 
