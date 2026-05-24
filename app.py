@@ -3307,6 +3307,7 @@ def platform_nav():
 
 
 def page_screener():
+    _pin_nav("screener")
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
 
@@ -3709,7 +3710,14 @@ def page_screener():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+def _pin_nav(page_key: str):
+    """Pin nav to current page — prevents text input reruns from dropping to screener."""
+    st.session_state.nav  = page_key
+    st.session_state.page = "platform"
+
+
 def page_watchlist():
+    _pin_nav("watchlist")
     """User watchlist — tracked stocks with live conviction scores."""
     page_summary("★", "Watchlist",
         "Stocks you're tracking. Conviction scores update daily — add any stock from the Screener search.")
@@ -4065,6 +4073,7 @@ def _gem_why_tags(r: dict) -> list:
 
 
 def page_gems():
+    _pin_nav("gems")
     page_summary(
         "💎", "Hidden Gems",
         "Mid-cap stocks with institutional-grade factor scores that fly under Wall Street's radar. "
@@ -4241,6 +4250,7 @@ def page_gems():
 # BACKTEST PAGE
 # ══════════════════════════════════════════════════════════════════════════════
 def page_backtest():
+    _pin_nav("backtest")
     bt = BACKTEST_DATA
     page_summary(
         "📈", "Backtest Performance",
@@ -4711,6 +4721,7 @@ def _make_excel(rows: list, headers: list, sheet_name: str = "Export") -> bytes:
     return buf.getvalue()
 
 def page_portfolio():
+    _pin_nav("portfolio")
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
     max_h = plan_limit(plan, "max_holdings")
@@ -4888,6 +4899,7 @@ def page_portfolio():
       <div style="font-size:12px;color:#64748b;margin-top:2px;">Search a ticker and enter your shares + cost basis</div>
     </div>
     """, unsafe_allow_html=True)
+
     with st.expander("", expanded=(n_holdings == 0)):
         if at_limit and plan == "free":
             st.markdown("""
@@ -5327,6 +5339,7 @@ def page_portfolio():
 # ALERTS PAGE
 # ══════════════════════════════════════════════════════════════════════════════
 def page_simulator():
+    _pin_nav("simulator")
     page_summary(
         "🧮", "Portfolio Simulator",
         "Build a hypothetical portfolio from current HIGH conviction signals. "
@@ -5602,6 +5615,7 @@ def page_simulator():
 
 
 def page_alerts():
+    _pin_nav("alerts")
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
     has_alerts = plan_limit(plan, "notifications")
@@ -5755,6 +5769,7 @@ def page_alerts():
 # ACCOUNT PAGE
 # ══════════════════════════════════════════════════════════════════════════════
 def page_account():
+    _pin_nav("account")
     from db import disable_mfa, upgrade_plan, plan_limit
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
@@ -6055,6 +6070,7 @@ def page_account():
 # PLATFORM SHELL
 # ══════════════════════════════════════════════════════════════════════════════
 def page_model_portfolio():
+    _pin_nav("model_portfolio")
     """
     QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
     Entry date sourced from model_portfolio_positions (seeded 2026-05-19).
@@ -6488,6 +6504,7 @@ def page_model_portfolio():
 
 
 def page_methodology():
+    _pin_nav("methodology")
     """How QNTM Works — methodology, factor logic, disclaimers."""
     page_summary("📖", "How QNTM Works",
         "Transparent methodology — what the model does, how it scores stocks, and what it doesn't do.")
