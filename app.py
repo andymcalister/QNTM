@@ -2962,13 +2962,13 @@ def platform_nav():
             btn_style = (
                 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
                 'gap:6px;padding:14px 8px;text-decoration:none;border-radius:8px;'
-                'background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));'
-                'border:1px solid rgba(255,255,255,.08);'
+                'background:rgba(255,255,255,.07);'
+                'border:1px solid rgba(255,255,255,.15);'
                 'transition:all .18s ease;'
             )
-            em_style  = 'font-size:20px;line-height:1;opacity:.6;'
-            lbl_style = ('font-family:Syne,sans-serif;font-size:9px;font-weight:600;'
-                         'letter-spacing:.03em;text-transform:uppercase;color:#64748b;'
+            em_style  = 'font-size:22px;line-height:1;'
+            lbl_style = ('font-family:Syne,sans-serif;font-size:9px;font-weight:700;'
+                         'letter-spacing:.03em;text-transform:uppercase;color:#94a3b8;'
                          'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%;text-align:center;')
 
         badge = (
@@ -3091,34 +3091,35 @@ def page_screener():
     # ── Hero search box ───────────────────────────────────────────────────────
     st.markdown("""
     <style>
-    /* Hero search input styling */
     div[data-testid="stTextInput"][data-key="screener_search"] input {
         background: rgba(255,255,255,.04) !important;
-        border: 2px solid rgba(0,255,135,.35) !important;
+        border: 2px solid rgba(0,255,135,.4) !important;
         border-radius: 12px !important;
         color: #e2e8f0 !important;
         font-size: 16px !important;
         font-family: 'Syne', sans-serif !important;
         padding: 18px 24px !important;
         height: 60px !important;
-        box-shadow: 0 0 32px rgba(0,255,135,.12), inset 0 1px 0 rgba(255,255,255,.06) !important;
+        box-shadow: 0 0 32px rgba(0,255,135,.15), inset 0 1px 0 rgba(255,255,255,.06) !important;
         transition: border-color .2s, box-shadow .2s !important;
     }
     div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
-        border-color: rgba(0,255,135,.7) !important;
-        box-shadow: 0 0 48px rgba(0,255,135,.2), inset 0 1px 0 rgba(255,255,255,.08) !important;
+        border-color: #00ff87 !important;
+        box-shadow: 0 0 56px rgba(0,255,135,.25) !important;
         outline: none !important;
     }
     div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
-        color: #334155 !important;
+        color: #475569 !important;
         font-size: 15px !important;
     }
     </style>
-    <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:#00ff87;
-           letter-spacing:.16em;text-transform:uppercase;">⚡ Instant Conviction Score</div>
-      <div style="font-size:10px;color:#334155;font-family:DM Mono,monospace;">
-        — search any of 834 stocks
+    <div style="margin-bottom:10px;">
+      <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;
+           letter-spacing:-.01em;margin-bottom:3px;">
+        ⚡ Instant Conviction Score
+      </div>
+      <div style="font-family:DM Mono,monospace;font-size:12px;color:#475569;letter-spacing:.06em;">
+        Search any of 834 stocks — ticker or company name
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -6057,8 +6058,9 @@ def page_platform():
 
 
     nav_map = {
-        "screener":       page_screener,
-        "gems":           page_gems,
+        "screener":        page_screener,
+        "watchlist":       page_watchlist,
+        "gems":            page_gems,
         "backtest":       page_backtest,
         "portfolio":      page_portfolio,
         "simulator":      page_simulator,
