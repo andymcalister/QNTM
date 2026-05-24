@@ -3708,14 +3708,6 @@ def page_screener():
                     st.markdown(_ch, unsafe_allow_html=True)
 
         if _show_gate:
-            _uid_val  = (st.session_state.user or {}).get("id", "")
-            _plan_val = (st.session_state.user or {}).get("plan", "free")
-            if st.session_state.get("logged_in"):
-                _upgrade_url = f"?qnav=screener&uid={_uid_val}&plan={_plan_val}&ck=1&upgrade=pro&_n=screener"
-                _cta_label = f"Unlock Full Universe — {_total_filtered - FREE_LIMIT} more stocks"
-            else:
-                _upgrade_url = "?nav=register"
-                _cta_label = f"Upgrade to Pro — see all {_total_filtered} stocks"
             st.markdown(
                 f'<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);'
                 f'border-radius:10px;padding:24px;text-align:center;margin-top:16px;">'
@@ -3726,7 +3718,10 @@ def page_screener():
                 f'Hidden Gems, alerts, and unlimited portfolio tracking.</div>'
                 f'</div>',
                 unsafe_allow_html=True)
-            st.markdown(_cta_gold(_cta_label, _upgrade_url), unsafe_allow_html=True)
+            if st.session_state.get("logged_in"):
+                st.markdown(_cta_gold(f"Unlock Full Universe — {_total_filtered - FREE_LIMIT} more stocks", _upgrade_url("Full Universe", "screener")), unsafe_allow_html=True)
+            else:
+                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", "?nav=register"), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -3760,7 +3755,13 @@ def page_screener():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-def _pin_nav(page_key: str):
+def _upgrade_url(feature: str, return_nav: str) -> str:
+    """Build URL to the upgrade page preserving session."""
+    _uid  = (st.session_state.user or {}).get("id", "")
+    _plan = (st.session_state.user or {}).get("plan", "free")
+    return f"?upgrade_page=1&feature={feature}&return_nav={return_nav}&uid={_uid}&plan={_plan}&ck=1&_n={return_nav}"
+
+
     """Pin nav to current page — prevents text input reruns from dropping to screener."""
     st.session_state.nav  = page_key
     st.session_state.page = "platform"
@@ -4133,17 +4134,6 @@ def page_gems():
     )
 
     if not is_pro():
-        if st.session_state.get("logged_in"):
-            # Logged-in free user — upgrade directly, no Stripe yet
-            ok = upgrade_plan(uid(), "pro")
-            if ok:
-                if st.session_state.get("user"):
-                    st.session_state.user["plan"] = "pro"
-                st.rerun()
-            else:
-                st.error("Could not upgrade — contact hello@qntm.app")
-            return
-        # Not logged in — send to register
         st.markdown("""
         <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
              border-radius:8px;padding:48px;text-align:center;">
@@ -4163,7 +4153,10 @@ def page_gems():
           </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown(_cta_gold("Join Free — First 50 Spots", "?nav=register"), unsafe_allow_html=True)
+        if st.session_state.get("logged_in"):
+            st.markdown(_cta_gold("Join Founding Members — Unlock Now", _upgrade_url("Hidden Gems", "gems")), unsafe_allow_html=True)
+        else:
+            st.markdown(_cta_gold("Join Free — First 50 Spots", "?nav=register"), unsafe_allow_html=True)
         return
 
     if st.session_state.scan_results is None:
@@ -5476,12 +5469,6 @@ def page_simulator():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     if not is_pro():
-        if st.session_state.get("logged_in"):
-            ok = upgrade_plan(uid(), "pro")
-            if ok and st.session_state.get("user"):
-                st.session_state.user["plan"] = "pro"
-                st.rerun()
-            return
         st.markdown(
             '<div style="background:rgba(212,168,67,.07);border:1px solid rgba(212,168,67,.25);'
             'border-radius:10px;padding:28px 24px;text-align:center;margin:24px 0;">'
@@ -5491,7 +5478,10 @@ def page_simulator():
             'Build a hypothetical portfolio from current HIGH conviction signals.</div>'
             '<div style="font-size:13px;color:#64748b;">Pro feature — upgrade to access</div>'
             '</div>', unsafe_allow_html=True)
-        st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", "?nav=register"), unsafe_allow_html=True)
+        if st.session_state.get("logged_in"):
+            st.markdown(_cta_gold("Unlock Simulator — Upgrade to Pro", _upgrade_url("Portfolio Simulator", "simulator")), unsafe_allow_html=True)
+        else:
+            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", "?nav=register"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -5765,12 +5755,6 @@ def page_alerts():
 
     # ── Free tier gate ─────────────────────────────────────────────────────────
     if not has_alerts:
-        if st.session_state.get("logged_in"):
-            ok = upgrade_plan(uid(), "pro")
-            if ok and st.session_state.get("user"):
-                st.session_state.user["plan"] = "pro"
-                st.rerun()
-            return
         st.markdown("""
         <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.2);
              border-radius:12px;padding:48px;text-align:center;margin-bottom:24px;">
@@ -5787,7 +5771,10 @@ def page_alerts():
           </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", "?nav=register"), unsafe_allow_html=True)
+        if st.session_state.get("logged_in"):
+            st.markdown(_cta_gold("Unlock Alerts — Upgrade to Pro", _upgrade_url("Signal Alerts", "alerts")), unsafe_allow_html=True)
+        else:
+            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", "?nav=register"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -6792,6 +6779,62 @@ def page_platform():
 # ══════════════════════════════════════════════════════════════════════════════
 # ROUTER
 # ══════════════════════════════════════════════════════════════════════════════
+def page_upgrade():
+    """Upgrade to Pro page — handles upgrade flow, Stripe when ready."""
+    _pin_nav("upgrade")
+    feature = st.session_state.get("upgrade_feature", "Pro")
+
+    # If already pro, redirect to the feature they came from
+    if is_pro():
+        _dest = st.session_state.get("upgrade_return_nav", "screener")
+        st.session_state.nav = _dest
+        st.session_state.page = "platform"
+        st.rerun()
+        return
+
+    _, col, _ = st.columns([1, 3, 1])
+    with col:
+        st.markdown(f"""
+        <div style="text-align:center;padding:48px 24px;">
+          <div style="font-size:56px;margin-bottom:20px;">⚡</div>
+          <div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;
+               color:#d4a843;margin-bottom:12px;">Upgrade to Pro</div>
+          <div style="font-size:16px;color:#94a3b8;margin-bottom:8px;">
+               You're unlocking: <strong style="color:#e2e8f0;">{feature}</strong></div>
+          <div style="font-size:14px;color:#64748b;margin-bottom:40px;line-height:1.7;">
+            Full access to Hidden Gems · Portfolio Simulator · Signal Alerts ·
+            Unlimited holdings · Full 834-stock universe
+          </div>
+          <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.2);
+               border-radius:10px;padding:24px;margin-bottom:32px;">
+            <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;
+                 letter-spacing:.08em;margin-bottom:8px;">FOUNDING MEMBER — FIRST 50 USERS</div>
+            <div style="font-family:Syne,sans-serif;font-size:40px;font-weight:800;color:#d4a843;">$0</div>
+            <div style="font-size:14px;color:#94a3b8;margin-top:4px;">free while founding · then $29/mo</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("✓ Claim Founding Member Access", key="upgrade_confirm", use_container_width=True):
+            ok = upgrade_plan(uid(), "pro")
+            if ok and st.session_state.get("user"):
+                st.session_state.user["plan"] = "pro"
+                st.session_state.page = "platform"
+                st.session_state.nav  = st.session_state.get("upgrade_return_nav", "screener")
+                st.rerun()
+            else:
+                st.error("Something went wrong — please try again or contact hello@qntm.app")
+
+        st.markdown("""
+        <div style="text-align:center;margin-top:16px;">
+          <div style="font-size:11px;color:#334155;line-height:1.7;">
+            QNTM provides quantitative research tools for informational purposes only.<br>
+            Not investment advice. Past model performance does not guarantee future results.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
 def main():
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","cookies","disclaimer"):
@@ -6809,6 +6852,15 @@ def main():
         st.query_params.pop("nav", None)
 
 
+
+    # ── Upgrade page routing ──────────────────────────────────────────────────
+    if st.query_params.get("upgrade_page") == "1" and st.session_state.get("logged_in"):
+        st.session_state.upgrade_feature    = st.query_params.get("feature", "Pro")
+        st.session_state.upgrade_return_nav = st.query_params.get("return_nav", "screener")
+        st.session_state.page = "upgrade"
+        st.query_params.pop("upgrade_page", None)
+        st.query_params.pop("feature", None)
+        st.query_params.pop("return_nav", None)
 
     # ── Plan upgrade via URL action ───────────────────────────────────────────
     if st.query_params.get("upgrade") == "pro" and st.session_state.get("logged_in"):
@@ -6874,13 +6926,11 @@ def main():
         st.session_state.page = "platform"
 
     route = st.session_state.page
-    if   route == "landing":
-        page_landing()
-        if not st.session_state.get("cookies_accepted"):
-            _cookie_banner()
+    if   route == "landing":  page_landing()
     elif route == "auth":     page_auth()
     elif route == "mfa":      page_mfa()
-    elif route == "model":    go("landing")  # page removed
+    elif route == "upgrade":  page_upgrade()
+    elif route == "model":    go("landing")
     elif route == "platform": page_platform()
     elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
     else:                     page_landing()
