@@ -3322,10 +3322,10 @@ def page_screener():
                         st.markdown(
                             f'<a href="{_action_url}" target="_self" style="'
                             f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
-                            f'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);'
+                            f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);'
                             f'border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                            f'letter-spacing:.06em;text-transform:uppercase;color:#e2e8f0;text-decoration:none;'
-                            f'box-sizing:border-box;">★ Watchlist</a>',
+                            f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
+                            f'box-sizing:border-box;">✕ Remove from Watchlist</a>',
                             unsafe_allow_html=True
                         )
                     else:
@@ -4048,10 +4048,10 @@ def page_gems():
             st.markdown(
                 f'<a href="{_action_url}" target="_self" style="'
                 f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
-                f'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);'
+                f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#e2e8f0;text-decoration:none;'
-                f'box-sizing:border-box;">★ Watchlist</a>',
+                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
+                f'box-sizing:border-box;">✕ Remove from Watchlist</a>',
                 unsafe_allow_html=True
             )
         else:
