@@ -2484,11 +2484,12 @@ def page_landing():
                     _row["adj_action"] = "BUY"
                     _row["score_delta"] = round(_adj - float(_row.get("composite") or _adj), 1)
                     _seen5[_row["ticker"]] = _row
-            _top5 = sorted(_seen5.values(), key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:5]
+            _top5 = sorted(_seen5.values(), key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:10]
     except Exception:
         _top5 = []
 
     # Signal rows for right panel — simple scan rows, not full cards
+    _n_high_total = len(_top5)  # will update after full count fetch below
     _signal_rows = ""
     for _sr in _top5:
         _stk   = _sr.get("ticker","")
@@ -2575,6 +2576,19 @@ def page_landing():
         + '<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.12em;margin-bottom:2px;">TOP SIGNALS TODAY</div>'
         + _signal_rows
 
+        # High conviction count CTA
+        + f'<a href="?nav=register" target="_self" style="display:block;margin-top:10px;padding:7px 12px;'
+        f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.2);border-radius:6px;'
+        f'font-family:DM Mono,monospace;font-size:10px;color:#d4a843;text-decoration:none;'
+        f'letter-spacing:.06em;text-align:center;">'
+        f'VIEW ALL HIGH CONVICTION SIGNALS →</a>'
+        # Hidden gems callout
+        + '<div style="margin-top:10px;padding:8px 12px;background:rgba(0,255,135,.04);'
+        'border:1px solid rgba(0,255,135,.12);border-radius:6px;display:flex;align-items:center;gap:8px;">'
+        '<span style="font-size:14px;">💎</span>'
+        '<div><div style="font-family:DM Mono,monospace;font-size:9px;color:#00ff87;letter-spacing:.1em;">HIDDEN GEMS</div>'
+        '<div style="font-size:11px;color:#64748b;">Low-coverage stocks with high conviction scores</div></div>'
+        '</div>'
         # Compact stats strip at bottom of panel
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05);">'
         + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">5-YR RETURN</div>'
@@ -2597,11 +2611,18 @@ def page_landing():
     _n_high = len(_top5)
     _n_sell = 0
     try:
+        _all_high = _sb2.table("signal_log") \
+            .select("ticker") \
+            .gte("adj_composite", 60) \
+            .order("signal_date", desc=True) \
+            .limit(500) \
+            .execute()
+        _n_high = len(set(r["ticker"] for r in (_all_high.data or [])))
         _sell_resp = _sb2.table("signal_log") \
             .select("ticker") \
-            .in_("signal", ["SELL","LOW"]) \
+            .lte("adj_composite", 44) \
             .order("signal_date", desc=True) \
-            .limit(20) \
+            .limit(500) \
             .execute()
         _n_sell = len(set(r["ticker"] for r in (_sell_resp.data or [])))
     except Exception:
