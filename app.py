@@ -3706,49 +3706,233 @@ def page_screener():
     data_freshness_banner()
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    # ── Search box ───────────────────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    div[data-testid="stTextInput"][data-key="screener_search"] input {
-        background: rgba(255,255,255,.04) !important;
-        border: 1px solid rgba(0,255,135,.25) !important;
-        border-radius: 8px !important;
-        color: #e2e8f0 !important;
-        font-size: 15px !important;
-        font-family: 'Outfit', sans-serif !important;
-        padding: 14px 20px !important;
-        height: 50px !important;
-        transition: border-color .2s !important;
-    }
-    div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
-        border-color: rgba(0,255,135,.5) !important;
-        outline: none !important;
-    }
-    div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
-        color: #334155 !important;
-        font-size: 14px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    # Restore search query from session state (survives watchlist action navigation)
+    # ── Search box with autocomplete ─────────────────────────────────────────
+    # Restore search query
     _sq_default = st.session_state.get("screener_search_val", "")
-    # Also pick up from query param if set
     _sq_param = st.query_params.get("sq", "")
     if _sq_param and not _sq_default:
         _sq_default = _sq_param
         st.session_state.screener_search_val = _sq_param
         st.query_params.pop("sq", None)
 
-    search_ticker = st.text_input(
-        "Search ticker",
-        value=_sq_default,
-        placeholder="🔍  Enter ticker or company name — AAPL, Tesla, Nvidia, Microsoft...",
-        key="screener_search",
-        label_visibility="collapsed"
-    ).strip().upper()
-    # Persist to session state
-    if search_ticker:
-        st.session_state.screener_search_val = search_ticker
+    # Check if autocomplete selection came in via query param
+    _ac_pick = st.query_params.get("ac_pick", "")
+    if _ac_pick:
+        st.session_state.screener_search_val = _ac_pick.upper()
+        _sq_default = _ac_pick.upper()
+        st.query_params.pop("ac_pick", None)
+
+    # Build autocomplete data — KNOWN names + all SECTORS tickers
+    _AC_KNOWN = {
+        "AAPL":"Apple","MSFT":"Microsoft","NVDA":"NVIDIA","GOOGL":"Alphabet",
+        "META":"Meta","AMZN":"Amazon","TSLA":"Tesla","NFLX":"Netflix",
+        "AMD":"AMD","INTC":"Intel","CSCO":"Cisco","ORCL":"Oracle","CRM":"Salesforce",
+        "ADBE":"Adobe","AVGO":"Broadcom","JPM":"JPMorgan","BAC":"Bank of America",
+        "GS":"Goldman Sachs","V":"Visa","MA":"Mastercard","WMT":"Walmart",
+        "COST":"Costco","PG":"P&G","KO":"Coca-Cola","PEP":"PepsiCo",
+        "HD":"Home Depot","MCD":"McDonald's","NKE":"Nike","XOM":"Exxon",
+        "CVX":"Chevron","UNH":"UnitedHealth","LLY":"Eli Lilly","JNJ":"J&J",
+        "ABBV":"AbbVie","MRK":"Merck","PFE":"Pfizer","AMGN":"Amgen",
+        "PLTR":"Palantir","COIN":"Coinbase","SNOW":"Snowflake","CRWD":"CrowdStrike",
+        "PANW":"Palo Alto","NOW":"ServiceNow","UBER":"Uber","ABNB":"Airbnb",
+        "SPOT":"Spotify","PYPL":"PayPal","HOOD":"Robinhood","DDOG":"Datadog",
+        "NET":"Cloudflare","ZS":"Zscaler","WDAY":"Workday","TEAM":"Atlassian",
+    }
+    # Add all universe tickers (ticker only, no name for bulk)
+    _ac_tickers = list(SECTORS.keys())
+    import json as _json
+    _ac_data = _json.dumps([
+        {"t": tk, "n": _AC_KNOWN.get(tk, "")} for tk in _ac_tickers
+    ])
+    _recent = st.session_state.get("recent_searches", [])
+    _recent_json = _json.dumps(_recent)
+
+    # Get nav params for URL action
+    _uid_ac = (st.session_state.user or {}).get("id", "")
+    _pln_ac = (st.session_state.user or {}).get("plan", "free")
+    _base_url = f"?qnav=screener&uid={_uid_ac}&plan={_pln_ac}&ck=1"
+
+    import streamlit.components.v1 as _cv1_ac
+    _cv1_ac.html(f"""
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ background: transparent; }}
+#qac-wrap {{
+  position: relative;
+  font-family: Outfit, sans-serif;
+}}
+#qac-input {{
+  width: 100%;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(0,255,135,.25);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 15px;
+  font-family: Outfit, sans-serif;
+  padding: 13px 44px 13px 16px;
+  outline: none;
+  transition: border-color .2s;
+}}
+#qac-input:focus {{ border-color: rgba(0,255,135,.5); }}
+#qac-input::placeholder {{ color: #334155; }}
+#qac-icon {{
+  position: absolute; right: 14px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px; pointer-events: none; opacity: .4;
+}}
+#qac-dropdown {{
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  max-height: 280px;
+  overflow-y: auto;
+}}
+.qac-item {{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .1s;
+}}
+.qac-item:last-child {{ border-bottom: none; }}
+.qac-item:hover, .qac-item.active {{ background: rgba(0,255,135,.06); }}
+.qac-ticker {{
+  font-family: Syne, sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: #e2e8f0;
+  min-width: 52px;
+}}
+.qac-name {{
+  font-size: 12px;
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}}
+.qac-section {{
+  font-family: DM Mono, monospace;
+  font-size: 9px;
+  color: #334155;
+  letter-spacing: .1em;
+  padding: 6px 14px 4px;
+  background: rgba(255,255,255,.02);
+}}
+::-webkit-scrollbar {{ width: 3px; }}
+::-webkit-scrollbar-thumb {{ background: rgba(0,255,135,.2); border-radius: 2px; }}
+</style>
+<div id="qac-wrap">
+  <input id="qac-input" type="text" placeholder="🔍  Search ticker or company — AAPL, Tesla, Nvidia..." autocomplete="off" value="{_sq_default}" />
+  <span id="qac-icon">⌕</span>
+  <div id="qac-dropdown"></div>
+</div>
+<script>
+(function() {{
+  var DATA    = {_ac_data};
+  var RECENT  = {_recent_json};
+  var BASE_URL = "{_base_url}";
+  var input   = document.getElementById('qac-input');
+  var dropdown= document.getElementById('qac-dropdown');
+  var activeIdx = -1;
+
+  function navigate(ticker) {{
+    var url = BASE_URL + '&ac_pick=' + encodeURIComponent(ticker);
+    window.parent.location.href = url;
+  }}
+
+  function renderItems(items, sectionLabel) {{
+    var html = '';
+    if (sectionLabel) html += '<div class="qac-section">' + sectionLabel + '</div>';
+    items.forEach(function(item, i) {{
+      html += '<div class="qac-item" data-ticker="' + item.t + '" data-idx="' + i + '">'
+            + '<span class="qac-ticker">' + item.t + '</span>'
+            + '<span class="qac-name">' + (item.n || '') + '</span>'
+            + '</div>';
+    }});
+    return html;
+  }}
+
+  function showDropdown(items, section) {{
+    if (!items.length) {{ dropdown.style.display = 'none'; return; }}
+    dropdown.innerHTML = renderItems(items, section);
+    dropdown.style.display = 'block';
+    activeIdx = -1;
+    dropdown.querySelectorAll('.qac-item').forEach(function(el) {{
+      el.addEventListener('mousedown', function(e) {{
+        e.preventDefault();
+        navigate(el.getAttribute('data-ticker'));
+      }});
+    }});
+  }}
+
+  function showRecent() {{
+    if (!RECENT.length) {{ dropdown.style.display = 'none'; return; }}
+    var items = RECENT.map(function(t) {{
+      var match = DATA.find(function(d) {{ return d.t === t; }});
+      return match || {{t: t, n: ''}};
+    }});
+    showDropdown(items, 'RECENT SEARCHES');
+  }}
+
+  function search(q) {{
+    if (!q) {{ showRecent(); return; }}
+    var ql = q.toLowerCase();
+    var results = DATA.filter(function(d) {{
+      return d.t.toLowerCase().startsWith(ql) ||
+             (d.n && d.n.toLowerCase().includes(ql));
+    }}).slice(0, 8);
+    showDropdown(results, results.length ? 'SUGGESTIONS' : '');
+  }}
+
+  input.addEventListener('input', function() {{ search(input.value.trim()); }});
+  input.addEventListener('focus', function() {{
+    if (!input.value.trim()) showRecent();
+    else search(input.value.trim());
+  }});
+  input.addEventListener('blur', function() {{
+    setTimeout(function() {{ dropdown.style.display = 'none'; }}, 150);
+  }});
+  input.addEventListener('keydown', function(e) {{
+    var items = dropdown.querySelectorAll('.qac-item');
+    if (e.key === 'ArrowDown') {{
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      items.forEach(function(el, i) {{ el.classList.toggle('active', i === activeIdx); }});
+      e.preventDefault();
+    }} else if (e.key === 'ArrowUp') {{
+      activeIdx = Math.max(activeIdx - 1, 0);
+      items.forEach(function(el, i) {{ el.classList.toggle('active', i === activeIdx); }});
+      e.preventDefault();
+    }} else if (e.key === 'Enter') {{
+      if (activeIdx >= 0 && items[activeIdx]) {{
+        navigate(items[activeIdx].getAttribute('data-ticker'));
+      }} else if (input.value.trim()) {{
+        navigate(input.value.trim().toUpperCase());
+      }}
+      e.preventDefault();
+    }} else if (e.key === 'Escape') {{
+      dropdown.style.display = 'none';
+    }}
+  }});
+}})();
+</script>
+""", height=56, scrolling=False)
+
+    # Read the search value — from ac_pick (autocomplete) or session state
+    search_ticker = st.session_state.get("screener_search_val", "").strip().upper()
+    # Update recent searches
+    if search_ticker and search_ticker not in st.session_state.get("recent_searches", []):
+        _recent_list = st.session_state.get("recent_searches", [])
+        _recent_list = [search_ticker] + [r for r in _recent_list if r != search_ticker]
+        st.session_state.recent_searches = _recent_list[:5]
     if search_ticker:
         # Resolve company name → ticker first
         resolved_tk, resolved_name = resolve_ticker(search_ticker)
