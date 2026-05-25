@@ -2873,20 +2873,16 @@ def page_landing():
     _n_high = len(_top5)
     _n_sell = 0
     try:
-        # Get latest signal_date first, then filter to that date only
-        _latest_dt = _sb2.table("signal_log").select("signal_date") \
-            .order("signal_date", desc=True).limit(1).execute()
-        _max_dt = _latest_dt.data[0]["signal_date"] if _latest_dt.data else None
-        if _max_dt:
-            _all_scores = _sb2.table("signal_log") \
-                .select("ticker,adj_composite") \
-                .eq("signal_date", _max_dt) \
-                .execute()
-            _scores_data = _all_scores.data or []
-            _n_high = sum(1 for r in _scores_data if float(r.get("adj_composite") or 0) >= 60)
-            _n_sell = sum(1 for r in _scores_data if float(r.get("adj_composite") or 50) < 45)
-        else:
-            _n_high, _n_sell = 0, 0
+        # Use session cache from screener if available — exact same numbers
+        _n_high = st.session_state.get("_high_count", 0)
+        _n_sell = st.session_state.get("_low_count", 0)
+        # Fall back to platform_stats from DB
+        if not _n_high and not _n_sell:
+            _ps = _sb2.table("platform_stats").select("n_high,n_low") \
+                .eq("stat_key", "daily_summary").limit(1).execute()
+            if _ps.data:
+                _n_high = _ps.data[0].get("n_high", 0)
+                _n_sell = _ps.data[0].get("n_low", 0)
     except Exception:
         pass
 
@@ -3391,16 +3387,7 @@ def page_auth():
     col_back, col_center, col_right = st.columns([1, 4, 1])
     with col_back:
         st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
-        # Back button — sets landing flag directly then reruns to landing
-        if st.button("← Home", key="auth_back_home"):
-            st.session_state.page = "landing"
-            st.session_state._show_landing = True
-            st.rerun()
-        st.markdown('<style>div[data-testid="stButton"][data-key="auth_back_home"] button {'
-            'background:rgba(255,255,255,.03)!important;border:1px solid rgba(255,255,255,.12)!important;'
-            'color:#94a3b8!important;font-size:11px!important;padding:6px 10px!important;'
-            'font-family:Syne,sans-serif!important;font-weight:700!important;white-space:nowrap!important;'
-            'letter-spacing:.04em!important;}</style>', unsafe_allow_html=True)
+        st.markdown(_back_btn("?nav=landing", "← Home"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_center:
@@ -4174,7 +4161,25 @@ def page_screener():
     holds = sum(1 for r in results if r.get("adj_action",r.get("action"))=="HOLD")
     sells = sum(1 for r in results if r.get("adj_action",r.get("action"))=="SELL")
     _n_gems_strip = len(gems)
-    st.session_state._gem_count = _n_gems_strip  # cache for landing page
+    st.session_state._gem_count  = _n_gems_strip
+    st.session_state._high_count = buys
+    st.session_state._low_count  = sells
+    # Write to platform_stats so landing page always has fresh counts
+    try:
+        from data_refresh import _get_supabase as _ps_sb
+        _ps_client = _ps_sb()
+        if _ps_client:
+            _ps_client.table("platform_stats").upsert({
+                "stat_key": "daily_summary",
+                "n_high":   buys,
+                "n_low":    sells,
+                "n_gems":   _n_gems_strip,
+                "n_total":  len(results),
+                "regime":   macro.get("regime", "NEUTRAL"),
+                "updated_at": "now()",
+            }, on_conflict="stat_key").execute()
+    except Exception:
+        pass
     st.markdown(
         f'<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;'
         f'padding:6px 0 10px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.04);">'
@@ -7363,8 +7368,12 @@ def main():
 
     # Handle nav button side effects — re-route if needed
     # Only auto-redirect to platform if user didn't explicitly request landing
-    _explicit_landing = st.session_state.pop("_show_landing", False)
-    if st.session_state.page == "landing" and st.session_state.logged_in and not _explicit_landing:
+    # If user explicitly requested landing (back button), show it even when logged in
+    _explicit_landing = st.session_state.get("_show_landing", False)
+    if _explicit_landing:
+        st.session_state.page = "landing"
+        st.session_state._show_landing = False  # clear after use
+    elif st.session_state.page == "landing" and st.session_state.logged_in:
         st.session_state.page = "platform"
 
     # ── Reconnect recovery: restore nav from _n param ───────────────────────
