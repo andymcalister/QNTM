@@ -3384,10 +3384,34 @@ def page_auth():
     </style>
     """, unsafe_allow_html=True)
 
+    # Style the back button to look like _back_btn but use st.button for reliable nav
+    st.markdown("""
+    <style>
+    div[data-testid="stButton"][data-key="auth_home_btn"] button {
+        background:rgba(255,255,255,.03) !important;
+        border:1px solid rgba(255,255,255,.12) !important;
+        border-radius:6px !important;
+        color:#94a3b8 !important;
+        font-family:Syne,sans-serif !important;
+        font-size:11px !important;
+        font-weight:700 !important;
+        letter-spacing:.04em !important;
+        padding:6px 10px !important;
+        white-space:nowrap !important;
+        text-transform:uppercase !important;
+        width:auto !important;
+        min-width:0 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     col_back, col_center, col_right = st.columns([1, 4, 1])
     with col_back:
         st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
-        st.markdown(_back_btn("?nav=landing", "← Home"), unsafe_allow_html=True)
+        if st.button("← Home", key="auth_home_btn"):
+            st.session_state.page = "landing"
+            st.session_state._show_landing = True
+            st.session_state.nav = "screener"  # reset nav for next platform visit
+            st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_center:
