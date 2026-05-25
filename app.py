@@ -2440,86 +2440,39 @@ def page_landing():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── HERO ──────────────────────────────────────────────────────────────────
+    # ── HERO — two-column layout ──────────────────────────────────────────────
     bt = BACKTEST_DATA
 
-    # Hero — headline + subtext + CTA only (stat grid moves below fold per Task 2)
-    hero_html = (
-        '<style>'
-        '.qntm-hero{padding:48px clamp(16px,4vw,48px) 32px;max-width:760px;margin:0 auto;'
-        'background:radial-gradient(ellipse 80% 50% at 30% 0%,rgba(212,168,67,.06) 0%,transparent 70%);}'
-        '@media(max-width:700px){.qntm-hero{padding:32px 16px 24px!important;}}'
-        '</style>'
-        '<div class="qntm-hero">'
-        '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(212,168,67,.08);'
-        'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;margin-bottom:20px;">'
-        '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
-        'animation:land-pulse 2s infinite;flex-shrink:0;"></div>'
-        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">'
-        'MODEL LIVE · 5-YR VALIDATED · 834 STOCKS</span></div>'
-        '<h1 style="font-family:Syne,sans-serif;font-size:clamp(34px,4.5vw,62px);'
-        'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:16px;">'
-        'Know where<br>conviction is<br>'
-        '<span style="color:#d4a843;">strongest.</span></h1>'
-        '<p style="font-size:15px;color:#94a3b8;max-width:480px;line-height:1.7;margin-bottom:28px;">'
-        'A multi-factor quantitative model scoring 834 stocks daily across momentum, '
-        'quality, volume, value, and sentiment — blended with a live macro regime overlay.'
-        '</p></div>'
-    )
-    st.markdown(hero_html, unsafe_allow_html=True)
-
-    # Hero CTA buttons
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;'
-        'padding:0 clamp(16px,4vw,48px);max-width:480px;margin:0 auto 32px;">'
-        + _cta_gold("Join Free →", "?nav=register")
-        + _cta_ghost("Sign In", "?nav=signin")
-        + '</div>',
-        unsafe_allow_html=True
-    )
-
-    # ── MARKET REGIME TODAY — primary insight card ────────────────────────────
+    # Fetch macro regime for right-side intelligence panel
     try:
         from model_engine import fetch_macro_overlay
         _macro_now = fetch_macro_overlay()
     except Exception:
         _macro_now = {}
-    _regime     = _macro_now.get("regime", "NEUTRAL")
-    _regime_label = {"RISK_ON": "Risk On", "RISK_OFF": "Risk Off", "NEUTRAL": "Neutral"}.get(_regime, "Neutral")
-    _regime_c     = {"RISK_ON": "#00ff87", "RISK_OFF": "#ef4444", "NEUTRAL": "#fbbf24"}.get(_regime, "#fbbf24")
-    _regime_bg    = {"RISK_ON": "rgba(0,255,135,.06)", "RISK_OFF": "rgba(239,68,68,.06)", "NEUTRAL": "rgba(251,191,36,.06)"}.get(_regime, "rgba(251,191,36,.06)")
-    _regime_brd   = {"RISK_ON": "rgba(0,255,135,.2)",  "RISK_OFF": "rgba(239,68,68,.2)",  "NEUTRAL": "rgba(251,191,36,.2)"}.get(_regime, "rgba(251,191,36,.2)")
-    _regime_icon  = {"RISK_ON": "▲", "RISK_OFF": "▼", "NEUTRAL": "─"}.get(_regime, "─")
+    _regime       = _macro_now.get("regime", "NEUTRAL")
+    _regime_label = {"RISK_ON":"Risk On","RISK_OFF":"Risk Off","NEUTRAL":"Neutral"}.get(_regime,"Neutral")
+    _regime_c     = {"RISK_ON":"#00ff87","RISK_OFF":"#ef4444","NEUTRAL":"#fbbf24"}.get(_regime,"#fbbf24")
+    _regime_bg    = {"RISK_ON":"rgba(0,255,135,.08)","RISK_OFF":"rgba(239,68,68,.08)","NEUTRAL":"rgba(251,191,36,.08)"}.get(_regime,"rgba(251,191,36,.08)")
+    _regime_brd   = {"RISK_ON":"rgba(0,255,135,.25)","RISK_OFF":"rgba(239,68,68,.25)","NEUTRAL":"rgba(251,191,36,.25)"}.get(_regime,"rgba(251,191,36,.25)")
+    _regime_icon  = {"RISK_ON":"▲","RISK_OFF":"▼","NEUTRAL":"─"}.get(_regime,"─")
     _vix          = _macro_now.get("vix", None)
-    _vix_str      = f" · VIX {_vix:.1f}" if _vix else ""
+    _vix_str      = f"{_vix:.1f}" if _vix else "—"
     _events       = _macro_now.get("active_events", [])
-    _evt_str      = f" · {_events[0].replace('_',' ').title()}" if _events else ""
+    _evt_label    = _events[0].replace("_"," ").title() if _events else "None active"
 
-    st.markdown(
-        f'<div style="padding:0 clamp(16px,4vw,48px);max-width:760px;margin:0 auto 24px;">'
-        f'<div style="background:{_regime_bg};border:1px solid {_regime_brd};border-radius:10px;'
-        f'padding:20px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">'
-        f'<div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">MARKET REGIME TODAY</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:{_regime_c};line-height:1;">'
-        f'{_regime_icon} {_regime_label}</div>'
-        f'<div style="font-size:12px;color:#64748b;margin-top:4px;">Model overlay active{_vix_str}{_evt_str}</div>'
-        f'</div>'
-        f'<div style="text-align:right;">'
-        f'<div style="font-size:12px;color:#475569;margin-bottom:4px;">Macro blend</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#d4a843;">75/25</div>'
-        f'<div style="font-size:11px;color:#334155;">quant / macro</div>'
-        f'</div></div></div>',
-        unsafe_allow_html=True
-    )
-
-    # ── TOP 5 HIGH CONVICTION — collapsed cards ───────────────────────────────
+    # Fetch top 5 signals for right panel
     try:
         from data_refresh import _get_supabase as _hero_sb
         _sb2 = _hero_sb()
         _top5 = []
         if _sb2:
-            _r5 = _sb2.table("signal_log")                 .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date")                 .in_("signal", ["BUY","HIGH"])                 .order("signal_date", desc=True)                 .order("adj_composite", desc=True)                 .limit(50)                 .execute()
+            _r5 = _sb2.table("signal_log") \
+                .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
+                .in_("signal", ["BUY","HIGH"]) \
+                .order("signal_date", desc=True) \
+                .order("adj_composite", desc=True) \
+                .limit(50) \
+                .execute()
             _seen5 = {}
             for _row in (_r5.data or []):
                 if _row["ticker"] not in _seen5:
@@ -2531,21 +2484,140 @@ def page_landing():
     except Exception:
         _top5 = []
 
-    if _top5:
-        st.markdown(
-            '<div style="padding:0 clamp(16px,4vw,48px);max-width:760px;margin:0 auto 8px;">'
-            '<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;'
-            'letter-spacing:.1em;margin-bottom:10px;">TOP SIGNALS TODAY</div>',
-            unsafe_allow_html=True
+    # Signal rows for right panel — simple scan rows, not full cards
+    _signal_rows = ""
+    for _sr in _top5:
+        _stk   = _sr.get("ticker","")
+        _ssc   = float(_sr.get("adj_composite",0) or 0)
+        _signal_rows += (
+            '<div style="display:flex;justify-content:space-between;align-items:center;'
+            'padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
+            f'<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{_stk}</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#00ff87;font-weight:700;">{_ssc:.0f} ▲</span>'
+            '</div>'
         )
-        cards_html = ""
-        for _r5row in _top5:
-            cards_html += factor_panel_html(_r5row, False, None)
-        st.markdown(
-            '<div style="padding:0 clamp(16px,4vw,48px);max-width:760px;margin:0 auto;">' + cards_html + '</div>',
-            unsafe_allow_html=True
-        )
+    if not _signal_rows:
+        _signal_rows = '<div style="font-size:12px;color:#334155;padding:12px 0;">Signals loading...</div>'
 
+    # Build compact trust stats row
+    _mr = f"+{bt['model_total_ret']:.0f}%"
+    _sh = f"{bt['sharpe']:.2f}"
+    _wr = f"{bt['win_rate']:.0f}%"
+    _dd = f"{bt['max_dd_model']:.1f}%"
+
+    hero_html = (
+        '<style>'
+        '.qntm-hero2{'
+        '  display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start;'
+        '  padding:52px clamp(20px,5vw,64px) 40px;max-width:1200px;margin:0 auto;'
+        '  background:radial-gradient(ellipse 60% 70% at 20% 0%,rgba(212,168,67,.07) 0%,transparent 65%);'
+        '}'
+        '@media(max-width:768px){'
+        '  .qntm-hero2{grid-template-columns:1fr!important;gap:28px!important;padding:32px 16px 28px!important;}'
+        '  .qntm-hero2-right{display:none!important;}'  # hide right panel on mobile — shows below
+        '}'
+        '.qntm-trust-strip{display:flex;gap:6px;flex-wrap:wrap;padding:0 clamp(20px,5vw,64px);'
+        'max-width:1200px;margin:0 auto 0;}'
+        '</style>'
+        '<div class="qntm-hero2">'
+
+        # ── LEFT: headline + subtext + CTAs ──────────────────────────────────
+        '<div>'
+        '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(212,168,67,.08);'
+        'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;margin-bottom:22px;">'
+        '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
+        'animation:land-pulse 2s infinite;flex-shrink:0;"></div>'
+        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">'
+        'MODEL LIVE · 5-YR VALIDATED · 834 STOCKS</span></div>'
+        '<h1 style="font-family:Syne,sans-serif;font-size:clamp(36px,4vw,60px);'
+        'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:18px;">'
+        'Know where<br>conviction is<br>'
+        '<span style="color:#d4a843;">strongest.</span></h1>'
+        '<p style="font-size:15px;color:#94a3b8;max-width:400px;line-height:1.75;margin-bottom:32px;">'
+        'A multi-factor quantitative model scoring 834 stocks daily — blended with a live macro regime overlay.'
+        '</p>'
+        # CTAs inline in left column
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:360px;">'
+    )
+
+    hero_html += (
+        _cta_gold("Join Free →", "?nav=register")
+        + _cta_ghost("Sign In", "?nav=signin")
+        + '</div>'  # end CTA grid
+        '</div>'    # end left col
+
+        # ── RIGHT: intelligence panel ─────────────────────────────────────────
+        + '<div class="qntm-hero2-right" style="'
+        'background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);'
+        'border-radius:12px;padding:20px 22px;backdrop-filter:blur(8px);">'
+
+        # Regime header
+        + f'<div style="background:{_regime_bg};border:1px solid {_regime_brd};border-radius:8px;'
+        f'padding:14px 16px;margin-bottom:16px;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.12em;margin-bottom:5px;">MARKET REGIME</div>'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_regime_c};">'
+        f'{_regime_icon} {_regime_label}</span>'
+        f'<div style="text-align:right;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div>'
+        f'<div style="font-size:10px;color:#475569;">quant/macro</div>'
+        f'</div></div>'
+        f'<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">'
+        f'<span style="font-size:11px;color:#64748b;">VIX {_vix_str}</span>'
+        f'<span style="font-size:11px;color:#64748b;">Event: {_evt_label}</span>'
+        f'</div></div>'
+
+        # Top signals label
+        + '<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.12em;margin-bottom:2px;">TOP SIGNALS TODAY</div>'
+        + _signal_rows
+
+        # Compact stats strip at bottom of panel
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05);">'
+        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">5-YR RETURN</div>'
+        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">{_mr}</div></div>'
+        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">SHARPE</div>'
+        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">{_sh}</div></div>'
+        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">WIN RATE</div>'
+        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#00ff87;">{_wr}</div></div>'
+        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">MAX DD</div>'
+        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">{_dd}</div></div>'
+        + '</div>'
+
+        + '</div>'  # end right panel
+        + '</div>'  # end hero grid
+    )
+
+    st.markdown(hero_html, unsafe_allow_html=True)
+
+    # ── TODAY IN QNTM — transition strip ─────────────────────────────────────
+    _n_high = len(_top5)
+    _n_sell = 0
+    try:
+        _sell_resp = _sb2.table("signal_log") \
+            .select("ticker") \
+            .in_("signal", ["SELL","LOW"]) \
+            .order("signal_date", desc=True) \
+            .limit(20) \
+            .execute()
+        _n_sell = len(set(r["ticker"] for r in (_sell_resp.data or [])))
+    except Exception:
+        pass
+
+    _today_items = []
+    if _n_high:  _today_items.append(f'<span style="color:#00ff87;">▲ {_n_high} high conviction signals</span>')
+    if _n_sell:  _today_items.append(f'<span style="color:#ef4444;">▼ {_n_sell} exit signals</span>')
+    _today_items.append(f'<span style="color:#64748b;">Regime: {_regime_label}</span>')
+    _today_items.append(f'<span style="color:#64748b;">834 stocks scored</span>')
+
+    st.markdown(
+        '<div style="padding:14px clamp(20px,5vw,64px);max-width:1200px;margin:0 auto;'
+        'border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04);'
+        'display:flex;gap:20px;flex-wrap:wrap;align-items:center;">'
+        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.1em;white-space:nowrap;">TODAY IN QNTM</span>'
+        + ' <span style="color:#1e293b;">·</span> '.join(_today_items)
+        + '</div>',
+        unsafe_allow_html=True
+    )
 
     # ── TICKER TAPE — live from latest signal_log ─────────────────────────────
     tape_scores = st.session_state.get("scan_results") or []
