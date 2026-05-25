@@ -490,6 +490,18 @@ div[data-baseweb="select"] span,
 /* Divider */
 hr{border-color:rgba(255,255,255,.07)!important;}
 
+/* Autocomplete iframe — collapse when dropdown not showing */
+iframe[title="st_components_v1.html-0"], 
+[data-testid="stCustomComponentV1"]:has(iframe) {
+    transition: height .15s ease;
+}
+/* Autocomplete component iframe — allow dropdown to overflow */
+[data-testid="stCustomComponentV1"] {
+    overflow: visible !important;
+}
+[data-testid="stCustomComponentV1"] iframe {
+    overflow: visible !important;
+}
 /* Hide st.components.v1.html iframes used for JS-only operations */
 iframe[height="0"], iframe[style*="height: 0"], 
 [data-testid="stCustomComponentV1"] iframe {
@@ -3822,12 +3834,10 @@ function show(items, sec) {{
 function hide() {{ drop.style.display='none'; setH(false); aidx=-1; }}
 
 function setH(open) {{
-  document.body.style.height = open ? '360px' : '56px';
-  // Also resize the iframe via frameElement
-  try {{
-    var fe = window.frameElement;
-    if (fe) fe.style.height = (open ? 360 : 56) + 'px';
-  }} catch(e) {{}}
+  // Collapse body height to reduce visible gap when closed
+  document.documentElement.style.height = open ? '360px' : '58px';
+  document.body.style.height = open ? '360px' : '58px';
+  document.body.style.overflow = open ? 'visible' : 'hidden';
 }}
 
 function search(q) {{
@@ -3871,7 +3881,7 @@ setH(false);
 </script>
 </body>
 </html>
-""", height=56, scrolling=False)
+""", height=360, scrolling=False)
 
     # Read search value from session state (set by ac_pick param above)
     search_ticker = st.session_state.get("screener_search_val", "").strip().upper()
