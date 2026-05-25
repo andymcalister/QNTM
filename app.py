@@ -1098,16 +1098,16 @@ def data_freshness_banner():
             dt_str = None
 
         label  = f"Last refresh · {dt_str}" if dt_str else ("Data fresh" if fresh else "Stale data")
-        color  = "#00ff87" if fresh else "#f59e0b"
-        bg     = "rgba(0,255,135,.08)" if fresh else "rgba(245,158,11,.08)"
-        border = "rgba(0,255,135,.2)"  if fresh else "rgba(245,158,11,.25)"
+        color  = "#334155" if fresh else "#64748b"
+        bg     = "rgba(255,255,255,.03)" if fresh else "rgba(245,158,11,.05)"
+        border = "rgba(255,255,255,.08)"  if fresh else "rgba(245,158,11,.15)"
         suffix = "" if fresh else " · Rescan for live scores"
         st.markdown(
             f'<div style="display:inline-flex;align-items:center;gap:6px;'
             f'background:{bg};border:1px solid {border};'
             f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
             f'font-family:DM Mono,monospace;margin-bottom:6px;">'
-            f'<span style="width:7px;height:7px;border-radius:50%;background:{color};display:inline-block;"></span>'
+            f'<span style="width:5px;height:5px;border-radius:50%;background:{color};display:inline-block;opacity:.6;"></span>'
             f'{label}{suffix}</div>',
             unsafe_allow_html=True)
     except Exception:
