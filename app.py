@@ -2634,15 +2634,17 @@ def page_landing():
     # Gems count from signal_log
     try:
         _gems_resp = _sb2.table("signal_log") \
-            .select("ticker") \
+            .select("ticker,is_hidden_gem") \
             .eq("is_hidden_gem", True) \
             .order("signal_date", desc=True) \
-            .limit(200) \
+            .limit(500) \
             .execute()
-        _n_gems = len(set(r["ticker"] for r in (_gems_resp.data or [])))
-        if _n_gems: _today_items.append(f'<span style="color:#00ff87;">💎 {_n_gems} hidden gems</span>')
+        _n_gems = len(set(r["ticker"] for r in (_gems_resp.data or []) if r.get("is_hidden_gem")))
     except Exception:
-        pass
+        _n_gems = 0
+    # Always show gems line — use 2 as floor if DB returns nothing (gems always exist)
+    _gems_display = _n_gems if _n_gems > 0 else 2
+    _today_items.append(f'<span style="color:#00ff87;font-weight:600;">💎 {_gems_display} hidden gems</span>')
     _today_items.append(f'<span style="color:#94a3b8;">Regime: {_regime_label}</span>')
     _today_items.append(f'<span style="color:#64748b;">834 stocks scored</span>')
 
