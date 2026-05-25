@@ -3845,7 +3845,7 @@ body {{ background: transparent; }}
 
   function navigate(ticker) {{
     var url = BASE_URL + '&ac_pick=' + encodeURIComponent(ticker);
-    window.parent.location.href = url;
+    window.parent.postMessage({{type:'qntm_search', url: url}}, '*');
   }}
 
   function renderItems(items, sectionLabel) {{
@@ -3860,16 +3860,16 @@ body {{ background: transparent; }}
     return html;
   }}
 
-  function setHeight(expanded) {{
-    // Tell parent iframe to resize
-    var h = expanded ? 340 : 56;
-    window.frameElement && (window.frameElement.style.height = h + 'px');
+  function setHeight(n) {{
+    // Resize iframe height: n = number of items shown
+    var h = n > 0 ? Math.min(56 + 32 + n * 44, 56 + 300) : 56;
+    window.parent.postMessage({{type:'qntm_resize', height: h}}, '*');
   }}
   function showDropdown(items, section) {{
-    if (!items.length) {{ dropdown.style.display = 'none'; setHeight(false); return; }}
+    if (!items.length) {{ dropdown.style.display = 'none'; setHeight(0); return; }}
     dropdown.innerHTML = renderItems(items, section);
     dropdown.style.display = 'block';
-    setHeight(true);
+    setHeight(items.length);
     activeIdx = -1;
     dropdown.querySelectorAll('.qac-item').forEach(function(el) {{
       el.addEventListener('mousedown', function(e) {{
@@ -3906,7 +3906,7 @@ body {{ background: transparent; }}
   input.addEventListener('blur', function() {{
     setTimeout(function() {{
       dropdown.style.display = 'none';
-      setHeight(false);
+      setHeight(0);
     }}, 150);
   }});
   input.addEventListener('keydown', function(e) {{
@@ -3932,7 +3932,35 @@ body {{ background: transparent; }}
   }});
 }})();
 </script>
-""", height=340, scrolling=False)
+""", height=56, scrolling=False)
+
+    # postMessage handler — listens for autocomplete navigation + iframe resize
+    st.markdown("""
+    <script>
+    (function() {
+      if (window._qntmAcBound) return;
+      window._qntmAcBound = true;
+      window.addEventListener('message', function(e) {
+        if (!e.data || !e.data.type) return;
+        if (e.data.type === 'qntm_search') {
+          window.location.href = e.data.url;
+        }
+        if (e.data.type === 'qntm_resize') {
+          // Find the autocomplete iframe and resize it
+          var iframes = document.querySelectorAll('iframe');
+          iframes.forEach(function(f) {
+            try {
+              if (f.contentDocument && f.contentDocument.getElementById('qac-input')) {
+                f.style.height = e.data.height + 'px';
+                f.style.minHeight = e.data.height + 'px';
+              }
+            } catch(ex) {}
+          });
+        }
+      });
+    })();
+    </script>
+    """, unsafe_allow_html=True)
 
     # Read the search value — from ac_pick (autocomplete) or session state
     search_ticker = st.session_state.get("screener_search_val", "").strip().upper()
