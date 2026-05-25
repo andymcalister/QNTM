@@ -3011,42 +3011,22 @@ def page_landing():
         </div>
       </div>"""
 
-    inst_card = f"""
-      <div style="{card_style()}">
-        <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:.08em;margin-bottom:8px;">INSTITUTIONAL</div>
-        <div style="font-family:Syne,sans-serif;font-size:clamp(16px,3.5vw,26px);font-weight:800;color:#e2e4f0;line-height:1;white-space:nowrap;">Custom</div>
-        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;margin-top:3px;">contact us</div>
-        <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row("Everything in Pro", True)}
-          {feat_row("API access", True)}
-          {feat_row("Custom universe", True)}
-          {feat_row("White-label option", True)}
-          {feat_row("Dedicated support", True)}
-          {feat_row("Multi-user accounts", True)}
-        </div>
-      </div>"""
-
     st.markdown(
         f'<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:16px;">'
-        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
-        f'{free_card}{founding_card}{inst_card}'
+        f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:760px;margin:0 auto;">'
+        f'{free_card}{founding_card}'
         f'</div></div>',
         unsafe_allow_html=True)
 
     st.markdown(
-        '<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;">'
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
+        '<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;max-width:760px;margin-left:auto;margin-right:auto;">'
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
         + _cta_ghost("Start Free →", "?nav=register")
-        + _cta_gold("Join Free — Founding Member", "?nav=register")
-        + '<a style="display:block;text-align:center;padding:13px 16px;border-radius:6px;'
-        'border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);'
-        'font-family:Syne,sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;'
-        'text-transform:uppercase;color:#475569;text-decoration:none;cursor:default;'
-        'white-space:nowrap;">Enterprise — Coming Soon</a>'
+        + _cta_gold("Join Free — Founding Member →", "?nav=register")
         + '</div>'
-        + '<div style="text-align:center;margin-top:8px;font-size:12px;color:#d4a843;">'
+        + '<div style="text-align:center;margin-top:10px;font-size:12px;color:#d4a843;">'
         '⚡ Founding member pricing — <span style="text-decoration:line-through;color:#475569;">$29/mo</span>'
-        ' free while spots last · <span style="color:#e2e8f0;">Limited availability</span>'
+        ' free while spots last &nbsp;·&nbsp; <span style="color:#e2e8f0;">Limited availability</span>'
         '</div></div>',
         unsafe_allow_html=True
     )
