@@ -2717,37 +2717,6 @@ def page_landing():
     )
     st.markdown(tape_block, unsafe_allow_html=True)
 
-    # ── PERFORMANCE SECTION — stat grid now lives here (below fold per Task 2) ──
-    _mr  = f"+{bt['model_total_ret']:.0f}%"
-    _sr  = f"+{bt['spy_total_ret']:.0f}%"
-    _sh  = f"{bt['sharpe']:.2f}"
-    _wr  = f"{bt['win_rate']:.0f}%"
-    _dd  = f"{bt['max_dd_model']:.1f}%"
-    _dds = f"{bt['max_dd_spy']:.1f}%"
-
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;'
-        'padding:32px clamp(16px,4vw,48px) 24px;max-width:760px;margin:0 auto;">'
-        '<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.15);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">5-YR RETURN</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">' + _mr + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _sr + '</div></div>'
-        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">SHARPE RATIO</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _sh + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">&gt;1.0 excellent</div></div>'
-        '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.1);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">' + _wr + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div></div>'
-        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">MAX DRAWDOWN</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _dd + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _dds + '</div></div>'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
     st.markdown("""
     <div class="land-divider"></div>
     <div class="land-section">
