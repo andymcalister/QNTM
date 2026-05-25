@@ -775,6 +775,31 @@ _cv1_js.html("""
     }, { passive: false });
 })();
 
+// ── CARD TOGGLE — one-at-a-time close ────────────────────────────────────────
+(function() {
+    function closeOthers(checkedEl) {
+        parent.document.querySelectorAll('input[id^="c"]').forEach(function(cb) {
+            if (cb !== checkedEl && cb.type === 'checkbox' && cb.checked) {
+                cb.checked = false;
+            }
+        });
+    }
+    function attachListeners() {
+        parent.document.querySelectorAll('input[id^="c"]').forEach(function(cb) {
+            if (cb.type === 'checkbox' && !cb._qntmBound) {
+                cb._qntmBound = true;
+                cb.addEventListener('change', function() {
+                    if (cb.checked) closeOthers(cb);
+                });
+            }
+        });
+    }
+    attachListeners();
+    new MutationObserver(attachListeners).observe(
+        parent.document.body, { childList: true, subtree: true }
+    );
+})();
+
 </script>
 """, height=0)
 
