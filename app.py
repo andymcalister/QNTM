@@ -3004,7 +3004,6 @@ def page_landing():
           {feat_row("Unlimited portfolio positions", True)}
           {feat_row("Hidden Gems detection", True)}
           {feat_row("Portfolio Simulator (risk profiles)", True)}
-          {feat_row("15-min intraday price refresh", True)}
           {feat_row("Signal change alerts", True)}
           {feat_row("Email notifications", True)}
           {feat_row("Founding member badge", True)}
