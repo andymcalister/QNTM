@@ -2014,14 +2014,10 @@ def _cta_ghost(label: str, href: str, full_width: bool = True) -> str:
     )
 
 # ── DISCLAIMER ────────────────────────────────────────────────────────────────
-DISCLAIMER = """<div style="background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);
-border-radius:4px;padding:12px 16px;font-size:13px;color:#64748b;line-height:1.7;margin:1rem 0;">
-⚠ <strong style="color:#fbbf24;">Disclaimer:</strong>
-QNTM is a quantitative research and factor analysis tool for informational and educational
-purposes only. It does not constitute investment advice, a recommendation to buy or sell
-any security, or a guarantee of future performance. Past model performance does not predict
-future results. All investments involve risk including possible loss of principal. Consult
-a qualified financial adviser before making any investment decisions.
+DISCLAIMER = """<div style="display:flex;align-items:center;gap:8px;padding:6px 0;margin-bottom:8px;">
+<span style="font-size:11px;color:#334155;">ℹ</span>
+<span style="font-size:11px;color:#334155;">Quantitative research tool — not investment advice.
+<a href="?legal=disclaimer" target="_self" style="color:#475569;text-decoration:underline;">Learn more</a></span>
 </div>"""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2671,8 +2667,10 @@ def page_landing():
         pass
 
     _today_items = []
-    if _n_high:  _today_items.append(f'<span style="color:#e2e8f0;font-weight:600;">▲ {_n_high} high conviction</span>')
-    if _n_sell:  _today_items.append(f'<span style="color:#ef4444;">▼ {_n_sell} exit signals</span>')
+    # Regime is primary — larger and brighter
+    _today_items.insert(0, f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{_regime_c};">{_regime_icon} {_regime_label}</span>')
+    if _n_high:  _today_items.append(f'<span style="color:#64748b;">{_n_high} high conviction</span>')
+    if _n_sell:  _today_items.append(f'<span style="color:#475569;">{_n_sell} exit</span>')
     # Gems count from signal_log
     try:
         _gems_resp = _sb2.table("signal_log") \
@@ -2687,7 +2685,6 @@ def page_landing():
     # Always show gems line — use 2 as floor if DB returns nothing (gems always exist)
     _gems_display = _n_gems if _n_gems > 0 else 2
     _today_items.append(f'<span style="color:#00ff87;font-weight:600;">💎 {_gems_display} hidden gems</span>')
-    _today_items.append(f'<span style="color:#94a3b8;">Regime: {_regime_label}</span>')
     _today_items.append(f'<span style="color:#64748b;">834 stocks scored</span>')
 
     st.markdown(
@@ -3614,14 +3611,7 @@ def page_screener():
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    # ── Rescan + Last Refresh — top of page ───────────────────────────────────
     data_freshness_banner()
-    if st.button("🔄 Rescan Universe", key="rescan_main", use_container_width=True):
-        st.session_state.scan_results = None
-        st.rerun()
-
-
-    st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
     # ── Hero search box ───────────────────────────────────────────────────────
     st.markdown("""
@@ -3815,20 +3805,6 @@ def page_screener():
                     f'</div></div>',
                     unsafe_allow_html=True)
 
-    # ── Differentiator Strip ───────────────────────────────────────────────────
-    # Data freshness note
-    st.markdown("""
-    <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);
-         border-radius:6px;padding:10px 16px;margin-bottom:14px;
-         display:flex;align-items:center;gap:10px;">
-      <span style="font-size:13px;">ℹ️</span>
-      <span style="font-size:12px;color:#64748b;line-height:1.6;">
-        Universe scores are based on model fundamentals updated periodically.
-        <strong style="color:#94a3b8;">Search any ticker above for a live score</strong>
-        pulled fresh from market data.
-      </span>
-    </div>
-    """, unsafe_allow_html=True)
     bt = BACKTEST_DATA
 
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
@@ -3895,17 +3871,19 @@ def page_screener():
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
-        fc1, fc2, fc3 = st.columns(3)
+        fc1, fc2, fc3, fc4 = st.columns([3,3,2,2])
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
             filter_act = st.selectbox("Conviction", ["All","High Conviction","Moderate","Low Conviction"], key="f_act")
         with fc3:
             filter_min = st.selectbox("Min Score", ["All","60+","70+","80+"], key="f_min")
+        with fc4:
+            st.markdown('<div style="height:22px;"></div>', unsafe_allow_html=True)
+            if st.button("↺ Rescan", key="rescan", use_container_width=True):
+                st.session_state.scan_results = None
+                st.rerun()
 
-        if st.button("🔄 Rescan", key="rescan", use_container_width=True):
-            st.session_state.scan_results = None
-            st.rerun()
 
         filtered = results
         if filter_sec != "All": filtered = [r for r in filtered if r.get("sector")==filter_sec]
