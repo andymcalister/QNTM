@@ -2891,9 +2891,31 @@ def page_landing():
     _today_items.insert(0, f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{_regime_c};">{_regime_icon} {_regime_label}</span>')
     if _n_high:  _today_items.append(f'<span style="color:#64748b;">{_n_high} high conviction</span>')
     if _n_sell:  _today_items.append(f'<span style="color:#475569;">{_n_sell} exit</span>')
-    # Gem count — read from session state cache set by screener
+    # Gem count — use screener cache if available, else query signal_log directly
     _n_gems = st.session_state.get("_gem_count", 0)
-    _gems_display = _n_gems if _n_gems > 0 else "💎"
+    if not _n_gems:
+        try:
+            # Count distinct high-conviction non-megacap tickers from latest scan date
+            _mega = {"NVDA","MSFT","AAPL","META","GOOGL","GOOG","AMZN","TSLA","NFLX",
+                     "JPM","V","MA","UNH","JNJ","ABBV","PG","KO","WMT","COST",
+                     "XOM","CVX","BAC","GS","MS","BLK","LLY","MRK","TMO","HD","LOW"}
+            _gc = _sb2.table("signal_log") \
+                .select("ticker,adj_composite,momentum,quality,signal_date") \
+                .gte("adj_composite", 65) \
+                .gte("momentum", 58) \
+                .gte("quality", 55) \
+                .order("signal_date", desc=True) \
+                .limit(300) \
+                .execute()
+            _gc_seen = {}
+            for _r in (_gc.data or []):
+                tk = _r["ticker"]
+                if tk not in _mega and tk not in _gc_seen:
+                    _gc_seen[tk] = True
+            _n_gems = len(_gc_seen)
+        except Exception:
+            _n_gems = 0
+    _gems_display = _n_gems if _n_gems > 0 else 0
     _today_items.append(f'<span style="color:#00ff87;font-weight:600;">💎 {_gems_display} hidden gems</span>')
     _today_items.append(f'<span style="color:#64748b;">834 stocks scored</span>')
 
