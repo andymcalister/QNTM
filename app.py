@@ -5129,6 +5129,17 @@ def _make_excel(rows: list, headers: list, sheet_name: str = "Export") -> bytes:
 
 def page_portfolio():
     _pin_nav("portfolio")
+    # Handle remove position via URL action
+    _pa = st.query_params.get("port_action","")
+    _pt = st.query_params.get("port_ticker","")
+    if _pa == "remove" and _pt:
+        try:
+            delete_holding(uid(), _pt.upper())
+        except Exception:
+            pass
+        st.query_params.pop("port_action", None)
+        st.query_params.pop("port_ticker", None)
+        st.rerun()
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
     max_h = plan_limit(plan, "max_holdings")
@@ -5548,194 +5559,62 @@ def page_portfolio():
         )
         st.markdown(f'<div style="font-size:13px;color:#64748b;margin:4px 0 20px;">{_disclaimer}</div>', unsafe_allow_html=True)
 
-    # ── Holdings cards ─────────────────────────────────────────────────────────
+    # ── Holdings cards — collapsed card pattern (same as screener) ────────────
     st.markdown(
         '<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.1em;padding:8px 0 6px;border-top:1px solid rgba(255,255,255,.05);">POSITIONS</div>',
         unsafe_allow_html=True)
 
+    _uid_pv  = (st.session_state.user or {}).get("id","")
+    _pln_pv  = (st.session_state.user or {}).get("plan","free")
+
     for h in holdings:
         tk     = h["ticker"]
-        sc     = score_map.get(tk)
+        sc     = dict(score_map.get(tk, {}) or {})  # copy — don't mutate shared dict
         cost   = float(h.get("avg_cost", 0) or 0)
         shares = float(h.get("shares", 0) or 0)
         entry  = h.get("entry_date", "")
 
-        # Price: use score dict first (from fundamentals cache), then yfinance
+        # Get live price
         live_price = None
-        if sc and sc.get("price"):
+        if sc.get("price"):
             live_price = float(sc["price"])
-        else:
-            try:
-                from model_engine import get_current_price
-                p = get_current_price(tk)
-                if p and p > 0:
-                    live_price = p
-            except Exception:
-                pass
 
-        market_value   = live_price * shares if live_price and shares else (cost * shares if cost and shares else None)
-        unrealized_gl  = (live_price - cost) * shares if live_price and cost and shares else None
-        gl_pct         = ((live_price - cost) / cost * 100) if live_price and cost else None
-        gl_c           = "#00ff87" if (unrealized_gl or 0) >= 0 else "#ef4444"
-        gl_arrow       = "▲" if (unrealized_gl or 0) >= 0 else "▼"
+        # P&L
+        unrealized_gl = (live_price - cost) * shares if live_price and cost and shares else None
+        gl_pct        = ((live_price - cost) / cost * 100) if live_price and cost else None
+        gl_c          = "#00ff87" if (unrealized_gl or 0) >= 0 else "#ef4444"
+        gl_arrow      = "▲" if (unrealized_gl or 0) >= 0 else "▼"
 
         if sc:
-            comp   = sc.get("adj_composite", sc.get("composite", 50))
-            # Override stale cached signal using live score thresholds
-            act    = "SELL" if comp < 45 else ("BUY" if comp >= 60 else "HOLD")
-            sig    = sc.get("signal", "")
-            mom    = sc.get("momentum", 50)
-            qual   = sc.get("quality", 50)
-            vol    = sc.get("volume", 50)
-            val    = sc.get("value", 50)
-            sent   = sc.get("sentiment", 50)
-            delta  = sc.get("score_delta", 0)
-            sector = sc.get("sector", "")
-
-            # Factor driver text
-            pillars_sorted = sorted([("MOM",mom),("QUAL",qual),("VOL",vol),("VAL",val),("SENT",sent)],
-                                     key=lambda x:x[1], reverse=True)
-            top2   = [p[0] for p in pillars_sorted[:2]]
-            weak   = [p[0] for p in pillars_sorted if p[1] < 45]
-            driver = f"Driven by {top2[0]} + {top2[1]}"
-            if weak: driver += f" — watch {weak[0]}"
+            comp = float(sc.get("adj_composite", sc.get("composite", 50)) or 50)
+            sc["adj_action"]    = "BUY" if comp >= 60 else ("SELL" if comp < 45 else "HOLD")
+            sc["adj_composite"] = comp
+            sc["signal_date"]   = str(entry)[:10] if entry else sc.get("signal_date","")
+            # Show P&L in price field
+            if unrealized_gl is not None:
+                sc["price"] = live_price
         else:
-            comp, act, sig = 0, "N/A", "NOT IN UNIVERSE"
-            mom = qual = vol = val = sent = delta = 0
-            sector = "Unknown"
-            driver = ""  # ticker not in universe — no signal, shown by N/A badge
+            sc = {"ticker": tk, "adj_action": "N/A", "adj_composite": 0,
+                  "composite": 0, "momentum": 0, "quality": 0, "volume": 0,
+                  "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
-        act_colors = {
-            "BUY":  ("#00ff87","rgba(0,255,135,.1)" ,"2px solid #00ff87"),
-            "HOLD": ("#fbbf24","rgba(251,191,36,.07)","1px solid rgba(251,191,36,.25)"),
-            "SELL": ("#ef4444","rgba(239,68,68,.08)" ,"2px solid #ef4444"),
-            "N/A":  ("#475569","rgba(255,255,255,.02)","1px solid rgba(255,255,255,.07)"),
-        }
-        act_c, act_bg, act_brd = act_colors.get(act, act_colors["N/A"])
-        arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
-        act_label = "High" if act=="BUY" else "Low" if act=="SELL" else "Moderate"
+        ci = get_company_info(tk)
+        st.markdown(factor_panel_html(sc, False, company_info=ci), unsafe_allow_html=True)
 
-        # Pillar bars — clean horizontal with gradient fill
-        def pbar_row(name, v):
-            c = "#00ff87" if v>=65 else "#fbbf24" if v>=50 else "#ef4444"
-            tip   = PILLAR_TIPS.get(name, {})
-            tbody = tip.get('body', '')
-            twt   = tip.get('weight', '')
-            whtml = f'<div class="tip-weight">{twt}</div>' if twt else ''
-            lbl   = (
-                f'<span class="qntm-tip" style="font-size:13px;color:#64748b;cursor:help;">'
-                f'{name}<i class="tip-icon">i</i>'
-                f'<span class="tip-box">'
-                f'<div class="tip-title">{name}</div>'
-                f'<div class="tip-body">{tbody}</div>'
-                f'{whtml}</span></span>'
-            )
-            return (
-                f'<div style="min-width:0;">'
-                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-                f'{lbl}'
-                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{c};font-weight:700;">{v:.0f}</div>'
-                f'</div>'
-                f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:5px;overflow:hidden;">'
-                f'<div style="width:{v}%;height:100%;background:linear-gradient(90deg,{c}99,{c});border-radius:3px;"></div>'
-                f'</div></div>'
-            )
-
-        pillar_html = "".join([
-            pbar_row(n, v)
-            for n,v in [
-                ("Momentum", mom),
-                ("Quality",  qual),
-                ("Volume",   vol),
-                ("Value",    val),
-                ("Sentiment",sent),
-            ]
-        ])
-
-        delta_c = "#00ff87" if delta >= 0 else "#ef4444"
-        delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
-        quant_disp = f"{sc['composite']:.1f}" if sc and sc.get('composite') is not None else "—"
-        delta_disp = delta_str if sc else "—"
-        sig_disp   = (sig[:10] if sig else "—") if sig else "—"
-
-        if live_price:
-            price_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
-                          f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;font-weight:500;">${live_price:,.2f}</div></div>')
-        else:
-            price_block = ('<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">CURRENT PRICE</div>'
-                          '<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">—</div></div>')
-        shares_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">SHARES</div>'
-                       f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{shares:.2f}</div></div>')
-        cost_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">AVG COST</div>'
-                     f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">${cost:.2f}</div></div>') if cost > 0 else ""
-        mv_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">MKT VALUE</div>'
-                   f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#e2e8f0;">${market_value:,.0f}</div></div>') if market_value else ""
-        gl_block = (f'<div><div style="font-size:14px;color:#94a3b8;letter-spacing:.06em;margin-bottom:2px;">P&amp;L</div>'
-                   f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{gl_c};">{gl_arrow} ${abs(unrealized_gl):,.0f}</div></div>') if unrealized_gl is not None else ""
-        entry_block = (f'<div style="font-size:13px;color:#94a3b8;">entry '
-                      f'<span style="color:#94a3b8;font-family:DM Mono,monospace;">{str(entry)[:10]}</span></div>') if entry else ""
-
-        card_html = (
-            f'<div style="background:{act_bg};border:{act_brd};border-radius:10px;padding:16px;margin-bottom:10px;overflow:hidden;">'
-            # Header row
-            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">'
-            f'<div style="min-width:0;flex:1;">'
-            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">'
-            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{tk}</span>'
-            f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{act_c};'
-            f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;'
-            f'letter-spacing:.1em;white-space:nowrap;">{arrow} {act}</span>'
-            f'<span style="font-size:14px;color:#94a3b8;">{sector}</span>'
-            f'</div>'
-            f'<div style="font-size:13px;color:#94a3b8;">{driver}</div>'
-            f'</div>'
-            f'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:700;color:{act_c};">{comp:.0f}</div>'
-            f'<div style="font-size:13px;color:#94a3b8;">blended score</div>'
-            f'<div style="font-size:13px;color:{delta_c};">macro {delta_str}</div>'
-            f'</div></div>'
-            # Position data row
-            f'<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end;">'
-            f'{price_block}{shares_block}{cost_block}{mv_block}{gl_block}{entry_block}'
-            f'</div>'
-            # Pillar bars — 2-col grid on mobile
-            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">{pillar_html}</div>'
-            # Score boxes
-            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
-            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">QUANT</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{quant_disp}</div></div>'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
-            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">MACRO</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};">{delta_disp}</div></div>'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;">'
-            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">BLEND</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div></div>'
-            f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px;overflow:hidden;">'
-            f'<div style="font-size:14px;color:#94a3b8;letter-spacing:.04em;margin-bottom:3px;">SIGNAL</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sig_disp}</div></div>'
-            f'</div>'
-            + _build_why_html(sc or {}) +
-            f'</div>'
-        )
-        st.markdown(card_html, unsafe_allow_html=True)
-
-        _uid_val  = (st.session_state.user or {}).get("id", "")
-        _plan_val = (st.session_state.user or {}).get("plan", "free")
-        _rm_url   = f"?qnav=portfolio&uid={_uid_val}&plan={_plan_val}&ck=1&port_action=remove&port_ticker={tk}"
+        # Remove button — subtle, below each card
+        _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
         st.markdown(
-            f'<a href="{_rm_url}" target="_self" style="'
-            f'display:block;width:100%;text-align:center;padding:8px;margin-top:6px;'
-            f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);'
-            f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-            f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
-            f'box-sizing:border-box;">🗑 Remove {tk}</a>',
+            f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
+            f'padding:5px;margin-top:-4px;margin-bottom:8px;box-sizing:border-box;'
+            f'background:transparent;border:1px solid rgba(255,255,255,.05);'
+            f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
+            f'letter-spacing:.06em;color:#334155;text-decoration:none;">✕ Remove {tk}</a>',
             unsafe_allow_html=True
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Export to Excel ───────────────────────────────────────────────────────
+        # ── Export to Excel ───────────────────────────────────────────────────────
     if holdings:
         try:
             export_rows = []
