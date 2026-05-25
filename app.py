@@ -5134,12 +5134,7 @@ def page_portfolio():
     max_h = plan_limit(plan, "max_holdings")
     has_notifs = plan_limit(plan, "notifications")
 
-    page_summary(
-        "💼", "My Portfolio",
-        "Add your positions and QNTM applies the full conviction model to each one every scan. "
-        "See your blended score, pillar breakdown, and whether the signal has changed since you entered. "
-        "Free accounts track up to 10 positions. Pro unlocks unlimited holdings and real-time signal alerts.",
-    )
+    page_summary("💼", "My Portfolio", "Position-level conviction scores · signal alerts on change")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Ensure scan results ────────────────────────────────────────────────────
@@ -5154,30 +5149,68 @@ def page_portfolio():
     holdings  = get_holdings(uid())
     n_holdings = len(holdings)
 
-    # ── Portfolio conviction summary ────────────────────────────────────
+    # ── Portfolio conviction summary — single primary card ──────────────
     if holdings and score_map:
         _sc = [float(score_map.get(h["ticker"],{}).get("adj_composite",50) or 50) for h in holdings]
-        _hi, _mo, _lo = sum(1 for x in _sc if x>=60), sum(1 for x in _sc if 45<=x<60), sum(1 for x in _sc if x<45)
+        _hi = sum(1 for x in _sc if x>=60)
+        _mo = sum(1 for x in _sc if 45<=x<60)
+        _lo = sum(1 for x in _sc if x<45)
         _avg = sum(_sc)/len(_sc)
-        _cl  = "High" if _avg>=60 else ("Low" if _avg<45 else "Moderate")
-        _cc  = "#00ff87" if _avg>=60 else ("#ef4444" if _avg<45 else "#fbbf24")
-        _html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 32px 20px;">'
-        for _lb, _vl, _cl2, _sb in [
-            ("PORTFOLIO CONVICTION", _cl,      _cc,       f"avg score {_avg:.0f}"),
-            ("HIGH CONVICTION",      str(_hi), "#00ff87", "positions"),
-            ("MODERATE",             str(_mo), "#fbbf24", "positions"),
-            ("LOW CONVICTION",       str(_lo), "#ef4444", f"{"⚠ " if _lo>0 else ""}{_lo} positions"),
-        ]:
-            _fsz = "16px" if len(_vl)>3 else "22px"
-            _html += (
-                f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
-                f'border-radius:8px;padding:12px 14px;text-align:center;">'
-                f'<div style="font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:4px;">{_lb}</div>'
-                f'<div style="font-family:Syne,sans-serif;font-size:{_fsz};font-weight:700;color:{_cl2};">{_vl}</div>'
-                f'<div style="font-size:9px;color:#475569;margin-top:3px;">{_sb}</div></div>'
+        _conv_label = "High" if _avg>=60 else ("Low" if _avg<45 else "Moderate")
+        _conv_color = "#00ff87" if _avg>=60 else ("#ef4444" if _avg<45 else "#fbbf24")
+        # Trend — compare to previous snapshot avg if available
+        _trend_html = ""
+        _prev_snap = get_signal_snapshot(uid()) or {}
+        if _prev_snap:
+            _prev_sc = [float((_prev_snap.get(h["ticker"]) or {}).get("adj_composite",50) or 50) for h in holdings]
+            _prev_avg = sum(_prev_sc)/len(_prev_sc) if _prev_sc else _avg
+            _delta = _avg - _prev_avg
+            if abs(_delta) >= 1:
+                _tc = "#00ff87" if _delta>0 else "#ef4444"
+                _ta = "↑" if _delta>0 else "↓"
+                _trend_html = f'<span style="font-size:12px;color:{_tc};margin-left:8px;">{_ta} {abs(_delta):.1f} pts</span>'
+        # Key risks
+        _risks = []
+        if _lo > 0: _risks.append(f"{_lo} low conviction position{'s' if _lo>1 else ''}")
+        _sectors = []
+        try:
+            from model_engine import SECTORS as _PORT_SEC
+            _sec_count = {}
+            for h in holdings:
+                s = _PORT_SEC.get(h["ticker"],"")
+                if s: _sec_count[s] = _sec_count.get(s,0)+1
+            _top_sec = max(_sec_count, key=_sec_count.get) if _sec_count else ""
+            if _top_sec and _sec_count[_top_sec] >= 3:
+                _risks.append(f"concentration in {_top_sec}")
+        except Exception:
+            pass
+        _risk_html = ""
+        if _risks:
+            _risk_html = (
+                '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05);">'
+                '<span style="font-size:10px;color:#475569;letter-spacing:.06em;">KEY RISKS · </span>'
+                + " · ".join(f'<span style="font-size:11px;color:#ef4444;">⚠ {r}</span>' for r in _risks)
+                + '</div>'
             )
-        _html += '</div>'
-        st.markdown(_html, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+            f'border-radius:10px;padding:16px 20px;margin-bottom:16px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO CONVICTION</div>'
+            f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+            f'<div>'
+            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};">{_conv_label}</span>'
+            f'{_trend_html}'
+            f'<div style="font-size:11px;color:#475569;margin-top:2px;">avg score {_avg:.0f} · {len(holdings)} positions</div>'
+            f'</div>'
+            f'<div style="display:flex;gap:12px;">'
+            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#00ff87;">{_hi}</div><div style="font-size:9px;color:#475569;">HIGH</div></div>'
+            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#fbbf24;">{_mo}</div><div style="font-size:9px;color:#475569;">MOD</div></div>'
+            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#ef4444;">{_lo}</div><div style="font-size:9px;color:#475569;">LOW</div></div>'
+            f'</div></div>'
+            + _risk_html
+            + f'</div>',
+            unsafe_allow_html=True
+        )
 
 
     # ── Plan capacity bar ──────────────────────────────────────────────────────
@@ -5218,8 +5251,6 @@ def page_portfolio():
         </div>
         """, unsafe_allow_html=True)
         st.markdown(_cta_gold("Upgrade to Pro — $29/mo", "?nav=register"), unsafe_allow_html=True)
-
-    st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     # ── Check for signal changes (pro users get notifications) ─────────────────
     if holdings and score_map:
