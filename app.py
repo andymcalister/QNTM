@@ -2484,7 +2484,7 @@ def page_landing():
                     _row["adj_action"] = "BUY"
                     _row["score_delta"] = round(_adj - float(_row.get("composite") or _adj), 1)
                     _seen5[_row["ticker"]] = _row
-            _top5 = sorted(_seen5.values(), key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:10]
+            _top5 = sorted(_seen5.values(), key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:5]
     except Exception:
         _top5 = []
 
@@ -2629,17 +2629,29 @@ def page_landing():
         pass
 
     _today_items = []
-    if _n_high:  _today_items.append(f'<span style="color:#00ff87;">▲ {_n_high} high conviction signals</span>')
+    if _n_high:  _today_items.append(f'<span style="color:#e2e8f0;font-weight:600;">▲ {_n_high} high conviction</span>')
     if _n_sell:  _today_items.append(f'<span style="color:#ef4444;">▼ {_n_sell} exit signals</span>')
-    _today_items.append(f'<span style="color:#64748b;">Regime: {_regime_label}</span>')
+    # Gems count from signal_log
+    try:
+        _gems_resp = _sb2.table("signal_log") \
+            .select("ticker") \
+            .eq("is_hidden_gem", True) \
+            .order("signal_date", desc=True) \
+            .limit(200) \
+            .execute()
+        _n_gems = len(set(r["ticker"] for r in (_gems_resp.data or [])))
+        if _n_gems: _today_items.append(f'<span style="color:#00ff87;">💎 {_n_gems} hidden gems</span>')
+    except Exception:
+        pass
+    _today_items.append(f'<span style="color:#94a3b8;">Regime: {_regime_label}</span>')
     _today_items.append(f'<span style="color:#64748b;">834 stocks scored</span>')
 
     st.markdown(
         '<div style="padding:14px clamp(20px,5vw,64px);max-width:1200px;margin:0 auto;'
         'border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04);'
         'display:flex;gap:20px;flex-wrap:wrap;align-items:center;">'
-        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.1em;white-space:nowrap;">TODAY IN QNTM</span>'
-        + ' <span style="color:#1e293b;">·</span> '.join(_today_items)
+        '<span style="font-family:DM Mono,monospace;font-size:10px;color:#d4a843;letter-spacing:.1em;white-space:nowrap;">TODAY IN QNTM</span>'
+        + ' <span style="color:#334155;">·</span> '.join(_today_items)
         + '</div>',
         unsafe_allow_html=True
     )
