@@ -7300,17 +7300,17 @@ def main():
     if st.session_state.page == "landing" and st.session_state.logged_in:
         st.session_state.page = "platform"
 
-    # ── Reconnect recovery: if session wiped but uid in URL, restore nav from _n param ──
+    # ── Reconnect recovery: restore nav from _n param ───────────────────────
     _saved_nav = st.query_params.get("_n", "")
     _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
                    "model_portfolio","alerts","account","methodology"}
-    if (not st.session_state.get("logged_in") and
-            st.session_state.get("page") != "auth" and
-            _saved_nav in _VALID_TABS and
-            "uid" in st.query_params):
-        # Session was wiped by reconnect — restore nav destination
-        st.session_state.nav  = _saved_nav
-        st.session_state.page = "platform"
+    if _saved_nav in _VALID_TABS:
+        # Always restore _n — covers both reconnect wipe AND text input rerun
+        # Only override if not already on a valid page
+        _cur = st.session_state.get("nav", "screener")
+        if _cur == "screener" and _saved_nav != "screener":
+            st.session_state.nav  = _saved_nav
+            st.session_state.page = "platform"
 
     route = st.session_state.page
     if   route == "landing":  page_landing()
