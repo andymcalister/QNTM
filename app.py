@@ -135,6 +135,25 @@ section[data-testid="stMain"] > div,
 @keyframes glow{0%,100%{box-shadow:0 0 4px rgba(0,255,135,.1)}50%{box-shadow:0 0 12px rgba(0,255,135,.2)}}
 @keyframes scanLine{0%{top:-2px}100%{top:100%}}
 @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── Collapsed card (details/summary) ── */
+details summary { list-style: none; }
+details summary::-webkit-details-marker { display: none; }
+details summary::marker { display: none; }
+
+/* Chevron rotation on open */
+details summary .card-chevron { transition: transform .2s ease; display:inline-block; }
+details[open] summary .card-chevron { transform: rotate(90deg); }
+
+/* Subtle open state highlight */
+details[open] {
+  border-color: rgba(255,255,255,.12) !important;
+  background: rgba(255,255,255,.035) !important;
+}
+
+/* One-at-a-time: when any details is open, siblings get slightly dimmed */
+details:not([open]) { opacity: .92; }
+details:hover:not([open]) { opacity: 1; }
 @keyframes borderAnim{0%,100%{border-color:rgba(0,255,135,.2)}50%{border-color:rgba(0,255,135,.6)}}
 @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
@@ -1407,119 +1426,150 @@ def _build_why_html(r: dict) -> str:
 
 
 def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) -> str:
+    """
+    Collapsed card — default shows ticker · conviction · score · trend arrow.
+    Click/tap expands to reveal factor breakdown, WHY THIS SCORE, metrics.
+    Uses <details>/<summary> for pure-CSS toggle — no URL params, no rerun.
+    """
     act    = r.get("adj_action", r.get("action","HOLD"))
     score  = r.get("adj_composite", r.get("composite", 50))
     quant  = r.get("composite", 50)
     delta  = r.get("score_delta", 0)
-    act_colors = {"BUY":("#00ff87","rgba(0,255,135,.1)","rgba(0,255,135,.35)"),
-                  "HOLD":("#fbbf24","rgba(251,191,36,.1)","rgba(251,191,36,.3)"),
-                  "SELL":("#ef4444","rgba(239,68,68,.1)","rgba(239,68,68,.3)")}
+
+    act_colors = {
+        "BUY":  ("#00ff87", "rgba(0,255,135,.1)",  "rgba(0,255,135,.35)"),
+        "HOLD": ("#fbbf24", "rgba(251,191,36,.1)",  "rgba(251,191,36,.3)"),
+        "SELL": ("#ef4444", "rgba(239,68,68,.1)",   "rgba(239,68,68,.3)"),
+    }
     act_c, act_bg, act_brd = act_colors.get(act, ("#64748b","rgba(100,116,139,.1)","rgba(100,116,139,.3)"))
-    left_border = f"3px solid {act_c}"
+
+    action_label = "High Conviction" if act=="BUY" else ("Low Conviction" if act=="SELL" else "Moderate")
+    action_arrow = "▲" if act=="BUY" else ("▼" if act=="SELL" else "→")
+    gem_badge    = " 💎" if is_gem else ""
+    delta_c      = "#00ff87" if delta >= 0 else "#ef4444"
+    delta_str    = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
+
+    ci_name = (company_info or {}).get("name", "")
+    ci_desc = (company_info or {}).get("description", "")
+    name_display = ci_name if (ci_name and ci_name != r["ticker"]) else ""
+
+    # ── Collapsed summary row ─────────────────────────────────────────────────
+    summary_html = (
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'padding:14px 18px;cursor:pointer;user-select:none;list-style:none;">'
+        # Left: ticker · name · conviction badge
+        f'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
+        f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
+        + (f'<span style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;'
+           f'text-overflow:ellipsis;max-width:160px;">{name_display}</span>' if name_display else "")
+        + f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
+        f'color:{act_c};background:{act_bg};border:1px solid {act_brd};'
+        f'padding:2px 8px;border-radius:3px;letter-spacing:.08em;white-space:nowrap;">'
+        f'{action_arrow} {action_label}</span>'
+        f'</div>'
+        # Right: score + trend
+        f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
+        f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">'
+        f'{score:.0f}</span>'
+        f'<span style="font-size:14px;color:{delta_c};">{action_arrow}</span>'
+        f'<span class="card-chevron" style="font-size:13px;color:#334155;font-weight:300;">›</span>'
+        f'</div>'
+        f'</div>'
+    )
+
+    # ── Expanded detail content ───────────────────────────────────────────────
     pillars = [
-        ("MOM",  r.get("momentum",50)),
-        ("QUAL", r.get("quality",50)),
-        ("VOL",  r.get("volume",50)),
-        ("VAL",  r.get("value",50)),
+        ("MOM",  r.get("momentum", 50)),
+        ("QUAL", r.get("quality",  50)),
+        ("VOL",  r.get("volume",   50)),
+        ("VAL",  r.get("value",    50)),
         ("SENT", r.get("sentiment",50)),
     ]
     PILLAR_FULL_NAMES = {"MOM":"Momentum","QUAL":"Quality","VOL":"Volume","VAL":"Value","SENT":"Sentiment"}
     pillar_bars = ""
     for pname, pval in pillars:
-        pc = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
+        pc   = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
         full = PILLAR_FULL_NAMES.get(pname, pname)
-        tip = PILLAR_TIPS.get(full, {})
-        tip_body = tip.get("body","")
+        tip  = PILLAR_TIPS.get(full, {})
+        tip_body   = tip.get("body","")
         tip_weight = tip.get("weight","")
         weight_html = f'<div class="tip-weight">{tip_weight}</div>' if tip_weight else ""
         label_html = (
-            f'<span class="qntm-tip" style="font-size:13px;color:#94a3b8;cursor:help;">'
+            f'<span class="qntm-tip" style="font-size:12px;color:#94a3b8;cursor:help;">'
             f'{full}<i class="tip-icon">i</i>'
             f'<span class="tip-box"><div class="tip-title">{full}</div>'
             f'<div class="tip-body">{tip_body}</div>{weight_html}</span></span>'
         )
         pillar_bars += (
-            f'<div style="flex:1;min-width:0;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
+            f'<div style="flex:1;min-width:80px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
             f'{label_html}'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{pc};font-weight:700;">{pval:.0f}</div>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{pc};font-weight:700;">{pval:.0f}</span>'
             f'</div>'
-            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:6px;overflow:hidden;">'
+            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:5px;overflow:hidden;">'
             f'<div style="width:{pval}%;height:100%;background:{pc};border-radius:3px;"></div>'
             f'</div></div>'
         )
+
     sorted_pillars = sorted(pillars, key=lambda x: x[1], reverse=True)
     top2 = [p[0] for p in sorted_pillars[:2]]
     weak = [p[0] for p in sorted_pillars if p[1] < 45]
     driver = f"Driven by {top2[0]} + {top2[1]}"
     if weak: driver += f" — watch {weak[0]}"
 
-    # Plain-English explainability
-    why_html = _build_why_html(r)
-    delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
-    delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
-    gem_badge = ' 💎' if is_gem else ""
-    action_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MODERATE"
-    action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
-    ci_name = (company_info or {}).get("name","")
-    ci_desc = (company_info or {}).get("description","")
-    ticker_html = (
-        f'<span class="qntm-tip" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;cursor:help;">'
-        f'{r["ticker"]}{gem_badge}<span class="tip-box" style="width:300px;">'
-        f'<div class="tip-title">{ci_name}</div>'
-        f'<div class="tip-body">{ci_desc or "Search this ticker for a full company overview."}</div>'
-        f'</span></span>'
-        if ci_name and ci_name != r["ticker"]
-        else f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem_badge}</span>'
-    )
-    price_html = (f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;margin-top:3px;">'
-                  f'${r["price"]:,.2f} <span style="font-size:11px;color:#475569;">/ share</span>'
-                  + (f' <span style="font-size:11px;color:#475569;margin-left:6px;">· scanned {r["signal_date"]}</span>'
-                     if r.get("signal_date") else "")
-                  + f'</div>'
-                  if r.get("price") else
-                  (f'<div style="font-size:11px;color:#475569;margin-top:3px;">scanned {r["signal_date"]}</div>'
-                   if r.get("signal_date") else ""))
-    name_html = f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{ci_name}</div>' if ci_name and ci_name != r["ticker"] else ""
-    return (
-        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-        f'border-left:{left_border};border-radius:8px;padding:16px 18px;margin-bottom:8px;">'
-        f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">'
-        f'<div style="min-width:0;flex:1;">'
-        f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-        f'{ticker_html}'
-        f'<span style="font-family:Syne,sans-serif;font-size:11px;font-weight:700;color:{act_c};'
-        f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
-        f'letter-spacing:.1em;white-space:nowrap;">{action_arrow} {action_label}</span>'
-        f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:16]}</span>'
+    why_html   = _build_why_html(r)
+    price_html = ""
+    if r.get("price"):
+        price_html = (
+            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">'
+            f'${r["price"]:,.2f}</span>'
+            + (f' <span style="font-size:11px;color:#334155;">· {r["signal_date"]}</span>'
+               if r.get("signal_date") else "")
+        )
+    elif r.get("signal_date"):
+        price_html = f'<span style="font-size:11px;color:#334155;">{r["signal_date"]}</span>'
+
+    detail_html = (
+        f'<div style="padding:0 18px 16px;border-top:1px solid rgba(255,255,255,.05);">'
+        # Price + meta row
+        + (f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;'
+           f'padding:10px 0 12px;margin-bottom:4px;">{price_html}'
+           f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:20]}</span>'
+           f'<span style="font-size:11px;color:#475569;">{driver}</span>'
+           f'</div>' if (price_html or r.get("sector")) else "")
+        # Pillar bars
+        + f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">{pillar_bars}</div>'
+        # Bottom metrics strip
+        + f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
+        f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
+        f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
+        f'<div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">QUANT</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;">{quant:.1f}</div></div>'
+        f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
+        f'<div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">MACRO</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{delta_c};">{delta_str}</div></div>'
+        f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
+        f'<div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">BLEND</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#d4a843;">75/25</div></div>'
+        f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
+        f'<div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">RANK</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;">'
+        f'{r.get("pct_rank",50):.0f}th</div></div>'
         f'</div>'
-        f'{name_html}{price_html}'
-        f'<div style="font-size:12px;color:#94a3b8;margin-top:4px;">{driver}</div>'
-        f'</div>'
-        f'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:700;color:{act_c};">{score:.0f}</div>'
-        f'<div style="font-size:12px;color:#94a3b8;">blended score</div>'
-        f'<div style="font-size:12px;color:{delta_c};">macro {delta_str}</div>'
-        f'</div></div>'
-        f'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">{pillar_bars}</div>'
-        f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">'
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
-        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">QUANT</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{quant:.1f}</div></div>'
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
-        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">MACRO</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};">{delta_str}</div></div>'
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
-        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">BLEND</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div></div>'
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 10px;">'
-        f'<div style="font-size:11px;color:#94a3b8;letter-spacing:.07em;margin-bottom:3px;">RANK</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;">{r.get("pct_rank",50):.0f}th</div></div>'
-        f'</div>'
-        + why_html +
-        f'</div>'
+        + why_html
+        + f'</div>'
     )
 
+    # ── Wrap in <details> for CSS-native collapse ─────────────────────────────
+    return (
+        f'<details style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
+        f'border-left:3px solid {act_c};border-radius:8px;margin-bottom:6px;'
+        f'overflow:hidden;transition:all .15s ease;">'
+        f'<summary style="display:flex;list-style:none;">{summary_html}</summary>'
+        f'{detail_html}'
+        f'</details>'
+    )
 
 def signal_history_chart(ticker: str, current_score: float) -> str:
     """
@@ -3630,68 +3680,29 @@ def page_screener():
 
     # ── TAB 1: TOP 10 ──────────────────────────────────────────────────────────
     with scr_tab1:
-        st.markdown("""
-        <div style="font-size:13px;color:#94a3b8;margin-bottom:12px;">
-          ⚠ Prices are indicative snapshots — may not reflect intraday changes.
-          Search any ticker for a fresh live score.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div style="font-size:12px;color:#475569;margin-bottom:12px;">'
+            'Prices are indicative snapshots. Search any ticker for a live score.'
+            '</div>',
+            unsafe_allow_html=True)
+
+        # Two-column collapsed card layout
         col_b, col_s = st.columns(2)
-        for col, label, color, ranked, action_lbl in [
-            (col_b, "▲ TOP 10 HIGH CONVICTION", "#00ff87", buys_ranked[:10],  "▲ High Conviction"),
-            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10], "▼ Low Conviction"),
+        for col, label, color, ranked in [
+            (col_b, "▲ TOP 10 HIGH CONVICTION", "#00ff87", buys_ranked[:10]),
+            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10]),
         ]:
             with col:
-                count = len(buys_ranked) if action_lbl=="▲ BUY" else len(sells_ranked)
                 st.markdown(
-                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
-                    f'letter-spacing:.1em;margin:16px 0 6px;">{label}</div>',
+                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{color};'
+                    f'letter-spacing:.1em;margin:12px 0 8px;">{label}</div>',
                     unsafe_allow_html=True)
-
-                for i, r in enumerate(ranked):
-                    score      = r.get("adj_composite", r.get("composite", 0))
-                    gem        = " 💎" if r["ticker"] in gem_tickers else ""
-                    ci         = get_company_info(r["ticker"])
-                    name       = ci.get("name", r["ticker"]) if ci else r["ticker"]
-                    name_short = name if len(name) <= 20 else name[:18] + "…"
-                    price_str  = f'${r["price"]:,.2f}' if r.get("price") else ""
-                    is_gem     = r["ticker"] in gem_tickers
-                    macro_d    = r.get("score_delta", 0)
-                    macro_str  = f'+{macro_d:.1f}' if macro_d >= 0 else f'{macro_d:.1f}'
-                    macro_col  = "#00ff87" if macro_d >= 0 else "#ef4444"
-                    label_str  = f"{r['ticker']}{gem}  ·  {name_short}  ·  **{score:.0f}**"
-
-                    with st.expander(label_str, expanded=False):
-                        # Compact card: price + macro + stacked pillar bars
-                        mom = r.get("momentum", 50)
-                        qua = r.get("quality",  50)
-                        vol = r.get("volume",   50)
-                        val = r.get("value",    50)
-                        sen = r.get("sentiment",50)
-
-                        def bar(v):
-                            c = "#00ff87" if v>=60 else ("#f59e0b" if v>=45 else "#ef4444")
-                            w = max(4, int(v))
-                            return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
-                                    f'<div style="width:{w}%;height:100%;background:{c};border-radius:2px;"></div></div>')
-
-                        price_line = f'<span style="color:#d4a843;font-size:11px;">{price_str}</span> ' if price_str else ''
-                        macro_line = f'<span style="color:{macro_col};font-size:11px;">macro {macro_str}</span>'
-
-                        st.markdown(
-                            f'<div style="padding:4px 2px;">'
-                            f'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'
-                            f'{price_line}{macro_line}'
-                            f'</div>'
-                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;">MOM {mom:.0f}</div>{bar(mom)}'
-                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">QUAL {qua:.0f}</div>{bar(qua)}'
-                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">VOL {vol:.0f}</div>{bar(vol)}'
-                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">VAL {val:.0f}</div>{bar(val)}'
-                            f'<div style="font-size:10px;color:#64748b;margin-bottom:1px;margin-top:3px;">SENT {sen:.0f}</div>{bar(sen)}'
-                            + _build_why_html(r) +
-                            f'</div>',
-                            unsafe_allow_html=True)
-                st.caption(f"{count} total signals in universe")
+                cards_html = ""
+                for r in ranked:
+                    ci     = get_company_info(r["ticker"])
+                    is_gem = r["ticker"] in gem_tickers
+                    cards_html += factor_panel_html(r, is_gem, company_info=ci)
+                st.markdown(cards_html, unsafe_allow_html=True)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -6803,6 +6814,35 @@ def page_platform():
     _cur_nav = st.session_state.get("nav", "screener")
     st.query_params["_n"] = _cur_nav
     nav_map.get(_cur_nav, page_screener)()
+
+    # ── One-at-a-time card collapse script ──────────────────────────────────
+    st.markdown("""
+    <script>
+    (function() {
+      function closeOthers(openedEl) {
+        var allDetails = document.querySelectorAll('details');
+        allDetails.forEach(function(d) {
+          if (d !== openedEl) d.removeAttribute('open');
+        });
+      }
+      function attachListeners() {
+        var allDetails = document.querySelectorAll('details');
+        allDetails.forEach(function(d) {
+          if (!d._qntmBound) {
+            d._qntmBound = true;
+            d.addEventListener('toggle', function() {
+              if (d.open) closeOthers(d);
+            });
+          }
+        });
+      }
+      // Attach now and re-attach on DOM changes (Streamlit rerenders)
+      attachListeners();
+      var obs = new MutationObserver(attachListeners);
+      obs.observe(document.body, { childList: true, subtree: true });
+    })();
+    </script>
+    """, unsafe_allow_html=True)
 
     # ── Persistent disclaimer footer ────────────────────────────────────
     st.markdown(
