@@ -3724,10 +3724,13 @@ def platform_nav():
     )
     grid_html += '</div>'
 
+    _notif_url = f'?qnav=alerts&uid={uid()}&plan={plan}&ck=1'
     notif_dot = (
-        f'<span style="background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;'
-        f'display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">'
-        f'{n_count}</span>'
+        f'<a href="{_notif_url}" target="_self" style="'
+        f'background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;'
+        f'display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;'
+        f'text-decoration:none;cursor:pointer;">'
+        f'{n_count}</a>'
     ) if n_count > 0 else ""
 
     is_dev = os.getenv("ENVIRONMENT") == "dev"
