@@ -624,6 +624,12 @@ div[data-baseweb="select"] > div {
   background: rgba(255,255,255,.05) !important;
 }
 
+/* Search suggestion rows */
+.qac-sug-row { display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-top:1px solid rgba(255,255,255,.04);text-decoration:none;
+  transition:background .12s; }
+.qac-sug-row:hover { background:rgba(0,255,135,.07) !important; }
+
 /* Section dividers — very subtle Level 3 */
 .land-divider {
   border-color: rgba(255,255,255,.04) !important;
@@ -3787,7 +3793,7 @@ def page_screener():
     </style>
     """, unsafe_allow_html=True)
 
-    # Live suggestions update via on_change callback
+    # Search input — on_change fires on every keystroke
     def _on_search_change():
         st.session_state._search_live = st.session_state.screener_search_raw.strip().upper()
 
@@ -3805,49 +3811,38 @@ def page_screener():
         on_change=_on_search_change
     )
 
-    _live_q = st.session_state._search_live
+    _live_q = st.session_state.get("_search_live", "").strip().upper()
 
-    # Live suggestions — update on every keystroke via on_change
+    # Suggestions — URL action links styled as rows (no buttons, no enter needed)
     _suggestions = []
-    if _live_q and len(_live_q) >= 1:
+    if _live_q:
         _q = _live_q.lower()
         _suggestions = [
             tk for tk in list(SECTORS.keys())
             if tk.lower().startswith(_q) or
                (_AC_KNOWN.get(tk,"").lower().find(_q) >= 0)
-        ][:8]
+        ][:6]
 
     if _suggestions:
-        # Render as styled suggestion rows
-        _sug_html = (
+        _uid_s = (st.session_state.user or {}).get("id","")
+        _pln_s = (st.session_state.user or {}).get("plan","free")
+        _sug_rows = (
             '<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'+
-            'border-radius:0 0 8px 8px;margin-top:-2px;overflow:hidden;">'+
+            'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'+
             '<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;'+
-            'letter-spacing:.1em;padding:8px 14px 4px;">SUGGESTIONS</div>'
+            'letter-spacing:.1em;padding:7px 14px 3px;">SUGGESTIONS</div>'
         )
         for _tk in _suggestions:
-            _nm = _AC_KNOWN.get(_tk, "")
-            _sug_html += (
-                f'<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;'+
-                f'border-top:1px solid rgba(255,255,255,.04);">'+
-                f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'+
-                f'<span style="font-size:11px;color:#475569;">{_nm}</span>'+
-                f'</div>'
+            _nm = _AC_KNOWN.get(_tk,"")
+            _href = f"?qnav=screener&uid={_uid_s}&plan={_pln_s}&ck=1&ac_pick={_tk}"
+            _sug_rows += (
+                '<a href="' + _href + '" target="_self" class="qac-sug-row">'
+                '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;flex-shrink:0;">' + _tk + '</span>'
+                '<span style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _nm + '</span>'
+                '</a>'
             )
-        _sug_html += '</div>'
-        st.markdown(_sug_html, unsafe_allow_html=True)
-
-        # Actual clickable buttons — hidden visually but functional
-        st.markdown('<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">', unsafe_allow_html=True)
-        _cols = st.columns(len(_suggestions))
-        for _ci, _tk in enumerate(_suggestions):
-            with _cols[_ci]:
-                if st.button(_tk, key=f"sug_{_tk}_{_ci}", use_container_width=True):
-                    st.session_state.screener_search_val = _tk
-                    st.session_state.screener_search_raw = _tk
-                    st.session_state._search_live = _tk
-                    st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        _sug_rows += '</div>'
+        st.markdown(_sug_rows, unsafe_allow_html=True)
 
     search_ticker = _live_q if _live_q else ""
     if search_ticker:
