@@ -714,6 +714,8 @@ for k, v in {
     "onboarding_done": True,
     "onboarding_step": 0,
     "screener_search_val": "",
+    "screener_search_raw": "",
+    "_search_live": "",
     "tz_offset_hours": None,  # browser timezone offset, injected on first load
     "tz_name": None,          # IANA timezone name e.g. America/Los_Angeles
 }.items():
@@ -3785,41 +3787,69 @@ def page_screener():
     </style>
     """, unsafe_allow_html=True)
 
-    search_ticker = st.text_input(
-        "Search ticker",
-        value=_sq_default,
-        placeholder="🔍  Search ticker or company — AAPL, Tesla, Nvidia...",
-        key="screener_search",
-        label_visibility="collapsed"
-    ).strip().upper()
+    # Live suggestions update via on_change callback
+    def _on_search_change():
+        st.session_state._search_live = st.session_state.screener_search_raw.strip().upper()
 
-    # Live suggestions — show as clickable buttons when typing
+    if "screener_search_raw" not in st.session_state:
+        st.session_state.screener_search_raw = _sq_default
+    if "_search_live" not in st.session_state:
+        st.session_state._search_live = _sq_default.strip().upper()
+
+    st.text_input(
+        "Search ticker",
+        value=st.session_state.screener_search_raw,
+        placeholder="🔍  Search ticker or company — AAPL, Tesla, Nvidia...",
+        key="screener_search_raw",
+        label_visibility="collapsed",
+        on_change=_on_search_change
+    )
+
+    _live_q = st.session_state._search_live
+
+    # Live suggestions — update on every keystroke via on_change
     _suggestions = []
-    if search_ticker and len(search_ticker) >= 1:
-        _q = search_ticker.lower()
-        _all_tickers = list(SECTORS.keys())
+    if _live_q and len(_live_q) >= 1:
+        _q = _live_q.lower()
         _suggestions = [
-            tk for tk in _all_tickers
+            tk for tk in list(SECTORS.keys())
             if tk.lower().startswith(_q) or
                (_AC_KNOWN.get(tk,"").lower().find(_q) >= 0)
-        ][:6]
+        ][:8]
 
     if _suggestions:
-        st.markdown(
-            '<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
-            'border-radius:8px;padding:6px;margin-top:4px;">',
-            unsafe_allow_html=True
+        # Render as styled suggestion rows
+        _sug_html = (
+            '<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'+
+            'border-radius:0 0 8px 8px;margin-top:-2px;overflow:hidden;">'+
+            '<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;'+
+            'letter-spacing:.1em;padding:8px 14px 4px;">SUGGESTIONS</div>'
         )
+        for _tk in _suggestions:
+            _nm = _AC_KNOWN.get(_tk, "")
+            _sug_html += (
+                f'<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;'+
+                f'border-top:1px solid rgba(255,255,255,.04);">'+
+                f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'+
+                f'<span style="font-size:11px;color:#475569;">{_nm}</span>'+
+                f'</div>'
+            )
+        _sug_html += '</div>'
+        st.markdown(_sug_html, unsafe_allow_html=True)
+
+        # Actual clickable buttons — hidden visually but functional
+        st.markdown('<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">', unsafe_allow_html=True)
         _cols = st.columns(len(_suggestions))
         for _ci, _tk in enumerate(_suggestions):
             with _cols[_ci]:
-                _nm = _AC_KNOWN.get(_tk, "")
-                _btn_label = f"{_tk}\n{_nm}" if _nm else _tk
-                if st.button(_btn_label, key=f"sug_{_tk}_{_ci}"):
+                if st.button(_tk, key=f"sug_{_tk}_{_ci}", use_container_width=True):
                     st.session_state.screener_search_val = _tk
+                    st.session_state.screener_search_raw = _tk
+                    st.session_state._search_live = _tk
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    search_ticker = _live_q if _live_q else ""
     if search_ticker:
         st.session_state.screener_search_val = search_ticker
         _rl = st.session_state.get("recent_searches", [])
