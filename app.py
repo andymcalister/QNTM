@@ -1163,15 +1163,13 @@ def scan_health_check():
 # ── PAGE SUMMARY BANNERS ──────────────────────────────────────────────────────
 def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
     """Consistent page header — pills param accepted but ignored (removed from UI)."""
-    st.markdown(f"""
-    <div style="padding:20px 32px 12px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-        <span style="font-size:24px;">{icon}</span>
-        <h1 style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#e2e8f0;margin:0;">{title}</h1>
-      </div>
-      <p style="color:#94a3b8;font-size:14px;line-height:1.6;max-width:680px;margin:0;">{subtitle}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="padding:10px 32px 6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">{icon} {title}</span>'
+        f'<span style="font-size:12px;color:#334155;">{subtitle}</span>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 def nav(section):
     st.session_state.nav = section
@@ -3984,8 +3982,7 @@ def page_screener():
 def page_watchlist():
     _pin_nav("watchlist")
     """User watchlist — tracked stocks with live conviction scores."""
-    page_summary("★", "Watchlist",
-        "Stocks you're tracking. Conviction scores update daily — add any stock from the Screener search.")
+    page_summary("★", "Watchlist", "Your tracked stocks · conviction scores updated daily")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     watchlist = get_watchlist(uid())
@@ -4341,10 +4338,7 @@ def page_gems():
     _pin_nav("gems")
     page_summary(
         "💎", "Hidden Gems",
-        "Mid-cap stocks with institutional-grade factor scores that fly under Wall Street's radar. "
-        "QNTM screens for revenue acceleration, earnings beats, low short interest, and low analyst coverage — "
-        "the stocks that show up before the crowd notices. Regime-adjusted thresholds mean the bar rises in volatile markets.",
-
+        "Mid-cap stocks with high conviction scores flying under Wall Street's radar"
     )
 
     if not is_pro():
@@ -4381,8 +4375,6 @@ def page_gems():
             return
 
     gems = detect_hidden_gems(st.session_state.scan_results, macro_data=st.session_state.get("macro_data"))
-    st.markdown(DISCLAIMER, unsafe_allow_html=True)
-
     if not gems:
         st.markdown('<div style="padding:0 32px;"><div style="color:#94a3b8;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
         return
@@ -4404,116 +4396,20 @@ def page_gems():
     # Load current watchlist to know which gems are already added
     wl_tickers = {w["ticker"] for w in get_watchlist(uid())}
 
-    grid_open = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:0 4px;">'
-    st.markdown(grid_open, unsafe_allow_html=True)
-
+    # Gems use same collapsed card pattern as screener — consistent hierarchy
+    cards_html = ""
     for g in gems:
         tk = g.get("ticker", "")
         try:
             adj   = float(g.get("adj_composite") or g.get("composite") or 0)
             raw   = float(g.get("composite") or 0)
-            delta = adj - raw
-            price = g.get("price")
-            ci    = get_company_info(g["ticker"])
-            name  = ci.get("name", g["ticker"]) if ci else g["ticker"]
-            name_short = name if len(name) <= 24 else name[:22] + "…"
-
-            price_html = (
-                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;margin-top:2px;">'
-                f'${float(price):,.2f} / share</div>'
-            ) if price else ""
-
-            delta_html = ""
-            if abs(delta) >= 1:
-                d_col   = "#ef4444" if delta < 0 else "#00ff87"
-                d_arrow = "▼" if delta < 0 else "▲"
-                delta_html = f'<span style="font-size:13px;color:{d_col};margin-left:6px;">{d_arrow} {abs(delta):.0f} macro adj</span>'
-
-            reasons_html = "".join(
-                f'<div style="font-size:14px;color:#4ade80;padding:4px 0;border-bottom:1px solid rgba(0,255,135,.08);display:flex;align-items:flex-start;gap:6px;"><span style="color:#00ff87;flex-shrink:0;">✓</span><span>{r}</span></div>'
-                for r in g.get("gem_reasons", [])
-            ) or '<div style="font-size:14px;color:#94a3b8;">Run a Rescan on the Screener for detailed factor reasons.</div>'
-
-            mom  = float(g.get("momentum")  or 0)
-            qual = float(g.get("quality")   or 0)
-            val  = float(g.get("value")     or 0)
-            sent = float(g.get("sentiment") or 0)
-            pillars_html = (
-                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{mom:.0f}</div><div style="font-size:14px;color:#94a3b8;">MOM</div></div>'
-                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{qual:.0f}</div><div style="font-size:14px;color:#94a3b8;">QUAL</div></div>'
-                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{val:.0f}</div><div style="font-size:14px;color:#94a3b8;">VAL</div></div>'
-                f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:14px;color:#00ff87;">{sent:.0f}</div><div style="font-size:14px;color:#94a3b8;">SENT</div></div>'
-            )
-
-            tk = g["ticker"]
-            in_wl = tk in wl_tickers
-
-            card = (
-                '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.25);'
-                'border-radius:10px;padding:20px 16px;">'
-                '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
-                '<div style="min-width:0;">'
-                f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e8f0;line-height:1;">{tk}</div>'
-                f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">{name_short}</div>'
-                f'<div style="font-size:13px;color:#94a3b8;">{g.get("sector","")}</div>'
-                + price_html +
-                '</div>'
-                '<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
-                f'<div style="font-family:Syne,sans-serif;font-size:32px;font-weight:800;color:#00ff87;line-height:1;">{adj:.0f}</div>'
-                '<div style="font-size:13px;color:#94a3b8;">adj score</div>'
-                f'<div style="font-size:13px;color:#64748b;">raw {raw:.0f}</div>'
-                + delta_html +
-                '</div></div>'
-                '<div style="display:flex;gap:12px;background:rgba(0,255,135,.06);border-radius:6px;padding:10px;margin:12px 0;">'
-                + pillars_html +
-                '</div>'
-                '<div style="border-top:1px solid rgba(0,255,135,.1);padding-top:12px;">'
-                + reasons_html +
-                '</div>'
-                + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;">'
-                + "".join(
-                    f'<span style="background:rgba(212,168,67,.1);border:1px solid rgba(212,168,67,.18);'
-                    f'border-radius:10px;padding:2px 8px;font-size:10px;color:#d4a843;font-family:DM Mono,monospace;">{t}</span>'
-                    for t in _gem_why_tags(g)
-                )
-                + '</div>'
-                + _build_why_html(g)
-                + '</div>'
-            )
-            st.markdown(card, unsafe_allow_html=True)
-
+            g["adj_action"]  = "BUY"
+            g["score_delta"] = round(adj - raw, 1)
+            ci = get_company_info(tk)
+            cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
         except Exception:
             pass
-
-        # Watchlist — HTML link with action params, no Streamlit button rerun
-        in_wl = tk in wl_tickers
-        _uid_val = (st.session_state.user or {}).get("id", "")
-        _plan_val = (st.session_state.user or {}).get("plan", "free")
-        _qp = f"?qnav=gems&uid={_uid_val}&plan={_plan_val}&ck=1"
-        if in_wl:
-            _action_url = _qp + f"&wl_action=remove&wl_ticker={tk}"
-            st.markdown(
-                f'<a href="{_action_url}" target="_self" style="'
-                f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
-                f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);'
-                f'border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
-                f'box-sizing:border-box;">✕ Remove from Watchlist</a>',
-                unsafe_allow_html=True
-            )
-        else:
-            _action_url = _qp + f"&wl_action=add&wl_ticker={tk}"
-            st.markdown(
-                f'<a href="{_action_url}" target="_self" style="'
-                f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
-                f'background:linear-gradient(135deg,#d4a843 0%,#b8922e 50%,#d4a843 100%);'
-                f'border:none;border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:800;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#0a0b14;text-decoration:none;'
-                f'box-sizing:border-box;">☆ + Watchlist</a>',
-                unsafe_allow_html=True
-            )
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 4px;">' + cards_html + '</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4524,11 +4420,7 @@ def page_backtest():
     bt = BACKTEST_DATA
     page_summary(
         "📈", "Backtest Performance",
-        f"Walk-forward validation across 5 years and 6 market regimes — COVID recovery, post-COVID bull, "
-        f"bear/rate hike, AI boom, concentration rally, and tariff correction. Same rules every year, no tuning between regimes. "
-        f"Real prices, 10bps transaction costs, 124 tickers × 20 quarters. "
-        f"Result: +{bt['model_total_ret']:.0f}% cumulative vs SPY +{bt['spy_total_ret']:.0f}% over the same period.",
-
+        f"5-year walk-forward · 6 regimes · +{bt['model_total_ret']:.0f}% vs SPY +{bt['spy_total_ret']:.0f}%"
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
