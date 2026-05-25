@@ -3818,6 +3818,9 @@ def page_screener():
     def _on_search_change():
         val = st.session_state.get("screener_search_raw","").strip().upper()
         st.session_state._search_live = val
+        # Clear selected stock when user starts typing a new query
+        if st.session_state.get("screener_search_val","") != val:
+            st.session_state.screener_search_val = ""
 
     # When suggestion selected, delete widget key so it reinits with new value
     if "_sug_just_picked" in st.session_state:
@@ -3874,12 +3877,10 @@ def page_screener():
                 st.session_state._search_live = _tk
                 st.rerun()
 
-    # Only resolve full score when explicitly submitted (Enter) or suggestion clicked
-    # _search_live updates on blur/enter; _sug_just_picked on suggestion click
-    _submitted = st.session_state.get("screener_search_raw","").strip().upper()
-    search_ticker = _submitted if _submitted and (_submitted == _live_q) else ""
+    # Only show stock card when user explicitly clicks a suggestion
+    # screener_search_val is set by suggestion click OR ac_pick URL param — not by typing
+    search_ticker = st.session_state.get("screener_search_val", "").strip().upper()
     if search_ticker:
-        st.session_state.screener_search_val = search_ticker
         _rl = st.session_state.get("recent_searches", [])
         if search_ticker not in _rl:
             st.session_state.recent_searches = ([search_ticker] + [r for r in _rl if r != search_ticker])[:5]
