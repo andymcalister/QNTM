@@ -1,131 +1,235 @@
-# QNTM — Product Backlog
-*Created: May 24, 2026*
+# QNTM — UX Launch Polish Backlog
+*Source: GPT product review · Updated: May 24, 2026*
 
-Prioritized from GPT product review + current platform state.
-Work in order. Each tier is a session target.
+This is a UX-first launch readiness backlog.
 
----
+**DO NOT modify:** scoring logic, signal labels, paywall logic, simulator logic, methodology calculations, backend data model.
 
-## BLOCKING (do before any paid users)
+**Focus ONLY on:** UX simplification, visual hierarchy, clarity, premium feel, retention mechanics, scanability, mobile optimization.
 
-- [ ] **Stripe integration** — `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID_PRO` + webhook → plan upgrade flow. Replace `upgrade_plan()` calls in gate CTAs with Stripe checkout redirect. Lawyer review required first.
-- [ ] **Push v2 → main** — merge when stable, beta users hit prod URL `qntmmvp.streamlit.app`
+Execute in sprint order. Complete Sprint 1 before Sprint 2.
 
 ---
 
-## TIER 1 — Trust + Retention (highest ROI, do first)
-
-### 1. "What Changed Today?" — Score Delta Context
-- On every score card, show score movement vs previous scan: `▲ +6 since yesterday` or `▼ -4 this week`
-- Data already in signal_log (two most recent rows per ticker)
-- Add to: screener search result, full universe cards, watchlist
-- Already have batch trend fetch pattern from watchlist — reuse it
-
-### 2. Daily Briefing / Habit Loop
-- In-app: "Today in QNTM" summary at top of screener on login
-- Shows: macro regime, top conviction upgrades, new weakening signals, new hidden gems, portfolio warnings
-- Email version post-Stripe (requires SendGrid + pro gate)
-- This is the single biggest retention driver
-
-### 3. Hero Page Trust Fix
-- Current hero leads with +347% performance claims — feels like guru ad
-- Restructure: lead with what QNTM *is* (834 stocks, multi-factor engine, daily refresh, regime-aware)
-- Move performance stats to Performance section below fold
-- Trust before bragging = higher conversion
-
-### 4. Search UX Polish — Autocomplete + Recent Searches
-- Recent searches: store last 5 tickers in session state, show as quick-tap chips below search box
-- Autocomplete: as user types, filter SECTORS dict for matching tickers/names, show dropdown
-- Should feel like TradingView search, not a form field
+# SPRINT 1 — HIGH IMPACT UX SIMPLIFICATION
 
 ---
 
-## TIER 2 — Product Depth (high value, do second)
+## TASK 1 — Collapse Card Architecture
 
-### 5. Model Portfolio Storytelling
-- Currently buried — surface it as "How the QNTM model is positioned right now"
-- Add: weekly changes section (what entered/exited this week)
-- Add: current sector posture summary (overweight/underweight vs benchmark)
-- Add: cash/risk stance indicator based on macro regime
-- This is sticky content users check weekly
+**Problem:** Too many cards show too much at once. Cognitive overload.
 
-### 6. Portfolio Intelligence — Conviction Summary
-- Portfolio page needs more signal intelligence beyond current 4-stat header
-- Add: "2 positions weakening — consider reviewing" alert
-- Add: Portfolio Conviction Score (weighted avg of all holdings scores)
-- Add: Concentration warning (if >30% in one sector)
-- Add: Macro sensitivity rating (% of portfolio in RISK_OFF-sensitive positions)
+**Applies to:** Top Signals, Full Universe, Watchlist, Hidden Gems, Portfolio views
 
-### 7. Top 10 Tab Density Fix
-- Mobile: too dense, all cards expanded
-- Change to collapsed-only cards: `NVDA — High Conviction — 84`
-- Tap to expand, only one open at a time (accordion pattern)
-- Cleaner, feels premium
+**Default state (collapsed):**
+- Ticker · Conviction label · Score · Trend arrow
+- Example: `NVDA — High Conviction — 84 ↑`
 
-### 8. Watchlist Intelligence Enhancement
-- Watchlist summary header: "3 improving · 2 weakening · overall conviction rising"
-- Per-stock: show score movement more prominently (currently ↑ ↓ → arrow is small)
-- Add full sparkline per watchlist stock (data builds daily — needs 5+ nightly runs)
+**Expanded state (tap/click):**
+- Factor breakdown
+- WHY THIS SCORE
+- Signal history sparkline
+- Supporting metrics
+
+**Interaction rule:** Only ONE card expanded at a time. Opening new card collapses previous.
+
+**Acceptance:** User can scan screen quickly. Detail only on demand.
 
 ---
 
-## TIER 3 — Premium Feature Polish (do third)
+## TASK 2 — Home Page Information Hierarchy Redesign
 
-### 9. Simulator — Before vs After Comparison
-- Current simulator shows allocation only
-- Add: conviction improvement score vs user's current portfolio holdings
-- Add: sector diversification delta
-- Add: simple visual comparison — "current vs simulated"
-- Positions this as "worth paying for" tool
+**Problem:** Hero has too many competing elements. Performance stats dominate too early.
 
-### 10. Screener Top 10 — Sector Breakdown Polish
-- Sector breakdown tab shows BUY/HOLD/SELL counts but uses raw internal labels
-- Update to High/Moderate/Low conviction language throughout
-- Add: sector regime context (which sectors are benefiting from current macro)
+**Above the fold ONLY:**
+1. Hero headline + subtext + primary CTA + secondary CTA
+2. Single primary insight card: **Market Regime Today** (dominant visual)
+3. Top 5 Highest Conviction Signals — collapsed cards only
+4. Watchlist Summary (if logged in) — compact only
 
----
+**Move** hero performance metrics (+347%, Sharpe, win rate, drawdown) below primary content. Do NOT remove.
 
-## TIER 4 — Post-Launch Growth
-
-### 11. Email Notifications
-- Signal change alerts to pro users (requires Stripe → SendGrid)
-- Daily briefing email (opt-in, pro only)
-- Weekly model portfolio update email
-
-### 12. Multiple Watchlists
-- Allow sector watchlists, thematic watchlists
-- Currently one flat list per user
-
-### 13. Watchlist Alerts
-- Push/email when watched stock changes conviction level
-- Already have the detection logic in conviction alerts banner — just needs delivery
-
-### 14. API Access (Institutional tier)
-- Model outputs via API endpoint
-- Custom universe upload
-- Already in PLAN_LIMITS as institutional tier
+**Acceptance:** User understands app purpose in under 3 seconds. Hero feels simple and premium.
 
 ---
 
-## KNOWN TECH DEBT (fix opportunistically)
+## TASK 3 — Visual Hierarchy Intensity Reduction
 
-- `signal_log` sector enrichment — sector comes from `SECTORS` dict not DB, must be joined in Python after every signal_log query (currently done in simulator, need consistent pattern everywhere)
-- `sim_data` session key — simulator uses separate key from `scan_results` to avoid 60s timer wipe; document this pattern
-- `_pin_nav()` must be defined before any page function — if it moves, NameError crashes the app
-- All helper functions (`_pin_nav`, `_back_btn`, `_upgrade_url`, `_cta_gold`, `_cta_ghost`) defined at lines 752–1910 — keep them there
-- URL action handlers in `main()` must stay in order: sim_rescan → sim_profile → sim_add → sim_remove → upgrade → wl_action → port_action → port_period → upgrade_page → qnav routing
-- Free tier screener limit: 50 stocks — gate shows until user clicks CTA → `upgrade=pro` URL action → router upgrades → full universe unlocks
-- `st.button` is still used for: Sign In form, Create Account form, MFA verify, Add holding, Mark alerts read, Account MFA setup. These are safe (form submits, not nav actions).
+**Problem:** Everything feels equally loud. Too many competing visual elements.
+
+**Apply 3-level hierarchy across entire UI:**
+
+- **Level 1 (high emphasis):** Primary CTAs, conviction badges, regime badge, active alerts ONLY
+- **Level 2 (medium):** Cards, charts, section headers, expanded content
+- **Level 3 (low):** Timestamps, explanatory copy, secondary metrics, helper text, metadata
+
+**Reduce:** excessive glow, bright borders, heavy shadows, nested boxes, competing colors
+
+**Acceptance:** Eye naturally goes to primary content first. UI feels calmer.
 
 ---
 
-## SIGNAL_LOG COLUMN REFERENCE
-*Always check before writing new queries*
+## TASK 4 — Spacing / Breathing Room Pass
 
-Columns that **exist**: `adj_composite, composite, created_at, hidden_gem_reason, id, is_hidden_gem, macro_overlay, momentum, price, quality, sentiment, signal, signal_date, ticker, value, volume`
+**Problem:** Cards and sections feel compressed.
 
-Columns that **do NOT exist**: `sector`, `adj_action`, `pct_rank`, `score_delta`
+**Increase across all screens:** vertical padding, section gaps, card spacing, line spacing, margin consistency
 
-Derive missing fields in Python:
-- `sector` → `SECTORS.get(ticker, "Unknown")` from `model_engine`
-- `adj_action` → derive from `adj_composite`: ≥60=BUY, <45=SELL, else HOLD
+**Reduce:** cramped metric stacks, tight rows, border clutter, dense dividers
+
+**Mobile specific:** larger tap targets, more row spacing, more card padding
+
+**Acceptance:** No screen feels visually cramped. Improved mobile readability.
+
+---
+
+## TASK 5 — Top Signals Scan Mode
+
+**Problem:** Top Signals screen is visually dense.
+
+**Default layout — simple signal rows:**
+```
+NVDA — High Conviction — 84 ↑
+MSFT — High Conviction — 81 ↑
+AAPL — Moderate Conviction — 67 →
+```
+
+**Tap to expand:** WHY THIS SCORE, factor bars, signal history, deeper metrics
+
+**Interaction rule:** Only one expanded at a time
+
+**Acceptance:** User can scan top signals in seconds. Details only on demand.
+
+---
+
+# SPRINT 2 — UX POLISH / STICKINESS
+
+---
+
+## TASK 6 — Watchlist Intelligence UX
+
+**Problem:** Watchlist stores stocks but doesn't feel dynamic.
+
+**Add summary section at top:**
+- X improving · X weakening · avg conviction trend · sector posture
+
+**Per stock row upgrade:**
+- Current: `AAPL — 74`
+- New: `AAPL — 74 ↑ +4` or `AAPL — 74 ↓ -3`
+
+**Optional:** mini sparkline per row
+
+**Acceptance:** User immediately sees what changed. Watchlist feels alive.
+
+---
+
+## TASK 7 — Search Experience Redesign
+
+**Problem:** Search works but feels like a form field.
+
+**Add live autocomplete:**
+- As user types → `Apple (AAPL)`, `Microsoft (MSFT)`, `NVIDIA (NVDA)`
+- Include ticker + company name
+
+**Add recent searches:** shown when search focused and empty (last 5)
+
+**Styling upgrades:** search icon, premium dropdown, hover states, softer borders, larger input
+
+**Acceptance:** Search feels like premium fintech UX.
+
+---
+
+## TASK 8 — Watchlist / Stock Detail History Visuals
+
+**Problem:** Current score lacks visual context.
+
+**Watchlist card:** small sparkline showing recent conviction trend
+
+**Stock detail:** larger chart with conviction trend + direction + optional price overlay
+
+**Acceptance:** User can see signal trajectory visually.
+
+*(Note: sparkline function `signal_history_chart()` already built — wire into watchlist cards)*
+
+---
+
+## TASK 9 — Portfolio Summary Simplification
+
+**Problem:** Portfolio shows too much detail too early.
+
+**Lead with single summary card:**
+```
+Portfolio Conviction: Moderate
+Trend: Improving
+Key risks:
+  · Concentration elevated
+  · 2 weakening positions
+```
+
+**Detail below:** expanded analytics only on interaction
+
+**Acceptance:** Portfolio screen communicates main message immediately.
+
+---
+
+# SPRINT 3 — TRUST / PREMIUM FEEL
+
+---
+
+## TASK 10 — Hero Trust Rebalance
+
+**Problem:** Performance claims dominate trust messaging.
+
+**Replace primary trust stats with:**
+- 834 Stocks Monitored
+- Multi-Factor Quant Engine
+- Daily Signal Updates
+- Market Regime Aware
+
+**Move** +347%, Sharpe, win rate, drawdown lower on page. Keep visible but secondary.
+
+**Acceptance:** Hero feels credible, not promotional.
+
+---
+
+## TASK 11 — 3-Second Rule Audit (every screen)
+
+**Problem:** Many screens require too much cognitive processing.
+
+**For each screen — ask:** Can user understand primary message in 3 seconds?
+
+**If no — reduce:** visible metrics, simultaneous charts, stacked copy, competing cards
+
+**Promote:** one primary insight · one secondary insight · expandable detail
+
+**Acceptance:** Every screen passes 3-second comprehension test.
+
+---
+
+## TASK 12 — Streamlit Feel Reduction Pass
+
+**Problem:** Some screens still feel like a dashboard prototype.
+
+**Reduce:** obvious form styling, stacked widget look, default dashboard card feel
+
+**Improve:** spacing, card ratios, typography hierarchy, cleaner interaction states, premium CTA styling, better alignment
+
+**Acceptance:** App feels like premium fintech SaaS, not a dashboard prototype.
+
+---
+
+# BLOCKING (outside UX scope but must happen)
+
+- [ ] Stripe integration (waiting on lawyer)
+- [ ] Push v2 → main
+
+---
+
+# NOTES FOR IMPLEMENTATION
+
+- Signal history sparkline already built: `signal_history_chart(ticker, score)` — reuse in Task 8
+- `_build_why_html(r)` already built — reuse in Task 1 expanded state
+- `factor_panel_html()` already renders full card — Task 1 means wrapping it in a collapsed default
+- All interactive elements must use URL action pattern — NO `st.button` + `st.rerun()` in platform pages
+- signal_log columns that exist: `adj_composite, composite, momentum, quality, volume, value, sentiment, price, signal, signal_date, ticker, is_hidden_gem, macro_overlay`
+- Sector always derived from `SECTORS.get(ticker)` — not in signal_log

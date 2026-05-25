@@ -1,0 +1,2110 @@
+{
+  "2020-Q2": {
+    "quarter": "2020-Q2",
+    "regime": "RISK_ON",
+    "score_date": "2020-04-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 14,
+    "turnover_b": 14,
+    "quant_return": 0.30634,
+    "blended_return": 0.32586,
+    "spy_return": 0.25825,
+    "alpha_blended": 0.06761,
+    "alpha_quant": 0.04809,
+    "top_blended": [
+      [
+        "OKTA",
+        56.9,
+        0.6746
+      ],
+      [
+        "NVDA",
+        68.1,
+        0.5637
+      ],
+      [
+        "ADBE",
+        67.8,
+        0.4452
+      ],
+      [
+        "CRM",
+        57.4,
+        0.3974
+      ],
+      [
+        "FTNT",
+        57.0,
+        0.3663
+      ]
+    ],
+    "worst_blended": [
+      [
+        "PFE",
+        56.6,
+        0.0402
+      ],
+      [
+        "AMGN",
+        57.0,
+        0.2004
+      ],
+      [
+        "LLY",
+        62.4,
+        0.2092
+      ]
+    ],
+    "buys_blended": [
+      "NEM",
+      "REGN",
+      "FTNT",
+      "NVDA",
+      "LLY",
+      "AMGN",
+      "NFLX",
+      "PLTR",
+      "ADBE",
+      "CRM",
+      "VRTX",
+      "PFE",
+      "MSFT",
+      "OKTA"
+    ],
+    "buys_quant": [
+      "NEM",
+      "REGN",
+      "FTNT",
+      "NVDA",
+      "AMT",
+      "LLY",
+      "AMGN",
+      "NFLX",
+      "PLTR",
+      "ADBE",
+      "CRM",
+      "VRTX",
+      "NOW",
+      "PFE"
+    ]
+  },
+  "2020-Q3": {
+    "quarter": "2020-Q3",
+    "regime": "RISK_ON",
+    "score_date": "2020-07-01",
+    "n_scored": 124,
+    "n_quant_buys": 29,
+    "n_blended_buys": 34,
+    "turnover_q": 16,
+    "turnover_b": 20,
+    "quant_return": 0.11435,
+    "blended_return": 0.11104,
+    "spy_return": 0.0828,
+    "alpha_blended": 0.02824,
+    "alpha_quant": 0.03155,
+    "top_blended": [
+      [
+        "CELH",
+        68.4,
+        1.0552
+      ],
+      [
+        "NVDA",
+        76.8,
+        0.4202
+      ],
+      [
+        "QCOM",
+        65.4,
+        0.3178
+      ],
+      [
+        "CRM",
+        68.7,
+        0.3097
+      ],
+      [
+        "AAPL",
+        69.1,
+        0.2745
+      ]
+    ],
+    "worst_blended": [
+      [
+        "FTNT",
+        62.3,
+        -0.1538
+      ],
+      [
+        "ABBV",
+        67.0,
+        -0.1057
+      ],
+      [
+        "LLY",
+        63.2,
+        -0.0892
+      ]
+    ],
+    "buys_blended": [
+      "CELH",
+      "LLY",
+      "ABBV",
+      "IDXX",
+      "PLTR",
+      "VRTX",
+      "QCOM",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "MU",
+      "AVGO",
+      "MA",
+      "MELI",
+      "CRM",
+      "AMZN",
+      "NOW",
+      "HD",
+      "OKTA",
+      "DECK",
+      "REGN",
+      "META",
+      "V",
+      "BLK",
+      "FICO",
+      "ADBE",
+      "AAPL",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "ABT",
+      "MSFT",
+      "ZS"
+    ],
+    "buys_quant": [
+      "CELH",
+      "LLY",
+      "ABBV",
+      "IDXX",
+      "PLTR",
+      "VRTX",
+      "QCOM",
+      "NEM",
+      "NVDA",
+      "AMT",
+      "MA",
+      "MELI",
+      "CRM",
+      "NOW",
+      "OKTA",
+      "DECK",
+      "REGN",
+      "META",
+      "V",
+      "BLK",
+      "FICO",
+      "ADBE",
+      "AAPL",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "MSFT",
+      "ZS"
+    ]
+  },
+  "2020-Q4": {
+    "quarter": "2020-Q4",
+    "regime": "RISK_ON",
+    "score_date": "2020-10-01",
+    "n_scored": 124,
+    "n_quant_buys": 30,
+    "n_blended_buys": 38,
+    "turnover_q": 12,
+    "turnover_b": 15,
+    "quant_return": 0.19767,
+    "blended_return": 0.19444,
+    "spy_return": 0.11403,
+    "alpha_blended": 0.0804,
+    "alpha_quant": 0.08364,
+    "top_blended": [
+      [
+        "PLTR",
+        65.6,
+        1.4894
+      ],
+      [
+        "CELH",
+        67.5,
+        1.2941
+      ],
+      [
+        "ALB",
+        63.2,
+        0.7055
+      ],
+      [
+        "FCX",
+        63.4,
+        0.6733
+      ],
+      [
+        "SPG",
+        60.7,
+        0.3263
+      ]
+    ],
+    "worst_blended": [
+      [
+        "CRM",
+        71.5,
+        -0.122
+      ],
+      [
+        "AMGN",
+        66.3,
+        -0.0936
+      ],
+      [
+        "NVDA",
+        75.2,
+        -0.0408
+      ]
+    ],
+    "buys_blended": [
+      "SYK",
+      "CPRT",
+      "PPG",
+      "IDXX",
+      "PLTR",
+      "ALB",
+      "UPS",
+      "PFE",
+      "QCOM",
+      "TMO",
+      "NEM",
+      "NVDA",
+      "SPG",
+      "AVGO",
+      "MA",
+      "DHR",
+      "CRM",
+      "DE",
+      "NOW",
+      "HD",
+      "AMD",
+      "MCD",
+      "OKTA",
+      "DECK",
+      "MRK",
+      "META",
+      "V",
+      "BLK",
+      "FICO",
+      "ADBE",
+      "SHW",
+      "AAPL",
+      "FCX",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "ABT",
+      "CELH"
+    ],
+    "buys_quant": [
+      "CPRT",
+      "IDXX",
+      "PLTR",
+      "ALB",
+      "UPS",
+      "PFE",
+      "QCOM",
+      "TMO",
+      "NEM",
+      "NVDA",
+      "AVGO",
+      "MA",
+      "DHR",
+      "CRM",
+      "NOW",
+      "HD",
+      "MCD",
+      "OKTA",
+      "DECK",
+      "META",
+      "V",
+      "ADBE",
+      "SHW",
+      "AAPL",
+      "FCX",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "ABT",
+      "CELH"
+    ]
+  },
+  "2021-Q1": {
+    "quarter": "2021-Q1",
+    "regime": "RISK_ON",
+    "score_date": "2021-01-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 4,
+    "turnover_b": 2,
+    "quant_return": 0.06818,
+    "blended_return": 0.03665,
+    "spy_return": 0.0782,
+    "alpha_blended": -0.04155,
+    "alpha_quant": -0.01002,
+    "top_blended": [
+      [
+        "SCHW",
+        67.2,
+        0.2394
+      ],
+      [
+        "FCX",
+        65.6,
+        0.2133
+      ],
+      [
+        "MU",
+        65.9,
+        0.1912
+      ],
+      [
+        "DECK",
+        68.0,
+        0.1657
+      ],
+      [
+        "BLK",
+        65.9,
+        0.067
+      ]
+    ],
+    "worst_blended": [
+      [
+        "QCOM",
+        64.0,
+        -0.1029
+      ],
+      [
+        "NOW",
+        64.8,
+        -0.0507
+      ],
+      [
+        "ALB",
+        70.0,
+        -0.0403
+      ]
+    ],
+    "buys_blended": [
+      "DECK",
+      "NEM",
+      "MU",
+      "V",
+      "MA",
+      "NFLX",
+      "BLK",
+      "IDXX",
+      "ALB",
+      "ADBE",
+      "SCHW",
+      "FCX",
+      "NOW",
+      "CELH",
+      "QCOM"
+    ],
+    "buys_quant": [
+      "DECK",
+      "NEM",
+      "MU",
+      "SPG",
+      "NVDA",
+      "MA",
+      "NFLX",
+      "BLK",
+      "IDXX",
+      "ALB",
+      "ADBE",
+      "SCHW",
+      "FCX",
+      "CELH",
+      "QCOM"
+    ]
+  },
+  "2021-Q2": {
+    "quarter": "2021-Q2",
+    "regime": "RISK_ON",
+    "score_date": "2021-04-01",
+    "n_scored": 124,
+    "n_quant_buys": 29,
+    "n_blended_buys": 37,
+    "turnover_q": 18,
+    "turnover_b": 26,
+    "quant_return": 0.09016,
+    "blended_return": 0.09817,
+    "spy_return": 0.07202,
+    "alpha_blended": 0.02615,
+    "alpha_quant": 0.01814,
+    "top_blended": [
+      [
+        "NVDA",
+        62.0,
+        0.4486
+      ],
+      [
+        "FTNT",
+        63.2,
+        0.2779
+      ],
+      [
+        "LLY",
+        61.3,
+        0.2445
+      ],
+      [
+        "LLY",
+        61.3,
+        0.2445
+      ],
+      [
+        "ADBE",
+        66.7,
+        0.2117
+      ]
+    ],
+    "worst_blended": [
+      [
+        "MU",
+        68.1,
+        -0.0804
+      ],
+      [
+        "CAT",
+        62.8,
+        -0.0607
+      ],
+      [
+        "DE",
+        62.9,
+        -0.0497
+      ]
+    ],
+    "buys_blended": [
+      "LLY",
+      "ABBV",
+      "C",
+      "SCHW",
+      "PFE",
+      "CAT",
+      "WFC",
+      "NEM",
+      "FTNT",
+      "MU",
+      "SPG",
+      "NVDA",
+      "MA",
+      "AMT",
+      "SLB",
+      "DE",
+      "HD",
+      "MPC",
+      "GE",
+      "DECK",
+      "META",
+      "V",
+      "BLK",
+      "ADBE",
+      "FCX",
+      "GS",
+      "BAC",
+      "EQR",
+      "AXP",
+      "VLO",
+      "AMGN",
+      "COP",
+      "NFLX",
+      "JPM",
+      "UNH",
+      "EOG"
+    ],
+    "buys_quant": [
+      "LLY",
+      "ABBV",
+      "C",
+      "SCHW",
+      "PFE",
+      "CAT",
+      "WFC",
+      "NEM",
+      "FTNT",
+      "MU",
+      "SPG",
+      "AMT",
+      "MA",
+      "NVDA",
+      "DE",
+      "HD",
+      "MPC",
+      "GE",
+      "DECK",
+      "BLK",
+      "ADBE",
+      "BAC",
+      "EQR",
+      "VLO",
+      "AMGN",
+      "NFLX",
+      "JPM",
+      "EOG"
+    ]
+  },
+  "2021-Q3": {
+    "quarter": "2021-Q3",
+    "regime": "NEUTRAL",
+    "score_date": "2021-07-01",
+    "n_scored": 124,
+    "n_quant_buys": 24,
+    "n_blended_buys": 28,
+    "turnover_q": 8,
+    "turnover_b": 10,
+    "quant_return": 0.02142,
+    "blended_return": 0.01343,
+    "spy_return": 0.0002,
+    "alpha_blended": 0.01323,
+    "alpha_quant": 0.02122,
+    "top_blended": [
+      [
+        "CELH",
+        66.1,
+        0.2387
+      ],
+      [
+        "FTNT",
+        64.0,
+        0.2051
+      ],
+      [
+        "NFLX",
+        63.8,
+        0.1439
+      ],
+      [
+        "NOW",
+        60.6,
+        0.1414
+      ],
+      [
+        "CRM",
+        61.8,
+        0.1071
+      ]
+    ],
+    "worst_blended": [
+      [
+        "AMGN",
+        60.5,
+        -0.1321
+      ],
+      [
+        "NEM",
+        64.7,
+        -0.1279
+      ],
+      [
+        "MU",
+        60.7,
+        -0.1127
+      ]
+    ],
+    "buys_blended": [
+      "LLY",
+      "IDXX",
+      "PFE",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "SPG",
+      "AMT",
+      "MA",
+      "MU",
+      "PSA",
+      "CRM",
+      "NOW",
+      "MSFT",
+      "DECK",
+      "REGN",
+      "MRK",
+      "META",
+      "V",
+      "BLK",
+      "ADBE",
+      "AAPL",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "EOG",
+      "CELH"
+    ],
+    "buys_quant": [
+      "LLY",
+      "IDXX",
+      "PFE",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "SPG",
+      "AMT",
+      "MA",
+      "PSA",
+      "CRM",
+      "NOW",
+      "MPC",
+      "DECK",
+      "REGN",
+      "V",
+      "BLK",
+      "ADBE",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "EOG",
+      "CELH"
+    ]
+  },
+  "2021-Q4": {
+    "quarter": "2021-Q4",
+    "regime": "NEUTRAL",
+    "score_date": "2021-10-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 2,
+    "turnover_b": 1,
+    "quant_return": 0.09898,
+    "blended_return": 0.0924,
+    "spy_return": 0.09762,
+    "alpha_blended": -0.00522,
+    "alpha_quant": 0.00136,
+    "top_blended": [
+      [
+        "NVDA",
+        63.7,
+        0.4181
+      ],
+      [
+        "PFE",
+        60.6,
+        0.3876
+      ],
+      [
+        "SPG",
+        59.8,
+        0.2127
+      ],
+      [
+        "FTNT",
+        60.6,
+        0.206
+      ],
+      [
+        "INTU",
+        61.0,
+        0.184
+      ]
+    ],
+    "worst_blended": [
+      [
+        "CELH",
+        61.2,
+        -0.2083
+      ],
+      [
+        "CRM",
+        62.8,
+        -0.0768
+      ],
+      [
+        "V",
+        58.8,
+        -0.058
+      ]
+    ],
+    "buys_blended": [
+      "NEM",
+      "FTNT",
+      "REGN",
+      "NVDA",
+      "SPG",
+      "V",
+      "MA",
+      "NFLX",
+      "ALB",
+      "CRM",
+      "ADBE",
+      "INTU",
+      "PFE",
+      "NOW",
+      "CELH"
+    ],
+    "buys_quant": [
+      "NEM",
+      "FTNT",
+      "REGN",
+      "NVDA",
+      "SPG",
+      "MA",
+      "COP",
+      "NFLX",
+      "ALB",
+      "CRM",
+      "ADBE",
+      "INTU",
+      "PFE",
+      "NOW",
+      "CELH"
+    ]
+  },
+  "2022-Q1": {
+    "quarter": "2022-Q1",
+    "regime": "RISK_OFF",
+    "score_date": "2022-01-01",
+    "n_scored": 124,
+    "n_quant_buys": 27,
+    "n_blended_buys": 22,
+    "turnover_q": 17,
+    "turnover_b": 17,
+    "quant_return": -0.06156,
+    "blended_return": 0.12259,
+    "spy_return": -0.05164,
+    "alpha_blended": 0.17422,
+    "alpha_quant": -0.00993,
+    "top_blended": [
+      [
+        "CVX",
+        66.4,
+        0.3797
+      ],
+      [
+        "COP",
+        66.1,
+        0.3665
+      ],
+      [
+        "VLO",
+        70.5,
+        0.3314
+      ],
+      [
+        "EOG",
+        68.2,
+        0.3289
+      ],
+      [
+        "XOM",
+        61.9,
+        0.3142
+      ]
+    ],
+    "worst_blended": [
+      [
+        "SHW",
+        64.7,
+        -0.2622
+      ],
+      [
+        "ABT",
+        62.6,
+        -0.1457
+      ],
+      [
+        "NOW",
+        72.9,
+        -0.1162
+      ]
+    ],
+    "buys_blended": [
+      "LLY",
+      "ABBV",
+      "KO",
+      "VRTX",
+      "PFE",
+      "NEM",
+      "CVX",
+      "SLB",
+      "NOW",
+      "MPC",
+      "REGN",
+      "SHW",
+      "PG",
+      "PEP",
+      "VLO",
+      "AMGN",
+      "COP",
+      "ABT",
+      "XOM",
+      "UNH",
+      "EOG"
+    ],
+    "buys_quant": [
+      "LLY",
+      "ABBV",
+      "PFE",
+      "QCOM",
+      "PLD",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "SPG",
+      "AVGO",
+      "MU",
+      "MA",
+      "AMT",
+      "PSA",
+      "HD",
+      "NOW",
+      "MCD",
+      "ADBE",
+      "SHW",
+      "AAPL",
+      "PG",
+      "PEP",
+      "AMGN",
+      "NFLX",
+      "ABT",
+      "UNH"
+    ]
+  },
+  "2022-Q2": {
+    "quarter": "2022-Q2",
+    "regime": "RISK_OFF",
+    "score_date": "2022-04-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 19,
+    "turnover_q": 7,
+    "turnover_b": 1,
+    "quant_return": -0.05261,
+    "blended_return": -0.02084,
+    "spy_return": -0.16347,
+    "alpha_blended": 0.14263,
+    "alpha_quant": 0.11087,
+    "top_blended": [
+      [
+        "LLY",
+        66.4,
+        0.1116
+      ],
+      [
+        "LLY",
+        66.4,
+        0.1116
+      ],
+      [
+        "MRK",
+        63.0,
+        0.1005
+      ],
+      [
+        "VRTX",
+        66.4,
+        0.0588
+      ],
+      [
+        "VLO",
+        75.8,
+        0.058
+      ]
+    ],
+    "worst_blended": [
+      [
+        "NEM",
+        72.4,
+        -0.2733
+      ],
+      [
+        "REGN",
+        67.2,
+        -0.1492
+      ],
+      [
+        "SLB",
+        66.0,
+        -0.1391
+      ]
+    ],
+    "buys_blended": [
+      "NEM",
+      "CVX",
+      "REGN",
+      "MRK",
+      "VLO",
+      "PEP",
+      "AMGN",
+      "LLY",
+      "COP",
+      "ABBV",
+      "KO",
+      "SLB",
+      "EOG",
+      "VRTX",
+      "XOM",
+      "PFE",
+      "MPC",
+      "UNH"
+    ],
+    "buys_quant": [
+      "NEM",
+      "REGN",
+      "CVX",
+      "NVDA",
+      "VLO",
+      "MRK",
+      "AMGN",
+      "LLY",
+      "MA",
+      "ABBV",
+      "VRTX",
+      "EOG",
+      "PFE",
+      "MPC"
+    ]
+  },
+  "2022-Q3": {
+    "quarter": "2022-Q3",
+    "regime": "RISK_OFF",
+    "score_date": "2022-07-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 5,
+    "turnover_b": 0,
+    "quant_return": -0.09921,
+    "blended_return": -0.04524,
+    "spy_return": -0.05926,
+    "alpha_blended": 0.01402,
+    "alpha_quant": -0.03995,
+    "top_blended": [
+      [
+        "MPC",
+        58.0,
+        0.1829
+      ],
+      [
+        "EOG",
+        57.7,
+        0.0211
+      ],
+      [
+        "VRTX",
+        60.3,
+        0.0077
+      ],
+      [
+        "XOM",
+        55.0,
+        0.0069
+      ],
+      [
+        "LLY",
+        63.7,
+        -0.0009
+      ]
+    ],
+    "worst_blended": [
+      [
+        "NEM",
+        55.3,
+        -0.3037
+      ],
+      [
+        "PFE",
+        60.8,
+        -0.157
+      ],
+      [
+        "KO",
+        56.0,
+        -0.1235
+      ]
+    ],
+    "buys_blended": [
+      "NEM",
+      "MRK",
+      "PEP",
+      "VLO",
+      "AMGN",
+      "LLY",
+      "ABBV",
+      "KO",
+      "VRTX",
+      "PFE",
+      "EOG",
+      "XOM",
+      "MPC",
+      "UNH"
+    ],
+    "buys_quant": [
+      "NEM",
+      "MRK",
+      "PEP",
+      "VLO",
+      "AMT",
+      "AMGN",
+      "LLY",
+      "MA",
+      "ABBV",
+      "V",
+      "LMT",
+      "ADBE",
+      "VRTX",
+      "PFE"
+    ]
+  },
+  "2022-Q4": {
+    "quarter": "2022-Q4",
+    "regime": "NEUTRAL",
+    "score_date": "2022-10-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 6,
+    "turnover_b": 6,
+    "quant_return": 0.12079,
+    "blended_return": 0.12079,
+    "spy_return": 0.04794,
+    "alpha_blended": 0.07284,
+    "alpha_quant": 0.07284,
+    "top_blended": [
+      [
+        "MRK",
+        56.0,
+        0.2757
+      ],
+      [
+        "DECK",
+        58.3,
+        0.2358
+      ],
+      [
+        "NFLX",
+        59.0,
+        0.2336
+      ],
+      [
+        "ABBV",
+        54.3,
+        0.1803
+      ],
+      [
+        "ADBE",
+        55.1,
+        0.1798
+      ]
+    ],
+    "worst_blended": [
+      [
+        "ALB",
+        56.6,
+        -0.2065
+      ],
+      [
+        "VRTX",
+        56.9,
+        -0.0291
+      ],
+      [
+        "REGN",
+        60.4,
+        -0.0186
+      ]
+    ],
+    "buys_blended": [
+      "DECK",
+      "REGN",
+      "NEM",
+      "MRK",
+      "LLY",
+      "AMGN",
+      "ABBV",
+      "NFLX",
+      "ALB",
+      "ADBE",
+      "VRTX",
+      "PFE",
+      "MPC",
+      "CELH"
+    ],
+    "buys_quant": [
+      "DECK",
+      "REGN",
+      "NEM",
+      "MRK",
+      "LLY",
+      "AMGN",
+      "ABBV",
+      "NFLX",
+      "ALB",
+      "ADBE",
+      "VRTX",
+      "PFE",
+      "MPC",
+      "CELH"
+    ]
+  },
+  "2023-Q1": {
+    "quarter": "2023-Q1",
+    "regime": "NEUTRAL",
+    "score_date": "2023-01-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 7,
+    "turnover_b": 5,
+    "quant_return": 0.03303,
+    "blended_return": 0.02467,
+    "spy_return": 0.07912,
+    "alpha_blended": -0.05446,
+    "alpha_quant": -0.0461,
+    "top_blended": [
+      [
+        "FICO",
+        63.0,
+        0.1886
+      ],
+      [
+        "NFLX",
+        66.5,
+        0.1713
+      ],
+      [
+        "DECK",
+        65.6,
+        0.155
+      ],
+      [
+        "ADBE",
+        63.9,
+        0.1438
+      ],
+      [
+        "REGN",
+        58.8,
+        0.1405
+      ]
+    ],
+    "worst_blended": [
+      [
+        "PFE",
+        60.3,
+        -0.1968
+      ],
+      [
+        "LLY",
+        59.4,
+        -0.0561
+      ],
+      [
+        "LLY",
+        59.4,
+        -0.0561
+      ]
+    ],
+    "buys_blended": [
+      "DECK",
+      "NEM",
+      "MRK",
+      "REGN",
+      "SPG",
+      "MA",
+      "LLY",
+      "ABBV",
+      "NFLX",
+      "FICO",
+      "ADBE",
+      "SLB",
+      "PFE",
+      "CAT"
+    ],
+    "buys_quant": [
+      "DECK",
+      "NEM",
+      "MRK",
+      "SPG",
+      "V",
+      "MA",
+      "LLY",
+      "VLO",
+      "NFLX",
+      "FICO",
+      "ADBE",
+      "SLB",
+      "PFE",
+      "CAT"
+    ]
+  },
+  "2023-Q2": {
+    "quarter": "2023-Q2",
+    "regime": "RISK_ON",
+    "score_date": "2023-04-01",
+    "n_scored": 124,
+    "n_quant_buys": 20,
+    "n_blended_buys": 27,
+    "turnover_q": 13,
+    "turnover_b": 20,
+    "quant_return": 0.11534,
+    "blended_return": 0.10523,
+    "spy_return": 0.08268,
+    "alpha_blended": 0.02255,
+    "alpha_quant": 0.03266,
+    "top_blended": [
+      [
+        "NVDA",
+        82.0,
+        0.5128
+      ],
+      [
+        "AVGO",
+        64.3,
+        0.3573
+      ],
+      [
+        "META",
+        71.1,
+        0.3469
+      ],
+      [
+        "ADBE",
+        76.5,
+        0.2865
+      ],
+      [
+        "NFLX",
+        72.2,
+        0.2648
+      ]
+    ],
+    "worst_blended": [
+      [
+        "OKTA",
+        64.3,
+        -0.169
+      ],
+      [
+        "MPC",
+        60.1,
+        -0.1345
+      ],
+      [
+        "REGN",
+        62.0,
+        -0.1303
+      ]
+    ],
+    "buys_blended": [
+      "SYK",
+      "CPRT",
+      "IDXX",
+      "QCOM",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "MU",
+      "AVGO",
+      "MA",
+      "MELI",
+      "CRM",
+      "AMD",
+      "MCD",
+      "GE",
+      "MPC",
+      "OKTA",
+      "DECK",
+      "REGN",
+      "META",
+      "V",
+      "FICO",
+      "ADBE",
+      "AAPL",
+      "INTU",
+      "NFLX",
+      "MSFT"
+    ],
+    "buys_quant": [
+      "SYK",
+      "IDXX",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "AVGO",
+      "MA",
+      "CRM",
+      "MPC",
+      "MCD",
+      "GE",
+      "OKTA",
+      "DECK",
+      "REGN",
+      "META",
+      "V",
+      "FICO",
+      "ADBE",
+      "AAPL",
+      "NFLX"
+    ]
+  },
+  "2023-Q3": {
+    "quarter": "2023-Q3",
+    "regime": "NEUTRAL",
+    "score_date": "2023-07-01",
+    "n_scored": 124,
+    "n_quant_buys": 25,
+    "n_blended_buys": 23,
+    "turnover_q": 10,
+    "turnover_b": 6,
+    "quant_return": -0.00682,
+    "blended_return": -0.0088,
+    "spy_return": -0.03335,
+    "alpha_blended": 0.02455,
+    "alpha_quant": 0.02653,
+    "top_blended": [
+      [
+        "LLY",
+        66.4,
+        0.1666
+      ],
+      [
+        "LLY",
+        66.4,
+        0.1666
+      ],
+      [
+        "CELH",
+        62.4,
+        0.1573
+      ],
+      [
+        "INTU",
+        60.6,
+        0.1334
+      ],
+      [
+        "ADBE",
+        73.7,
+        0.0509
+      ]
+    ],
+    "worst_blended": [
+      [
+        "FTNT",
+        60.8,
+        -0.214
+      ],
+      [
+        "NFLX",
+        71.7,
+        -0.1446
+      ],
+      [
+        "NEM",
+        62.7,
+        -0.1326
+      ]
+    ],
+    "buys_blended": [
+      "LLY",
+      "CPRT",
+      "PLTR",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "AVGO",
+      "MA",
+      "CRM",
+      "NOW",
+      "GE",
+      "MSFT",
+      "DECK",
+      "MRK",
+      "META",
+      "V",
+      "ADBE",
+      "SHW",
+      "AAPL",
+      "INTU",
+      "NFLX",
+      "CELH"
+    ],
+    "buys_quant": [
+      "LLY",
+      "CPRT",
+      "PLTR",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "SPG",
+      "AVGO",
+      "MA",
+      "CRM",
+      "NOW",
+      "GE",
+      "MSFT",
+      "DECK",
+      "MRK",
+      "META",
+      "V",
+      "FICO",
+      "ADBE",
+      "SHW",
+      "AAPL",
+      "INTU",
+      "NFLX",
+      "CELH"
+    ]
+  },
+  "2023-Q4": {
+    "quarter": "2023-Q4",
+    "regime": "RISK_ON",
+    "score_date": "2023-10-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 5,
+    "turnover_b": 4,
+    "quant_return": 0.14155,
+    "blended_return": 0.11999,
+    "spy_return": 0.11684,
+    "alpha_blended": 0.00315,
+    "alpha_quant": 0.02471,
+    "top_blended": [
+      [
+        "DECK",
+        61.2,
+        0.2915
+      ],
+      [
+        "MU",
+        60.6,
+        0.2595
+      ],
+      [
+        "INTU",
+        59.6,
+        0.2092
+      ],
+      [
+        "NEM",
+        62.1,
+        0.1762
+      ],
+      [
+        "META",
+        60.8,
+        0.1536
+      ]
+    ],
+    "worst_blended": [
+      [
+        "CELH",
+        59.6,
+        -0.06
+      ],
+      [
+        "MPC",
+        59.9,
+        -0.0056
+      ],
+      [
+        "REGN",
+        60.4,
+        0.0737
+      ]
+    ],
+    "buys_blended": [
+      "DECK",
+      "NEM",
+      "REGN",
+      "NVDA",
+      "META",
+      "MU",
+      "AMGN",
+      "MA",
+      "LLY",
+      "V",
+      "ADBE",
+      "INTU",
+      "MPC",
+      "CELH"
+    ],
+    "buys_quant": [
+      "DECK",
+      "NEM",
+      "REGN",
+      "NVDA",
+      "VLO",
+      "META",
+      "AMGN",
+      "MA",
+      "LLY",
+      "MU",
+      "SPG",
+      "ADBE",
+      "NOW",
+      "MPC"
+    ]
+  },
+  "2024-Q1": {
+    "quarter": "2024-Q1",
+    "regime": "RISK_ON",
+    "score_date": "2024-01-01",
+    "n_scored": 124,
+    "n_quant_buys": 27,
+    "n_blended_buys": 37,
+    "turnover_q": 14,
+    "turnover_b": 24,
+    "quant_return": 0.17204,
+    "blended_return": 0.14502,
+    "spy_return": 0.11011,
+    "alpha_blended": 0.03491,
+    "alpha_quant": 0.06192,
+    "top_blended": [
+      [
+        "NVDA",
+        69.1,
+        0.8759
+      ],
+      [
+        "MU",
+        68.1,
+        0.4331
+      ],
+      [
+        "META",
+        62.8,
+        0.4037
+      ],
+      [
+        "DECK",
+        64.6,
+        0.3966
+      ],
+      [
+        "LLY",
+        61.9,
+        0.316
+      ]
+    ],
+    "worst_blended": [
+      [
+        "ADBE",
+        72.9,
+        -0.1301
+      ],
+      [
+        "NEM",
+        67.8,
+        -0.117
+      ],
+      [
+        "AMT",
+        63.6,
+        -0.097
+      ]
+    ],
+    "buys_blended": [
+      "LLY",
+      "ABBV",
+      "IDXX",
+      "SCHW",
+      "QCOM",
+      "NEM",
+      "NVDA",
+      "MU",
+      "SPG",
+      "MA",
+      "AVGO",
+      "AMT",
+      "CRM",
+      "NOW",
+      "HD",
+      "AMD",
+      "MCD",
+      "OKTA",
+      "DECK",
+      "REGN",
+      "META",
+      "V",
+      "BLK",
+      "FICO",
+      "ADBE",
+      "SHW",
+      "AAPL",
+      "INTU",
+      "GS",
+      "AXP",
+      "AMGN",
+      "NFLX",
+      "JPM",
+      "ABT",
+      "MSFT",
+      "ZS"
+    ],
+    "buys_quant": [
+      "LLY",
+      "ABBV",
+      "IDXX",
+      "QCOM",
+      "NEM",
+      "NVDA",
+      "SPG",
+      "AMT",
+      "MA",
+      "MU",
+      "AVGO",
+      "CRM",
+      "NOW",
+      "OKTA",
+      "DECK",
+      "REGN",
+      "META",
+      "V",
+      "BLK",
+      "FICO",
+      "ADBE",
+      "SHW",
+      "INTU",
+      "AMGN",
+      "NFLX",
+      "JPM"
+    ]
+  },
+  "2024-Q2": {
+    "quarter": "2024-Q2",
+    "regime": "NEUTRAL",
+    "score_date": "2024-04-01",
+    "n_scored": 124,
+    "n_quant_buys": 28,
+    "n_blended_buys": 37,
+    "turnover_q": 8,
+    "turnover_b": 13,
+    "quant_return": 0.02713,
+    "blended_return": 0.02758,
+    "spy_return": 0.04561,
+    "alpha_blended": -0.01803,
+    "alpha_quant": -0.01848,
+    "top_blended": [
+      [
+        "NVDA",
+        76.1,
+        0.3673
+      ],
+      [
+        "AVGO",
+        61.5,
+        0.1928
+      ],
+      [
+        "LLY",
+        67.9,
+        0.1925
+      ],
+      [
+        "LLY",
+        67.9,
+        0.1925
+      ],
+      [
+        "QCOM",
+        63.0,
+        0.1647
+      ]
+    ],
+    "worst_blended": [
+      [
+        "CELH",
+        60.6,
+        -0.3083
+      ],
+      [
+        "CRM",
+        64.8,
+        -0.1494
+      ],
+      [
+        "MPC",
+        64.9,
+        -0.1473
+      ]
+    ],
+    "buys_blended": [
+      "SYK",
+      "LLY",
+      "CPRT",
+      "ABBV",
+      "C",
+      "QCOM",
+      "CAT",
+      "WFC",
+      "NEM",
+      "NVDA",
+      "MU",
+      "SPG",
+      "MA",
+      "AVGO",
+      "CRM",
+      "NOW",
+      "MPC",
+      "GE",
+      "DECK",
+      "REGN",
+      "MRK",
+      "META",
+      "V",
+      "RTX",
+      "BLK",
+      "ADBE",
+      "SHW",
+      "INTU",
+      "BAC",
+      "AXP",
+      "VLO",
+      "AMGN",
+      "NFLX",
+      "BSX",
+      "JPM",
+      "CELH"
+    ],
+    "buys_quant": [
+      "LLY",
+      "ABBV",
+      "C",
+      "QCOM",
+      "NEM",
+      "NVDA",
+      "MU",
+      "SPG",
+      "MA",
+      "AVGO",
+      "CRM",
+      "NOW",
+      "MPC",
+      "GE",
+      "DECK",
+      "MRK",
+      "META",
+      "V",
+      "RTX",
+      "BLK",
+      "ADBE",
+      "SHW",
+      "AXP",
+      "VLO",
+      "NFLX",
+      "JPM",
+      "CELH"
+    ]
+  },
+  "2024-Q3": {
+    "quarter": "2024-Q3",
+    "regime": "RISK_ON",
+    "score_date": "2024-07-01",
+    "n_scored": 124,
+    "n_quant_buys": 16,
+    "n_blended_buys": 22,
+    "turnover_q": 4,
+    "turnover_b": 5,
+    "quant_return": 0.06427,
+    "blended_return": 0.06262,
+    "spy_return": 0.05534,
+    "alpha_blended": 0.00728,
+    "alpha_quant": 0.00892,
+    "top_blended": [
+      [
+        "FICO",
+        62.9,
+        0.2987
+      ],
+      [
+        "NEM",
+        72.2,
+        0.2896
+      ],
+      [
+        "AMT",
+        60.8,
+        0.1986
+      ],
+      [
+        "ABBV",
+        61.7,
+        0.1698
+      ],
+      [
+        "SPG",
+        63.4,
+        0.1681
+      ]
+    ],
+    "worst_blended": [
+      [
+        "MU",
+        63.1,
+        -0.2108
+      ],
+      [
+        "MRK",
+        60.4,
+        -0.1062
+      ],
+      [
+        "ADBE",
+        68.4,
+        -0.0754
+      ]
+    ],
+    "buys_blended": [
+      "LLY",
+      "ABBV",
+      "NEM",
+      "NVDA",
+      "SPG",
+      "MU",
+      "AVGO",
+      "MA",
+      "AMT",
+      "REGN",
+      "MRK",
+      "META",
+      "FICO",
+      "ADBE",
+      "AAPL",
+      "INTU",
+      "EQR",
+      "AMGN",
+      "NFLX",
+      "BSX",
+      "AVB"
+    ],
+    "buys_quant": [
+      "NEM",
+      "REGN",
+      "NVDA",
+      "MU",
+      "SPG",
+      "LLY",
+      "AMGN",
+      "AVGO",
+      "ABBV",
+      "NFLX",
+      "META",
+      "FICO",
+      "ADBE",
+      "AAPL",
+      "NOW"
+    ]
+  },
+  "2024-Q4": {
+    "quarter": "2024-Q4",
+    "regime": "RISK_ON",
+    "score_date": "2024-10-01",
+    "n_scored": 124,
+    "n_quant_buys": 19,
+    "n_blended_buys": 23,
+    "turnover_q": 9,
+    "turnover_b": 11,
+    "quant_return": 0.03403,
+    "blended_return": 0.08577,
+    "spy_return": 0.03417,
+    "alpha_blended": 0.05159,
+    "alpha_quant": -0.00014,
+    "top_blended": [
+      [
+        "PLTR",
+        64.0,
+        1.0743
+      ],
+      [
+        "AVGO",
+        60.7,
+        0.3881
+      ],
+      [
+        "NFLX",
+        66.5,
+        0.2623
+      ],
+      [
+        "CRM",
+        62.0,
+        0.2357
+      ],
+      [
+        "FTNT",
+        60.8,
+        0.2352
+      ]
+    ],
+    "worst_blended": [
+      [
+        "NEM",
+        75.4,
+        -0.3084
+      ],
+      [
+        "AMT",
+        61.6,
+        -0.1969
+      ],
+      [
+        "LMT",
+        62.3,
+        -0.1929
+      ]
+    ],
+    "buys_blended": [
+      "PLTR",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "SPG",
+      "AMT",
+      "MA",
+      "AVGO",
+      "CRM",
+      "NOW",
+      "HD",
+      "MCD",
+      "GE",
+      "META",
+      "V",
+      "BLK",
+      "FICO",
+      "LMT",
+      "ADBE",
+      "AAPL",
+      "AXP",
+      "AMGN",
+      "NFLX"
+    ],
+    "buys_quant": [
+      "ABBV",
+      "PLTR",
+      "PFE",
+      "NEM",
+      "NVDA",
+      "SPG",
+      "AMT",
+      "MA",
+      "PSA",
+      "NOW",
+      "HD",
+      "MCD",
+      "BLK",
+      "FICO",
+      "LMT",
+      "ADBE",
+      "AAPL",
+      "AMGN",
+      "NFLX"
+    ]
+  },
+  "2025-Q1": {
+    "quarter": "2025-Q1",
+    "regime": "RISK_OFF",
+    "score_date": "2025-01-01",
+    "n_scored": 124,
+    "n_quant_buys": 15,
+    "n_blended_buys": 15,
+    "turnover_q": 5,
+    "turnover_b": 8,
+    "quant_return": -0.06571,
+    "blended_return": 0.00322,
+    "spy_return": -0.04031,
+    "alpha_blended": 0.04353,
+    "alpha_quant": -0.0254,
+    "top_blended": [
+      [
+        "AMGN",
+        54.0,
+        0.2113
+      ],
+      [
+        "ABBV",
+        56.9,
+        0.1786
+      ],
+      [
+        "ABT",
+        56.7,
+        0.1755
+      ],
+      [
+        "BSX",
+        57.4,
+        0.1287
+      ],
+      [
+        "V",
+        58.1,
+        0.1166
+      ]
+    ],
+    "worst_blended": [
+      [
+        "DECK",
+        53.5,
+        -0.4534
+      ],
+      [
+        "NOW",
+        58.0,
+        -0.2449
+      ],
+      [
+        "BLK",
+        54.7,
+        -0.0646
+      ]
+    ],
+    "buys_blended": [
+      "DECK",
+      "PEP",
+      "V",
+      "SPG",
+      "MA",
+      "AMGN",
+      "ABBV",
+      "NFLX",
+      "BSX",
+      "BLK",
+      "ISRG",
+      "ABT",
+      "PFE",
+      "NOW",
+      "PG"
+    ],
+    "buys_quant": [
+      "DECK",
+      "NEM",
+      "FTNT",
+      "NVDA",
+      "V",
+      "AVGO",
+      "MA",
+      "SPG",
+      "NFLX",
+      "BLK",
+      "PLTR",
+      "CRM",
+      "AAPL",
+      "NOW",
+      "PFE"
+    ]
+  }
+}
