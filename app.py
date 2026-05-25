@@ -3719,8 +3719,7 @@ def page_screener():
     data_freshness_banner()
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    # ── Search box with dropdown autocomplete ──────────────────────────────────
-    # Handle incoming selection from autocomplete
+    # ── Search box with live suggestions ───────────────────────────────────────
     _ac_pick = st.query_params.get("ac_pick", "")
     if _ac_pick:
         st.session_state.screener_search_val = _ac_pick.upper()
@@ -3733,7 +3732,7 @@ def page_screener():
         st.session_state.screener_search_val = _sq_param
         st.query_params.pop("sq", None)
 
-    # Build ticker data for autocomplete
+    # Known ticker names for suggestions
     _AC_KNOWN = {
         "AAPL":"Apple Inc.","MSFT":"Microsoft","NVDA":"NVIDIA","GOOGL":"Alphabet",
         "META":"Meta","AMZN":"Amazon","TSLA":"Tesla","NFLX":"Netflix",
@@ -3748,144 +3747,81 @@ def page_screener():
         "PANW":"Palo Alto Networks","NOW":"ServiceNow","UBER":"Uber","ABNB":"Airbnb",
         "SPOT":"Spotify","PYPL":"PayPal","DDOG":"Datadog","NET":"Cloudflare",
         "ZS":"Zscaler","WDAY":"Workday","TEAM":"Atlassian","SM":"SM Energy",
-        "DINO":"HF Sinclair","KOS":"Kosmos Energy","CHRD":"Chord Energy","APA":"APA Corp",
+        "DINO":"HF Sinclair","KOS":"Kosmos Energy","APA":"APA Corp","VLO":"Valero Energy",
+        "MPC":"Marathon Petroleum","CHRD":"Chord Energy","CRGY":"Crescent Energy",
     }
-    import json as _json
-    _ac_tickers = [{"t":tk,"n":_AC_KNOWN.get(tk,"")} for tk in list(SECTORS.keys())]
-    _ac_json = _json.dumps(_ac_tickers)
-    _recent = st.session_state.get("recent_searches", [])
-    _recent_json = _json.dumps(_recent)
-    _uid_ac = (st.session_state.user or {}).get("id","")
-    _pln_ac = (st.session_state.user or {}).get("plan","free")
-    _base_url = f"?qnav=screener&uid={_uid_ac}&plan={_pln_ac}&ck=1"
 
-    import streamlit.components.v1 as _cv1_ac
-    _cv1_ac.html(f"""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{background:transparent;font-family:Outfit,sans-serif;overflow:hidden;}}
-#wrap{{position:relative;width:100%;}}
-#inp{{
-  width:100%;padding:13px 44px 13px 16px;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(0,255,135,.3);
-  border-radius:8px;color:#e2e8f0;
-  font-size:15px;font-family:Outfit,sans-serif;
-  outline:none;transition:border-color .2s,box-shadow .2s;
-}}
-#inp:focus{{border-color:rgba(0,255,135,.6);box-shadow:0 0 0 3px rgba(0,255,135,.08);}}
-#inp::placeholder{{color:#334155;}}
-#icon{{position:absolute;right:14px;top:50%;transform:translateY(-50%);opacity:.35;font-size:18px;pointer-events:none;}}
-#drop{{
-  display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
-  background:#0d1117;border:1px solid rgba(255,255,255,.12);
-  border-radius:8px;z-index:9999;box-shadow:0 12px 40px rgba(0,0,0,.85);
-  max-height:300px;overflow-y:auto;
-}}
-#drop::-webkit-scrollbar{{width:3px;}}
-#drop::-webkit-scrollbar-thumb{{background:rgba(0,255,135,.2);border-radius:2px;}}
-.sec{{font-family:monospace;font-size:9px;color:#334155;letter-spacing:.12em;padding:8px 14px 4px;text-transform:uppercase;}}
-.item{{
-  display:block;width:100%;text-align:left;
-  padding:11px 14px;cursor:pointer;
-  border:none;background:transparent;
-  border-bottom:1px solid rgba(255,255,255,.04);
-  text-decoration:none;
-}}
-.item:hover,.item.on{{background:rgba(0,255,135,.07);}}
-.tk{{font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;margin-right:10px;}}
-.nm{{font-size:12px;color:#475569;}}
-</style>
-</head>
-<body>
-<div id="wrap">
-  <input id="inp" type="text" placeholder="🔍  Search ticker or company — AAPL, Tesla, Nvidia..." value="{_sq_default}" autocomplete="off" />
-  <span id="icon">⌕</span>
-  <div id="drop"></div>
-</div>
-<script>
-var DATA   = {_ac_json};
-var RECENT = {_recent_json};
-var BASE   = "{_base_url}";
-var inp = document.getElementById('inp');
-var drop = document.getElementById('drop');
-var aidx = -1;
+    # Styled search input
+    st.markdown("""
+    <style>
+    div[data-testid="stTextInput"][data-key="screener_search"] input {
+        background: rgba(255,255,255,.04) !important;
+        border: 1px solid rgba(0,255,135,.3) !important;
+        border-radius: 8px !important; color: #e2e8f0 !important;
+        font-size: 15px !important; padding: 13px 20px !important;
+        height: 50px !important; transition: border-color .2s, box-shadow .2s !important;
+    }
+    div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
+        border-color: rgba(0,255,135,.6) !important;
+        box-shadow: 0 0 0 3px rgba(0,255,135,.08) !important; outline: none !important;
+    }
+    div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
+        color: #334155 !important;
+    }
+    /* Suggestion buttons */
+    div[data-testid="stHorizontalBlock"] .stButton > button {
+        background: #0d1117 !important;
+        border: 1px solid rgba(255,255,255,.1) !important;
+        border-radius: 6px !important; color: #e2e8f0 !important;
+        font-family: Syne, sans-serif !important; font-size: 13px !important;
+        font-weight: 700 !important; padding: 8px 14px !important;
+        text-align: left !important; width: 100% !important;
+        transition: background .15s !important;
+    }
+    div[data-testid="stHorizontalBlock"] .stButton > button:hover {
+        background: rgba(0,255,135,.07) !important;
+        border-color: rgba(0,255,135,.25) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-function itemHTML(d) {{
-  return '<a class="item" href="' + BASE + '&ac_pick=' + encodeURIComponent(d.t) + '" target="_parent">'
-       + '<span class="tk">' + d.t + '</span>'
-       + '<span class="nm">' + (d.n||'') + '</span>'
-       + '</a>';
-}}
+    search_ticker = st.text_input(
+        "Search ticker",
+        value=_sq_default,
+        placeholder="🔍  Search ticker or company — AAPL, Tesla, Nvidia...",
+        key="screener_search",
+        label_visibility="collapsed"
+    ).strip().upper()
 
-function show(items, sec) {{
-  if (!items.length) {{ drop.style.display='none'; setH(false); return; }}
-  var h = sec ? '<div class="sec">' + sec + '</div>' : '';
-  items.forEach(function(d) {{ h += itemHTML(d); }});
-  drop.innerHTML = h;
-  drop.style.display = 'block';
-  setH(true);
-  aidx = -1;
-}}
+    # Live suggestions — show as clickable buttons when typing
+    _suggestions = []
+    if search_ticker and len(search_ticker) >= 1:
+        _q = search_ticker.lower()
+        _all_tickers = list(SECTORS.keys())
+        _suggestions = [
+            tk for tk in _all_tickers
+            if tk.lower().startswith(_q) or
+               (_AC_KNOWN.get(tk,"").lower().find(_q) >= 0)
+        ][:6]
 
-function hide() {{ drop.style.display='none'; setH(false); aidx=-1; }}
+    if _suggestions:
+        st.markdown(
+            '<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
+            'border-radius:8px;padding:6px;margin-top:4px;">',
+            unsafe_allow_html=True
+        )
+        _cols = st.columns(len(_suggestions))
+        for _ci, _tk in enumerate(_suggestions):
+            with _cols[_ci]:
+                _nm = _AC_KNOWN.get(_tk, "")
+                _btn_label = f"{_tk}\n{_nm}" if _nm else _tk
+                if st.button(_btn_label, key=f"sug_{_tk}_{_ci}"):
+                    st.session_state.screener_search_val = _tk
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-function setH(open) {{
-  // Collapse body height to reduce visible gap when closed
-  document.documentElement.style.height = open ? '360px' : '58px';
-  document.body.style.height = open ? '360px' : '58px';
-  document.body.style.overflow = open ? 'visible' : 'hidden';
-}}
-
-function search(q) {{
-  if (!q) {{
-    if (RECENT.length) {{
-      show(RECENT.map(function(t) {{
-        return DATA.find(function(d){{return d.t===t;}}) || {{t:t,n:''}};
-      }}), 'Recent');
-    }} else hide();
-    return;
-  }}
-  var ql = q.toLowerCase();
-  var res = DATA.filter(function(d) {{
-    return d.t.toLowerCase().startsWith(ql) || (d.n && d.n.toLowerCase().includes(ql));
-  }}).slice(0, 8);
-  show(res, res.length ? 'Suggestions' : '');
-}}
-
-inp.addEventListener('input',  function() {{ search(inp.value.trim()); }});
-inp.addEventListener('focus',  function() {{ search(inp.value.trim()); }});
-inp.addEventListener('blur',   function() {{ setTimeout(hide, 250); }});
-inp.addEventListener('keydown', function(e) {{
-  var items = drop.querySelectorAll('.item');
-  if (e.key === 'ArrowDown') {{
-    aidx = Math.min(aidx+1, items.length-1);
-    items.forEach(function(el,i){{el.classList.toggle('on',i===aidx);}});
-    e.preventDefault();
-  }} else if (e.key === 'ArrowUp') {{
-    aidx = Math.max(aidx-1, 0);
-    items.forEach(function(el,i){{el.classList.toggle('on',i===aidx);}});
-    e.preventDefault();
-  }} else if (e.key === 'Enter' && aidx >= 0 && items[aidx]) {{
-    items[aidx].click();
-    e.preventDefault();
-  }} else if (e.key === 'Escape') {{
-    hide();
-  }}
-}});
-
-setH(false);
-</script>
-</body>
-</html>
-""", height=360, scrolling=False)
-
-    # Read search value from session state (set by ac_pick param above)
-    search_ticker = st.session_state.get("screener_search_val", "").strip().upper()
     if search_ticker:
+        st.session_state.screener_search_val = search_ticker
         _rl = st.session_state.get("recent_searches", [])
         if search_ticker not in _rl:
             st.session_state.recent_searches = ([search_ticker] + [r for r in _rl if r != search_ticker])[:5]
