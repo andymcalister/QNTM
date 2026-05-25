@@ -546,7 +546,7 @@ iframe[height="0"], iframe[style*="height: 0"],
 
 /* ── Streamlit tab panels — add top breathing room ── */
 [data-testid="stTabPanel"] {
-  padding-top: 16px !important;
+  padding-top: 8px !important;
 }
 
 /* ── Section gaps between major blocks ── */
@@ -2375,7 +2375,7 @@ def page_landing():
     #MainMenu, header[data-testid="stHeader"], footer { display: none !important; }
 
     /* ── Layout helpers ── */
-    .land-section { padding: 72px clamp(16px,4vw,48px); max-width: 1200px; margin: 0 auto; }
+    .land-section { padding: 40px clamp(16px,4vw,48px); max-width: 1200px; margin: 0 auto; }
     .land-divider  { border-top: 1px solid rgba(255,255,255,.06); }
 
     /* ── Animations ── */
@@ -2938,7 +2938,7 @@ def page_landing():
 
         # ── THE MODEL ─────────────────────────────────────────────────────────────
     st.markdown("""
-    <div class="land-divider" style="margin-top:32px;"></div>
+    <div class="land-divider" style="margin-top:16px;"></div>
     <div class="land-section">
       <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; THE MODEL</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
@@ -2974,7 +2974,7 @@ def page_landing():
         unsafe_allow_html=True)
 
     # Signal boxes — pure CSS grid, no st.columns
-    st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
     signals_html = ""
     for label, score, desc, color, brd in [
         ("▲ HIGH",        "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
@@ -2995,7 +2995,7 @@ def page_landing():
 
     # ── COMPETITOR MATRIX ─────────────────────────────────────────────────────
     st.markdown("""
-    <div class="land-divider" style="margin-top:32px;"></div>
+    <div class="land-divider" style="margin-top:16px;"></div>
     <div class="land-section">
       <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; VS THE MARKET</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
@@ -3070,7 +3070,7 @@ def page_landing():
 
     # ── PRICING ───────────────────────────────────────────────────────────────
     st.markdown("""
-    <div class="land-divider" style="margin-top:32px;"></div>
+    <div class="land-divider" style="margin-top:16px;"></div>
     <div class="land-section">
       <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; PRICING</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
@@ -3150,7 +3150,7 @@ def page_landing():
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
-    <div class="land-divider" style="margin-top:32px;"></div>
+    <div class="land-divider" style="margin-top:16px;"></div>
     <div style="background:#080910;padding:48px clamp(16px,4vw,48px) 40px;">
       <div style="max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;
            align-items:flex-start;flex-wrap:wrap;gap:32px;margin-bottom:32px;">
@@ -3245,7 +3245,7 @@ def page_auth():
 
     with col_center:
         st.markdown("""
-        <div style="text-align:center;padding:48px 0 36px;">
+        <div style="text-align:center;padding:24px 0 20px;">
           <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;
                letter-spacing:.15em;color:#e2e4f0;">Q<span style="color:#00ff87;">NTM</span></div>
           <div style="font-size:13px;color:#64748b;letter-spacing:.2em;margin-top:6px;">
@@ -3271,7 +3271,7 @@ def page_auth():
                 st.rerun()
 
         if st.session_state.auth_tab == "signin":
-            st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
 
             si_email = st.text_input("Email address", key="si_email",
                                      placeholder="you@example.com")
@@ -3321,7 +3321,7 @@ def page_auth():
 
         # ── REGISTER ──────────────────────────────────────────────────────────
         else:
-            st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
 
             # Plan selection
             st.markdown("""
@@ -3396,7 +3396,7 @@ def page_auth():
                     else:
                         st.error(res.get("error", "Registration failed — please try again"))
 
-        st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
         st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     # Legal footer — 2x2 grid, always fits any screen width
@@ -3432,7 +3432,7 @@ def page_mfa():
           <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">
             Q<span style="color:#00ff87;">NTM</span>
           </div>
-          <div style="margin-top:32px;font-size:36px;">🔐</div>
+          <div style="margin-top:16px;font-size:36px;">🔐</div>
           <h2 style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-top:12px;">Two-Factor Auth</h2>
           <p style="color:#94a3b8;margin-top:8px;">Enter the 6-digit code from your authenticator app</p>
         </div>
@@ -3458,7 +3458,7 @@ def page_mfa():
                 else:
                     st.error("Invalid code — check your app and try again")
 
-            st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
             st.markdown(_back_btn("?nav=signin", "← Back to Sign In"), unsafe_allow_html=True)
 
             # Recovery option
@@ -3703,7 +3703,7 @@ def page_screener():
         f'</div>',
         unsafe_allow_html=True
     )
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Search box ───────────────────────────────────────────────────────────
     st.markdown("""
@@ -3748,8 +3748,6 @@ def page_screener():
     # Persist to session state
     if search_ticker:
         st.session_state.screener_search_val = search_ticker
-    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
-
     if search_ticker:
         # Resolve company name → ticker first
         resolved_tk, resolved_name = resolve_ticker(search_ticker)
@@ -3831,7 +3829,7 @@ def page_screener():
                     f'<div style="font-size:13px;color:#475569;">Could not retrieve data. Check the symbol and try again.</div>'
                     f'</div>',
                     unsafe_allow_html=True)
-        st.markdown('<div style="height:8px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:20px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:1px;background:rgba(255,255,255,.05);margin:8px 0 12px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if st.session_state.scan_results is None:
@@ -3859,7 +3857,7 @@ def page_screener():
     gems = detect_hidden_gems(results, macro_data=st.session_state.get("macro_data"))
     gem_tickers = {g["ticker"] for g in gems}
 
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Compact breadth strip — search → breadth → regime ─────────────────────
     buys  = sum(1 for r in results if r.get("adj_action",r.get("action"))=="BUY")
@@ -3886,7 +3884,6 @@ def page_screener():
     # ── Macro Regime Banner ────────────────────────────────────────────────────
     from model_engine import MACRO_EVENT_INFO
     st.markdown(macro_regime_banner_html(macro), unsafe_allow_html=True)
-
     # Active events — single collapsed expander
     active_evts = macro.get("active_events", [])
     if active_evts:
@@ -3910,15 +3907,11 @@ def page_screener():
 
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-
-
-
     buys_ranked  = sorted([r for r in results if r.get("adj_action",r.get("action"))=="BUY"],
                           key=lambda x: x.get("adj_composite",x.get("composite",0)), reverse=True)
     sells_ranked = sorted([r for r in results if r.get("adj_action",r.get("action"))=="SELL"],
                           key=lambda x: x.get("adj_composite",x.get("composite",100)))
 
-    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
     scr_tab1, scr_tab2, scr_tab3 = st.tabs(["⭐ TOP 10 SIGNALS", "🔍 FULL UNIVERSE", "📈 SECTOR BREAKDOWN"])
 
     # ── TAB 1: TOP 10 ──────────────────────────────────────────────────────────
@@ -4064,7 +4057,7 @@ def page_watchlist():
     _pin_nav("watchlist")
     """User watchlist — tracked stocks with live conviction scores."""
     page_summary("★", "Watchlist", "Your tracked stocks · conviction scores updated daily")
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     watchlist = get_watchlist(uid())
     scan      = st.session_state.get("scan_results") or []
@@ -4328,7 +4321,7 @@ def page_watchlist():
 
         st.markdown(
             f'<div class="wl-row" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 60px 110px 1fr;'
-            f'gap:8px;padding:12px 16px;background:{bg};'
+            f'gap:8px;padding:10px 16px;background:{bg};'
             f'border-left:3px solid {border_c};'
             f'border-right:1px solid rgba(255,255,255,.04);'
             f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
@@ -4425,7 +4418,7 @@ def page_gems():
     if not is_pro():
         st.markdown("""
         <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
-             border-radius:8px;padding:48px;text-align:center;">
+             border-radius:8px;padding:28px 24px;text-align:center;">
           <div style="font-size:48px;margin-bottom:16px;">🔒</div>
           <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
                color:#00ff87;margin-bottom:12px;">Founding Member Feature</div>
@@ -4486,6 +4479,9 @@ def page_gems():
             raw   = float(g.get("composite") or 0)
             g["adj_action"]  = "BUY"
             g["score_delta"] = round(adj - raw, 1)
+            # Enrich sector from SECTORS dict — detect_hidden_gems doesn't set it
+            if not g.get("sector") or g.get("sector") == "Unknown":
+                g["sector"] = SECTORS.get(tk, "")
             ci = get_company_info(tk)
             cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
         except Exception:
@@ -4503,7 +4499,7 @@ def page_backtest():
         "📈", "Backtest Performance",
         f"5-year walk-forward · 6 regimes · +{bt['model_total_ret']:.0f}% vs SPY +{bt['spy_total_ret']:.0f}%"
     )
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     # Hero numbers
@@ -4575,7 +4571,7 @@ def page_backtest():
 
     # Growth chart — compute from real quarterly returns for accuracy
     import streamlit.components.v1 as _components
-    st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — Q2 2020 TO Q1 2025</div>', unsafe_allow_html=True)
 
     # Build growth curves from quarterly returns (most accurate)
@@ -4732,7 +4728,7 @@ document.body.prepend(c);
         f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">{mac_html}</div>',
         unsafe_allow_html=True)
 
-    st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
 
     # Honest comparison table
     st.markdown("""
@@ -4776,7 +4772,7 @@ document.body.prepend(c);
         unsafe_allow_html=True)
 
     # Regime breakdown
-    st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
     st.markdown("""
     <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;
          letter-spacing:.1em;margin-bottom:8px;">MACRO REGIME BREAKDOWN (avg quarterly return)</div>
@@ -4896,7 +4892,7 @@ document.body.prepend(c);
         row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
         st.markdown(
             f'<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
-            f'gap:8px;padding:12px 16px;background:{row_bg};'
+            f'gap:8px;padding:9px 16px;background:{row_bg};'
             f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
             f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
             f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
@@ -4976,7 +4972,7 @@ def page_portfolio():
         "See your blended score, pillar breakdown, and whether the signal has changed since you entered. "
         "Free accounts track up to 10 positions. Pro unlocks unlimited holdings and real-time signal alerts.",
     )
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Ensure scan results ────────────────────────────────────────────────────
     if st.session_state.scan_results is None:
@@ -5207,7 +5203,7 @@ def page_portfolio():
     # ── Empty state ────────────────────────────────────────────────────────────
     if not holdings:
         st.markdown("""
-        <div style="text-align:center;padding:48px 24px;max-width:480px;margin:0 auto;">
+        <div style="text-align:center;padding:24px 16px;max-width:480px;margin:0 auto;">
           <div style="font-size:52px;margin-bottom:16px;">💼</div>
           <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">
             Add your first position
@@ -5653,7 +5649,7 @@ def page_simulator():
         "Build a hypothetical portfolio from current HIGH conviction signals. "
         "Build a hypothetical portfolio from current HIGH conviction signals. Scores update nightly.",
     )
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     if not is_pro():
         st.markdown(
@@ -5777,7 +5773,7 @@ def page_simulator():
                 f'</div></a>',
                 unsafe_allow_html=True)
 
-    st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>', unsafe_allow_html=True)
     add_query = st.text_input("Search ticker or company", key="sim_add_query",
                                placeholder="e.g. NVDA, Apple…", label_visibility="collapsed")
@@ -5837,7 +5833,7 @@ def page_simulator():
     weighted_score = sum(a["pct"] * a["score"] for a in alloc) / 100
     sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
 
-    st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
     st.markdown(
         f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">'
         f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
@@ -5968,13 +5964,13 @@ def page_alerts():
         "Pro members get email notifications on every signal change across their portfolio.",
 
     )
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Free tier gate ─────────────────────────────────────────────────────────
     if not has_alerts:
         st.markdown("""
         <div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.2);
-             border-radius:12px;padding:48px;text-align:center;margin-bottom:24px;">
+             border-radius:12px;padding:24px;text-align:center;margin-bottom:16px;">
           <div style="font-size:52px;margin-bottom:16px;">🔔</div>
           <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
                color:#d4a843;margin-bottom:12px;">Pro Feature — Signal Alerts</div>
@@ -6019,7 +6015,7 @@ def page_alerts():
 
     if not notifs:
         st.markdown("""
-        <div style="text-align:center;padding:48px 24px;max-width:440px;margin:0 auto;">
+        <div style="text-align:center;padding:24px 16px;max-width:440px;margin:0 auto;">
           <div style="font-size:48px;margin-bottom:16px;">🔔</div>
           <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">
             No alerts yet
@@ -6106,7 +6102,7 @@ def page_account():
         "Founding Member gives you full Pro access free — unlimited holdings, Hidden Gems, and signal alerts — "
         "locked in for the first 50 users.",
     )
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     tab_profile, tab_security, tab_plan, tab_notifs = st.tabs([
         "Profile", "Security & MFA", "Plan & Billing", "Notification Prefs"
@@ -6114,7 +6110,7 @@ def page_account():
 
     # ── PROFILE ───────────────────────────────────────────────────────────────
     with tab_profile:
-        st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
             new_name = st.text_input("Full name", value=user.get("full_name",""), key="acc_name")
@@ -6149,7 +6145,7 @@ def page_account():
 
     # ── SECURITY & MFA ────────────────────────────────────────────────────────
     with tab_security:
-        st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
         mfa_data = get_user_mfa(uid())
         mfa_on   = mfa_data.get("mfa_enabled", False)
 
@@ -6249,7 +6245,7 @@ def page_account():
                         st.session_state.totp_secret_temp = None
                         st.rerun()
 
-        st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
         st.markdown("""
         <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
              border-radius:8px;padding:18px 20px;">
@@ -6266,7 +6262,7 @@ def page_account():
 
     # ── PLAN & BILLING ────────────────────────────────────────────────────────
     with tab_plan:
-        st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
         plan_color = "#d4a843" if plan in ("pro","institutional") else "#64748b"
 
         st.markdown(f"""
@@ -6363,7 +6359,7 @@ def page_account():
 
     # ── NOTIFICATION PREFS ────────────────────────────────────────────────────
     with tab_notifs:
-        st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
         if not plan_limit(plan, "notifications"):
             st.markdown("""
             <div style="background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);
@@ -6380,7 +6376,7 @@ def page_account():
             a_on = st.toggle("Macro regime change alerts",
                              value=prefs.get("alerts", True), key="pref_alert")
 
-            st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
             if st.button("Save Notification Preferences", key="save_prefs"):
                 new_prefs = {"email": e_on, "signals": s_on, "alerts": a_on}
                 if update_preferences(uid(), {"notifications": new_prefs}):
@@ -6797,7 +6793,7 @@ def page_model_portfolio():
             real_exits = [e for e in (exits.data or [])
                           if e.get("exit_reason","") not in ("reseeded","")]
             if real_exits:
-                st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
                 st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;'
                             'letter-spacing:.1em;margin-bottom:12px;">RECENT EXITS</div>',
                             unsafe_allow_html=True)
@@ -6835,7 +6831,7 @@ def page_methodology():
     """How QNTM Works — methodology, factor logic, disclaimers."""
     page_summary("📖", "How QNTM Works",
         "Transparent methodology — what the model does, how it scores stocks, and what it doesn't do.")
-    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     sections = [
         ("The Universe", "#00ff87",
@@ -6912,7 +6908,7 @@ def page_platform():
                     '</div></div>',
                     unsafe_allow_html=True
                 )
-                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
                 b1, b2 = st.columns(2)
                 with b1:
                     if st.button("⚡ Enable 2FA", key="force_mfa_yes", use_container_width=True):
@@ -7006,7 +7002,7 @@ def page_platform():
 
     # Platform footer
     st.markdown("""
-    <div style="padding:24px 32px;border-top:1px solid rgba(255,255,255,.05);margin-top:40px;">
+    <div style="padding:16px 32px;border-top:1px solid rgba(255,255,255,.05);margin-top:20px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div style="font-size:13px;color:#475569;">
           QNTM · Quantitative research platform · Not investment advice
