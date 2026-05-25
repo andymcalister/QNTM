@@ -4112,7 +4112,9 @@ def page_screener():
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
             results = apply_macro_overlay(raw, macro)
-            st.session_state.scan_results = enrich_with_signal_log(results)
+            enriched = enrich_with_signal_log(results)
+            # Re-apply macro overlay after DB enrichment so adj_composite is consistent
+            st.session_state.scan_results = apply_macro_overlay(enriched, macro)
             st.session_state.macro_data   = macro
 
     results = st.session_state.scan_results
@@ -4675,7 +4677,8 @@ def page_gems():
                     _r["sector"] = _GEM_SECTORS.get(_r["ticker"], "Unknown")
             _res = apply_macro_overlay(_raw, _mac)
             _gems_prog.progress(85, text="Detecting gems...")
-            st.session_state.scan_results = enrich_with_signal_log(_res)
+            _enriched = enrich_with_signal_log(_res)
+            st.session_state.scan_results = apply_macro_overlay(_enriched, _mac)
             st.session_state.macro_data   = _mac
             _gems_prog.progress(100, text="Done")
             _gems_prog.empty()
