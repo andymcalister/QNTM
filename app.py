@@ -3871,18 +3871,26 @@ def page_screener():
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
-        fc1, fc2, fc3, fc4 = st.columns([3,3,2,2])
+        fc1, fc2, fc3 = st.columns(3)
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
             filter_act = st.selectbox("Conviction", ["All","High Conviction","Moderate","Low Conviction"], key="f_act")
         with fc3:
             filter_min = st.selectbox("Min Score", ["All","60+","70+","80+"], key="f_min")
-        with fc4:
-            st.markdown('<div style="height:22px;"></div>', unsafe_allow_html=True)
-            if st.button("↺ Rescan", key="rescan", use_container_width=True):
-                st.session_state.scan_results = None
-                st.rerun()
+        # Rescan — small right-aligned, below filters
+        _uid_v = (st.session_state.user or {}).get('id','')
+        _pln_v = (st.session_state.user or {}).get('plan','free')
+        _rscan_url = f'?qnav=screener&uid={_uid_v}&plan={_pln_v}&ck=1&rescan=1'
+        st.markdown(
+            f'<div style="display:flex;justify-content:flex-end;margin:6px 0 4px;">'
+            f'<a href="{_rscan_url}" target="_self" style="'
+            f'padding:6px 14px;border-radius:4px;border:1px solid rgba(255,255,255,.12);'
+            f'background:rgba(255,255,255,.03);font-family:Syne,sans-serif;font-size:11px;'
+            f'font-weight:700;letter-spacing:.08em;color:#475569;text-decoration:none;'
+            f'text-transform:uppercase;">↺ Rescan</a></div>',
+            unsafe_allow_html=True
+        )
 
 
         filtered = results
@@ -7128,6 +7136,11 @@ def main():
         st.query_params.pop("upgrade_page", None)
         st.query_params.pop("feature", None)
         st.query_params.pop("return_nav", None)
+
+    # ── Universe rescan via URL action ──────────────────────────────────────
+    if st.query_params.get("rescan") == "1" and st.session_state.get("logged_in"):
+        st.query_params.pop("rescan", None)
+        st.session_state.scan_results = None
 
     # ── Simulator rescan via URL action ──────────────────────────────────────
     if st.query_params.get("sim_rescan") == "1" and st.session_state.get("logged_in"):
