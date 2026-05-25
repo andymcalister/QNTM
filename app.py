@@ -2442,24 +2442,15 @@ def page_landing():
 
     # ── HERO ──────────────────────────────────────────────────────────────────
     bt = BACKTEST_DATA
-    _mr  = f"+{bt['model_total_ret']:.0f}%"
-    _sr  = f"+{bt['spy_total_ret']:.0f}%"
-    _sh  = f"{bt['sharpe']:.2f}"
-    _wr  = f"{bt['win_rate']:.0f}%"
-    _dd  = f"{bt['max_dd_model']:.1f}%"
-    _dds = f"{bt['max_dd_spy']:.1f}%"
 
-    # No f-string: avoids CSS brace conflicts and HTML comment stripping
+    # Hero — headline + subtext + CTA only (stat grid moves below fold per Task 2)
     hero_html = (
         '<style>'
-        '.qntm-hero{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;'
-        'padding:48px clamp(16px,4vw,48px) 36px;max-width:1200px;margin:0 auto;'
+        '.qntm-hero{padding:48px clamp(16px,4vw,48px) 32px;max-width:760px;margin:0 auto;'
         'background:radial-gradient(ellipse 80% 50% at 30% 0%,rgba(212,168,67,.06) 0%,transparent 70%);}'
-        '.qntm-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}'
-        '@media(max-width:700px){.qntm-hero{grid-template-columns:1fr!important;gap:24px!important;}}'
+        '@media(max-width:700px){.qntm-hero{padding:32px 16px 24px!important;}}'
         '</style>'
         '<div class="qntm-hero">'
-        '<div>'
         '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(212,168,67,.08);'
         'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;margin-bottom:20px;">'
         '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
@@ -2470,40 +2461,90 @@ def page_landing():
         'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:16px;">'
         'Know where<br>conviction is<br>'
         '<span style="color:#d4a843;">strongest.</span></h1>'
-        '<p style="font-size:15px;color:#94a3b8;max-width:420px;line-height:1.7;margin-bottom:28px;">'
+        '<p style="font-size:15px;color:#94a3b8;max-width:480px;line-height:1.7;margin-bottom:28px;">'
         'A multi-factor quantitative model scoring 834 stocks daily across momentum, '
         'quality, volume, value, and sentiment — blended with a live macro regime overlay.'
         '</p></div>'
-        '<div class="qntm-stat-grid">'
-        '<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.15);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">5-YR RETURN</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">' + _mr + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _sr + '</div></div>'
-        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">SHARPE RATIO</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _sh + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">&gt;1.0 excellent</div></div>'
-        '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.1);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">' + _wr + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div></div>'
-        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">MAX DRAWDOWN</div>'
-        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _dd + '</div>'
-        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _dds + '</div></div>'
-        '</div></div>'
     )
     st.markdown(hero_html, unsafe_allow_html=True)
 
-    # Hero CTA buttons — pure HTML grid, no st.columns (columns break HTML flow → raw tag leak)
+    # Hero CTA buttons
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;'
-        f'padding:0 clamp(16px,4vw,48px);max-width:560px;margin:0 auto 8px;">'
-        f'{_cta_gold("Join Free →", "?nav=register")}'
-        f'{_cta_ghost("Sign In", "?nav=signin")}'
-        f'</div>',
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;'
+        'padding:0 clamp(16px,4vw,48px);max-width:480px;margin:0 auto 32px;">'
+        + _cta_gold("Join Free →", "?nav=register")
+        + _cta_ghost("Sign In", "?nav=signin")
+        + '</div>',
         unsafe_allow_html=True
     )
+
+    # ── MARKET REGIME TODAY — primary insight card ────────────────────────────
+    try:
+        from model_engine import fetch_macro_overlay
+        _macro_now = fetch_macro_overlay()
+    except Exception:
+        _macro_now = {}
+    _regime     = _macro_now.get("regime", "NEUTRAL")
+    _regime_label = {"RISK_ON": "Risk On", "RISK_OFF": "Risk Off", "NEUTRAL": "Neutral"}.get(_regime, "Neutral")
+    _regime_c     = {"RISK_ON": "#00ff87", "RISK_OFF": "#ef4444", "NEUTRAL": "#fbbf24"}.get(_regime, "#fbbf24")
+    _regime_bg    = {"RISK_ON": "rgba(0,255,135,.06)", "RISK_OFF": "rgba(239,68,68,.06)", "NEUTRAL": "rgba(251,191,36,.06)"}.get(_regime, "rgba(251,191,36,.06)")
+    _regime_brd   = {"RISK_ON": "rgba(0,255,135,.2)",  "RISK_OFF": "rgba(239,68,68,.2)",  "NEUTRAL": "rgba(251,191,36,.2)"}.get(_regime, "rgba(251,191,36,.2)")
+    _regime_icon  = {"RISK_ON": "▲", "RISK_OFF": "▼", "NEUTRAL": "─"}.get(_regime, "─")
+    _vix          = _macro_now.get("vix", None)
+    _vix_str      = f" · VIX {_vix:.1f}" if _vix else ""
+    _events       = _macro_now.get("active_events", [])
+    _evt_str      = f" · {_events[0].replace('_',' ').title()}" if _events else ""
+
+    st.markdown(
+        f'<div style="padding:0 clamp(16px,4vw,48px);max-width:760px;margin:0 auto 24px;">'
+        f'<div style="background:{_regime_bg};border:1px solid {_regime_brd};border-radius:10px;'
+        f'padding:20px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">'
+        f'<div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">MARKET REGIME TODAY</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:{_regime_c};line-height:1;">'
+        f'{_regime_icon} {_regime_label}</div>'
+        f'<div style="font-size:12px;color:#64748b;margin-top:4px;">Model overlay active{_vix_str}{_evt_str}</div>'
+        f'</div>'
+        f'<div style="text-align:right;">'
+        f'<div style="font-size:12px;color:#475569;margin-bottom:4px;">Macro blend</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:18px;color:#d4a843;">75/25</div>'
+        f'<div style="font-size:11px;color:#334155;">quant / macro</div>'
+        f'</div></div></div>',
+        unsafe_allow_html=True
+    )
+
+    # ── TOP 5 HIGH CONVICTION — collapsed cards ───────────────────────────────
+    try:
+        from data_refresh import _get_supabase as _hero_sb
+        _sb2 = _hero_sb()
+        _top5 = []
+        if _sb2:
+            _r5 = _sb2.table("signal_log")                 .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date")                 .in_("signal", ["BUY","HIGH"])                 .order("signal_date", desc=True)                 .order("adj_composite", desc=True)                 .limit(50)                 .execute()
+            _seen5 = {}
+            for _row in (_r5.data or []):
+                if _row["ticker"] not in _seen5:
+                    _adj = float(_row.get("adj_composite") or _row.get("composite") or 0)
+                    _row["adj_action"] = "BUY"
+                    _row["score_delta"] = round(_adj - float(_row.get("composite") or _adj), 1)
+                    _seen5[_row["ticker"]] = _row
+            _top5 = sorted(_seen5.values(), key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:5]
+    except Exception:
+        _top5 = []
+
+    if _top5:
+        st.markdown(
+            '<div style="padding:0 clamp(16px,4vw,48px);max-width:760px;margin:0 auto 8px;">'
+            '<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;'
+            'letter-spacing:.1em;margin-bottom:10px;">TOP SIGNALS TODAY</div>',
+            unsafe_allow_html=True
+        )
+        cards_html = ""
+        for _r5row in _top5:
+            cards_html += factor_panel_html(_r5row, False, None)
+        st.markdown(
+            '<div style="padding:0 clamp(16px,4vw,48px);max-width:760px;margin:0 auto;">' + cards_html + '</div>',
+            unsafe_allow_html=True
+        )
 
 
     # ── TICKER TAPE — live from latest signal_log ─────────────────────────────
@@ -2565,7 +2606,37 @@ def page_landing():
     )
     st.markdown(tape_block, unsafe_allow_html=True)
 
-    # ── PERFORMANCE SECTION ───────────────────────────────────────────────────
+    # ── PERFORMANCE SECTION — stat grid now lives here (below fold per Task 2) ──
+    _mr  = f"+{bt['model_total_ret']:.0f}%"
+    _sr  = f"+{bt['spy_total_ret']:.0f}%"
+    _sh  = f"{bt['sharpe']:.2f}"
+    _wr  = f"{bt['win_rate']:.0f}%"
+    _dd  = f"{bt['max_dd_model']:.1f}%"
+    _dds = f"{bt['max_dd_spy']:.1f}%"
+
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;'
+        'padding:32px clamp(16px,4vw,48px) 24px;max-width:760px;margin:0 auto;">'
+        '<div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.15);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">5-YR RETURN</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#d4a843;line-height:1;">' + _mr + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _sr + '</div></div>'
+        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">SHARPE RATIO</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _sh + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">&gt;1.0 excellent</div></div>'
+        '<div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.1);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">WIN RATE</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">' + _wr + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">quarterly · 20 periods</div></div>'
+        '<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:18px 16px;">'
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.1em;margin-bottom:6px;">MAX DRAWDOWN</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#e2e8f0;line-height:1;">' + _dd + '</div>'
+        '<div style="font-size:11px;color:#475569;margin-top:4px;">vs SPY ' + _dds + '</div></div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
     st.markdown("""
     <div class="land-divider"></div>
     <div class="land-section">
