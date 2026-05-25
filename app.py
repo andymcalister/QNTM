@@ -1211,10 +1211,10 @@ def scan_health_check():
 def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
     """Consistent page header — pills param accepted but ignored (removed from UI)."""
     st.markdown(
-        f'<div style="padding:10px 32px 6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">'
+        f'<div style="padding:10px 32px 6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">{icon} {title}</span>'
-        f'<span style="font-size:12px;color:#334155;">{subtitle}</span>'
-        f'</div>',
+        + (f'<div style="font-size:11px;color:#334155;margin-top:2px;">{subtitle}</div>' if subtitle else '')
+        + f'</div>',
         unsafe_allow_html=True
     )
 
@@ -3691,15 +3691,13 @@ def page_screener():
         if _sb_h:
             _hr = _sb_h.table("signal_log").select("signal_date").order("signal_date", desc=True).limit(1).execute()
             if _hr.data:
-                _fresh_html = f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#334155;margin-left:10px;">· updated {_hr.data[0]["signal_date"]}</span>'
+                _fresh_html = f' · updated {_hr.data[0]["signal_date"]}'
     except Exception:
         pass
     st.markdown(
-        f'<div style="padding:16px 32px 8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
-        f'<div style="display:flex;align-items:center;gap:8px;">'
-        f'<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#e2e8f0;">Market Screener</span>'
-        f'{_fresh_html}</div>'
-        f'<span style="font-size:12px;color:#334155;">834 stocks · 5-pillar quant · macro overlay</span>'
+        f'<div style="padding:10px 32px 4px;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">📊 Market Screener</span>'
+        f'<div style="font-size:11px;color:#334155;margin-top:2px;">834 stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
         f'</div>',
         unsafe_allow_html=True
     )
