@@ -2763,6 +2763,18 @@ def page_landing():
     _wr = f"{bt['win_rate']:.0f}%"
     _dd = f"{bt['max_dd_model']:.1f}%"
 
+    # Dynamic founding spots count
+    _spots_remaining = 50
+    try:
+        from data_refresh import _get_supabase as _fs_sb
+        _sb_fs = _fs_sb()
+        if _sb_fs:
+            _uc = _sb_fs.table("users").select("id", count="exact").execute()
+            _user_count = _uc.count if hasattr(_uc, 'count') and _uc.count else len(_uc.data or [])
+            _spots_remaining = max(0, 50 - _user_count)
+    except Exception:
+        pass
+
     hero_html = (
         '<style>'
         '.qntm-hero2{'
@@ -2790,8 +2802,8 @@ def page_landing():
         'MODEL LIVE · 5-YR VALIDATED</span></div>'
         '<div style="display:inline-flex;align-items:center;background:rgba(0,255,135,.05);'
         'border:1px solid rgba(0,255,135,.15);border-radius:100px;padding:5px 14px;">'
-        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.08em;">'
-        '🎯 50 FOUNDING SPOTS · FREE TODAY</span></div>'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.08em;">'
+        f'🎯 {_spots_remaining} FOUNDING SPOTS · FREE TODAY</span></div>'
         '</div>'
         '<h1 style="font-family:Syne,sans-serif;font-size:clamp(36px,4vw,60px);'
         'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:18px;">'
@@ -3417,7 +3429,7 @@ def page_auth():
     col_back, col_center, col_right = st.columns([1, 4, 1])
     with col_back:
         st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
-        if st.button("← Home", key="auth_home_btn"):
+        if st.button("← Back", key="auth_home_btn"):
             st.session_state.page = "landing"
             st.session_state.signed_out = True  # prevents auto-redirect to platform
             st.rerun()
