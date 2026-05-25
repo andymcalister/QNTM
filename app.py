@@ -2873,20 +2873,20 @@ def page_landing():
     _n_high = len(_top5)
     _n_sell = 0
     try:
-        _all_high = _sb2.table("signal_log") \
-            .select("ticker") \
-            .gte("adj_composite", 60) \
-            .order("signal_date", desc=True) \
-            .limit(500) \
-            .execute()
-        _n_high = len(set(r["ticker"] for r in (_all_high.data or [])))
-        _sell_resp = _sb2.table("signal_log") \
-            .select("ticker") \
-            .lte("adj_composite", 44) \
-            .order("signal_date", desc=True) \
-            .limit(500) \
-            .execute()
-        _n_sell = len(set(r["ticker"] for r in (_sell_resp.data or [])))
+        # Get latest signal_date first, then filter to that date only
+        _latest_dt = _sb2.table("signal_log").select("signal_date") \
+            .order("signal_date", desc=True).limit(1).execute()
+        _max_dt = _latest_dt.data[0]["signal_date"] if _latest_dt.data else None
+        if _max_dt:
+            _all_scores = _sb2.table("signal_log") \
+                .select("ticker,adj_composite") \
+                .eq("signal_date", _max_dt) \
+                .execute()
+            _scores_data = _all_scores.data or []
+            _n_high = sum(1 for r in _scores_data if float(r.get("adj_composite") or 0) >= 60)
+            _n_sell = sum(1 for r in _scores_data if float(r.get("adj_composite") or 50) < 45)
+        else:
+            _n_high, _n_sell = 0, 0
     except Exception:
         pass
 
@@ -2894,7 +2894,7 @@ def page_landing():
     # Regime is primary — larger and brighter
     _today_items.insert(0, f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{_regime_c};">{_regime_icon} {_regime_label}</span>')
     if _n_high:  _today_items.append(f'<span style="color:#64748b;">{_n_high} high conviction</span>')
-    if _n_sell:  _today_items.append(f'<span style="color:#475569;">{_n_sell} exit</span>')
+    if _n_sell:  _today_items.append(f'<span style="color:#475569;">{_n_sell} low conviction</span>')
     # Gem count — read from platform_stats table (written by cron after every refresh)
     _n_gems = st.session_state.get("_gem_count", None)
     if _n_gems is None:
@@ -3391,7 +3391,16 @@ def page_auth():
     col_back, col_center, col_right = st.columns([1, 4, 1])
     with col_back:
         st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
-        st.markdown(_back_btn("?nav=landing"), unsafe_allow_html=True)
+        # Back button — sets landing flag directly then reruns to landing
+        if st.button("← Home", key="auth_back_home"):
+            st.session_state.page = "landing"
+            st.session_state._show_landing = True
+            st.rerun()
+        st.markdown('<style>div[data-testid="stButton"][data-key="auth_back_home"] button {'
+            'background:rgba(255,255,255,.03)!important;border:1px solid rgba(255,255,255,.12)!important;'
+            'color:#94a3b8!important;font-size:11px!important;padding:6px 10px!important;'
+            'font-family:Syne,sans-serif!important;font-weight:700!important;white-space:nowrap!important;'
+            'letter-spacing:.04em!important;}</style>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_center:
