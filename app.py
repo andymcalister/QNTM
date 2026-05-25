@@ -3426,15 +3426,13 @@ def page_auth():
     }
     </style>
     """, unsafe_allow_html=True)
-    col_back, col_center, col_right = st.columns([1, 4, 1])
-    with col_back:
-        st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
-        if st.button("← Back", key="auth_home_btn"):
-            st.session_state.page = "landing"
-            st.session_state.signed_out = True  # prevents auto-redirect to platform
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Back button rendered before columns — full width available, no cramping
+    if st.button("← Back", key="auth_home_btn"):
+        st.session_state.page = "landing"
+        st.session_state.signed_out = True
+        st.rerun()
 
+    _, col_center, _ = st.columns([1, 4, 1])
     with col_center:
         st.markdown("""
         <div style="text-align:center;padding:24px 0 20px;">
