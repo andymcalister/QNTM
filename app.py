@@ -3788,10 +3788,9 @@ body {{ background: transparent; }}
   background: #0d1117;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 8px;
-  overflow: hidden;
   z-index: 9999;
   box-shadow: 0 8px 32px rgba(0,0,0,.6);
-  max-height: 280px;
+  max-height: 272px;
   overflow-y: auto;
 }}
 .qac-item {{
@@ -3861,10 +3860,16 @@ body {{ background: transparent; }}
     return html;
   }}
 
+  function setHeight(expanded) {{
+    // Tell parent iframe to resize
+    var h = expanded ? 340 : 56;
+    window.frameElement && (window.frameElement.style.height = h + 'px');
+  }}
   function showDropdown(items, section) {{
-    if (!items.length) {{ dropdown.style.display = 'none'; return; }}
+    if (!items.length) {{ dropdown.style.display = 'none'; setHeight(false); return; }}
     dropdown.innerHTML = renderItems(items, section);
     dropdown.style.display = 'block';
+    setHeight(true);
     activeIdx = -1;
     dropdown.querySelectorAll('.qac-item').forEach(function(el) {{
       el.addEventListener('mousedown', function(e) {{
@@ -3899,7 +3904,10 @@ body {{ background: transparent; }}
     else search(input.value.trim());
   }});
   input.addEventListener('blur', function() {{
-    setTimeout(function() {{ dropdown.style.display = 'none'; }}, 150);
+    setTimeout(function() {{
+      dropdown.style.display = 'none';
+      setHeight(false);
+    }}, 150);
   }});
   input.addEventListener('keydown', function(e) {{
     var items = dropdown.querySelectorAll('.qac-item');
@@ -3924,7 +3932,7 @@ body {{ background: transparent; }}
   }});
 }})();
 </script>
-""", height=56, scrolling=False)
+""", height=340, scrolling=False)
 
     # Read the search value — from ac_pick (autocomplete) or session state
     search_ticker = st.session_state.get("screener_search_val", "").strip().upper()
