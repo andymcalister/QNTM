@@ -3603,13 +3603,28 @@ def page_screener():
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
 
-    page_summary(
-        "📊", "Market Screener",
-        "834 stocks scored daily · 5-pillar quant model · live macro overlay"
+    # Compact header — title + refresh inline, no wasted vertical space
+    _fresh_html = ""
+    try:
+        from data_refresh import _get_supabase as _hdr_sb
+        from datetime import datetime, timezone, timedelta
+        _sb_h = _hdr_sb()
+        if _sb_h:
+            _hr = _sb_h.table("signal_log").select("signal_date").order("signal_date", desc=True).limit(1).execute()
+            if _hr.data:
+                _fresh_html = f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#334155;margin-left:10px;">· updated {_hr.data[0]["signal_date"]}</span>'
+    except Exception:
+        pass
+    st.markdown(
+        f'<div style="padding:16px 32px 8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+        f'<div style="display:flex;align-items:center;gap:8px;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#e2e8f0;">Market Screener</span>'
+        f'{_fresh_html}</div>'
+        f'<span style="font-size:12px;color:#334155;">834 stocks · 5-pillar quant · macro overlay</span>'
+        f'</div>',
+        unsafe_allow_html=True
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
-
-    data_freshness_banner()
 
     # ── Search box ───────────────────────────────────────────────────────────
     st.markdown("""
@@ -3767,28 +3782,48 @@ def page_screener():
 
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
+    # ── Compact breadth strip — search → breadth → regime ─────────────────────
+    buys  = sum(1 for r in results if r.get("adj_action",r.get("action"))=="BUY")
+    holds = sum(1 for r in results if r.get("adj_action",r.get("action"))=="HOLD")
+    sells = sum(1 for r in results if r.get("adj_action",r.get("action"))=="SELL")
+    _n_gems_strip = len(gems)
+    st.markdown(
+        f'<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;'
+        f'padding:6px 0 10px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.04);">'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;">'
+        f'<span style="color:#00ff87;">HIGH {buys}</span>'
+        f'<span style="color:#334155;"> · </span>'
+        f'<span style="color:#475569;">MOD {holds}</span>'
+        f'<span style="color:#334155;"> · </span>'
+        f'<span style="color:#475569;">LOW {sells}</span>'
+        f'<span style="color:#334155;"> · </span>'
+        f'<span style="color:#00ff87;">💎 {_n_gems_strip}</span>'
+        f'<span style="color:#334155;"> · </span>'
+        f'<span style="color:#334155;">UNIV {len(results)}</span>'
+        f'</span></div>',
+        unsafe_allow_html=True
+    )
+
     # ── Macro Regime Banner ────────────────────────────────────────────────────
     from model_engine import MACRO_EVENT_INFO
     st.markdown(macro_regime_banner_html(macro), unsafe_allow_html=True)
 
-    # Active event details with read-more
+    # Active events — single collapsed expander
     active_evts = macro.get("active_events", [])
     if active_evts:
-        for evt in active_evts:
-            info = MACRO_EVENT_INFO.get(evt)
-            if not info:
-                continue
-            with st.expander(f"📖 {info['label']} — {info['summary']}", expanded=False):
+        _evt_labels = [MACRO_EVENT_INFO[e]['label'] for e in active_evts if e in MACRO_EVENT_INFO]
+        _evt_title  = f"{len(active_evts)} active macro driver{'s' if len(active_evts)>1 else ''}: {', '.join(_evt_labels[:3])}"
+        with st.expander(_evt_title, expanded=False):
+            for evt in active_evts:
+                info = MACRO_EVENT_INFO.get(evt)
+                if not info: continue
                 st.markdown(
-                    f'<div style="padding:4px 0;">'
-                    f'<div style="font-size:14px;color:#94a3b8;line-height:1.8;margin-bottom:12px;">{info["detail"]}</div>'
-                    f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
-                    f'<div style="flex:1;min-width:200px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:6px;padding:10px 14px;">'
-                    f'<div style="font-size:13px;color:#ef4444;letter-spacing:.08em;margin-bottom:4px;">HEADWINDS</div>'
-                    f'<div style="font-size:13px;color:#94a3b8;">{info["impact"]}</div></div>'
-                    f'<div style="flex:1;min-width:200px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);border-radius:6px;padding:10px 14px;">'
-                    f'<div style="font-size:13px;color:#00ff87;letter-spacing:.08em;margin-bottom:4px;">TAILWINDS</div>'
-                    f'<div style="font-size:13px;color:#94a3b8;">{info["bullish"]}</div></div>'
+                    f'<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
+                    f'<div style="font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:4px;">{info["label"]}</div>'
+                    f'<div style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:6px;">{info["detail"]}</div>'
+                    f'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+                    f'<span style="font-size:12px;color:#ef4444;">▼ {info["impact"]}</span>'
+                    f'<span style="font-size:12px;color:#00ff87;">▲ {info["bullish"]}</span>'
                     f'</div></div>',
                     unsafe_allow_html=True)
 
@@ -3796,30 +3831,7 @@ def page_screener():
 
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    # Summary strip
-    buys  = sum(1 for r in results if r.get("adj_action",r.get("action"))=="BUY")
-    holds = sum(1 for r in results if r.get("adj_action",r.get("action"))=="HOLD")
-    sells = sum(1 for r in results if r.get("adj_action",r.get("action"))=="SELL")
 
-    # Summary strip — single HTML row, no Streamlit columns
-    stat_items = [
-        ("HIGH CONVICTION",  "#00ff87", str(buys)),
-        ("MODERATE",         "#fbbf24", str(holds)),
-        ("LOW CONVICTION",   "#ef4444", str(sells)),
-        ("GEMS",  "#00ff87", str(len(gems))),
-        ("UNIV",  "#475569", f"{len(results)}"),
-    ]
-    stats_html = "".join(
-        f'<div style="flex:1;min-width:0;background:rgba(255,255,255,.02);'
-        f'border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:8px 4px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:8px;color:#94a3b8;letter-spacing:.06em;margin-bottom:3px;">{l}</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{c};line-height:1;">{v}</div>'
-        f'</div>'
-        for l,c,v in stat_items
-    )
-    st.markdown(
-        f'<div style="display:flex;gap:5px;margin-bottom:12px;">{stats_html}</div>',
-        unsafe_allow_html=True)
 
 
     buys_ranked  = sorted([r for r in results if r.get("adj_action",r.get("action"))=="BUY"],
