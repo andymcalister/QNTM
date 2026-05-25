@@ -4162,8 +4162,8 @@ def page_watchlist():
     avg_label  = 'High' if avg_score >= 60 else ('Low' if avg_score < 45 else 'Moderate')
     avg_color  = '#00ff87' if avg_score >= 60 else ('#ef4444' if avg_score < 45 else '#fbbf24')
     # Count improving vs weakening from wl_trend
-    n_improving = sum(1 for tk in [w['ticker'] for w in watchlist] if wl_trend.get(tk, ('',))[0] == '↑')
-    n_weakening = sum(1 for tk in [w['ticker'] for w in watchlist] if wl_trend.get(tk, ('',))[0] == '↓')
+    n_improving = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2191')
+    n_weakening = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2193')
     # Sector posture — dominant sector among high conviction
     hi_sectors = [_WL_SECTORS.get(w['ticker'],'') for w in watchlist
                   if float((score_map.get(w['ticker']) or {}).get('adj_composite',0) or 0) >= 60]
