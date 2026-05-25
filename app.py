@@ -1548,6 +1548,39 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     elif r.get("signal_date"):
         price_html = f'<span style="font-size:11px;color:#334155;">{r["signal_date"]}</span>'
 
+    # ── Watchlist button — reads session state to show add/remove ──────────
+    try:
+        _uid_v  = (st.session_state.user or {}).get('id', '')
+        _pln_v  = (st.session_state.user or {}).get('plan', 'free')
+        _nav_v  = st.session_state.get('nav', 'screener')
+        _wl_set = {w['ticker'] for w in get_watchlist(_uid_v)} if _uid_v else set()
+        _in_wl  = r['ticker'] in _wl_set
+        _qp_base = f'?qnav={_nav_v}&uid={_uid_v}&plan={_pln_v}&ck=1'
+        if _in_wl:
+            _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
+            _wl_btn_html = (
+                f'<a href="{_wl_url}" target="_self" style="display:block;width:100%;'
+                f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
+                f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);'
+                f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;">'
+                f'✕ Remove from Watchlist</a>'
+            )
+        elif _uid_v:
+            _wl_url = _qp_base + f'&wl_action=add&wl_ticker={r["ticker"]}'
+            _wl_btn_html = (
+                f'<a href="{_wl_url}" target="_self" style="display:block;width:100%;'
+                f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
+                f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);'
+                f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#d4a843;text-decoration:none;">'
+                f'☆ Add to Watchlist</a>'
+            )
+        else:
+            _wl_btn_html = ''
+    except Exception:
+        _wl_btn_html = ''
+
     detail_html = (
         f'<div class="qcard-detail" style="display:none;padding:0 18px 16px;'
         f'border-top:1px solid rgba(255,255,255,.05);">'
@@ -1574,6 +1607,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'{r.get("pct_rank",50):.0f}th</div></div>'
         f'</div>'
         + why_html
+        + _wl_btn_html
         + f'</div>'
     )
 
