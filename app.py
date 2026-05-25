@@ -624,28 +624,31 @@ div[data-baseweb="select"] > div {
   background: rgba(255,255,255,.05) !important;
 }
 
-/* Search suggestion buttons styled as dropdown rows */
-div[data-testid='stVerticalBlock'] > div[data-testid='stVerticalBlock'] .stButton > button {
+/* Search suggestion buttons */
+.qntm-sug-wrap .stButton > button {
   background:#0d1117 !important;
   border:none !important;
-  border-top:1px solid rgba(255,255,255,.04) !important;
+  border-top:1px solid rgba(255,255,255,.05) !important;
   border-radius:0 !important;
   color:#e2e8f0 !important;
-  font-family:Outfit,sans-serif !important;
-  font-size:13px !important;
-  font-weight:400 !important;
+  font-family:Syne,sans-serif !important;
+  font-size:14px !important;
+  font-weight:700 !important;
   text-align:left !important;
   padding:10px 14px !important;
   height:auto !important;
-  min-height:40px !important;
+  min-height:44px !important;
   width:100% !important;
   letter-spacing:0 !important;
   text-transform:none !important;
+  box-shadow:none !important;
 }
-div[data-testid='stVerticalBlock'] > div[data-testid='stVerticalBlock'] .stButton > button:hover {
+.qntm-sug-wrap .stButton > button:hover {
   background:rgba(0,255,135,.07) !important;
+  border-color:rgba(255,255,255,.05) !important;
   color:#e2e8f0 !important;
   transform:none !important;
+  box-shadow:none !important;
 }
 
 /* Section dividers — very subtle Level 3 */
@@ -3816,10 +3819,18 @@ def page_screener():
         val = st.session_state.get("screener_search_raw","").strip().upper()
         st.session_state._search_live = val
 
+    # If a suggestion was clicked last run, use that as the input value
+    if st.session_state.get("_sug_selected"):
+        _sq_default = st.session_state._sug_selected
+        st.session_state._sug_selected = None
+
     if "screener_search_raw" not in st.session_state:
         st.session_state.screener_search_raw = _sq_default
     if "_search_live" not in st.session_state:
         st.session_state._search_live = _sq_default.strip().upper()
+    # Sync if suggestion was picked
+    if _sq_default and _sq_default != st.session_state.get("screener_search_raw",""):
+        st.session_state.screener_search_raw = _sq_default
 
     st.text_input(
         "Search ticker",
@@ -3849,11 +3860,10 @@ def page_screener():
 
     if _suggestions and _live_q:
         st.markdown(
-            '<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
-            'border-radius:0 0 8px 8px;margin-top:-1px;padding-bottom:4px;">'
+            '<div class="qntm-sug-wrap" style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
+            'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
             '<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;'
-            'letter-spacing:.1em;padding:7px 14px 6px;">SUGGESTIONS — click to load</div>'
-            '</div>',
+            'letter-spacing:.1em;padding:8px 14px 4px;">SUGGESTIONS</div>',
             unsafe_allow_html=True
         )
         for _tk in _suggestions:
