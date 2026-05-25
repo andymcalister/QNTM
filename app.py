@@ -3409,8 +3409,7 @@ def page_auth():
         st.markdown('<div style="padding:24px 0 0 8px;">', unsafe_allow_html=True)
         if st.button("← Home", key="auth_home_btn"):
             st.session_state.page = "landing"
-            st.session_state._show_landing = True
-            st.session_state.nav = "screener"  # reset nav for next platform visit
+            st.session_state.signed_out = True  # prevents auto-redirect to platform
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
