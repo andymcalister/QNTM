@@ -2451,7 +2451,25 @@ def page_legal(doc_key: str = "privacy"):
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown(_back_btn("/"), unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+    div[data-testid='stButton'][data-key='legal_back_btn'] button {
+        display:inline-flex !important; align-items:center !important;
+        background:rgba(255,255,255,.03) !important;
+        border:1px solid rgba(255,255,255,.12) !important;
+        border-radius:6px !important; color:#94a3b8 !important;
+        font-family:Syne,sans-serif !important; font-size:11px !important;
+        font-weight:700 !important; letter-spacing:.04em !important;
+        padding:7px 10px !important; white-space:nowrap !important;
+        text-transform:uppercase !important; width:auto !important;
+        min-width:0 !important; box-shadow:none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    if st.button("← Back", key="legal_back_btn"):
+        st.session_state.page = "landing"
+        st.session_state.signed_out = True
+        st.rerun()
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     st.markdown('<div class="legal-body">', unsafe_allow_html=True)
@@ -3362,7 +3380,7 @@ def page_landing():
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:13px;color:#64748b;letter-spacing:.12em;margin-bottom:12px;">CONTACT</div>
             <div style="font-size:13px;color:#94a3b8;line-height:2.2;">
-              <a href="mailto:hello@qntm.app" style="color:#94a3b8;text-decoration:none;display:block;">hello@qntm.app</a>
+              <span style="color:#334155;font-size:11px;font-family:DM Mono,monospace;letter-spacing:.06em;">COMING SOON</span>
             </div>
           </div>
         </div>
@@ -7133,46 +7151,70 @@ def page_methodology():
         "Transparent methodology — what the model does, how it scores stocks, and what it doesn't do.")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
+    from model_engine import BACKTEST_DATA as _bt
     sections = [
         ("The Universe", "#00ff87",
          "QNTM covers 834 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
          "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
-         "most retail investors already hold or consider."),
+         "most retail investors already hold or consider. Scores update nightly via automated refresh."),
 
         ("The Factor Model", "#00ff87",
          "Each stock receives a composite score (0–100) built from five weighted pillars:\n\n"
-         "• Momentum (30%) — price trend, relative strength, rate of change\n"
-         "• Quality (25%) — earnings consistency, return on equity, balance sheet strength\n"
-         "• Volume (20%) — institutional flow signals, volume trend confirmation\n"
-         "• Value (15%) — price-to-earnings, price-to-book relative to sector\n"
-         "• Sentiment (10%) — analyst revision trend, news flow\n\n"
-         "Scores are cross-sectional — a score of 75 means stronger than 75% of the universe, not an absolute value."),
+         "• Momentum (30%) — price trend, RSI, MACD, 52-week proximity, rate of change\n"
+         "• Quality (25%) — ROE, profit margin, revenue growth, EPS beat rate, FCF yield\n"
+         "• Volume (20%) — relative volume, OBV, Chaikin Money Flow, accumulation/distribution\n"
+         "• Value (15%) — forward P/E, PEG ratio, EV/EBITDA, Price-to-Sales\n"
+         "• Sentiment (10%) — short interest, insider buy ratio, institutional ownership\n\n"
+         "Scores are cross-sectional — a score of 75 means the stock ranks stronger than 75% of the universe."),
 
-        ("Conviction Thresholds", "#00ff87",
-         "• High Conviction: composite score ≥ 60 — signal is in the top 40% of the universe\n"
-         "• Moderate Conviction: score 45–59 — neutral, monitor for movement\n"
-         "• Low Conviction: score < 45 — signal weakening, elevated risk profile\n\n"
-         "These are quantitative signal categories, not investment advice."),
+        ("Conviction Signals", "#00ff87",
+         "• High Conviction (score ≥ 60) — model sees strong multi-factor alignment. Top 40% of universe.\n"
+         "• Moderate Conviction (45–59) — mixed signals. Hold existing positions, no new capital.\n"
+         "• Low Conviction (score < 45) — signal weakening. Elevated risk. Review position.\n\n"
+         "Signals update nightly. In HIGH VOLATILITY regimes, conviction thresholds tighten — "
+         "only scores ≥ 67 surface as High Conviction."),
 
         ("Macro Overlay", "#d4a843",
-         "The model applies a macro regime overlay that adjusts composite scores based on current "
-         "market conditions — VIX level, commodity prices, news sentiment across 70+ live headlines.\n\n"
-         "Weighting: 75% quantitative model, 25% macro regime adjustment (max). "
-         "In Risk-Off regimes, macro dampening reduces scores to reflect elevated market risk."),
+         "A live macro regime overlay adjusts composite scores based on current market conditions:\n\n"
+         "• VIX level — real-time fear gauge via yfinance (updates every 15 minutes)\n"
+         "• WTI crude price — oil spike detection via CL=F futures\n"
+         "• News sentiment — 70+ headlines scanned from Yahoo Finance RSS and FRED\n"
+         "• Active events — war escalation, tariff regimes, Fed policy, oil spikes\n\n"
+         "Weighting: 75% quant model / 25% macro overlay. In RISK OFF / HIGH VOLATILITY regimes, "
+         "macro dampening reduces adj_composite scores to reflect elevated systemic risk. "
+         "Regime updates every 15 minutes during your session."),
+
+        ("Hidden Gems", "#00ff87",
+         "Hidden Gems are mid-cap stocks scoring above conviction threshold that fly under Wall Street's radar. "
+         "Detection criteria:\n\n"
+         "• Not a mega-cap (excludes NVDA, AAPL, MSFT, etc.)\n"
+         "• adj_composite ≥ 65 (67+ in Risk-Off regimes)\n"
+         "• Momentum ≥ 58, Quality ≥ 55\n"
+         "• At least one fundamental reason: revenue acceleration, earnings beats, low short interest, insider buying\n\n"
+         "Gems are identified fresh each scan — the list changes as fundamentals and scores shift."),
 
         ("Backtest Methodology", "#d4a843",
-         "Walk-forward backtest across Q2 2020 – Q1 2025 (20 quarters). "
-         "124 tickers per quarter, 10bps transaction costs assumed. No look-ahead bias — each quarter "
-         "is scored using only data available at that point in time.\n\n"
-         "Results: +307% adjusted cumulative vs SPY +131% · Sharpe 1.72 · Max drawdown 6.5%\n"
-         "Past model performance does not guarantee future results."),
+         f"Walk-forward backtest across Q2 2020 – Q1 2025 (20 quarters, 6 distinct market regimes). "
+         f"Same rules every year — no parameter tuning between regimes. "
+         f"124 tickers per quarter, 10bps transaction costs assumed. No look-ahead bias.\n\n"
+         f"Results: +{_bt['model_total_ret']:.0f}% cumulative vs SPY +{_bt['spy_total_ret']:.0f}% · "
+         f"Sharpe {_bt['sharpe']:.2f} · Win Rate {_bt['win_rate']:.0f}% · Max Drawdown {_bt['max_dd_model']:.1f}%\n"
+         f"Past model performance does not guarantee future results."),
+
+        ("Scores & Alerts", "#d4a843",
+         "• Nightly refresh — full universe rescored each night via automated cron\n"
+         "• Intraday refresh — prices updated multiple times daily\n"
+         "• Signal alerts — Pro users receive notifications when watchlist stocks change conviction tier\n"
+         "• Macro regime — refreshed every 15 minutes from live VIX, WTI, and news feeds\n"
+         "• Platform stats — gem count, high/low conviction counts updated after each refresh"),
 
         ("What QNTM Does NOT Do", "#ef4444",
          "• QNTM does not provide personalized investment advice\n"
          "• QNTM does not account for your individual tax situation, risk tolerance, or financial goals\n"
-         "• QNTM does not predict short-term price movements\n"
+         "• QNTM does not predict short-term price movements or guarantee future results\n"
          "• QNTM is not a registered investment adviser under the Investment Advisers Act of 1940\n"
-         "• Conviction scores are quantitative outputs — not buy or sell recommendations\n\n"
+         "• Conviction scores are quantitative model outputs — not buy or sell recommendations\n"
+         "• Prices shown are indicative snapshots — not real-time execution prices\n\n"
          "Always consult a qualified financial adviser before making investment decisions."),
     ]
 
