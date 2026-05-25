@@ -2438,12 +2438,15 @@ def page_landing():
     )
     st.markdown(hero_html, unsafe_allow_html=True)
 
-    # Hero CTA buttons — equal width HTML links
-    hb1, hb2 = st.columns(2)
-    with hb1:
-        st.markdown(_cta_gold("Join Free →", "?nav=register"), unsafe_allow_html=True)
-    with hb2:
-        st.markdown(_cta_ghost("Sign In", "?nav=signin"), unsafe_allow_html=True)
+    # Hero CTA buttons — pure HTML grid, no st.columns (columns break HTML flow → raw tag leak)
+    st.markdown(
+        f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;'
+        f'padding:0 clamp(16px,4vw,48px);max-width:560px;margin:0 auto 8px;">'
+        f'{_cta_gold("Join Free →", "?nav=register")}'
+        f'{_cta_ghost("Sign In", "?nav=signin")}'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 
     # ── TICKER TAPE — live from latest signal_log ─────────────────────────────
