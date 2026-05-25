@@ -4153,40 +4153,7 @@ def page_watchlist():
             unsafe_allow_html=True
         )
 
-    # ── Intelligence summary — improving/weakening/posture ─────────────────
-    n        = len(watchlist)
-    n_hi     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) >= 60)
-    n_lo     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",50) or 50) < 45)
-    scores_all = [float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) for w in watchlist]
-    avg_score  = sum(scores_all) / len(scores_all) if scores_all else 0
-    avg_label  = 'High' if avg_score >= 60 else ('Low' if avg_score < 45 else 'Moderate')
-    avg_color  = '#00ff87' if avg_score >= 60 else ('#ef4444' if avg_score < 45 else '#fbbf24')
-    # Count improving vs weakening from wl_trend
-    n_improving = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2191')
-    n_weakening = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2193')
-    # Sector posture — dominant sector among high conviction
-    hi_sectors = [_WL_SECTORS.get(w['ticker'],'') for w in watchlist
-                  if float((score_map.get(w['ticker']) or {}).get('adj_composite',0) or 0) >= 60]
-    from collections import Counter
-    top_sector = Counter(hi_sectors).most_common(1)[0][0] if hi_sectors else ''
-    top_sector_html = f'<span style="color:#475569;">· {top_sector} leading</span>' if top_sector else ''
-
-    _impr_html = f'<span style="color:#00ff87;">↑ {n_improving} improving</span>' if n_improving else ''
-    _weak_html = f'<span style="color:#ef4444;">↓ {n_weakening} weakening</span>' if n_weakening else ''
-    _sep = '<span style="color:#1e293b;"> · </span>'
-    _parts = [p for p in [_impr_html, _weak_html, top_sector_html] if p]
-
-    st.markdown(
-        f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
-        f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
-        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#475569;">{n} tracked</span>'
-        f'<span style="color:#1e293b;">·</span>'
-        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{avg_color};">avg {avg_score:.0f} {avg_label}</span>'
-        + (_sep + _sep.join(_parts) if _parts else '')
-        + f'</div>',
-        unsafe_allow_html=True
-    )
-
+    wl_trend = {}  # populated below — pre-init so summary can reference it safely
     # Fetch live prices + prev close for day change via yfinance
     wl_tickers = [w["ticker"] for w in watchlist]
     day_change  = {}   # ticker -> {price, prev_close, chg_pct, chg_dollar}
@@ -4228,7 +4195,30 @@ def page_watchlist():
     wl_entry = {w["ticker"]: w.get("entry_price") or w.get("price_at_add") for w in watchlist}
 
     # Batch fetch last 2 signal_log rows per ticker for trend arrows
-    wl_trend = {}  # ticker -> (arrow, color, delta_str)
+    # wl_trend already initialised above
+    # ── Intelligence summary — improving/weakening/posture ─────────────────
+    n        = len(watchlist)
+    n_hi     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) >= 60)
+    n_lo     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",50) or 50) < 45)
+    scores_all = [float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) for w in watchlist]
+    avg_score  = sum(scores_all) / len(scores_all) if scores_all else 0
+    avg_label  = 'High' if avg_score >= 60 else ('Low' if avg_score < 45 else 'Moderate')
+    avg_color  = '#00ff87' if avg_score >= 60 else ('#ef4444' if avg_score < 45 else '#fbbf24')
+    # Count improving vs weakening from wl_trend
+    n_improving = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2191')
+    n_weakening = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2193')
+    # Sector posture — dominant sector among high conviction
+    hi_sectors = [_WL_SECTORS.get(w['ticker'],'') for w in watchlist
+                  if float((score_map.get(w['ticker']) or {}).get('adj_composite',0) or 0) >= 60]
+    from collections import Counter
+    top_sector = Counter(hi_sectors).most_common(1)[0][0] if hi_sectors else ''
+    top_sector_html = f'<span style="color:#475569;">· {top_sector} leading</span>' if top_sector else ''
+
+    _impr_html = f'<span style="color:#00ff87;">↑ {n_improving} improving</span>' if n_improving else ''
+    _weak_html = f'<span style="color:#ef4444;">↓ {n_weakening} weakening</span>' if n_weakening else ''
+    _sep = '<span style="color:#1e293b;"> · </span>'
+    _parts = [p for p in [_impr_html, _weak_html, top_sector_html] if p]
+
     try:
         from data_refresh import _get_supabase as _wl_sb
         _sb = _wl_sb()
@@ -4258,6 +4248,17 @@ def page_watchlist():
                         wl_trend[tk2] = ("→", "#fbbf24", f"{delta:+.0f}")
     except Exception:
         pass
+
+    st.markdown(
+        f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
+        f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#475569;">{n} tracked</span>'
+        f'<span style="color:#1e293b;">·</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{avg_color};">avg {avg_score:.0f} {avg_label}</span>'
+        + (_sep + _sep.join(_parts) if _parts else '')
+        + f'</div>',
+        unsafe_allow_html=True
+    )
 
     # Table header — hidden on mobile (cards show labels inline)
     st.markdown(
