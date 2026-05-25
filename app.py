@@ -1425,12 +1425,13 @@ def _build_why_html(r: dict) -> str:
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) -> str:
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None) -> str:
     """
-    Collapsed card — default shows ticker · conviction · score · trend arrow.
-    Click/tap expands to reveal factor breakdown, WHY THIS SCORE, metrics.
-    Uses <details>/<summary> for pure-CSS toggle — no URL params, no rerun.
+    Collapsed card using radio-button CSS hack for one-at-a-time expand.
+    All cards share radio group "qntm_card" — checking one unchecks others.
+    No JS, no URL params, no rerun. Works inside Streamlit HTML sandbox.
     """
+    import hashlib as _hl
     act    = r.get("adj_action", r.get("action","HOLD"))
     score  = r.get("adj_composite", r.get("composite", 50))
     quant  = r.get("composite", 50)
@@ -1449,36 +1450,13 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
     delta_c      = "#00ff87" if delta >= 0 else "#ef4444"
     delta_str    = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
 
-    ci_name = (company_info or {}).get("name", "")
-    ci_desc = (company_info or {}).get("description", "")
+    ci_name      = (company_info or {}).get("name", "")
     name_display = ci_name if (ci_name and ci_name != r["ticker"]) else ""
 
-    # ── Collapsed summary row ─────────────────────────────────────────────────
-    summary_html = (
-        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-        f'padding:14px 18px;cursor:pointer;user-select:none;list-style:none;">'
-        # Left: ticker · name · conviction badge
-        f'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1;">'
-        f'<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
-        f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
-        + (f'<span style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;'
-           f'text-overflow:ellipsis;max-width:160px;">{name_display}</span>' if name_display else "")
-        + f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
-        f'color:{act_c};background:{act_bg};border:1px solid {act_brd};'
-        f'padding:2px 8px;border-radius:3px;letter-spacing:.08em;white-space:nowrap;">'
-        f'{action_arrow} {action_label}</span>'
-        f'</div>'
-        # Right: score + trend
-        f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
-        f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">'
-        f'{score:.0f}</span>'
-        f'<span style="font-size:14px;color:{act_c};">{action_arrow}</span>'
-        f'<span class="card-chevron" style="font-size:13px;color:#334155;font-weight:300;">›</span>'
-        f'</div>'
-        f'</div>'
-    )
+    # Unique ID per card — use ticker + score hash for stability
+    cid = card_id or ("c" + _hl.md5(f'{r["ticker"]}{score}'.encode()).hexdigest()[:8])
 
-    # ── Expanded detail content ───────────────────────────────────────────────
+    # ── Pillar bars ────────────────────────────────────────────────────────────
     pillars = [
         ("MOM",  r.get("momentum", 50)),
         ("QUAL", r.get("quality",  50)),
@@ -1531,16 +1509,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         price_html = f'<span style="font-size:11px;color:#334155;">{r["signal_date"]}</span>'
 
     detail_html = (
-        f'<div style="padding:0 18px 16px;border-top:1px solid rgba(255,255,255,.05);">'
-        # Price + meta row
+        f'<div class="qcard-detail" style="display:none;padding:0 18px 16px;'
+        f'border-top:1px solid rgba(255,255,255,.05);">'
         + (f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;'
-           f'padding:10px 0 12px;margin-bottom:4px;">{price_html}'
+           f'padding:10px 0 12px;">{price_html}'
            f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:20]}</span>'
            f'<span style="font-size:11px;color:#475569;">{driver}</span>'
            f'</div>' if (price_html or r.get("sector")) else "")
-        # Pillar bars
         + f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">{pillar_bars}</div>'
-        # Bottom metrics strip
         + f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
         f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
@@ -1561,14 +1537,45 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         + f'</div>'
     )
 
-    # ── Wrap in <details> for CSS-native collapse ─────────────────────────────
+    # ── Radio button collapse — one-at-a-time, pure CSS ───────────────────────
+    # The label acts as the visible card row. The hidden radio input controls state.
+    # CSS: input:checked ~ .qcard-detail { display:block }
+    # Since all radios share name="qntm_card", only one can be checked at a time.
     return (
-        f'<details style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
-        f'border-left:3px solid {act_c};border-radius:8px;margin-bottom:6px;'
-        f'overflow:hidden;transition:all .15s ease;">'
-        f'<summary style="display:flex;list-style:none;">{summary_html}</summary>'
-        f'{detail_html}'
-        f'</details>'
+        f'<div class="qcard-wrap" style="margin-bottom:6px;">'
+        f'<input type="radio" name="qntm_card" id="{cid}" style="display:none;">'
+        f'<label for="{cid}" style="display:block;background:rgba(255,255,255,.02);'
+        f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
+        f'border-radius:8px;overflow:hidden;cursor:pointer;'
+        f'transition:border-color .15s ease;">'
+        # Summary row
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'padding:13px 18px;">'
+        f'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
+        f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
+        + (f'<span style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;'
+           f'max-width:160px;white-space:nowrap;">{name_display}</span>' if name_display else "")
+        + f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
+        f'color:{act_c};background:{act_bg};border:1px solid {act_brd};'
+        f'padding:2px 8px;border-radius:3px;letter-spacing:.08em;white-space:nowrap;">'
+        f'{action_arrow} {action_label}</span>'
+        f'</div>'
+        f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
+        f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">'
+        f'{score:.0f}</span>'
+        f'<span style="font-size:14px;color:{act_c};">{action_arrow}</span>'
+        f'<span style="font-size:13px;color:#334155;transition:transform .2s;">›</span>'
+        f'</div>'
+        f'</div>'
+        # Detail panel — hidden by default, shown via CSS when radio checked
+        + detail_html
+        + f'</label>'
+        # CSS rule scoped to this card
+        + ('<style>#' + cid + ':checked+label .qcard-detail{display:block!important}'
+           '#' + cid + ':checked+label{border-color:rgba(255,255,255,.14)!important;'
+           'background:rgba(255,255,255,.035)!important}</style>')
+        + '</div>'
     )
 
 def signal_history_chart(ticker: str, current_score: float) -> str:
