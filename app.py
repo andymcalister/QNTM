@@ -528,6 +528,53 @@ iframe[height="0"], iframe[style*="height: 0"],
 }
 /* Viewport meta (Streamlit adds this but ensure scale=1) */
 
+/* ══════════════════════════════════════════════════════════
+   TASK 4 — SPACING & BREATHING ROOM PASS
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Card spacing — more room between cards ── */
+.qcard-wrap { margin-bottom: 10px !important; }
+
+/* ── Expanded card detail padding ── */
+.qcard-detail { padding: 0 20px 20px !important; }
+
+/* ── Platform page container — consistent side padding ── */
+[data-testid="stMainBlockContainer"] > div > div {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* ── Streamlit tab panels — add top breathing room ── */
+[data-testid="stTabPanel"] {
+  padding-top: 16px !important;
+}
+
+/* ── Section gaps between major blocks ── */
+[data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+  gap: 8px !important;
+}
+
+/* ── Expander — more padding inside ── */
+[data-testid="stExpander"] summary {
+  padding: 12px 16px !important;
+}
+[data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+  padding: 8px 16px 16px !important;
+}
+
+/* ── Selectbox — more height ── */
+div[data-baseweb="select"] > div {
+  min-height: 40px !important;
+}
+
+/* ── Mobile: larger tap targets, more card padding ── */
+@media (max-width: 768px) {
+  .qcard-wrap { margin-bottom: 12px !important; }
+  .stButton > button { min-height: 48px !important; padding: 12px 16px !important; }
+  [data-testid="stExpander"] summary { padding: 14px 16px !important; }
+  .stTabs [data-baseweb="tab"] { padding: 10px 14px !important; }
+}
+
 /* ── 3-Level Visual Hierarchy ──────────────────────────────────────────────
    Level 1 (high emphasis):  conviction badges, regime badge, primary CTAs, active alerts
    Level 2 (medium):         cards, charts, section headers, expanded content
@@ -1582,14 +1629,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         _wl_btn_html = ''
 
     detail_html = (
-        f'<div class="qcard-detail" style="display:none;padding:0 18px 16px;'
+        f'<div class="qcard-detail" style="display:none;padding:0 20px 20px;'
         f'border-top:1px solid rgba(255,255,255,.05);">'
         + (f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;'
            f'padding:10px 0 12px;">{price_html}'
            f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:20]}</span>'
            f'<span style="font-size:11px;color:#475569;">{driver}</span>'
            f'</div>' if (price_html or r.get("sector")) else "")
-        + f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">{pillar_bars}</div>'
+        + f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">{pillar_bars}</div>'
         + f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
         f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
@@ -3656,7 +3703,7 @@ def page_screener():
         f'</div>',
         unsafe_allow_html=True
     )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     # ── Search box ───────────────────────────────────────────────────────────
     st.markdown("""
@@ -3812,7 +3859,7 @@ def page_screener():
     gems = detect_hidden_gems(results, macro_data=st.session_state.get("macro_data"))
     gem_tickers = {g["ticker"] for g in gems}
 
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     # ── Compact breadth strip — search → breadth → regime ─────────────────────
     buys  = sum(1 for r in results if r.get("adj_action",r.get("action"))=="BUY")
@@ -4017,7 +4064,7 @@ def page_watchlist():
     _pin_nav("watchlist")
     """User watchlist — tracked stocks with live conviction scores."""
     page_summary("★", "Watchlist", "Your tracked stocks · conviction scores updated daily")
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     watchlist = get_watchlist(uid())
     scan      = st.session_state.get("scan_results") or []
@@ -4456,7 +4503,7 @@ def page_backtest():
         "📈", "Backtest Performance",
         f"5-year walk-forward · 6 regimes · +{bt['model_total_ret']:.0f}% vs SPY +{bt['spy_total_ret']:.0f}%"
     )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     # Hero numbers
@@ -4929,7 +4976,7 @@ def page_portfolio():
         "See your blended score, pillar breakdown, and whether the signal has changed since you entered. "
         "Free accounts track up to 10 positions. Pro unlocks unlimited holdings and real-time signal alerts.",
     )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     # ── Ensure scan results ────────────────────────────────────────────────────
     if st.session_state.scan_results is None:
@@ -5606,7 +5653,7 @@ def page_simulator():
         "Build a hypothetical portfolio from current HIGH conviction signals. "
         "Build a hypothetical portfolio from current HIGH conviction signals. Scores update nightly.",
     )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     if not is_pro():
         st.markdown(
@@ -5921,7 +5968,7 @@ def page_alerts():
         "Pro members get email notifications on every signal change across their portfolio.",
 
     )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     # ── Free tier gate ─────────────────────────────────────────────────────────
     if not has_alerts:
@@ -6059,7 +6106,7 @@ def page_account():
         "Founding Member gives you full Pro access free — unlimited holdings, Hidden Gems, and signal alerts — "
         "locked in for the first 50 users.",
     )
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     tab_profile, tab_security, tab_plan, tab_notifs = st.tabs([
         "Profile", "Security & MFA", "Plan & Billing", "Notification Prefs"
@@ -6788,7 +6835,7 @@ def page_methodology():
     """How QNTM Works — methodology, factor logic, disclaimers."""
     page_summary("📖", "How QNTM Works",
         "Transparent methodology — what the model does, how it scores stocks, and what it doesn't do.")
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px;margin-top:4px;">', unsafe_allow_html=True)
 
     sections = [
         ("The Universe", "#00ff87",
