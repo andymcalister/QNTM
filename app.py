@@ -7213,6 +7213,7 @@ def main():
         st.query_params.pop("nav", None)
     if st.query_params.get("nav") == "landing":
         st.session_state.page = "landing"
+        st.session_state._show_landing = True  # flag before param is popped
         st.query_params.pop("nav", None)
 
 
@@ -7353,7 +7354,7 @@ def main():
 
     # Handle nav button side effects — re-route if needed
     # Only auto-redirect to platform if user didn't explicitly request landing
-    _explicit_landing = st.query_params.get("nav") == "landing"
+    _explicit_landing = st.session_state.pop("_show_landing", False)
     if st.session_state.page == "landing" and st.session_state.logged_in and not _explicit_landing:
         st.session_state.page = "platform"
 
