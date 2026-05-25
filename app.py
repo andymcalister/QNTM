@@ -578,6 +578,31 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
 }
 
 /* ── MOBILE RESPONSIVE ── */
+@media (max-width: 640px) {
+  /* Collapse platform padding on mobile */
+  .block-container { padding: 0 !important; }
+
+  /* Card rows — ensure single line, large tap target */
+  .qcard-wrap label { min-height: 48px !important; padding: 10px 12px !important; }
+  .qcard-wrap { margin-bottom: 6px !important; }
+
+  /* Hide company name in collapsed card on very small screens */
+  .qcard-name-mobile { display: none !important; }
+
+  /* Tabs — scrollable on mobile */
+  .stTabs [data-baseweb='tab-list'] { overflow-x: auto !important; flex-wrap: nowrap !important; }
+  .stTabs [data-baseweb='tab'] { white-space: nowrap !important; padding: 8px 12px !important; font-size: 11px !important; }
+
+  /* Expander — larger tap target */
+  [data-testid='stExpander'] summary { min-height: 44px !important; }
+
+  /* Number inputs — prevent zoom on focus */
+  input[type='number'], input[type='text'] { font-size: 16px !important; }
+
+  /* Page headers — tighter on mobile */
+  .page-header { padding: 8px 16px 4px !important; }
+}
+
 @media (max-width: 768px) {
     /* Prevent iOS zoom on inputs */
     .stTextInput input,[data-baseweb="input"] input {
@@ -644,7 +669,9 @@ div[data-baseweb="select"] > div {
 
 /* ── Mobile: larger tap targets, more card padding ── */
 @media (max-width: 768px) {
-  .qcard-wrap { margin-bottom: 12px !important; }
+  .qcard-wrap { margin-bottom: 8px !important; }
+  /* Mobile: ensure collapsed row is one line, no wrapping */
+  .qcard-wrap label { min-height: 44px !important; }
   .stButton > button { min-height: 48px !important; padding: 12px 16px !important; }
   [data-testid="stExpander"] summary { padding: 14px 16px !important; }
   .stTabs [data-baseweb="tab"] { padding: 10px 14px !important; }
@@ -2903,8 +2930,8 @@ def page_landing():
     _today_items = []
     # Regime is primary — larger and brighter
     _today_items.insert(0, f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{_regime_c};">{_regime_icon} {_regime_label}</span>')
-    if _n_high:  _today_items.append(f'<span style="color:#64748b;">{_n_high} high conviction</span>')
-    if _n_sell:  _today_items.append(f'<span style="color:#475569;">{_n_sell} low conviction</span>')
+    if _n_high:  _today_items.append(f'<span style="color:#64748b;"><b style="color:#00ff87;">{_n_high}</b> high</span>')
+    if _n_sell:  _today_items.append(f'<span style="color:#475569;"><b style="color:#ef4444;">{_n_sell}</b> low</span>')
     # Gem count — read from platform_stats table (written by cron after every refresh)
     _n_gems = st.session_state.get("_gem_count", None)
     if _n_gems is None:
@@ -4632,7 +4659,7 @@ def page_watchlist():
         unsafe_allow_html=True
     )
 
-    # Watchlist — collapsed card pattern (same as screener/portfolio)
+    # Watchlist — collapsed card pattern, no table header needed
     _uid_wl  = (st.session_state.user or {}).get("id","")
     _pln_wl  = (st.session_state.user or {}).get("plan","free")
     _cards_html = ""
@@ -4762,7 +4789,19 @@ def page_gems():
     _macro_gems = st.session_state.get("macro_data") or {}
     gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
     if not gems:
-        st.markdown('<div style="padding:0 32px;"><div style="color:#94a3b8;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="padding:48px 32px;text-align:center;">'
+            '<div style="font-size:40px;margin-bottom:16px;">💎</div>'
+            '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#475569;margin-bottom:8px;">'
+            'No hidden gems today</div>'
+            '<div style="font-size:13px;color:#334155;max-width:320px;margin:0 auto;line-height:1.7;">'
+            'The model detected no mid-cap stocks clearing the high-conviction threshold in the current macro regime. '
+            'Check back after the next nightly scan or visit the Screener to explore all signals.'
+            '</div>'
+            '<div style="margin-top:20px;font-family:DM Mono,monospace;font-size:10px;color:#1e293b;letter-spacing:.08em;">'
+            f'THRESHOLD: {"67+" if regime in ("RISK_OFF","HIGH VOLATILITY") else "62+"} IN {regime} REGIME'
+            '</div></div>',
+            unsafe_allow_html=True)
         return
 
     # Ensure macro data is loaded — fetch if not cached from screener
