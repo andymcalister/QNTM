@@ -2467,18 +2467,7 @@ def page_landing():
         except Exception:
             pass
 
-    if tape_scores:
-        buys  = sorted([s for s in tape_scores if s.get("signal","") == "BUY"],
-                       key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:10]
-        sells = sorted([s for s in tape_scores if s.get("signal","") == "SELL"],
-                       key=lambda x: float(x.get("adj_composite",100) or 100))[:5]
-        tape_items = (
-            [(s["ticker"],"HIGH","#00ff87") for s in buys] +
-            [(s["ticker"],"LOW","#E24B4A")  for s in sells]
-        )
-    else:
-        # Static fallback — updated to current model signals
-        tape_items = [
+    _static_tape = [
             ("NVDA","HIGH","#00ff87"),("META","HIGH","#00ff87"),
             ("AVGO","HIGH","#00ff87"),("JPM","HIGH","#00ff87"),
             ("NFLX","HIGH","#00ff87"),("COST","HIGH","#00ff87"),
@@ -2488,6 +2477,19 @@ def page_landing():
             ("UNH","LOW","#E24B4A"),("NKE","LOW","#E24B4A"),
             ("PFE","LOW","#E24B4A"),("SNAP","LOW","#E24B4A"),
         ]
+    if tape_scores:
+        buys  = sorted([s for s in tape_scores if s.get("signal","") in ("BUY","HIGH")],
+                       key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:10]
+        sells = sorted([s for s in tape_scores if s.get("signal","") in ("SELL","LOW")],
+                       key=lambda x: float(x.get("adj_composite",100) or 100))[:5]
+        tape_items = (
+            [(s["ticker"],"HIGH","#00ff87") for s in buys] +
+            [(s["ticker"],"LOW","#E24B4A")  for s in sells]
+        )
+        if not tape_items:
+            tape_items = _static_tape
+    else:
+        tape_items = _static_tape
 
     def tape_span(ticker, action, color):
         return f'<span style="color:{color};">{ticker} {action}</span> &middot; '
