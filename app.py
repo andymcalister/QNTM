@@ -1664,7 +1664,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     # Since all radios share name="qntm_card", only one can be checked at a time.
     return (
         f'<div class="qcard-wrap" style="margin-bottom:4px;">' 
-        f'<input type="radio" name="qntm_card" id="{cid}" style="display:none;">'
+        f'<input type="checkbox" id="{cid}" style="display:none;">'
         f'<label for="{cid}" style="display:block;background:rgba(255,255,255,.02);'
         f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
         f'border-radius:8px;overflow:hidden;cursor:pointer;'
@@ -1672,15 +1672,16 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         # Summary row
         f'<div style="display:flex;justify-content:space-between;align-items:center;'
         f'padding:13px 18px;">'
-        f'<div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow:hidden;">'
+        f'<div style="min-width:0;flex:1;overflow:hidden;">'
+        f'<div style="display:flex;align-items:center;gap:6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
-        f'color:#e2e8f0;white-space:nowrap;flex-shrink:0;">{r["ticker"]}{gem_badge}</span>'
-        + (f'<span style="font-size:11px;color:#334155;overflow:hidden;text-overflow:ellipsis;'
-           f'white-space:nowrap;flex:1;min-width:0;">{name_display}</span>' if name_display else "")
-        + f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
-        f'color:{act_c};background:{act_bg};border:1px solid {act_brd};'
-        f'padding:2px 7px;border-radius:3px;letter-spacing:.06em;white-space:nowrap;flex-shrink:0;">'
-        f'{action_arrow} {action_label}</span>'
+        f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
+        + (f'<span style="font-size:10px;color:#334155;overflow:hidden;text-overflow:ellipsis;'
+           f'white-space:nowrap;">{name_display}</span>' if name_display else "")
+        + f'</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
+        f'color:{act_c};letter-spacing:.06em;margin-top:1px;">'
+        f'{action_arrow} {action_label}</div>'
         f'</div>'
         f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
         f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">'
@@ -1695,7 +1696,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         # CSS rule scoped to this card
         + ('<style>#' + cid + ':checked+label .qcard-detail{display:block!important}'
            '#' + cid + ':checked+label{border-color:rgba(255,255,255,.14)!important;'
-           'background:rgba(255,255,255,.035)!important}</style>')
+           'background:rgba(255,255,255,.035)!important;'
+           '}</style>')
         + '</div>'
     )
 
@@ -3930,6 +3932,11 @@ def page_screener():
                 for i, r in enumerate(ranked):
                     ci     = get_company_info(r["ticker"])
                     is_gem = r["ticker"] in gem_tickers
+                    # Ensure action matches list — signal_log BUY/SELL may not match adj
+                    if color == "#ef4444" and r.get("adj_action",r.get("action")) != "SELL":
+                        r = dict(r); r["adj_action"] = "SELL"
+                    elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
+                        r = dict(r); r["adj_action"] = "BUY"
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
                 st.markdown(cards_html, unsafe_allow_html=True)
 
@@ -6955,24 +6962,26 @@ def page_platform():
     st.markdown("""
     <script>
     (function() {
-      function closeOthers(openedEl) {
-        var allDetails = document.querySelectorAll('details');
-        allDetails.forEach(function(d) {
-          if (d !== openedEl) d.removeAttribute('open');
+      function closeOthers(checkedEl) {
+        // Uncheck all other qcard checkboxes when one is checked
+        var allBoxes = document.querySelectorAll('input[id^="c"]');
+        allBoxes.forEach(function(cb) {
+          if (cb !== checkedEl && cb.type === 'checkbox' && cb.checked) {
+            cb.checked = false;
+          }
         });
       }
       function attachListeners() {
-        var allDetails = document.querySelectorAll('details');
-        allDetails.forEach(function(d) {
-          if (!d._qntmBound) {
-            d._qntmBound = true;
-            d.addEventListener('toggle', function() {
-              if (d.open) closeOthers(d);
+        var allBoxes = document.querySelectorAll('input[id^="c"]');
+        allBoxes.forEach(function(cb) {
+          if (cb.type === 'checkbox' && !cb._qntmBound) {
+            cb._qntmBound = true;
+            cb.addEventListener('change', function() {
+              if (cb.checked) closeOthers(cb);
             });
           }
         });
       }
-      // Attach now and re-attach on DOM changes (Streamlit rerenders)
       attachListeners();
       var obs = new MutationObserver(attachListeners);
       obs.observe(document.body, { childList: true, subtree: true });
