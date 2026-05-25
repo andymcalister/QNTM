@@ -4595,17 +4595,31 @@ def page_gems():
 
     # Use exactly same data pipeline as screener — guarantees matching gem count
     if st.session_state.scan_results is None:
-        with st.spinner("Loading universe scores..."):
+        st.markdown(
+            '<div style="font-family:DM Mono,monospace;font-size:11px;color:#475569;'
+            'letter-spacing:.08em;margin-bottom:8px;">LOADING UNIVERSE SCORES</div>',
+            unsafe_allow_html=True)
+        _gems_prog = st.progress(0, text="Fetching scores...")
+        try:
             from model_engine import fetch_macro_overlay, apply_macro_overlay
             from model_engine import SECTORS as _GEM_SECTORS
+            _gems_prog.progress(15, text="Running factor model...")
             _raw = run_full_scan(use_live_prices=False)
+            _gems_prog.progress(60, text="Applying macro overlay...")
             _mac = fetch_macro_overlay()
             for _r in _raw:
                 if not _r.get("sector") or _r.get("sector") == "Unknown":
                     _r["sector"] = _GEM_SECTORS.get(_r["ticker"], "Unknown")
             _res = apply_macro_overlay(_raw, _mac)
+            _gems_prog.progress(85, text="Detecting gems...")
             st.session_state.scan_results = enrich_with_signal_log(_res)
             st.session_state.macro_data   = _mac
+            _gems_prog.progress(100, text="Done")
+            _gems_prog.empty()
+        except Exception as _ge:
+            _gems_prog.empty()
+            st.error(f"Failed to load scores: {_ge}")
+            return
 
     _macro_gems = st.session_state.get("macro_data") or {}
     gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
@@ -5301,9 +5315,13 @@ def page_portfolio():
         else:
             r1c1, r1c2, r1c3 = st.columns([2, 2, 2])
             with r1c1:
-                tk_query = st.text_input("Ticker / Company Name", key="p_tk", placeholder="e.g. Tesla, AAPL")
-            with r1c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f")
-            with r1c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f")
+                def _pin_portfolio_nav():
+                    st.session_state.nav = "portfolio"
+                tk_query = st.text_input("Ticker / Company Name", key="p_tk",
+                    placeholder="e.g. Tesla, AAPL",
+                    on_change=_pin_portfolio_nav)
+            with r1c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f", on_change=_pin_portfolio_nav)
+            with r1c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f", on_change=_pin_portfolio_nav)
 
             # Resolve and preview
             resolved_ticker, resolved_name = "", ""
