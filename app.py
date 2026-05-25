@@ -1512,7 +1512,7 @@ def _build_why_html(r: dict) -> str:
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None) -> str:
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0) -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
     All cards share radio group "qntm_card" — checking one unchecks others.
@@ -1663,7 +1663,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     # CSS: input:checked ~ .qcard-detail { display:block }
     # Since all radios share name="qntm_card", only one can be checked at a time.
     return (
-        f'<div class="qcard-wrap" style="margin-bottom:6px;">'
+        f'<div class="qcard-wrap" style="margin-bottom:4px;">' 
         f'<input type="radio" name="qntm_card" id="{cid}" style="display:none;">'
         f'<label for="{cid}" style="display:block;background:rgba(255,255,255,.02);'
         f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
@@ -1673,10 +1673,12 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="display:flex;justify-content:space-between;align-items:center;'
         f'padding:13px 18px;">'
         f'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1;">'
-        f'<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
+        + (f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#334155;'
+           f'min-width:18px;text-align:right;flex-shrink:0;">{rank}</span> ' if rank else '')
+        + f'<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
         f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
-        + (f'<span style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;'
-           f'max-width:160px;white-space:nowrap;">{name_display}</span>' if name_display else "")
+        + (f'<span style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;'
+           f'max-width:120px;white-space:nowrap;">{name_display}</span>' if name_display else "")
         + f'<span style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
         f'color:{act_c};background:{act_bg};border:1px solid {act_brd};'
         f'padding:2px 8px;border-radius:3px;letter-spacing:.08em;white-space:nowrap;">'
@@ -3913,30 +3915,24 @@ def page_screener():
 
     scr_tab1, scr_tab2, scr_tab3 = st.tabs(["⭐ TOP 10 SIGNALS", "🔍 FULL UNIVERSE", "📈 SECTOR BREAKDOWN"])
 
-    # ── TAB 1: TOP 10 ──────────────────────────────────────────────────────────
+    # ── TAB 1: TOP 10 — scan mode ───────────────────────────────────────────
     with scr_tab1:
-        st.markdown(
-            '<div style="font-size:12px;color:#475569;margin-bottom:12px;">'
-            'Prices are indicative snapshots. Search any ticker for a live score.'
-            '</div>',
-            unsafe_allow_html=True)
-
-        # Two-column collapsed card layout
-        col_b, col_s = st.columns(2)
+        t1c1, t1c2 = st.columns(2)
         for col, label, color, ranked in [
-            (col_b, "▲ TOP 10 HIGH CONVICTION", "#00ff87", buys_ranked[:10]),
-            (col_s, "▼ TOP 10 LOW CONVICTION",  "#ef4444", sells_ranked[:10]),
+            (t1c1, "▲ HIGH CONVICTION", "#00ff87", buys_ranked[:10]),
+            (t1c2, "▼ LOW CONVICTION",  "#ef4444", sells_ranked[:10]),
         ]:
             with col:
                 st.markdown(
-                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{color};'
-                    f'letter-spacing:.1em;margin:12px 0 8px;">{label}</div>',
+                    f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{color};'
+                    f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
+                    f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>',
                     unsafe_allow_html=True)
                 cards_html = ""
-                for r in ranked:
+                for i, r in enumerate(ranked):
                     ci     = get_company_info(r["ticker"])
                     is_gem = r["ticker"] in gem_tickers
-                    cards_html += factor_panel_html(r, is_gem, company_info=ci)
+                    cards_html += factor_panel_html(r, is_gem, company_info=ci, rank=i+1)
                 st.markdown(cards_html, unsafe_allow_html=True)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
