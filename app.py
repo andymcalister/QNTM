@@ -1472,7 +1472,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None) 
         f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
         f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">'
         f'{score:.0f}</span>'
-        f'<span style="font-size:14px;color:{delta_c};">{action_arrow}</span>'
+        f'<span style="font-size:14px;color:{act_c};">{action_arrow}</span>'
         f'<span class="card-chevron" style="font-size:13px;color:#334155;font-weight:300;">›</span>'
         f'</div>'
         f'</div>'
