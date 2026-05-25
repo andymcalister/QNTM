@@ -4684,14 +4684,22 @@ def page_gems():
             st.markdown(_cta_gold("Join Free — First 50 Spots", "?nav=register"), unsafe_allow_html=True)
         return
 
-    # Always use same scan_results as screener — ensures gem count matches
+    # Use exactly same data pipeline as screener — guarantees matching gem count
+    if st.session_state.scan_results is None:
+        with st.spinner("Loading universe scores..."):
+            from model_engine import fetch_macro_overlay, apply_macro_overlay
+            from model_engine import SECTORS as _GEM_SECTORS
+            _raw = run_full_scan(use_live_prices=False)
+            _mac = fetch_macro_overlay()
+            for _r in _raw:
+                if not _r.get("sector") or _r.get("sector") == "Unknown":
+                    _r["sector"] = _GEM_SECTORS.get(_r["ticker"], "Unknown")
+            _res = apply_macro_overlay(_raw, _mac)
+            st.session_state.scan_results = enrich_with_signal_log(_res)
+            st.session_state.macro_data   = _mac
+
     _macro_gems = st.session_state.get("macro_data") or {}
-
-    if not st.session_state.scan_results:
-        with st.spinner("Loading scores..."):
-            st.session_state.scan_results = run_full_scan(use_live_prices=False)
-
-    gems = detect_hidden_gems(st.session_state.scan_results or [], macro_data=_macro_gems)
+    gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
     if not gems:
         st.markdown('<div style="padding:0 32px;"><div style="color:#94a3b8;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
         return
