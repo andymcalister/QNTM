@@ -4495,156 +4495,40 @@ def page_watchlist():
         unsafe_allow_html=True
     )
 
-    # Table header — hidden on mobile (cards show labels inline)
-    st.markdown(
-        '<div class="wl-table-header" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 60px 110px 1fr;'
-        'gap:8px;padding:10px 16px;background:#0d1117;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.1);">'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">TICKER</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">SECTOR</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">PRICE</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SCORE</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">DAY</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SINCE ADDED</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:center;">TREND</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;text-align:right;">SIGNAL</div>'
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:.1em;font-weight:700;">DRIVERS</div>'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    for i, w in enumerate(watchlist):
+    # Watchlist — collapsed card pattern (same as screener/portfolio)
+    _uid_wl  = (st.session_state.user or {}).get("id","")
+    _pln_wl  = (st.session_state.user or {}).get("plan","free")
+    _cards_html = ""
+    for w in watchlist:
         tk  = w["ticker"]
-        sc  = score_map.get(tk, {})
+        sc  = dict(score_map.get(tk, {}) or {})
         adj = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
-        mom   = float(sc.get("momentum",  0) or 0)
-        qual  = float(sc.get("quality",   0) or 0)
-        vol   = float(sc.get("volume",    0) or 0)
-        val   = float(sc.get("value",     0) or 0)
-        sent  = float(sc.get("sentiment", 0) or 0)
-        sector = _WL_SECTORS.get(tk, "—")
-        ci    = get_company_info(tk)
-        name  = (ci.get("name", tk) if ci else tk)[:24]
-
-        # Price + day change from yfinance
-        dc = day_change.get(tk, {})
-        cur_price  = dc.get("price") or sc.get("price")
-        chg_pct    = dc.get("chg_pct")
-        chg_dollar = dc.get("chg_dollar")
-
-        # Since watching — compare to entry price stored in DB
-        entry_p    = wl_entry.get(tk)
-        if entry_p and cur_price and float(entry_p) > 0:
-            since_pct = (cur_price - float(entry_p)) / float(entry_p) * 100
+        if sc:
+            sc["adj_action"]    = "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD")
+            sc["adj_composite"] = adj
+            # Inject trend delta into score for display
+            _ta, _tc, _td = wl_trend.get(tk, ("","",""))
+            _show = _ta and _td and _td not in ('+0','-0','0','→')
+            sc["score_delta"]   = float(_td.replace("+","")) if _show and _td else 0
         else:
-            since_pct = None
+            sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
+                  "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
+        ci = get_company_info(tk)
+        _cards_html += factor_panel_html(sc, False, company_info=ci)
+    st.markdown(_cards_html, unsafe_allow_html=True)
 
-        def _chg(pct, dollar=None):
-            if pct is None: return "—", "#64748b"
-            sign = "+" if pct >= 0 else ""
-            color = "#00ff87" if pct >= 0 else "#ef4444"
-            dollar_str = f" (${abs(dollar):.2f})" if dollar is not None else ""
-            return f"{sign}{pct:.2f}%{dollar_str}", color
-
-        day_str,    day_col    = _chg(chg_pct, chg_dollar)
-        since_str,  since_col  = _chg(since_pct)
-        price_str  = f"${cur_price:,.2f}" if cur_price else "—"
-        score_str  = f"{adj:.0f}" if adj else "—"
-        # Score + delta inline: "74 ↑ +4"
-        trend_arrow_s, trend_color_s, trend_delta_s = wl_trend.get(tk, ("", "#64748b", ""))
-        # Only show delta if meaningful (not zero)
-        _show_delta = trend_arrow_s and trend_delta_s and trend_delta_s not in ('+0', '-0', '0', '+0', '→')
-        score_with_delta = (
-            f'{score_str} <span style="font-size:11px;color:{trend_color_s};">{trend_arrow_s} {trend_delta_s}</span>'
-            if _show_delta else score_str
-        )
-
-        sig_label = "High Conviction" if adj >= 60 else ("Low Conviction" if adj < 45 else "Moderate")
-        sig_color = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
-        score_col = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
-        border_c  = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#334155")
-        bg = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
-
-        pillars = sorted([("MOM",mom),("QUAL",qual),("VOL",vol),("VAL",val),("SENT",sent)],
-                         key=lambda x: x[1], reverse=True)
-        top2 = " · ".join(
-            f'<span style="color:#94a3b8;">{p[0]}</span> '
-            f'<span style="color:{("#00ff87" if p[1]>=65 else "#fbbf24")};">{p[1]:.0f}</span>'
-            for p in pillars[:2]
-        )
-        weak = [p for p in pillars if p[1] < 45]
-        weak_str = f' · <span style="color:#ef4444;">⚠ {weak[0][0]}</span>' if weak else ""
-
-        trend_arrow, trend_color, trend_delta = wl_trend.get(tk, ("—", "#475569", ""))
-        trend_html = (
-            f'<div style="text-align:center;">'
-            f'<div style="font-size:16px;color:{trend_color};">{trend_arrow}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:{trend_color};">{trend_delta}</div>'
-            f'</div>'
-        )
-
+    # Remove buttons — one per stock, below each card
+    for w in watchlist:
+        tk = w["ticker"]
+        _rm_url = f"?qnav=watchlist&uid={_uid_wl}&plan={_pln_wl}&ck=1&wl_action=remove&wl_ticker={tk}"
         st.markdown(
-            f'<div class="wl-row" style="display:grid;grid-template-columns:160px 110px 90px 70px 90px 90px 60px 110px 1fr;'
-            f'gap:8px;padding:10px 16px;background:{bg};'
-            f'border-left:3px solid {border_c};'
-            f'border-right:1px solid rgba(255,255,255,.04);'
-            f'border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">'
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{tk}</div>'
-            f'<div style="font-size:11px;color:#64748b;margin-top:1px;">{name}</div>'
-            f'</div>'
-            f'<div style="font-size:12px;color:#64748b;">{sector}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;text-align:right;">{price_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{score_col};text-align:right;">{score_with_delta}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{day_col};text-align:right;">{day_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{since_col};text-align:right;">{since_str}</div>'
-            + trend_html +
-            f'<div style="font-size:12px;color:{sig_color};text-align:right;font-weight:600;">{sig_label}</div>'
-            f'<div style="font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
-            f'</div>'
-            # Mobile card
-            f'<div class="wl-card" style="display:none;padding:14px 16px;background:{bg};'
-            f'border-left:3px solid {border_c};border-bottom:1px solid rgba(255,255,255,.05);">'
-            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:#e2e8f0;">{tk}</div>'
-            f'<div style="font-size:11px;color:#64748b;">{name} · {sector}</div>'
-            f'</div>'
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:{score_col};">{score_with_delta}</div>'
-            f'<div style="font-size:11px;color:{sig_color};font-weight:600;">{sig_label}</div>'
-            f'</div>'
-            f'</div>'
-            f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.08em;">PRICE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">{price_str}</div></div>'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.08em;">DAY</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{day_col};">{day_str}</div></div>'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.08em;">SINCE ADDED</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{since_col};">{since_str}</div></div>'
-            f'</div>'
-            f'<div style="margin-top:8px;font-size:11px;color:#64748b;">{top2}{weak_str}</div>'
-            f'</div>',
+            f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
+            f'padding:5px;margin-top:-4px;margin-bottom:8px;box-sizing:border-box;'
+            f'background:transparent;border:1px solid rgba(255,255,255,.05);'
+            f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
+            f'letter-spacing:.06em;color:#334155;text-decoration:none;">✕ Remove {tk}</a>',
             unsafe_allow_html=True
         )
-        # Mini sparkline for this watchlist stock
-        if adj:
-            _spark = signal_history_chart(tk, adj)
-            if _spark:
-                st.markdown(_spark, unsafe_allow_html=True)
-        _uid_val = (st.session_state.user or {}).get("id", "")
-        _plan_val = (st.session_state.user or {}).get("plan", "free")
-        _rm_url = f"?qnav=watchlist&uid={_uid_val}&plan={_plan_val}&ck=1&wl_action=remove&wl_ticker={tk}"
-        st.markdown(
-            f'<a href="{_rm_url}" target="_self" style="'
-            f'display:block;width:100%;text-align:center;padding:8px;margin-top:4px;'
-            f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);'
-            f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-            f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
-            f'box-sizing:border-box;">✕ Remove</a>',
-            unsafe_allow_html=True
-        )
-
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
         'border-radius:0 0 6px 6px;font-size:11px;color:#334155;">'
