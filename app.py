@@ -1106,7 +1106,7 @@ def data_freshness_banner():
             f'<div style="display:inline-flex;align-items:center;gap:6px;'
             f'background:{bg};border:1px solid {border};'
             f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
-            f'font-family:DM Mono,monospace;margin-bottom:12px;">'
+            f'font-family:DM Mono,monospace;margin-bottom:6px;">'
             f'<span style="width:7px;height:7px;border-radius:50%;background:{color};display:inline-block;"></span>'
             f'{label}{suffix}</div>',
             unsafe_allow_html=True)
@@ -3703,6 +3703,7 @@ def page_screener():
         f'</div>',
         unsafe_allow_html=True
     )
+    data_freshness_banner()
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     # ── Search box ───────────────────────────────────────────────────────────
