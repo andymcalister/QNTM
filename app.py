@@ -3874,7 +3874,10 @@ def page_screener():
                 st.session_state._search_live = _tk
                 st.rerun()
 
-    search_ticker = _live_q if _live_q else ""
+    # Only resolve full score when explicitly submitted (Enter) or suggestion clicked
+    # _search_live updates on blur/enter; _sug_just_picked on suggestion click
+    _submitted = st.session_state.get("screener_search_raw","").strip().upper()
+    search_ticker = _submitted if _submitted and (_submitted == _live_q) else ""
     if search_ticker:
         st.session_state.screener_search_val = search_ticker
         _rl = st.session_state.get("recent_searches", [])
@@ -3886,7 +3889,7 @@ def page_screener():
         resolved_tk, resolved_name = resolve_ticker(search_ticker)
         display_query = f"{resolved_name} ({resolved_tk})" if resolved_name and resolved_name != resolved_tk else resolved_tk
 
-        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:12px 0 8px;">SCORE FOR {display_query}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin:6px 0 6px;">SCORE FOR {display_query}</div>', unsafe_allow_html=True)
         with st.spinner(f"Scoring {resolved_tk}..."):
             try:
                 price_data = fetch_price_data([resolved_tk], period="1y")
