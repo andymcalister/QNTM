@@ -2492,7 +2492,7 @@ def page_landing():
     def tape_span(ticker, action, color):
         return f'<span style="color:{color};">{ticker} {action}</span> &middot; '
 
-    tape_html = "".join(tape_span(*i) for i in tape_items).rstrip(" &middot; ")
+    tape_html = " &middot; ".join(tape_span(*i).rstrip(" &middot; ") for i in tape_items)
     # Duplicate for seamless scroll — string concat avoids f-string single-quote conflicts
     _sp = "font-family:DM Mono,monospace;font-size:12px;padding:0 24px;"
     tape_block = (
