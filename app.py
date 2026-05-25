@@ -3819,18 +3819,18 @@ def page_screener():
         val = st.session_state.get("screener_search_raw","").strip().upper()
         st.session_state._search_live = val
 
-    # If a suggestion was clicked last run, use that as the input value
-    if st.session_state.get("_sug_selected"):
-        _sq_default = st.session_state._sug_selected
-        st.session_state._sug_selected = None
+    # When suggestion selected, delete widget key so it reinits with new value
+    if "_sug_just_picked" in st.session_state:
+        _picked = st.session_state.pop("_sug_just_picked")
+        if "screener_search_raw" in st.session_state:
+            del st.session_state["screener_search_raw"]
+        _sq_default = _picked
+        st.session_state._search_live = _picked
 
     if "screener_search_raw" not in st.session_state:
         st.session_state.screener_search_raw = _sq_default
     if "_search_live" not in st.session_state:
         st.session_state._search_live = _sq_default.strip().upper()
-    # Sync if suggestion was picked
-    if _sq_default and _sq_default != st.session_state.get("screener_search_raw",""):
-        st.session_state.screener_search_raw = _sq_default
 
     st.text_input(
         "Search ticker",
@@ -3871,7 +3871,6 @@ def page_screener():
             _label = f"**{_tk}** {_nm}" if _nm else f"**{_tk}**"
             if st.button(f"{_tk}  {_nm}", key=f"sug_{_tk}", use_container_width=True):
                 st.session_state.screener_search_val = _tk
-                st.session_state.screener_search_raw = _tk
                 st.session_state._search_live = _tk
                 st.rerun()
 
