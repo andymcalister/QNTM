@@ -4684,48 +4684,14 @@ def page_gems():
             st.markdown(_cta_gold("Join Free — First 50 Spots", "?nav=register"), unsafe_allow_html=True)
         return
 
-    # Use cached scan_results from screener if available — avoids re-scan
-    # If not cached, load from signal_log (fast) then fall back to full scan
+    # Always use same scan_results as screener — ensures gem count matches
     _macro_gems = st.session_state.get("macro_data") or {}
 
-    if st.session_state.scan_results:
-        # Already loaded by screener — instant
-        gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
-    else:
-        # Try signal_log fast path
-        gems = []
-        try:
-            from data_refresh import _get_supabase as _gems_sb
-            _sb_g = _gems_sb()
-            if _sb_g:
-                # Fetch all high-scoring stocks and run gem detection client-side
-                _gr = _sb_g.table("signal_log") \
-                    .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date,sector") \
-                    .gte("adj_composite", 60) \
-                    .order("signal_date", desc=True) \
-                    .order("adj_composite", desc=True) \
-                    .limit(500) \
-                    .execute()
-                # Deduplicate
-                _seen = {}
-                for _row in (_gr.data or []):
-                    tk = _row["ticker"]
-                    if tk not in _seen:
-                        _seen[tk] = _row
-                _candidates = list(_seen.values())
-                if _candidates:
-                    # Cache as scan_results so other pages benefit
-                    st.session_state.scan_results = _candidates
-                    gems = detect_hidden_gems(_candidates, macro_data=_macro_gems)
-        except Exception:
-            pass
+    if not st.session_state.scan_results:
+        with st.spinner("Loading scores..."):
+            st.session_state.scan_results = run_full_scan(use_live_prices=False)
 
-        # Last resort — full scan
-        if not gems and st.session_state.scan_results is None:
-            with st.spinner("Running full scan..."):
-                st.session_state.scan_results = run_full_scan(use_live_prices=False)
-            if st.session_state.scan_results:
-                gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
+    gems = detect_hidden_gems(st.session_state.scan_results or [], macro_data=_macro_gems)
     if not gems:
         st.markdown('<div style="padding:0 32px;"><div style="color:#94a3b8;padding:40px;text-align:center;">No hidden gems detected in current scan.</div></div>', unsafe_allow_html=True)
         return
