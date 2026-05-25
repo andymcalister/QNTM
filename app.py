@@ -2493,21 +2493,18 @@ def page_landing():
         return f'<span style="color:{color};">{ticker} {action}</span> &middot; '
 
     tape_html = "".join(tape_span(*i) for i in tape_items).rstrip(" &middot; ")
-    # Duplicate for seamless scroll
-    st.markdown(f"""
-    <div style="overflow:hidden;max-width:100vw;background:rgba(0,255,135,.04);
-         border-top:1px solid rgba(0,255,135,.12);border-bottom:1px solid rgba(0,255,135,.12);
-         padding:13px 0;margin-top:8px;">
-      <div style="display:inline-flex;animation:land-ticker 45s linear infinite;white-space:nowrap;will-change:transform;">
-        <span style="font-family:'DM Mono',monospace;font-size:12px;padding:0 24px;">
-          {tape_html}
-        </span>
-        <span style="font-family:'DM Mono',monospace;font-size:12px;padding:0 24px;">
-          {tape_html}
-        </span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Duplicate for seamless scroll — string concat avoids f-string single-quote conflicts
+    _sp = "font-family:DM Mono,monospace;font-size:12px;padding:0 24px;"
+    tape_block = (
+        '<div style="overflow:hidden;max-width:100vw;background:rgba(0,255,135,.04);'
+        'border-top:1px solid rgba(0,255,135,.12);border-bottom:1px solid rgba(0,255,135,.12);'
+        'padding:13px 0;margin-top:8px;">'
+        '<div style="display:inline-flex;animation:land-ticker 45s linear infinite;white-space:nowrap;will-change:transform;">'
+        '<span style="' + _sp + '">' + tape_html + '</span>'
+        '<span style="' + _sp + '">' + tape_html + '</span>'
+        '</div></div>'
+    )
+    st.markdown(tape_block, unsafe_allow_html=True)
 
     # ── PERFORMANCE SECTION ───────────────────────────────────────────────────
     st.markdown("""
