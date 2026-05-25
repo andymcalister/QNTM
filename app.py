@@ -5781,31 +5781,60 @@ def page_simulator():
 
     st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>', unsafe_allow_html=True)
-    add_query = st.text_input("Search ticker or company", key="sim_add_query",
-                               placeholder="e.g. NVDA, Apple…", label_visibility="collapsed")
-    if add_query and add_query.strip():
-        q = add_query.strip().upper()
-        matches = sorted(
-            [r for r in scan if r["ticker"].startswith(q) or q in r["ticker"]],
-            key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True
-        )[:8]
-        if matches:
-            for r in matches:
-                tk    = r["ticker"]
-                score = r.get("adj_composite", r.get("composite", 0))
-                already = tk in st.session_state.sim_selected
-                if already:
-                    st.markdown(f'<div style="padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;font-size:13px;color:#475569;margin-bottom:4px;">✓ {tk} · score {score:.0f} — in portfolio</div>', unsafe_allow_html=True)
+
+    # Live suggestions via on_change — same pattern as screener
+    def _on_sim_search():
+        st.session_state._sim_search_live = st.session_state.sim_add_query.strip().upper()
+
+    if "sim_add_query" not in st.session_state:
+        st.session_state.sim_add_query = ""
+    if "_sim_search_live" not in st.session_state:
+        st.session_state._sim_search_live = ""
+
+    # Clear if suggestion was just picked
+    if st.session_state.get("_sim_sug_picked"):
+        del st.session_state["sim_add_query"]
+        st.session_state._sim_search_live = ""
+        st.session_state._sim_sug_picked = False
+
+    st.text_input("Search ticker or company", key="sim_add_query",
+                  placeholder="e.g. NVDA, Apple…", label_visibility="collapsed",
+                  on_change=_on_sim_search)
+
+    _sim_q = st.session_state.get("_sim_search_live", "").strip().upper()
+    if _sim_q:
+        _sim_matches = sorted(
+            [r for r in scan if r["ticker"].startswith(_sim_q) or
+             _sim_q.lower() in r.get("ticker","").lower()],
+            key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
+        )[:6]
+        if _sim_matches:
+            _sug_html = ('<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
+                        'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
+                        '<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;'
+                        'letter-spacing:.1em;padding:7px 14px 3px;">SUGGESTIONS</div>')
+            for _r in _sim_matches:
+                _tk  = _r["ticker"]
+                _sc  = float(_r.get("adj_composite", _r.get("composite", 0)) or 0)
+                _already = _tk in st.session_state.get("sim_selected", [])
+                if _already:
+                    _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
+                                 'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;'
+                                 'opacity:.5;cursor:default;">'
+                                 f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#475569;min-width:52px;">{_tk}</span>'
+                                 f'<span style="font-size:11px;color:#334155;">score {_sc:.0f} · already added</span></a>')
                 else:
-                    _add_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_add={tk}&_n=simulator"
-                    st.markdown(
-                        f'<a href="{_add_url}" target="_self" style="display:block;padding:8px 12px;margin-bottom:4px;'
-                        f'background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.2);border-radius:6px;'
-                        f'font-size:13px;color:#00ff87;text-decoration:none;">+ {tk} · score {score:.0f}</a>',
-                        unsafe_allow_html=True
-                    )
+                    _add_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_add={_tk}"
+                    _sug_html += ('<a href="' + _add_url + '" target="_self" class="qac-sug-row" '
+                                 'style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
+                                 'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;">'
+                                 f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'
+                                 f'<span style="font-size:11px;color:#00ff87;">score {_sc:.0f}</span>'
+                                 f'<span style="font-size:11px;color:#475569;margin-left:auto;">+ Add</span></a>')
+            _sug_html += '</div>'
+            st.markdown(_sug_html, unsafe_allow_html=True)
         else:
-            st.caption("No matches in current scan.")
+            st.markdown('<div style="font-size:11px;color:#334155;padding:4px 0;">No matches</div>', unsafe_allow_html=True)
 
     selected_rows = [ticker_map[t] for t in st.session_state.sim_selected if t in ticker_map]
     n_sel = len(selected_rows)
@@ -7175,10 +7204,12 @@ def main():
     _sim_add = st.query_params.get("sim_add", "")
     if _sim_add and st.session_state.get("logged_in"):
         st.query_params.pop("sim_add", None)
-        if _sim_add not in st.session_state.get("sim_selected", []):
-            if "sim_selected" not in st.session_state:
-                st.session_state.sim_selected = []
+        if "sim_selected" not in st.session_state:
+            st.session_state.sim_selected = []
+        if _sim_add not in st.session_state.sim_selected:
             st.session_state.sim_selected.append(_sim_add)
+        st.session_state.nav = "simulator"
+        st.rerun()
 
     _sim_remove = st.query_params.get("sim_remove", "")
     if _sim_remove and st.session_state.get("logged_in"):
@@ -7186,6 +7217,8 @@ def main():
         if "sim_selected" in st.session_state and _sim_remove in st.session_state.sim_selected:
             st.session_state.sim_selected.remove(_sim_remove)
         st.session_state.get("sim_weights", {}).pop(_sim_remove, None)
+        st.session_state.nav = "simulator"
+        st.rerun()
 
     # ── Plan upgrade via URL action ───────────────────────────────────────────
     if st.query_params.get("upgrade") == "pro" and st.session_state.get("logged_in"):
