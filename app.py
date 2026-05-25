@@ -4147,8 +4147,21 @@ def page_screener():
             st.session_state.macro_data   = macro
 
     results = st.session_state.scan_results
-    macro   = st.session_state.get("macro_data", {})
-    gems = detect_hidden_gems(results, macro_data=st.session_state.get("macro_data"))
+
+    # Refresh macro every 15 min — keeps VIX, WTI, regime current
+    import time as _time
+    _macro_age = _time.time() - st.session_state.get("_macro_fetched_at", 0)
+    if not st.session_state.get("macro_data") or _macro_age > 900:
+        try:
+            macro = fetch_macro_overlay()
+            st.session_state.macro_data      = macro
+            st.session_state._macro_fetched_at = _time.time()
+        except Exception:
+            macro = st.session_state.get("macro_data", {})
+    else:
+        macro = st.session_state.get("macro_data", {})
+
+    gems = detect_hidden_gems(results, macro_data=macro)
 
     # ── Live price refresh for top visible tickers ─────────────────────────
     # Fetch current prices for top 30 tickers (buys + sells) via yfinance
