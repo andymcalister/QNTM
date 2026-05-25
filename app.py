@@ -3033,13 +3033,15 @@ def page_landing():
         f'</div></div>',
         unsafe_allow_html=True)
 
-    pb1, pb2, pb3 = st.columns(3)
-    with pb1:
-        st.markdown(_cta_ghost("Start Free →", "?nav=register"), unsafe_allow_html=True)
-    with pb2:
-        st.markdown(_cta_gold("Claim Founding Spot →", "?nav=register"), unsafe_allow_html=True)
-    with pb3:
-        st.markdown(_cta_gold("Get Pro — $29/mo", "?nav=register"), unsafe_allow_html=True)
+    st.markdown(
+        '<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;">'
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
+        + _cta_ghost("Start Free →", "?nav=register")
+        + _cta_gold("Join Free →", "?nav=register")
+        + _cta_gold("Get Pro $29/mo", "?nav=register")
+        + '</div></div>',
+        unsafe_allow_html=True
+    )
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
     st.markdown("""
