@@ -3037,9 +3037,17 @@ def page_landing():
         '<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;">'
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
         + _cta_ghost("Start Free →", "?nav=register")
-        + _cta_gold("Join Free →", "?nav=register")
-        + _cta_gold("Get Pro $29/mo", "?nav=register")
-        + '</div></div>',
+        + _cta_gold("Join Free — Founding Member", "?nav=register")
+        + '<a style="display:block;text-align:center;padding:13px 16px;border-radius:6px;'
+        'border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);'
+        'font-family:Syne,sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;'
+        'text-transform:uppercase;color:#475569;text-decoration:none;cursor:default;'
+        'white-space:nowrap;">Enterprise — Coming Soon</a>'
+        + '</div>'
+        + '<div style="text-align:center;margin-top:8px;font-size:12px;color:#d4a843;">'
+        '⚡ Founding member pricing — <span style="text-decoration:line-through;color:#475569;">$29/mo</span>'
+        ' free while spots last · <span style="color:#e2e8f0;">Limited availability</span>'
+        '</div></div>',
         unsafe_allow_html=True
     )
 
