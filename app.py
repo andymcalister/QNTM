@@ -2450,11 +2450,15 @@ def page_landing():
     except Exception:
         _macro_now = {}
     _regime       = _macro_now.get("regime", "NEUTRAL")
-    _regime_label = {"RISK_ON":"Risk On","RISK_OFF":"Risk Off","NEUTRAL":"Neutral"}.get(_regime,"Neutral")
-    _regime_c     = {"RISK_ON":"#00ff87","RISK_OFF":"#ef4444","NEUTRAL":"#fbbf24"}.get(_regime,"#fbbf24")
-    _regime_bg    = {"RISK_ON":"rgba(0,255,135,.08)","RISK_OFF":"rgba(239,68,68,.08)","NEUTRAL":"rgba(251,191,36,.08)"}.get(_regime,"rgba(251,191,36,.08)")
-    _regime_brd   = {"RISK_ON":"rgba(0,255,135,.25)","RISK_OFF":"rgba(239,68,68,.25)","NEUTRAL":"rgba(251,191,36,.25)"}.get(_regime,"rgba(251,191,36,.25)")
-    _regime_icon  = {"RISK_ON":"▲","RISK_OFF":"▼","NEUTRAL":"─"}.get(_regime,"─")
+    # Normalise regime — model can return MILDLY BULLISH / HIGH VOLATILITY too
+    if _regime in ("RISK_ON","MILDLY BULLISH"):   _regime_norm = "RISK_ON"
+    elif _regime in ("RISK_OFF","HIGH VOLATILITY"): _regime_norm = "RISK_OFF"
+    else:                                           _regime_norm = "NEUTRAL"
+    _regime_label = {"RISK_ON":"Risk On","RISK_OFF":"Risk Off","NEUTRAL":"Neutral"}.get(_regime_norm,"Neutral")
+    _regime_c     = {"RISK_ON":"#00ff87","RISK_OFF":"#ef4444","NEUTRAL":"#fbbf24"}.get(_regime_norm,"#fbbf24")
+    _regime_bg    = {"RISK_ON":"rgba(0,255,135,.08)","RISK_OFF":"rgba(239,68,68,.08)","NEUTRAL":"rgba(251,191,36,.08)"}.get(_regime_norm,"rgba(251,191,36,.08)")
+    _regime_brd   = {"RISK_ON":"rgba(0,255,135,.25)","RISK_OFF":"rgba(239,68,68,.25)","NEUTRAL":"rgba(251,191,36,.25)"}.get(_regime_norm,"rgba(251,191,36,.25)")
+    _regime_icon  = {"RISK_ON":"▲","RISK_OFF":"▼","NEUTRAL":"─"}.get(_regime_norm,"─")
     _vix          = _macro_now.get("vix", None)
     _vix_str      = f"{_vix:.1f}" if _vix else "—"
     _events       = _macro_now.get("active_events", [])
@@ -2468,10 +2472,10 @@ def page_landing():
         if _sb2:
             _r5 = _sb2.table("signal_log") \
                 .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
-                .in_("signal", ["BUY","HIGH"]) \
+                .gte("adj_composite", 60) \
                 .order("signal_date", desc=True) \
                 .order("adj_composite", desc=True) \
-                .limit(50) \
+                .limit(100) \
                 .execute()
             _seen5 = {}
             for _row in (_r5.data or []):
