@@ -996,14 +996,14 @@ def _back_btn(href: str, label: str = "← Back") -> str:
     """Styled ghost back button as HTML link."""
     return (
         f'<a href="{href}" target="_self" style="'
-        f'display:inline-flex;align-items:center;gap:6px;'
-        f'padding:8px 16px;border-radius:6px;'
+        f'display:inline-flex;align-items:center;gap:4px;'
+        f'padding:7px 10px;border-radius:6px;'
         f'border:1px solid rgba(255,255,255,.12);'
         f'background:rgba(255,255,255,.03);'
-        f'font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-        f'letter-spacing:.06em;text-transform:uppercase;'
+        f'font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
+        f'letter-spacing:.04em;white-space:nowrap;'
         f'color:#94a3b8;text-decoration:none;">'
-        f'{label}</a>'
+        f'← Back</a>'
     )
 
 def _upgrade_url(feature: str, return_nav: str) -> str:
@@ -1245,9 +1245,9 @@ def data_freshness_banner():
 
 def enrich_with_signal_log(results: list) -> list:
     """
-    Merges latest signal_date and price from signal_log into scan results.
-    Called after run_full_scan so every stock card can show last scan date + price.
-    Safe to call even if Supabase is unavailable — returns results unchanged.
+    Replaces model-computed scores with latest signal_log values from Supabase.
+    This ensures screener always shows nightly cron scores, not local model estimates.
+    Falls back to run_full_scan results if signal_log unavailable.
     """
     try:
         from data_refresh import _get_supabase
@@ -1255,31 +1255,35 @@ def enrich_with_signal_log(results: list) -> list:
         if not sb or not results:
             return results
         tickers = [r["ticker"] for r in results]
-        # Fetch latest signal_log row per ticker (most recent signal_date)
+        # Fetch ALL fields from latest signal_log row per ticker
         rows = sb.table("signal_log") \
-            .select("ticker,signal_date,price") \
+            .select("ticker,signal_date,adj_composite,composite,signal,"
+                    "momentum,quality,volume,value,sentiment,price,"
+                    "is_hidden_gem,hidden_gem_reason") \
             .in_("ticker", tickers) \
             .order("signal_date", desc=True) \
             .execute()
         if not rows.data:
             return results
-        # Build map: ticker → {signal_date, price} keeping only the most recent row
+        # Build map: ticker → latest row (deduplicated)
         log_map = {}
         for row in rows.data:
             tk = row["ticker"]
             if tk not in log_map:
-                log_map[tk] = {
-                    "signal_date": row.get("signal_date","")[:10] if row.get("signal_date") else "",
-                    "price":       float(row["price"]) if row.get("price") else None,
-                }
-        # Merge into results — only fill in missing values, don't overwrite live data
+                log_map[tk] = row
+        # Merge signal_log scores into results — DB scores take precedence
         for r in results:
             tk = r["ticker"]
             if tk in log_map:
-                if not r.get("signal_date"):
-                    r["signal_date"] = log_map[tk]["signal_date"]
-                if not r.get("price") and log_map[tk]["price"]:
-                    r["price"] = log_map[tk]["price"]
+                db = log_map[tk]
+                # Always use DB scores — they come from the nightly cron
+                for field in ["adj_composite","composite","momentum","quality",
+                               "volume","value","sentiment","price","signal_date",
+                               "is_hidden_gem","hidden_gem_reason"]:
+                    if db.get(field) is not None:
+                        r[field] = db[field]
+                if db.get("signal_date"):
+                    r["signal_date"] = str(db["signal_date"])[:10]
     except Exception:
         pass
     return results
@@ -4075,6 +4079,23 @@ def page_screener():
         st.markdown('<div style="height:1px;background:rgba(255,255,255,.05);margin:8px 0 12px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # Invalidate cache if signal_log has newer data than what we have cached
+    if st.session_state.scan_results is not None:
+        try:
+            from data_refresh import _get_supabase as _sc_sb
+            _sb_sc = _sc_sb()
+            if _sb_sc:
+                _latest_date = _sb_sc.table("signal_log").select("signal_date") \
+                    .order("signal_date", desc=True).limit(1).execute()
+                if _latest_date.data:
+                    _db_date = str(_latest_date.data[0]["signal_date"])[:10]
+                    _cached_date = str((st.session_state.scan_results[0] or {}).get("signal_date",""))[:10]
+                    if _db_date > _cached_date:
+                        st.session_state.scan_results = None  # force reload
+                        st.session_state._live_prices_fetched = False
+        except Exception:
+            pass
+
     if st.session_state.scan_results is None:
         # Auto-trigger if data is old
         stale_msg = "Loading universe scores..."
@@ -4087,7 +4108,6 @@ def page_screener():
         with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
-            # Force sector BEFORE macro overlay so overlay uses correct sector keys
             for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
@@ -4098,6 +4118,42 @@ def page_screener():
     results = st.session_state.scan_results
     macro   = st.session_state.get("macro_data", {})
     gems = detect_hidden_gems(results, macro_data=st.session_state.get("macro_data"))
+
+    # ── Live price refresh for top visible tickers ─────────────────────────
+    # Fetch current prices for top 30 tickers (buys + sells) via yfinance
+    # Cached per session so it only fires once per load, not on every rerun
+    if not st.session_state.get("_live_prices_fetched"):
+        try:
+            import yfinance as yf
+            # Sort results to get top buys + sells
+            _top_tks = (
+                [r["ticker"] for r in sorted(results, key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:15]] +
+                [r["ticker"] for r in sorted(results, key=lambda x: float(x.get("adj_composite",50) or 50))[:10]]
+            )
+            _top_tks = list(dict.fromkeys(_top_tks))[:25]  # dedupe, cap at 25
+            _price_data = yf.download(_top_tks, period="1d", interval="1m",
+                                      progress=False, auto_adjust=True, threads=True)
+            if not _price_data.empty:
+                _close = _price_data["Close"] if "Close" in _price_data else _price_data
+                _live_px = {}
+                for _tk in _top_tks:
+                    try:
+                        if hasattr(_close, 'columns') and _tk in _close.columns:
+                            _px = float(_close[_tk].dropna().iloc[-1])
+                        else:
+                            _px = float(_close.dropna().iloc[-1])
+                        if _px > 0:
+                            _live_px[_tk] = _px
+                    except Exception:
+                        pass
+                # Inject live prices into results
+                _price_map = {r["ticker"]: r for r in results}
+                for _tk, _px in _live_px.items():
+                    if _tk in _price_map:
+                        _price_map[_tk]["price"] = _px
+                st.session_state._live_prices_fetched = True
+        except Exception:
+            pass
     gem_tickers = {g["ticker"] for g in gems}
 
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
@@ -7293,7 +7349,9 @@ def main():
         st.session_state.cookies_accepted = True
 
     # Handle nav button side effects — re-route if needed
-    if st.session_state.page == "landing" and st.session_state.logged_in:
+    # Only auto-redirect to platform if user didn't explicitly request landing
+    _explicit_landing = st.query_params.get("nav") == "landing"
+    if st.session_state.page == "landing" and st.session_state.logged_in and not _explicit_landing:
         st.session_state.page = "platform"
 
     # ── Reconnect recovery: restore nav from _n param ───────────────────────
