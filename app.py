@@ -3605,48 +3605,35 @@ def page_screener():
 
     page_summary(
         "📊", "Market Screener",
-        "834 tickers across S&P 500 + Russell 1000, scored weekly on Momentum, Quality, Volume, Value, and Sentiment — "
-        "then blended with a live macro regime overlay (75/25 quant/macro). "
-        "Search any stock for an instant conviction score, or rescan the full universe."
+        "834 stocks scored daily · 5-pillar quant model · live macro overlay"
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     data_freshness_banner()
 
-    # ── Hero search box ───────────────────────────────────────────────────────
+    # ── Search box ───────────────────────────────────────────────────────────
     st.markdown("""
     <style>
     div[data-testid="stTextInput"][data-key="screener_search"] input {
         background: rgba(255,255,255,.04) !important;
-        border: 2px solid rgba(0,255,135,.4) !important;
-        border-radius: 12px !important;
+        border: 1px solid rgba(0,255,135,.25) !important;
+        border-radius: 8px !important;
         color: #e2e8f0 !important;
-        font-size: 16px !important;
-        font-family: 'Syne', sans-serif !important;
-        padding: 18px 24px !important;
-        height: 60px !important;
-        box-shadow: 0 0 32px rgba(0,255,135,.15), inset 0 1px 0 rgba(255,255,255,.06) !important;
-        transition: border-color .2s, box-shadow .2s !important;
+        font-size: 15px !important;
+        font-family: 'Outfit', sans-serif !important;
+        padding: 14px 20px !important;
+        height: 50px !important;
+        transition: border-color .2s !important;
     }
     div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
-        border-color: #00ff87 !important;
-        box-shadow: 0 0 56px rgba(0,255,135,.25) !important;
+        border-color: rgba(0,255,135,.5) !important;
         outline: none !important;
     }
     div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
-        color: #475569 !important;
-        font-size: 15px !important;
+        color: #334155 !important;
+        font-size: 14px !important;
     }
     </style>
-    <div style="margin-bottom:10px;">
-      <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;
-           letter-spacing:-.01em;margin-bottom:3px;">
-        ⚡ Instant Conviction Score
-      </div>
-      <div style="font-family:DM Mono,monospace;font-size:12px;color:#475569;letter-spacing:.06em;">
-        Search any of 834 stocks — ticker or company name
-      </div>
-    </div>
     """, unsafe_allow_html=True)
     # Restore search query from session state (survives watchlist action navigation)
     _sq_default = st.session_state.get("screener_search_val", "")
