@@ -2891,19 +2891,30 @@ def page_landing():
     _today_items.insert(0, f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{_regime_c};">{_regime_icon} {_regime_label}</span>')
     if _n_high:  _today_items.append(f'<span style="color:#64748b;">{_n_high} high conviction</span>')
     if _n_sell:  _today_items.append(f'<span style="color:#475569;">{_n_sell} exit</span>')
-    # Gems count from signal_log
+    # Gems count — use detect_hidden_gems on cached scan_results if available
+    # Otherwise estimate from signal_log using same thresholds as screener
+    _n_gems = 0
     try:
-        _gems_resp = _sb2.table("signal_log") \
-            .select("ticker,is_hidden_gem") \
-            .eq("is_hidden_gem", True) \
-            .order("signal_date", desc=True) \
-            .limit(500) \
-            .execute()
-        _n_gems = len(set(r["ticker"] for r in (_gems_resp.data or []) if r.get("is_hidden_gem")))
+        if st.session_state.get("scan_results"):
+            # Use exact same logic as screener
+            _mac_land = st.session_state.get("macro_data") or {}
+            _n_gems = len(detect_hidden_gems(st.session_state.scan_results, macro_data=_mac_land))
+        else:
+            # Estimate from signal_log — fetch all high-scoring tickers
+            _gem_candidates = _sb2.table("signal_log") \
+                .select("ticker,adj_composite,composite,momentum,quality") \
+                .gte("adj_composite", 60) \
+                .order("signal_date", desc=True) \
+                .limit(500) \
+                .execute()
+            _gc_seen = {}
+            for _gc in (_gem_candidates.data or []):
+                if _gc["ticker"] not in _gc_seen:
+                    _gc_seen[_gc["ticker"]] = _gc
+            _n_gems = len(detect_hidden_gems(list(_gc_seen.values()), macro_data=_macro_now))
     except Exception:
         _n_gems = 0
-    # Always show gems line — use 2 as floor if DB returns nothing (gems always exist)
-    _gems_display = _n_gems if _n_gems > 0 else 2
+    _gems_display = _n_gems if _n_gems > 0 else "—"
     _today_items.append(f'<span style="color:#00ff87;font-weight:600;">💎 {_gems_display} hidden gems</span>')
     _today_items.append(f'<span style="color:#64748b;">834 stocks scored</span>')
 
