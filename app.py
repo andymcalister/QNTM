@@ -1646,7 +1646,7 @@ def _build_why_html(r: dict) -> str:
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0) -> str:
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False) -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
     All cards share radio group "qntm_card" — checking one unchecks others.
@@ -1760,6 +1760,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         else:
             _wl_btn_html = ''
     except Exception:
+        _wl_btn_html = ''
+    if suppress_wl_btn:
         _wl_btn_html = ''
 
     detail_html = (
@@ -5752,9 +5754,9 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        st.markdown(factor_panel_html(sc, False, company_info=ci), unsafe_allow_html=True)
+        st.markdown(factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True), unsafe_allow_html=True)
 
-        # Remove button — subtle, below each card
+        # Remove from portfolio button
         _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
         st.markdown(
             f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
