@@ -5935,62 +5935,132 @@ def page_simulator():
                 f'</div></a>',
                 unsafe_allow_html=True)
 
+    st.markdown("""
+    <style>
+    /* Sim suggestion buttons */
+    div[data-testid='stButton'][data-key^='simsug_'] > div > button {
+        display:none !important;
+    }
+    /* Add to sim button */
+    div[data-testid='stButton'][data-key='sim_add_sel'] > div > button {
+        background:linear-gradient(135deg,#d4a843,#b8922e) !important;
+        color:#000 !important; border:none !important;
+        font-family:Syne,sans-serif !important; font-weight:800 !important;
+        font-size:12px !important; letter-spacing:.08em !important;
+        padding:10px !important; border-radius:6px !important;
+        margin-top:4px !important;
+    }
+    /* Remove from sim button */
+    div[data-testid='stButton'][data-key='sim_rm_sel'] > div > button {
+        background:rgba(239,68,68,.08) !important;
+        border:1px solid rgba(239,68,68,.3) !important;
+        color:#ef4444 !important;
+        font-family:Syne,sans-serif !important; font-weight:700 !important;
+        font-size:12px !important; padding:10px !important;
+        border-radius:6px !important; margin-top:4px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>', unsafe_allow_html=True)
 
-    # Live suggestions via on_change — same pattern as screener
+    # Search with live suggestions + Enter to select first match
     def _on_sim_search():
-        st.session_state._sim_search_live = st.session_state.sim_add_query.strip().upper()
+        _raw = st.session_state.sim_add_query.strip().upper()
+        st.session_state._sim_search_live = _raw
+        st.session_state.nav = "simulator"
+
+    if "_sim_sug_just_picked" in st.session_state:
+        _picked = st.session_state.pop("_sim_sug_just_picked")
+        if "sim_add_query" in st.session_state:
+            del st.session_state["sim_add_query"]
+        st.session_state._sim_search_live = _picked
+        st.session_state._sim_selected_tk = _picked
 
     if "sim_add_query" not in st.session_state:
         st.session_state.sim_add_query = ""
     if "_sim_search_live" not in st.session_state:
         st.session_state._sim_search_live = ""
 
-    # Clear if suggestion was just picked
-    if st.session_state.get("_sim_sug_picked"):
-        del st.session_state["sim_add_query"]
-        st.session_state._sim_search_live = ""
-        st.session_state._sim_sug_picked = False
-
     st.text_input("Search ticker or company", key="sim_add_query",
-                  placeholder="e.g. NVDA, Apple…", label_visibility="collapsed",
-                  on_change=_on_sim_search)
+                  placeholder="🔍  Search ticker or company — NVDA, Apple…",
+                  label_visibility="collapsed", on_change=_on_sim_search)
 
     _sim_q = st.session_state.get("_sim_search_live", "").strip().upper()
+
+    # Suggestions dropdown
+    _sim_matches = []
     if _sim_q:
         _sim_matches = sorted(
             [r for r in scan if r["ticker"].startswith(_sim_q) or
              _sim_q.lower() in r.get("ticker","").lower()],
             key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
         )[:6]
-        if _sim_matches:
-            _sug_html = ('<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
-                        'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
-                        '<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;'
-                        'letter-spacing:.1em;padding:7px 14px 3px;">SUGGESTIONS</div>')
-            for _r in _sim_matches:
-                _tk  = _r["ticker"]
-                _sc  = float(_r.get("adj_composite", _r.get("composite", 0)) or 0)
-                _already = _tk in st.session_state.get("sim_selected", [])
-                if _already:
-                    _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
-                                 'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;'
-                                 'opacity:.5;cursor:default;">'
-                                 f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#475569;min-width:52px;">{_tk}</span>'
-                                 f'<span style="font-size:11px;color:#334155;">score {_sc:.0f} · already added</span></a>')
-                else:
-                    _add_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_add={_tk}"
-                    _sug_html += ('<a href="' + _add_url + '" target="_self" class="qac-sug-row" '
-                                 'style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
-                                 'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;">'
-                                 f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'
-                                 f'<span style="font-size:11px;color:#00ff87;">score {_sc:.0f}</span>'
-                                 f'<span style="font-size:11px;color:#475569;margin-left:auto;">+ Add</span></a>')
-            _sug_html += '</div>'
-            st.markdown(_sug_html, unsafe_allow_html=True)
+
+    if _sim_matches:
+        _sug_html = ('<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
+                    'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
+                    '<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;'
+                    'letter-spacing:.1em;padding:7px 14px 3px;">SUGGESTIONS</div>')
+        for _r in _sim_matches:
+            _tk  = _r["ticker"]
+            _sc  = float(_r.get("adj_composite", _r.get("composite", 0)) or 0)
+            _already = _tk in st.session_state.get("sim_selected", [])
+            if _already:
+                _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
+                             'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;opacity:.5;">'
+                             f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#475569;min-width:52px;">{_tk}</span>'
+                             f'<span style="font-size:11px;color:#334155;">score {_sc:.0f} · in simulation</span></a>')
+            else:
+                _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
+                             'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;cursor:pointer;'
+                             f'" onclick="">'
+                             f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'
+                             f'<span style="font-size:11px;color:#00ff87;">score {_sc:.0f}</span>'
+                             f'<span style="font-size:11px;color:#475569;margin-left:auto;">tap to select</span></a>')
+        _sug_html += '</div>'
+        st.markdown(_sug_html, unsafe_allow_html=True)
+
+        # Clickable buttons for each suggestion
+        for _r in _sim_matches:
+            _tk = _r["ticker"]
+            _sc = float(_r.get("adj_composite", _r.get("composite", 0)) or 0)
+            _already = _tk in st.session_state.get("sim_selected", [])
+            if not _already:
+                if st.button(f"{_tk}  ·  {_sc:.0f}", key=f"simsug_{_tk}", use_container_width=True):
+                    st.session_state._sim_sug_just_picked = _tk
+                    st.session_state._sim_selected_tk = _tk
+                    st.rerun()
+    elif _sim_q:
+        st.markdown('<div style="font-size:11px;color:#334155;padding:4px 0;">No matches in universe</div>', unsafe_allow_html=True)
+
+    # Show selected ticker card with Add/Remove CTA
+    _sim_sel_tk = st.session_state.get("_sim_selected_tk", "")
+    if _sim_sel_tk and _sim_sel_tk in ticker_map:
+        _sel_r = dict(ticker_map[_sim_sel_tk])
+        _sel_adj = float(_sel_r.get("adj_composite", _sel_r.get("composite", 50)) or 50)
+        _sel_r["adj_action"] = "BUY" if _sel_adj >= 60 else ("SELL" if _sel_adj < 45 else "HOLD")
+        _sel_r["adj_composite"] = _sel_adj
+        _sel_ci = get_company_info(_sim_sel_tk)
+        st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
+        st.markdown(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        # Add / Remove CTA
+        _in_sim = _sim_sel_tk in st.session_state.get("sim_selected", [])
+        if _in_sim:
+            if st.button(f"✕ Remove {_sim_sel_tk} from Simulation", key="sim_rm_sel", use_container_width=True):
+                st.session_state.sim_selected.remove(_sim_sel_tk)
+                st.session_state._sim_selected_tk = ""
+                st.session_state.nav = "simulator"
+                st.rerun()
         else:
-            st.markdown('<div style="font-size:11px;color:#334155;padding:4px 0;">No matches</div>', unsafe_allow_html=True)
+            if st.button(f"+ Add {_sim_sel_tk} to Simulation", key="sim_add_sel", use_container_width=True):
+                if "sim_selected" not in st.session_state:
+                    st.session_state.sim_selected = []
+                st.session_state.sim_selected.append(_sim_sel_tk)
+                st.session_state._sim_selected_tk = ""
+                st.session_state.nav = "simulator"
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     selected_rows = [ticker_map[t] for t in st.session_state.sim_selected if t in ticker_map]
     n_sel = len(selected_rows)
