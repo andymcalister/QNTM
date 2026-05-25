@@ -7366,27 +7366,22 @@ def main():
     if st.query_params.get("ck") == "1":
         st.session_state.cookies_accepted = True
 
-    # Handle nav button side effects — re-route if needed
-    # Only auto-redirect to platform if user didn't explicitly request landing
-    # If user explicitly requested landing (back button), show it even when logged in
-    _explicit_landing = st.session_state.get("_show_landing", False)
-    if _explicit_landing:
-        st.session_state.page = "landing"
-        st.session_state._show_landing = False  # clear after use
-    elif st.session_state.page == "landing" and st.session_state.logged_in:
-        st.session_state.page = "platform"
-
     # ── Reconnect recovery: restore nav from _n param ───────────────────────
     _saved_nav = st.query_params.get("_n", "")
     _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
                    "model_portfolio","alerts","account","methodology"}
-    if _saved_nav in _VALID_TABS:
-        # Always restore _n — covers both reconnect wipe AND text input rerun
-        # Only override if not already on a valid page
+    if _saved_nav in _VALID_TABS and not st.session_state.get("_show_landing"):
         _cur = st.session_state.get("nav", "screener")
         if _cur == "screener" and _saved_nav != "screener":
             st.session_state.nav  = _saved_nav
             st.session_state.page = "platform"
+
+    # ── Landing page routing — must run last so nothing overrides it ─────────
+    if st.session_state.get("_show_landing"):
+        st.session_state.page = "landing"
+        st.session_state._show_landing = False
+    elif st.session_state.page == "landing" and st.session_state.logged_in:
+        st.session_state.page = "platform"
 
     route = st.session_state.page
     if   route == "landing":  page_landing()
