@@ -514,6 +514,69 @@ iframe[height="0"], iframe[style*="height: 0"],
 }
 
 
+
+/* Full Universe filter selects — reduce Streamlit feel */
+div[data-testid="stSelectbox"] > div > div {
+    background: rgba(255,255,255,.03) !important;
+    border: 1px solid rgba(255,255,255,.1) !important;
+    border-radius: 6px !important;
+    color: #94a3b8 !important;
+    font-family: DM Mono, monospace !important;
+    font-size: 12px !important;
+    min-height: 36px !important;
+}
+div[data-testid="stSelectbox"] label {
+    font-family: DM Mono, monospace !important;
+    font-size: 10px !important;
+    color: #475569 !important;
+    letter-spacing: .08em !important;
+    text-transform: uppercase !important;
+}
+/* Expander — reduce Streamlit feel */
+[data-testid="stExpander"] {
+    background: rgba(255,255,255,.02) !important;
+    border: 1px solid rgba(255,255,255,.07) !important;
+    border-radius: 8px !important;
+}
+[data-testid="stExpander"] summary {
+    font-family: Syne, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #94a3b8 !important;
+}
+/* Number inputs — reduce Streamlit feel */
+div[data-testid="stNumberInput"] input {
+    background: rgba(255,255,255,.03) !important;
+    border: 1px solid rgba(255,255,255,.1) !important;
+    border-radius: 6px !important;
+    color: #e2e8f0 !important;
+    font-family: DM Mono, monospace !important;
+    font-size: 13px !important;
+}
+/* Date input */
+div[data-testid="stDateInput"] input {
+    background: rgba(255,255,255,.03) !important;
+    border: 1px solid rgba(255,255,255,.1) !important;
+    border-radius: 6px !important;
+    color: #e2e8f0 !important;
+}
+/* Add Position text input */
+div[data-testid="stTextInput"] input {
+    background: rgba(255,255,255,.03) !important;
+    border: 1px solid rgba(255,255,255,.1) !important;
+    border-radius: 6px !important;
+    color: #e2e8f0 !important;
+    font-family: Outfit, sans-serif !important;
+}
+div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
+    border: 1px solid rgba(0,255,135,.3) !important;
+}
+/* st.spinner — reduce Streamlit feel */
+[data-testid="stSpinner"] > div {
+    color: #475569 !important;
+    font-size: 12px !important;
+}
+
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 768px) {
     /* Prevent iOS zoom on inputs */
@@ -2419,7 +2482,7 @@ def page_landing():
     #MainMenu, header[data-testid="stHeader"], footer { display: none !important; }
 
     /* ── Layout helpers ── */
-    .land-section { padding: 40px clamp(16px,4vw,48px); max-width: 1200px; margin: 0 auto; }
+    .land-section { padding: 28px clamp(16px,4vw,48px) 16px; max-width: 1200px; margin: 0 auto; }
     .land-divider  { border-top: 1px solid rgba(255,255,255,.06); }
 
     /* ── Animations ── */
@@ -2689,12 +2752,18 @@ def page_landing():
 
         # ── LEFT: headline + subtext + CTAs ──────────────────────────────────
         '<div>'
-        '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(212,168,67,.08);'
-        'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;margin-bottom:22px;">'
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">'
+        '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(212,168,67,.08);'
+        'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;">'
         '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
         'animation:land-pulse 2s infinite;flex-shrink:0;"></div>'
         '<span style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">'
-        'MODEL LIVE · 5-YR VALIDATED · 834 STOCKS</span></div>'
+        'MODEL LIVE · 5-YR VALIDATED</span></div>'
+        '<div style="display:inline-flex;align-items:center;background:rgba(0,255,135,.05);'
+        'border:1px solid rgba(0,255,135,.15);border-radius:100px;padding:5px 14px;">'
+        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.08em;">'
+        '🎯 50 FOUNDING SPOTS · FREE TODAY</span></div>'
+        '</div>'
         '<h1 style="font-family:Syne,sans-serif;font-size:clamp(36px,4vw,60px);'
         'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:18px;">'
         'Know where<br>conviction is<br>'
@@ -2710,6 +2779,9 @@ def page_landing():
         _cta_gold("Join Free →", "?nav=register")
         + _cta_ghost("Sign In", "?nav=signin")
         + '</div>'  # end CTA grid
+        + '<div style="margin-top:10px;font-size:11px;color:#334155;letter-spacing:.02em;">'
+        + 'No credit card · cancel anytime · free tier always available'
+        + '</div>'
         '</div>'    # end left col
 
         # ── RIGHT: intelligence panel ─────────────────────────────────────────
@@ -2887,7 +2959,7 @@ def page_landing():
            color:#fff;margin-bottom:10px;line-height:1.1;">
         5 years. 6 regimes.<br><span style="color:#d4a843;">Proven in every market.</span>
       </h2>
-      <p style="color:#94a3b8;margin-bottom:40px;">Real data. Same rules every year. No tuning.</p>
+      <p style="color:#64748b;margin-bottom:24px;font-size:13px;">Real data. Same rules every year. No tuning between regimes.</p>
     </div>
     """, unsafe_allow_html=True)
 
