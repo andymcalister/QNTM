@@ -673,67 +673,6 @@ _cv1_js.html("""
     }, { passive: false });
 })();
 
-// ── AUTOCOMPLETE ──────────────────────────────────────────────────────────────
-(function() {
-    var drop = parent.document.getElementById('qntm-ac');
-    if (!drop) return;
-    var DATA   = window._qacData   || [];
-    var RECENT = window._qacRecent || [];
-    var BASE   = window._qacBase   || '';
-    var aidx = -1;
-
-    function go(t) { parent.location.href = BASE + '&ac_pick=' + encodeURIComponent(t); }
-    function render(items, sec) {
-        var h = sec ? '<div class="qac-sec">' + sec + '</div>' : '';
-        items.forEach(function(d) {
-            h += '<div class="qac-row" data-t="' + d.t + '"><span class="qac-tk">' + d.t + '</span><span class="qac-nm">' + (d.n||'') + '</span></div>';
-        });
-        return h;
-    }
-    function pos(inp) {
-        var b = inp.getBoundingClientRect();
-        drop.style.top   = (b.bottom + parent.scrollY + 4) + 'px';
-        drop.style.left  = b.left + 'px';
-        drop.style.width = b.width + 'px';
-    }
-    function show(items, sec, inp) {
-        if (!items.length) { drop.style.display='none'; return; }
-        drop.innerHTML = render(items, sec);
-        drop.style.display = 'block';
-        pos(inp); aidx = -1;
-        drop.querySelectorAll('.qac-row').forEach(function(el) {
-            el.addEventListener('mousedown', function(e) { e.preventDefault(); });
-            el.addEventListener('click', function() { go(el.getAttribute('data-t')); });
-        });
-    }
-    function hide() { drop.style.display='none'; aidx=-1; }
-    function search(q, inp) {
-        if (!q) {
-            RECENT.length ? show(RECENT.map(function(t){return DATA.find(function(d){return d.t===t;})||{t:t,n:''}}), 'RECENT', inp) : hide();
-            return;
-        }
-        var ql = q.toLowerCase();
-        var res = DATA.filter(function(d){return d.t.toLowerCase().startsWith(ql)||(d.n&&d.n.toLowerCase().includes(ql));}).slice(0,8);
-        show(res, res.length?'SUGGESTIONS':'', inp);
-    }
-    function bindInput() {
-        var inp = parent.document.querySelector('div[data-testid="stTextInput"][data-key="screener_search"] input');
-        if (!inp || inp._qac) return;
-        inp._qac = true;
-        inp.addEventListener('input',  function(){search(inp.value.trim(),inp);});
-        inp.addEventListener('focus',  function(){search(inp.value.trim(),inp);});
-        inp.addEventListener('blur',   function(){setTimeout(hide,200);});
-        inp.addEventListener('keydown',function(e){
-            var rows=drop.querySelectorAll('.qac-row');
-            if(e.key==='ArrowDown'){aidx=Math.min(aidx+1,rows.length-1);rows.forEach(function(r,i){r.classList.toggle('qac-on',i===aidx);});e.preventDefault();}
-            else if(e.key==='ArrowUp'){aidx=Math.max(aidx-1,0);rows.forEach(function(r,i){r.classList.toggle('qac-on',i===aidx);});e.preventDefault();}
-            else if(e.key==='Escape'){hide();}
-        });
-    }
-    bindInput();
-    new MutationObserver(bindInput).observe(parent.document.body,{childList:true,subtree:true});
-    parent.addEventListener('scroll',function(){var inp=parent.document.querySelector('div[data-testid="stTextInput"][data-key="screener_search"] input');if(inp&&drop.style.display==='block')pos(inp);});
-})();
 </script>
 """, height=0)
 
@@ -3768,8 +3707,7 @@ def page_screener():
     data_freshness_banner()
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    # ── Search box with autocomplete ─────────────────────────────────────────
-    # Handle incoming ac_pick from autocomplete selection
+    # ── Search box — premium styled with recent searches ────────────────────
     _ac_pick = st.query_params.get("ac_pick", "")
     if _ac_pick:
         st.session_state.screener_search_val = _ac_pick.upper()
@@ -3782,136 +3720,48 @@ def page_screener():
         st.session_state.screener_search_val = _sq_param
         st.query_params.pop("sq", None)
 
-    # Build ticker autocomplete data
-    _AC_KNOWN = {
-        "AAPL":"Apple","MSFT":"Microsoft","NVDA":"NVIDIA","GOOGL":"Alphabet",
-        "META":"Meta","AMZN":"Amazon","TSLA":"Tesla","NFLX":"Netflix",
-        "AMD":"AMD","INTC":"Intel","CSCO":"Cisco","ORCL":"Oracle","CRM":"Salesforce",
-        "ADBE":"Adobe","AVGO":"Broadcom","JPM":"JPMorgan","BAC":"Bank of America",
-        "GS":"Goldman Sachs","V":"Visa","MA":"Mastercard","WMT":"Walmart",
-        "COST":"Costco","PG":"P&G","KO":"Coca-Cola","PEP":"PepsiCo",
-        "HD":"Home Depot","MCD":"McDonald's","NKE":"Nike","XOM":"Exxon",
-        "CVX":"Chevron","UNH":"UnitedHealth","LLY":"Eli Lilly","JNJ":"J&J",
-        "ABBV":"AbbVie","MRK":"Merck","PFE":"Pfizer","AMGN":"Amgen",
-        "PLTR":"Palantir","COIN":"Coinbase","SNOW":"Snowflake","CRWD":"CrowdStrike",
-        "PANW":"Palo Alto","NOW":"ServiceNow","UBER":"Uber","ABNB":"Airbnb",
-        "SPOT":"Spotify","PYPL":"PayPal","DDOG":"Datadog","NET":"Cloudflare",
+    # Premium search input styling
+    st.markdown("""
+    <style>
+    div[data-testid="stTextInput"][data-key="screener_search"] input {
+        background: rgba(255,255,255,.04) !important;
+        border: 1px solid rgba(0,255,135,.3) !important;
+        border-radius: 8px !important;
+        color: #e2e8f0 !important;
+        font-size: 15px !important;
+        font-family: Outfit, sans-serif !important;
+        padding: 13px 20px !important;
+        height: 50px !important;
+        transition: border-color .2s, box-shadow .2s !important;
     }
-    import json as _json
-    _ac_js = _json.dumps([{"t":tk,"n":_AC_KNOWN.get(tk,"")} for tk in list(SECTORS.keys())])
-    _recent_js = _json.dumps(st.session_state.get("recent_searches", []))
-    _uid_ac = (st.session_state.user or {}).get("id","")
-    _pln_ac = (st.session_state.user or {}).get("plan","free")
-    _base_url = f"?qnav=screener&uid={_uid_ac}&plan={_pln_ac}&ck=1"
+    div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
+        border-color: rgba(0,255,135,.6) !important;
+        box-shadow: 0 0 0 3px rgba(0,255,135,.08) !important;
+        outline: none !important;
+    }
+    div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
+        color: #334155 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # Inject autocomplete data into window vars for the global JS
-    st.markdown(f"""
-<script>
-window._qacData   = {_ac_js};
-window._qacRecent = {_recent_js};
-window._qacBase   = "{_base_url}";
-</script>
-""", unsafe_allow_html=True)
-
-    st.markdown(f"""
-<style>
-div[data-testid="stTextInput"][data-key="screener_search"] input {{
-    background:rgba(255,255,255,.04)!important;
-    border:1px solid rgba(0,255,135,.25)!important;
-    border-radius:8px!important;color:#e2e8f0!important;
-    font-size:15px!important;padding:13px 20px!important;height:50px!important;
-    transition:border-color .2s!important;
-}}
-div[data-testid="stTextInput"][data-key="screener_search"] input:focus {{
-    border-color:rgba(0,255,135,.5)!important;outline:none!important;
-}}
-div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {{
-    color:#334155!important;
-}}
-#qntm-ac {{
-    display:none;position:fixed;background:#0d1117;
-    border:1px solid rgba(255,255,255,.12);border-radius:8px;
-    z-index:99999;box-shadow:0 12px 40px rgba(0,0,0,.85);
-    max-height:272px;overflow-y:auto;
-}}
-#qntm-ac::-webkit-scrollbar{{width:3px;}}
-#qntm-ac::-webkit-scrollbar-thumb{{background:rgba(0,255,135,.2);border-radius:2px;}}
-.qac-sec{{font-family:DM Mono,monospace;font-size:9px;color:#334155;letter-spacing:.1em;padding:8px 14px 4px;}}
-.qac-row{{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);}}
-.qac-row:hover,.qac-row.qac-on{{background:rgba(0,255,135,.07);}}
-.qac-tk{{font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;min-width:54px;}}
-.qac-nm{{font-size:12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
-</style>
-<div id="qntm-ac"></div>
-<script>
-(function(){{
-  if(window._qacInit)return; window._qacInit=true;
-  var DATA={_ac_js};
-  var RECENT={_recent_js};
-  var BASE="{_base_url}";
-  var drop=document.getElementById('qntm-ac');
-  var inp=null; var aidx=-1;
-
-  function getInp(){{
-    return document.querySelector('div[data-testid="stTextInput"][data-key="screener_search"] input');
-  }}
-  function go(t){{ window.location.href=BASE+'&ac_pick='+encodeURIComponent(t); }}
-  function render(items,sec){{
-    var h=sec?'<div class="qac-sec">'+sec+'</div>':'';
-    items.forEach(function(d,i){{
-      h+='<div class="qac-row" data-t="'+d.t+'"><span class="qac-tk">'+d.t+'</span><span class="qac-nm">'+(d.n||'')+'</span></div>';
-    }});
-    return h;
-  }}
-  function pos(){{
-    var r=(inp||getInp());
-    if(!r)return;
-    var b=r.getBoundingClientRect();
-    drop.style.top=(b.bottom+window.scrollY+4)+'px';
-    drop.style.left=b.left+'px';
-    drop.style.width=b.width+'px';
-  }}
-  function show(items,sec){{
-    if(!items.length){{drop.style.display='none';return;}}
-    drop.innerHTML=render(items,sec);
-    drop.style.display='block';
-    pos();
-    aidx=-1;
-    drop.querySelectorAll('.qac-row').forEach(function(el){{
-      el.addEventListener('mousedown',function(e){{e.preventDefault();}});
-      el.addEventListener('click',function(){{go(el.getAttribute('data-t'));}});
-    }});
-  }}
-  function hide(){{drop.style.display='none';aidx=-1;}}
-  function search(q){{
-    if(!q){{
-      RECENT.length?show(RECENT.map(function(t){{return DATA.find(function(d){{return d.t===t;}})||{{t:t,n:''}};}}),'RECENT'):hide();
-      return;
-    }}
-    var ql=q.toLowerCase();
-    var res=DATA.filter(function(d){{return d.t.toLowerCase().startsWith(ql)||(d.n&&d.n.toLowerCase().includes(ql));}}).slice(0,8);
-    show(res,res.length?'SUGGESTIONS':'');
-  }}
-  function bind(){{
-    var el=getInp();
-    if(!el||el._qac)return;
-    el._qac=true; inp=el;
-    el.addEventListener('input',function(){{search(el.value.trim());}});
-    el.addEventListener('focus',function(){{search(el.value.trim());}});
-    el.addEventListener('blur',function(){{setTimeout(hide,200);}});
-    el.addEventListener('keydown',function(e){{
-      var rows=drop.querySelectorAll('.qac-row');
-      if(e.key==='ArrowDown'){{aidx=Math.min(aidx+1,rows.length-1);rows.forEach(function(r,i){{r.classList.toggle('qac-on',i===aidx);}});e.preventDefault();}}
-      else if(e.key==='ArrowUp'){{aidx=Math.max(aidx-1,0);rows.forEach(function(r,i){{r.classList.toggle('qac-on',i===aidx);}});e.preventDefault();}}
-      else if(e.key==='Escape'){{hide();}}
-    }});
-  }}
-  bind();
-  new MutationObserver(bind).observe(document.body,{{childList:true,subtree:true}});
-  window.addEventListener('scroll',function(){{if(drop.style.display==='block')pos();}});
-}})();
-</script>
-""", unsafe_allow_html=True)
+    # Recent searches — clickable pills above input
+    _recent = st.session_state.get("recent_searches", [])
+    _uid_rs = (st.session_state.user or {}).get("id", "")
+    _pln_rs = (st.session_state.user or {}).get("plan", "free")
+    if _recent:
+        pills_html = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center;">'
+        pills_html += '<span style="font-family:DM Mono,monospace;font-size:9px;color:#334155;letter-spacing:.1em;">RECENT</span>'
+        for _rt in _recent:
+            _ru = f"?qnav=screener&uid={_uid_rs}&plan={_pln_rs}&ck=1&ac_pick={_rt}"
+            pills_html += (
+                f'<a href="{_ru}" target="_self" style="'
+                f'padding:3px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.1);'
+                f'background:rgba(255,255,255,.03);font-family:Syne,sans-serif;font-size:11px;'
+                f'font-weight:700;color:#475569;text-decoration:none;white-space:nowrap;">{_rt}</a>'
+            )
+        pills_html += '</div>'
+        st.markdown(pills_html, unsafe_allow_html=True)
 
     search_ticker = st.text_input(
         "Search ticker",
@@ -3920,11 +3770,12 @@ div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {{
         key="screener_search",
         label_visibility="collapsed"
     ).strip().upper()
+
     if search_ticker:
         st.session_state.screener_search_val = search_ticker
         _rl = st.session_state.get("recent_searches", [])
         if search_ticker not in _rl:
-            st.session_state.recent_searches = ([search_ticker] + _rl)[:5]
+            st.session_state.recent_searches = ([search_ticker] + [r for r in _rl if r != search_ticker])[:5]
 
     if search_ticker:
         # Resolve company name → ticker first
