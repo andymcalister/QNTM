@@ -3384,10 +3384,12 @@ def page_auth():
     </style>
     """, unsafe_allow_html=True)
 
-    # Style the back button to look like _back_btn but use st.button for reliable nav
     st.markdown("""
     <style>
     div[data-testid="stButton"][data-key="auth_home_btn"] button {
+        display:inline-flex !important;
+        align-items:center !important;
+        gap:4px !important;
         background:rgba(255,255,255,.03) !important;
         border:1px solid rgba(255,255,255,.12) !important;
         border-radius:6px !important;
@@ -3396,11 +3398,19 @@ def page_auth():
         font-size:11px !important;
         font-weight:700 !important;
         letter-spacing:.04em !important;
-        padding:6px 10px !important;
+        padding:7px 10px !important;
         white-space:nowrap !important;
         text-transform:uppercase !important;
         width:auto !important;
         min-width:0 !important;
+        box-shadow:none !important;
+        transform:none !important;
+    }
+    div[data-testid="stButton"][data-key="auth_home_btn"] button:hover {
+        background:rgba(255,255,255,.06) !important;
+        border-color:rgba(255,255,255,.2) !important;
+        color:#e2e8f0 !important;
+        transform:none !important;
     }
     </style>
     """, unsafe_allow_html=True)
