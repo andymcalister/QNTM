@@ -4055,7 +4055,6 @@ def page_screener():
 
 def page_watchlist():
     _pin_nav("watchlist")
-    """User watchlist — tracked stocks with live conviction scores."""
     page_summary("★", "Watchlist", "Your tracked stocks · conviction scores updated daily")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
@@ -4317,9 +4316,11 @@ def page_watchlist():
         score_str  = f"{adj:.0f}" if adj else "—"
         # Score + delta inline: "74 ↑ +4"
         trend_arrow_s, trend_color_s, trend_delta_s = wl_trend.get(tk, ("", "#64748b", ""))
+        # Only show delta if meaningful (not zero)
+        _show_delta = trend_arrow_s and trend_delta_s and trend_delta_s not in ('+0', '-0', '0', '+0', '→')
         score_with_delta = (
             f'{score_str} <span style="font-size:11px;color:{trend_color_s};">{trend_arrow_s} {trend_delta_s}</span>'
-            if trend_arrow_s else score_str
+            if _show_delta else score_str
         )
 
         sig_label = "High Conviction" if adj >= 60 else ("Low Conviction" if adj < 45 else "Moderate")
