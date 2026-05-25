@@ -4153,17 +4153,37 @@ def page_watchlist():
             unsafe_allow_html=True
         )
 
-    # Summary header
-    n = len(watchlist)
-    n_hi  = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) >= 60)
-    n_lo  = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",50) or 50) < 45)
-    _lo_html = f'<div style="font-size:13px;color:#ef4444;">▼ {n_lo} Low Conviction</div>' if n_lo else ""
+    # ── Intelligence summary — improving/weakening/posture ─────────────────
+    n        = len(watchlist)
+    n_hi     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) >= 60)
+    n_lo     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",50) or 50) < 45)
+    scores_all = [float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) for w in watchlist]
+    avg_score  = sum(scores_all) / len(scores_all) if scores_all else 0
+    avg_label  = 'High' if avg_score >= 60 else ('Low' if avg_score < 45 else 'Moderate')
+    avg_color  = '#00ff87' if avg_score >= 60 else ('#ef4444' if avg_score < 45 else '#fbbf24')
+    # Count improving vs weakening from wl_trend
+    n_improving = sum(1 for tk in [w['ticker'] for w in watchlist] if wl_trend.get(tk, ('',))[0] == '↑')
+    n_weakening = sum(1 for tk in [w['ticker'] for w in watchlist] if wl_trend.get(tk, ('',))[0] == '↓')
+    # Sector posture — dominant sector among high conviction
+    hi_sectors = [_WL_SECTORS.get(w['ticker'],'') for w in watchlist
+                  if float((score_map.get(w['ticker']) or {}).get('adj_composite',0) or 0) >= 60]
+    from collections import Counter
+    top_sector = Counter(hi_sectors).most_common(1)[0][0] if hi_sectors else ''
+    top_sector_html = f'<span style="color:#475569;">· {top_sector} leading</span>' if top_sector else ''
+
+    _impr_html = f'<span style="color:#00ff87;">↑ {n_improving} improving</span>' if n_improving else ''
+    _weak_html = f'<span style="color:#ef4444;">↓ {n_weakening} weakening</span>' if n_weakening else ''
+    _sep = '<span style="color:#1e293b;"> · </span>'
+    _parts = [p for p in [_impr_html, _weak_html, top_sector_html] if p]
+
     st.markdown(
-        f'<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">'
-        f'<div style="font-size:13px;color:#64748b;">{n} stocks tracked</div>'
-        f'<div style="font-size:13px;color:#00ff87;">▲ {n_hi} High Conviction</div>'
-        f'{_lo_html}'
-        f'</div>',
+        f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
+        f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#475569;">{n} tracked</span>'
+        f'<span style="color:#1e293b;">·</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:{avg_color};">avg {avg_score:.0f} {avg_label}</span>'
+        + (_sep + _sep.join(_parts) if _parts else '')
+        + f'</div>',
         unsafe_allow_html=True
     )
 
@@ -4294,6 +4314,12 @@ def page_watchlist():
         since_str,  since_col  = _chg(since_pct)
         price_str  = f"${cur_price:,.2f}" if cur_price else "—"
         score_str  = f"{adj:.0f}" if adj else "—"
+        # Score + delta inline: "74 ↑ +4"
+        trend_arrow_s, trend_color_s, trend_delta_s = wl_trend.get(tk, ("", "#64748b", ""))
+        score_with_delta = (
+            f'{score_str} <span style="font-size:11px;color:{trend_color_s};">{trend_arrow_s} {trend_delta_s}</span>'
+            if trend_arrow_s else score_str
+        )
 
         sig_label = "High Conviction" if adj >= 60 else ("Low Conviction" if adj < 45 else "Moderate")
         sig_color = "#00ff87" if adj >= 60 else ("#ef4444" if adj < 45 else "#fbbf24")
@@ -4331,7 +4357,7 @@ def page_watchlist():
             f'</div>'
             f'<div style="font-size:12px;color:#64748b;">{sector}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;text-align:right;">{price_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{score_col};text-align:right;">{score_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{score_col};text-align:right;">{score_with_delta}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{day_col};text-align:right;">{day_str}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{since_col};text-align:right;">{since_str}</div>'
             + trend_html +
@@ -4347,9 +4373,8 @@ def page_watchlist():
             f'<div style="font-size:11px;color:#64748b;">{name} · {sector}</div>'
             f'</div>'
             f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:{score_col};">{score_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:{score_col};">{score_with_delta}</div>'
             f'<div style="font-size:11px;color:{sig_color};font-weight:600;">{sig_label}</div>'
-            f'<div style="font-size:13px;color:{trend_color};font-weight:700;">{trend_arrow} {trend_delta}</div>'
             f'</div>'
             f'</div>'
             f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
@@ -4364,13 +4389,18 @@ def page_watchlist():
             f'</div>',
             unsafe_allow_html=True
         )
+        # Mini sparkline for this watchlist stock
+        if adj:
+            _spark = signal_history_chart(tk, adj)
+            if _spark:
+                st.markdown(_spark, unsafe_allow_html=True)
         _uid_val = (st.session_state.user or {}).get("id", "")
         _plan_val = (st.session_state.user or {}).get("plan", "free")
         _rm_url = f"?qnav=watchlist&uid={_uid_val}&plan={_plan_val}&ck=1&wl_action=remove&wl_ticker={tk}"
         st.markdown(
             f'<a href="{_rm_url}" target="_self" style="'
-            f'display:block;width:100%;text-align:center;padding:8px;margin-top:6px;'
-            f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);'
+            f'display:block;width:100%;text-align:center;padding:8px;margin-top:4px;'
+            f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);'
             f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
             f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
             f'box-sizing:border-box;">✕ Remove</a>',
