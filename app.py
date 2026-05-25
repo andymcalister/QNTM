@@ -2469,6 +2469,8 @@ def page_legal(doc_key: str = "privacy"):
     if st.button("← Back", key="legal_back_btn"):
         st.session_state.page = "landing"
         st.session_state.signed_out = True
+        # Clear legal param so routing doesn't re-set page=legal on rerun
+        st.query_params.clear()
         st.rerun()
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
