@@ -115,7 +115,7 @@ section[data-testid="stMain"] > div,
 
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-track{background:#0a0b14;}
-::-webkit-scrollbar-thumb{background:#00ff87;border-radius:2px;}
+::-webkit-scrollbar-thumb{background:rgba(0,255,135,.35);border-radius:2px;}
 
 /* ── Mobile responsive: watchlist + model portfolio ── */
 @media (max-width: 520px) {
@@ -132,8 +132,8 @@ section[data-testid="stMain"] > div,
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-@keyframes glow{0%,100%{box-shadow:0 0 4px rgba(0,255,135,.1)}50%{box-shadow:0 0 12px rgba(0,255,135,.2)}}
-@keyframes scanLine{0%{top:-2px}100%{top:100%}}
+@keyframes glow{0%,100%{box-shadow:none}50%{box-shadow:none}}
+@keyframes scanLine{0%{top:-2px;opacity:.3}100%{top:100%;opacity:0}}
 @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
 /* ── Collapsed card (details/summary) ── */
@@ -154,7 +154,7 @@ details[open] {
 /* One-at-a-time: when any details is open, siblings get slightly dimmed */
 details:not([open]) { opacity: .92; }
 details:hover:not([open]) { opacity: 1; }
-@keyframes borderAnim{0%,100%{border-color:rgba(0,255,135,.2)}50%{border-color:rgba(0,255,135,.6)}}
+@keyframes borderAnim{0%,100%{border-color:rgba(0,255,135,.15)}50%{border-color:rgba(0,255,135,.3)}}
 @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* Typography */
@@ -218,7 +218,7 @@ div[data-ghost="1"] .stButton > button {
 div[data-ghost="1"] .stButton > button:hover {
   background: rgba(0,255,135,.05) !important;
   border-color: rgba(0,255,135,.4) !important;
-  box-shadow: 0 0 12px rgba(0,255,135,.1) !important;
+  box-shadow: none !important;
   transform: none !important;
 }
 
@@ -392,7 +392,7 @@ div.land-btn-primary button[kind="secondary"] {
   min-height: 48px !important;
   height: auto !important;
   cursor: pointer !important;
-  box-shadow: 0 0 20px rgba(212,168,67,.25) !important;
+  box-shadow: 0 2px 12px rgba(212,168,67,.15) !important;
   transition: all .2s !important;
   white-space: normal !important;
 }
@@ -400,7 +400,7 @@ div.land-btn-primary button[kind="secondary"] {
 .land-btn-primary button:hover,
 div.land-btn-primary .stButton > button:hover {
   background: linear-gradient(135deg,#e0b84e 0%,#c9a03e 50%,#e0b84e 100%) !important;
-  box-shadow: 0 0 32px rgba(212,168,67,.4) !important;
+  box-shadow: 0 4px 20px rgba(212,168,67,.25) !important;
   transform: translateY(-1px) !important;
 }
 /* ── Ghost button ── */
@@ -527,6 +527,48 @@ iframe[height="0"], iframe[style*="height: 0"],
     .land-section { padding: 24px 12px !important; }
 }
 /* Viewport meta (Streamlit adds this but ensure scale=1) */
+
+/* ── 3-Level Visual Hierarchy ──────────────────────────────────────────────
+   Level 1 (high emphasis):  conviction badges, regime badge, primary CTAs, active alerts
+   Level 2 (medium):         cards, charts, section headers, expanded content
+   Level 3 (low):            timestamps, metadata, helper text, secondary metrics
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Level 3 — timestamps, scan dates, metadata — consistently muted */
+.qntm-meta, .qntm-ts {
+  color: #334155 !important;
+  font-size: 11px !important;
+}
+
+/* Reduce competing card borders — unified subtle treatment */
+.qcard-wrap label {
+  transition: border-color .15s ease, background .15s ease;
+}
+.qcard-wrap label:hover {
+  border-color: rgba(255,255,255,.1) !important;
+  background: rgba(255,255,255,.03) !important;
+}
+
+/* Reduce stat card glow — cards are Level 2, not Level 1 */
+[data-testid="stMetricValue"] {
+  color: #d4a843 !important;
+  font-size: 24px !important;
+  text-shadow: none !important;
+}
+
+/* Tabs — active is Level 1, inactive is Level 3 */
+.stTabs [data-baseweb="tab"] {
+  color: #475569 !important;
+}
+.stTabs [aria-selected="true"] {
+  color: #e2e8f0 !important;
+  background: rgba(255,255,255,.05) !important;
+}
+
+/* Section dividers — very subtle Level 3 */
+.land-divider {
+  border-color: rgba(255,255,255,.04) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1438,9 +1480,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     delta  = r.get("score_delta", 0)
 
     act_colors = {
-        "BUY":  ("#00ff87", "rgba(0,255,135,.1)",  "rgba(0,255,135,.35)"),
-        "HOLD": ("#fbbf24", "rgba(251,191,36,.1)",  "rgba(251,191,36,.3)"),
-        "SELL": ("#ef4444", "rgba(239,68,68,.1)",   "rgba(239,68,68,.3)"),
+        "BUY":  ("#00ff87", "rgba(0,255,135,.08)", "rgba(0,255,135,.22)"),
+        "HOLD": ("#fbbf24", "rgba(251,191,36,.06)", "rgba(251,191,36,.2)"),
+        "SELL": ("#ef4444", "rgba(239,68,68,.08)",  "rgba(239,68,68,.2)"),
     }
     act_c, act_bg, act_brd = act_colors.get(act, ("#64748b","rgba(100,116,139,.1)","rgba(100,116,139,.3)"))
 
@@ -2279,8 +2321,8 @@ def page_landing():
       100% { background-position:  300% center; }
     }
     @keyframes land-float {
-      0%,100% { transform: translateY(0px);   box-shadow: 0 8px 32px rgba(212,168,67,.25), 0 2px 8px rgba(0,0,0,.4); }
-      50%      { transform: translateY(-4px);  box-shadow: 0 16px 40px rgba(212,168,67,.35), 0 4px 12px rgba(0,0,0,.5); }
+      0%,100% { transform: translateY(0px); box-shadow: 0 2px 12px rgba(212,168,67,.15); }
+      50%      { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(212,168,67,.2); }
     }
 
     .land-btn-primary > div > button,
