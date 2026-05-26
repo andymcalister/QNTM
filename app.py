@@ -7033,7 +7033,7 @@ def page_model_portfolio():
         except Exception:
             pass
 
-    # Render positions as collapsed cards — same pattern as screener/portfolio
+    # Render positions as collapsed cards with P&L data
     from model_engine import SECTORS as _MP_SECTORS
     _mp_prog = st.progress(0, text="Building positions...")
     _mp_html = ""
@@ -7053,12 +7053,40 @@ def page_model_portfolio():
         sc["price"]         = h["current_price"]
         sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
         sc["signal_date"]   = str(h["entry_date"])[:10]
-        # Inject P&L into score_delta for display in collapsed row
-        _sg = "+" if h["pnl_pct"] >= 0 else ""
         sc["score_delta"]   = 0
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
-        _mp_html += factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
+        # Build card + P&L strip
+        _card = factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
+        # Inject P&L row into the detail section
+        _ep   = h.get('entry_price')
+        _cp   = h.get('current_price')
+        _pct  = h.get('pnl_pct', 0)
+        _pnl  = h.get('pnl', 0)
+        _edate= str(h.get('entry_date',''))[:10]
+        _rc   = '#00ff87' if _pct >= 0 else '#ef4444'
+        _sg   = '+' if _pct >= 0 else ''
+        _ep_str = f'${_ep:,.2f}' if _ep else '—'
+        _cp_str = f'${_cp:,.2f}' if _cp else '—'
+        _pnl_str = f'{_sg}${abs(_pnl):,.0f}' if _ep and _cp else '—'
+        _pct_str = f'{_sg}{_pct:.2f}%' if _ep and _cp else '—'
+        _pnl_html = (
+            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
+            f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
+            f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{_edate}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{_ep_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{_cp_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div></div>'
+            f'</div>'
+        )
+        # Insert P&L before the closing qcard-detail div
+        _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
+        _mp_html += _card
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
     if _mp_html:
