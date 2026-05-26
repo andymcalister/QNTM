@@ -428,34 +428,6 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
         return []
 
 
-def write_platform_stats(scored: list, gems: list, macro: dict, sb=None) -> None:
-    """Write key platform stats to Supabase for instant landing page display."""
-    if sb is None:
-        sb = _get_supabase()
-    if not sb or not scored:
-        return
-    try:
-        n_high  = sum(1 for r in scored if float(r.get("adj_composite", r.get("composite", 0)) or 0) >= 60)
-        n_low   = sum(1 for r in scored if float(r.get("adj_composite", r.get("composite", 0)) or 0) < 45)
-        n_gems  = len(gems)
-        n_total = len(scored)
-        regime  = (macro or {}).get("regime", "NEUTRAL")
-        from datetime import date
-        sb.table("platform_stats").upsert({
-            "stat_key":   "daily_summary",
-            "stat_date":  str(date.today()),
-            "n_high":     n_high,
-            "n_low":      n_low,
-            "n_gems":     n_gems,
-            "n_total":    n_total,
-            "regime":     regime,
-            "updated_at": "now()",
-        }, on_conflict="stat_key").execute()
-        log.info(f"platform_stats: high={n_high} low={n_low} gems={n_gems} regime={regime}")
-    except Exception as e:
-        log.warning(f"platform_stats write failed: {e}")
-
-
 def update_model_portfolio(scored_list: list) -> None:
     """
     Model portfolio maintenance — runs nightly AND intraday.
@@ -732,14 +704,6 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
         duration = round(time.time() - start, 1)
         log.info(f"Refresh complete in {duration}s")
 
-        # Write platform stats for landing page
-        try:
-            from model_engine import detect_hidden_gems
-            _gems = detect_hidden_gems(scored, macro_data=macro)
-            write_platform_stats(scored, _gems, macro, sb)
-        except Exception as _pse:
-            log.warning(f"platform_stats skipped: {_pse}")
-
         return {
             "success":       True,
             "live_count":    len(tickers) - len(static_used),
@@ -915,25 +879,6 @@ def run_intraday_refresh(tickers: list = None) -> dict:
             log.info("[MODEL PORTFOLIO] No signal_log data for today — skipping intraday portfolio update")
     except Exception as e:
         log.warning(f"[MODEL PORTFOLIO] Intraday update failed: {e}")
-
-    # Update platform stats so landing page shows fresh gem/conviction counts
-    try:
-        _latest = sb.table("signal_log") \
-            .select("ticker,adj_composite,composite,momentum,quality,sector,signal_date") \
-            .order("signal_date", desc=True) \
-            .limit(5000) \
-            .execute()
-        _seen_i = {}
-        for _ri in (_latest.data or []):
-            if _ri["ticker"] not in _seen_i:
-                _seen_i[_ri["ticker"]] = _ri
-        _scored_i = list(_seen_i.values())
-        from model_engine import detect_hidden_gems, fetch_macro_overlay
-        _mac_i  = fetch_macro_overlay(use_live_feeds=False)
-        _gems_i = detect_hidden_gems(_scored_i, macro_data=_mac_i)
-        write_platform_stats(_scored_i, _gems_i, _mac_i, sb)
-    except Exception as _ise:
-        log.warning(f"intraday platform_stats skipped: {_ise}")
 
     if updated == 0 and failed == len(tickers):
         return {"success": False, "error": f"All {failed} batches failed", "updated": 0, "duration_s": duration}
