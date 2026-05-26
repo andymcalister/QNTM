@@ -4360,8 +4360,9 @@ def page_screener():
                         r = dict(r); r["adj_action"] = "BUY"
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
                 import streamlit.components.v1 as _cv1_t10
-                _t10_ht = max(60, cards_html.count('qcard-wrap') * 62)
-                _cv1_t10.html(cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_t10_ht,8000), scrolling=False)
+                _t10_n = cards_html.count('qcard-wrap')
+                _t10_ht = max(60, (_t10_n - 1) * 62 + 560) if _t10_n > 0 else 60
+                _cv1_t10.html(cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_t10_ht,8000), scrolling=False)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4465,8 +4466,9 @@ def page_screener():
         _fu_prog.empty()
         if _fu_html:
             import streamlit.components.v1 as _cv1_fu
-            _fu_ht = max(60, _fu_html.count('qcard-wrap') * 62)
-            _cv1_fu.html(_fu_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_fu_ht,8000), scrolling=False)
+            _fu_n = _fu_html.count('qcard-wrap')
+            _fu_ht = max(60, (_fu_n - 1) * 62 + 560) if _fu_n > 0 else 60
+            _cv1_fu.html(_fu_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_fu_ht,8000), scrolling=False)
 
         if _show_gate:
             st.markdown(
@@ -4743,22 +4745,21 @@ def page_watchlist():
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
         _cards_html += factor_panel_html(sc, False, company_info=ci)
-    import streamlit.components.v1 as _cv1_wl
-    _wl_ht = max(60, _cards_html.count('qcard-wrap') * 62)
-    _cv1_wl.html(_cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_wl_ht,8000), scrolling=False)
-
-    # Remove buttons — one per stock, below each card
-    for w in watchlist:
-        tk = w["ticker"]
+        # Inline Remove button — navigates parent window via target="_top"
         _rm_url = f"?qnav=watchlist&uid={_uid_wl}&plan={_pln_wl}&ck=1&wl_action=remove&wl_ticker={tk}"
-        st.markdown(
-            f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
-            f'padding:5px;margin-top:-4px;margin-bottom:8px;box-sizing:border-box;'
+        _cards_html += (
+            f'<a href="{_rm_url}" target="_top" style="display:block;width:100%;'
+            f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
             f'background:transparent;border:1px solid rgba(255,255,255,.05);'
             f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
-            f'letter-spacing:.06em;color:#334155;text-decoration:none;">✕ Remove {tk}</a>',
-            unsafe_allow_html=True
+            f'letter-spacing:.06em;color:#334155;text-decoration:none;">'
+            f'&#x2715; Remove {tk}</a>'
         )
+    import streamlit.components.v1 as _cv1_wl
+    _wl_n = _cards_html.count('qcard-wrap')
+    _wl_ht = max(60, (_wl_n - 1) * 90 + 580) if _wl_n > 0 else 60
+    _cv1_wl.html(_cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_wl_ht,8000), scrolling=False)
+
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
         'border-radius:0 0 6px 6px;font-size:11px;color:#334155;">'
@@ -4912,8 +4913,9 @@ def page_gems():
             pass
     import streamlit.components.v1 as _cv1_gems
     _gems_h = '<div style="padding:0 4px;">' + cards_html + '</div>'
-    _gems_ht = max(60, _gems_h.count('qcard-wrap') * 62)
-    _cv1_gems.html(_gems_h + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_gems_ht,8000), scrolling=False)
+    _gems_n = _gems_h.count('qcard-wrap')
+    _gems_ht = max(60, (_gems_n - 1) * 62 + 560) if _gems_n > 0 else 60
+    _cv1_gems.html(_gems_h + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_gems_ht,8000), scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -7096,8 +7098,9 @@ def page_model_portfolio():
     _mp_prog.empty()
     if _mp_html:
         import streamlit.components.v1 as _cv1_mp
-        _mp_ht = max(60, _mp_html.count('qcard-wrap') * 62)
-        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_mp_ht,8000), scrolling=False)
+        _mp_n = _mp_html.count('qcard-wrap')
+        _mp_ht = max(60, (_mp_n - 1) * 62 + 620) if _mp_n > 0 else 60
+        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_mp_ht,8000), scrolling=False)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
