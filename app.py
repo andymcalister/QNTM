@@ -4362,21 +4362,9 @@ def page_screener():
                     elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                         r = dict(r); r["adj_action"] = "BUY"
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
-                st.html(cards_html + '''
-<script>
-(function(){
-  document.querySelectorAll('.qcard-header').forEach(function(h){
-    h.addEventListener('click', function(){
-      var d = h.querySelector('.qcard-detail');
-      if(!d) return;
-      var open = d.style.display === 'block';
-      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
-      if(!open) d.style.display = 'block';
-    });
-  });
-})();
-</script>
-''')
+                import streamlit.components.v1 as _cv1_t10
+                _t10_ht = max(60, cards_html.count('qcard-wrap') * 62)
+                _cv1_t10.html(cards_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_t10_ht,8000), scrolling=True)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4479,21 +4467,9 @@ def page_screener():
                     _fu_html += _ch
         _fu_prog.empty()
         if _fu_html:
-            st.html(_fu_html + '''
-<script>
-(function(){
-  document.querySelectorAll('.qcard-header').forEach(function(h){
-    h.addEventListener('click', function(){
-      var d = h.querySelector('.qcard-detail');
-      if(!d) return;
-      var open = d.style.display === 'block';
-      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
-      if(!open) d.style.display = 'block';
-    });
-  });
-})();
-</script>
-''')
+            import streamlit.components.v1 as _cv1_fu
+            _fu_ht = max(60, _fu_html.count('qcard-wrap') * 62)
+            _cv1_fu.html(_fu_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_fu_ht,8000), scrolling=True)
 
         if _show_gate:
             st.markdown(
@@ -4770,21 +4746,9 @@ def page_watchlist():
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
         _cards_html += factor_panel_html(sc, False, company_info=ci)
-    st.html(_cards_html + '''
-<script>
-(function(){
-  document.querySelectorAll('.qcard-header').forEach(function(h){
-    h.addEventListener('click', function(){
-      var d = h.querySelector('.qcard-detail');
-      if(!d) return;
-      var open = d.style.display === 'block';
-      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
-      if(!open) d.style.display = 'block';
-    });
-  });
-})();
-</script>
-''')
+    import streamlit.components.v1 as _cv1_wl
+    _wl_ht = max(60, _cards_html.count('qcard-wrap') * 62)
+    _cv1_wl.html(_cards_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_wl_ht,8000), scrolling=True)
 
     # Remove buttons — one per stock, below each card
     for w in watchlist:
@@ -4949,21 +4913,10 @@ def page_gems():
             cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
         except Exception:
             pass
-    st.html('<div style="padding:0 4px;">' + cards_html + '</div>' + '''
-<script>
-(function(){
-  document.querySelectorAll('.qcard-header').forEach(function(h){
-    h.addEventListener('click', function(){
-      var d = h.querySelector('.qcard-detail');
-      if(!d) return;
-      var open = d.style.display === 'block';
-      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
-      if(!open) d.style.display = 'block';
-    });
-  });
-})();
-</script>
-''')
+    import streamlit.components.v1 as _cv1_gems
+    _gems_h = '<div style="padding:0 4px;">' + cards_html + '</div>'
+    _gems_ht = max(60, _gems_h.count('qcard-wrap') * 62)
+    _cv1_gems.html(_gems_h + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_gems_ht,8000), scrolling=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -7085,21 +7038,9 @@ def page_model_portfolio():
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
     if _mp_html:
-        st.html(_mp_html + '''
-<script>
-(function(){
-  document.querySelectorAll('.qcard-header').forEach(function(h){
-    h.addEventListener('click', function(){
-      var d = h.querySelector('.qcard-detail');
-      if(!d) return;
-      var open = d.style.display === 'block';
-      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
-      if(!open) d.style.display = 'block';
-    });
-  });
-})();
-</script>
-''')
+        import streamlit.components.v1 as _cv1_mp
+        _mp_ht = max(60, _mp_html.count('qcard-wrap') * 62)
+        _cv1_mp.html(_mp_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_mp_ht,8000), scrolling=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
