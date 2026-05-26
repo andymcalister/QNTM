@@ -4116,9 +4116,11 @@ def page_screener():
                         sr["promoted"] = False
                     sr["pct_rank"] = 50
                     ci = get_company_info(resolved_tk)
-                    import streamlit.components.v1 as _cv1_sr
+                    # Show search result pre-expanded — always one card, no toggle needed
                     _sr_html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
-                    _cv1_sr.html(_sr_html + "<style>body{margin:0;overflow:hidden;}</style><script>\nfunction setHeight(){\n  var h=document.body.scrollHeight;\n  window.parent.postMessage({isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:h},'*');\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(setHeight,50);\n    setTimeout(setHeight,200);\n  });\n});\nsetTimeout(setHeight,100);\n</script>")
+                    # Force detail open
+                    _sr_html = _sr_html.replace('class="qcard-detail" style="display:none;', 'class="qcard-detail" style="display:block;')
+                    st.markdown(_sr_html, unsafe_allow_html=True)
                     # Signal history sparkline
                     _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
                     if _chart_html:
