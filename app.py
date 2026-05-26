@@ -4118,7 +4118,7 @@ def page_screener():
                     ci = get_company_info(resolved_tk)
                     import streamlit.components.v1 as _cv1_sr
                     _sr_html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
-                    _cv1_sr.html(_sr_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=480, scrolling=False)
+                    _cv1_sr.html(_sr_html + "<style>body{margin:0}</style><script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>")
                     # Signal history sparkline
                     _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
                     if _chart_html:
@@ -5860,9 +5860,7 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        import streamlit.components.v1 as _cv1_psc
-        _psc_html = factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True)
-        _cv1_psc.html(_psc_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=480, scrolling=False)
+        st.markdown(factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True), unsafe_allow_html=True)
 
         # Remove from portfolio button
         _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
@@ -6151,9 +6149,7 @@ def page_simulator():
         _sel_r["adj_composite"] = _sel_adj
         _sel_ci = get_company_info(_sim_sel_tk)
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
-        import streamlit.components.v1 as _cv1_sim
-        _sim_card = factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True)
-        _cv1_sim.html(_sim_card + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=480, scrolling=False)
+        st.markdown(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True), unsafe_allow_html=True)
         # Add / Remove CTA
         _in_sim = _sim_sel_tk in st.session_state.get("sim_selected", [])
         if _in_sim:
