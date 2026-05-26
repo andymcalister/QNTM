@@ -633,8 +633,8 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
    ══════════════════════════════════════════════════════════ */
 
 /* ── Card toggle — global rules so they work across separate st.markdown calls ── */
-input[id^='c']:checked + label .qcard-detail { display: block !important; }
-input[id^='c']:checked + label {
+input[id^='c']:checked ~ label .qcard-detail { display: block !important; }
+input[id^='c']:checked ~ label {
   border-color: rgba(255,255,255,.14) !important;
   background: rgba(255,255,255,.035) !important;
 }
@@ -1860,8 +1860,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         # Detail panel — hidden by default, shown via CSS when checkbox checked
         + detail_html
         + f'</label>'
-        + ('<style>#' + cid + ':checked+label .qcard-detail{display:block!important}'
-           '#' + cid + ':checked+label{border-color:rgba(255,255,255,.14)!important;'
+        + ('<style>#' + cid + ':checked~label .qcard-detail{display:block!important}'
+           '#' + cid + ':checked~label{border-color:rgba(255,255,255,.14)!important;'
            'background:rgba(255,255,255,.035)!important;'
            '}</style>')
         + '</div>'
@@ -4458,15 +4458,18 @@ def page_screener():
 
         _show_sparkline = len(_page_items) <= 20
         _ci_cache = st.session_state.get("company_info_cache", {})
+        _fu_prog = st.progress(0, text="Loading cards...")
         _fu_html = ""
-        for r in _page_items:
+        for _fu_i, r in enumerate(_page_items):
             ci = _ci_cache.get(r["ticker"])
             _fu_html += factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci)
+            _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
             if _show_sparkline:
                 _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
                     _fu_html += _ch
+        _fu_prog.empty()
         if _fu_html:
             st.markdown(_fu_html, unsafe_allow_html=True)
 
@@ -7005,8 +7008,10 @@ def page_model_portfolio():
 
     # Render positions as collapsed cards — same pattern as screener/portfolio
     from model_engine import SECTORS as _MP_SECTORS
+    _mp_prog = st.progress(0, text="Building positions...")
     _mp_html = ""
-    for h in sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True):
+    _mp_sorted = sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)
+    for _mp_i, h in enumerate(_mp_sorted):
         tk    = h["ticker"]
         score = h["current_score"]
         sc    = dict(score_map.get(tk, {}) or {})
@@ -7027,6 +7032,8 @@ def page_model_portfolio():
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
         _mp_html += factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
+        _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
+    _mp_prog.empty()
     st.markdown(_mp_html, unsafe_allow_html=True)
 
     st.markdown(
