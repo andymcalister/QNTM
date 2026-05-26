@@ -1828,19 +1828,19 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         + f'</div>'
     )
 
-    # ── Checkbox + label CSS toggle ───────────────────────────────────────────
+    # ── Pure div onclick toggle — no checkbox, no label, no CSS needed ────────
+    _oc = (
+        "var d=this.querySelector('.qcard-detail');"
+        "if(d){"
+        "var open=d.style.display==='block';"
+        "var all=document.querySelectorAll('.qcard-detail');"
+        "for(var i=0;i<all.length;i++)all[i].style.display='none';"
+        "if(!open){d.style.display='block';}"
+        "}"
+    )
     return (
-        f'<div class="qcard-wrap" style="margin-bottom:4px;">' 
-        f'<input type="checkbox" id="{cid}" style="display:none;">'
-        f'<label for="{cid}" onclick="'
-        f'var d=this.querySelector(\'.qcard-detail\');'
-        f'if(d){{'
-        f'var open=d.style.display===\'block\';'
-        f'var all=document.querySelectorAll(\'.qcard-detail\');'
-        f'for(var i=0;i<all.length;i++)all[i].style.display=\'none\';'
-        f'if(!open)d.style.display=\'block\';'
-        f'}}" '
-        f'style="display:block;background:rgba(255,255,255,.02);'
+        f'<div class="qcard-wrap" style="margin-bottom:4px;">'
+        f'<div class="qcard-header" onclick="{_oc}" style="display:block;background:rgba(255,255,255,.02);'
         f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
         f'border-radius:8px;overflow:hidden;cursor:pointer;'
         f'transition:border-color .15s ease;">'
@@ -1865,14 +1865,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<span style="font-size:13px;color:#334155;transition:transform .2s;">›</span>'
         f'</div>'
         f'</div>'
-        # Detail panel — hidden by default, shown via CSS when checkbox checked
         + detail_html
-        + f'</label>'
-        + ('<style>#' + cid + ':checked~label .qcard-detail{display:block!important}'
-           '#' + cid + ':checked~label{border-color:rgba(255,255,255,.14)!important;'
-           'background:rgba(255,255,255,.035)!important;'
-           '}</style>')
-        + '</div>'
+        + '</div>'  # close qcard-header
+        + '</div>'  # close qcard-wrap
     )
 
 def signal_history_chart(ticker: str, current_score: float) -> str:
