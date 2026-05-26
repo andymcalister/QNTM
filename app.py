@@ -1397,24 +1397,24 @@ def signal_color(sig):
 # ── PILLAR TOOLTIPS ──────────────────────────────────────────────────────────
 PILLAR_TIPS = {
     "Momentum": {
-        "weight": "30% of composite score",
-        "body": "Price trend strength over 1, 3, and 6 months. RSI, MACD, moving average crossovers, and proximity to 52-week high. High momentum means the stock is in a confirmed uptrend with buying pressure — historically the single strongest predictor of near-term outperformance.",
+        "weight": "30%",
+        "body": "Price trend, RSI, MACD, MA crossovers, 52-week proximity.",
     },
     "Quality": {
-        "weight": "25% of composite score",
-        "body": "Business quality measured by Return on Equity, profit margin, revenue growth, EPS beat rate, and free cash flow yield. High-quality companies survive downturns, compound capital, and tend to revert to outperformance after temporary selloffs.",
+        "weight": "25%",
+        "body": "ROE, profit margin, revenue growth, EPS beat rate, FCF yield.",
     },
     "Volume": {
-        "weight": "20% of composite score",
-        "body": "Relative trading volume, On-Balance Volume (OBV), Chaikin Money Flow, and accumulation/distribution patterns. Rising price with rising volume confirms institutional buying. Volume divergences often precede reversals.",
+        "weight": "20%",
+        "body": "Relative volume, OBV, Chaikin Money Flow, accumulation/distribution.",
     },
     "Value": {
-        "weight": "15% of composite score",
-        "body": "Forward P/E, PEG ratio, EV/EBITDA, Price-to-Sales, and FCF yield. The model looks for stocks trading cheaply relative to their growth and quality — not just low P/E, but low P/E relative to earnings growth rate. Cheap quality beats expensive mediocrity.",
+        "weight": "15%",
+        "body": "Forward P/E, PEG, EV/EBITDA, Price-to-Sales, FCF yield.",
     },
     "Sentiment": {
-        "weight": "10% of composite score",
-        "body": "Short interest (% of float), insider buy/sell ratio, institutional ownership changes, and options put/call ratio. Low short interest + high insider buying + rising institutional ownership is a powerful contrarian signal that big money is accumulating.",
+        "weight": "10%",
+        "body": "Short interest, insider buy ratio, institutional ownership changes.",
     },
 }
 
