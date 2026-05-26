@@ -6839,12 +6839,38 @@ def page_model_portfolio():
                     f'</div>', unsafe_allow_html=True)
         return
 
-    # ── Prices from signal_log only — no yfinance, instant ──────────────────
-    live_prices = {}
-    for p in positions:
-        tk = p["ticker"]
-        if score_map.get(tk, {}).get("price"):
-            live_prices[tk] = float(score_map[tk]["price"])
+    # ── Live prices via yfinance — cached per session (5 min TTL) ───────────
+    import time as _mp_time
+    _mp_cache_age = _mp_time.time() - st.session_state.get("_mp_prices_at", 0)
+    tickers_to_fetch = [p["ticker"] for p in positions]
+    if _mp_cache_age > 300 or not st.session_state.get("_mp_prices"):
+        live_prices = {}
+        # First fill from signal_log (instant)
+        for tk in tickers_to_fetch:
+            if score_map.get(tk, {}).get("price"):
+                live_prices[tk] = float(score_map[tk]["price"])
+        # Then fetch live prices from yfinance to get current market prices
+        try:
+            import yfinance as yf
+            _px_data = yf.download(tickers_to_fetch, period="1d", interval="1d",
+                                   auto_adjust=True, progress=False, threads=True)
+            if not _px_data.empty:
+                _cls = _px_data["Close"]
+                if hasattr(_cls, "columns"):
+                    for tk in tickers_to_fetch:
+                        if tk in _cls.columns:
+                            _v = _cls[tk].dropna()
+                            if not _v.empty: live_prices[tk] = float(_v.iloc[-1])
+                else:
+                    _v = _cls.dropna()
+                    if not _v.empty and len(tickers_to_fetch)==1:
+                        live_prices[tickers_to_fetch[0]] = float(_v.iloc[-1])
+        except Exception:
+            pass  # fall back to signal_log prices
+        st.session_state._mp_prices    = live_prices
+        st.session_state._mp_prices_at = _mp_time.time()
+    else:
+        live_prices = st.session_state._mp_prices
 
     # ── Calculate portfolio metrics ───────────────────────────────────────────
     today = datetime.date.today().isoformat()
@@ -6938,21 +6964,26 @@ def page_model_portfolio():
 
 
     # ── Methodology banner ────────────────────────────────────────────────────
+    # Dynamic entry dates from positions
+    _entry_dates = sorted(set(str(p.get('entry_date',''))[:10] for p in positions if p.get('entry_date')))
+    _start_date  = _entry_dates[0] if _entry_dates else '2026-05-19'
+    _end_date    = _entry_dates[-1] if _entry_dates else '2026-05-25'
     st.markdown(
         '<div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);'
         'border-radius:8px;padding:16px 20px;margin-bottom:20px;">'
         '<div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;'
         'letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>'
         '<div style="font-size:13px;color:#94a3b8;line-height:1.7;">'
-        'Built across <strong style="color:#cbd5e1;">May 19–23, 2026</strong> — '
-        '~10 highest conviction signals entered each trading day until reaching 50 positions. '
-        'Entry threshold: blended conviction score '
-        '<strong style="color:#00ff87;">≥ 60</strong> across 5 factors + macro overlay. '
-        'Equal-weighted at <strong style="color:#cbd5e1;">$2,000 per position</strong> ($100K total).'
+        f'Built from <strong style="color:#cbd5e1;">{_start_date}</strong> — '
+        'highest conviction signals entered each day. '
+        'Entry threshold: <strong style="color:#00ff87;">≥ 67</strong> in HIGH VOLATILITY regime, '
+        '<strong style="color:#00ff87;">≥ 60</strong> in normal regimes. '
+        'Equal-weighted at <strong style="color:#cbd5e1;">$2,000 per position</strong> ($100K total). '
+        '30% sector cap enforced at entry.'
         '<br><br>'
-        '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions are held until conviction '
-        'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into the next '
-        'highest conviction signal not already held. No discretionary overrides.'
+        '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions exit when conviction '
+        'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into next '
+        'highest conviction signal. No discretionary overrides.'
         '</div></div>',
         unsafe_allow_html=True
     )
