@@ -632,6 +632,13 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
    TASK 4 — SPACING & BREATHING ROOM PASS
    ══════════════════════════════════════════════════════════ */
 
+/* ── Card toggle — global rules so they work across separate st.markdown calls ── */
+input[id^='c']:checked + label .qcard-detail { display: block !important; }
+input[id^='c']:checked + label {
+  border-color: rgba(255,255,255,.14) !important;
+  background: rgba(255,255,255,.035) !important;
+}
+
 /* ── Card spacing — more room between cards ── */
 .qcard-wrap { margin-bottom: 10px !important; }
 
@@ -1821,10 +1828,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         + f'</div>'
     )
 
-    # ── Radio button collapse — one-at-a-time, pure CSS ───────────────────────
-    # The label acts as the visible card row. The hidden radio input controls state.
-    # CSS: input:checked ~ .qcard-detail { display:block }
-    # Since all radios share name="qntm_card", only one can be checked at a time.
+    # ── Checkbox + label CSS toggle ───────────────────────────────────────────
     return (
         f'<div class="qcard-wrap" style="margin-bottom:4px;">' 
         f'<input type="checkbox" id="{cid}" style="display:none;">'
@@ -1853,10 +1857,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<span style="font-size:13px;color:#334155;transition:transform .2s;">›</span>'
         f'</div>'
         f'</div>'
-        # Detail panel — hidden by default, shown via CSS when radio checked
+        # Detail panel — hidden by default, shown via CSS when checkbox checked
         + detail_html
         + f'</label>'
-        # CSS rule scoped to this card
         + ('<style>#' + cid + ':checked+label .qcard-detail{display:block!important}'
            '#' + cid + ':checked+label{border-color:rgba(255,255,255,.14)!important;'
            'background:rgba(255,255,255,.035)!important;'
@@ -2530,7 +2533,14 @@ def page_landing():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap');
 
-    /* ── Hard reset Streamlit to dark theme + kill all horizontal scroll ── */
+    /* ── Prevent white flash on page transitions ── */
+html { background-color: #0a0b14 !important; }
+body { background-color: #0a0b14 !important; }
+[data-testid="stAppViewContainer"] { background-color: #0a0b14 !important; }
+[data-testid="stApp"] { background-color: #0a0b14 !important; }
+.main { background-color: #0a0b14 !important; }
+
+/* ── Hard reset Streamlit to dark theme + kill all horizontal scroll ── */
     html, body { overflow-x: hidden !important; max-width: 100vw !important; }
     html, body, [class*="css"], .main, .block-container,
     [data-testid="stAppViewContainer"], [data-testid="stMain"],
@@ -4366,7 +4376,7 @@ def page_screener():
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
-            filter_act = st.selectbox("Conviction", ["All","High Conviction","Moderate","Low Conviction"], key="f_act")
+            filter_act = st.selectbox("Conviction", ["All","High","Moderate","Low"], key="f_act")
         with fc3:
             filter_min = st.selectbox("Min Score", ["All","60+","70+","80+"], key="f_min")
         # Rescan — small right-aligned, below filters
@@ -4387,7 +4397,7 @@ def page_screener():
         filtered = results
         if filter_sec != "All": filtered = [r for r in filtered if r.get("sector")==filter_sec]
         if filter_act != "All":
-            act_map = {"High Conviction":"BUY","Moderate":"HOLD","Low Conviction":"SELL"}
+            act_map = {"High":"BUY","Moderate":"HOLD","Low":"SELL"}
             filtered = [r for r in filtered if r.get("adj_action",r.get("action"))==act_map.get(filter_act)]
         if filter_min != "All":
             min_score = int(filter_min.replace("+",""))
@@ -4396,17 +4406,23 @@ def page_screener():
         # Free tier: show top 50 results only
         _user_plan = (st.session_state.user or {}).get("plan", "free")
         FREE_LIMIT = 50
+        RENDER_LIMIT = 200  # cap render to 200 cards max for performance
         _total_filtered = len(filtered)
         if _user_plan == "free" and _total_filtered > FREE_LIMIT:
             filtered = filtered[:FREE_LIMIT]
             _show_gate = True
         else:
             _show_gate = False
+        # Cap render for performance — prompt user to filter
+        _show_render_cap = not _show_gate and len(filtered) > RENDER_LIMIT
+        if _show_render_cap:
+            filtered = filtered[:RENDER_LIMIT]
 
         st.markdown(
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;'
             f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM'
-            + (f' · Showing {FREE_LIMIT} of {_total_filtered}' if _show_gate else '') +
+            + (f' · Showing {FREE_LIMIT} of {_total_filtered}' if _show_gate else
+               f' · Showing {RENDER_LIMIT} of {_total_filtered} — filter to see all' if _show_render_cap else '') +
             f'</div>',
             unsafe_allow_html=True)
         _show_sparkline = len(filtered) <= 20
@@ -4415,14 +4431,18 @@ def page_screener():
                 '<div style="font-size:12px;color:#475569;margin-bottom:8px;">'
                 '⚡ Filter to 20 or fewer stocks to see conviction trend charts.</div>',
                 unsafe_allow_html=True)
+        # Single st.markdown — same as Top 10 so CSS card toggle works
+        _ci_cache = st.session_state.get("company_info_cache", {})
+        _fu_html = ""
         for r in filtered:
-            ci = get_company_info(r["ticker"])
-            st.markdown(factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci), unsafe_allow_html=True)
+            ci = _ci_cache.get(r["ticker"])
+            _fu_html += factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci)
             if _show_sparkline:
                 _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
-                    st.markdown(_ch, unsafe_allow_html=True)
+                    _fu_html += _ch
+        st.markdown(_fu_html, unsafe_allow_html=True)
 
         if _show_gate:
             st.markdown(
@@ -5419,7 +5439,7 @@ def page_portfolio():
             f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO CONVICTION</div>'
             f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
             f'<div>'
-            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};">{_conv_label}</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};white-space:nowrap;">{_conv_label}</span>'
             f'{_trend_html}'
             f'<div style="font-size:11px;color:#475569;margin-top:2px;">avg score {_avg:.0f} · {len(holdings)} positions</div>'
             f'</div>'
@@ -6713,20 +6733,13 @@ def page_account():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_model_portfolio():
     _pin_nav("model_portfolio")
-    """
-    QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
-    Entry date sourced from model_portfolio_positions (seeded 2026-05-19).
-    Exits when conviction score drops below 45. Reinvests into next highest conviction signal.
-    """
+    # Model portfolio: HIGH conviction positions, exits at score < 45
     from data_refresh import _get_supabase
     import datetime
 
     page_summary(
         "🏆", "Model Portfolio",
-        "50 High Conviction positions built across May 19–23, 2026 — all HIGH signals on Monday, "
-        "topped up daily with new HIGH conviction stocks until reaching 50. 30% sector cap enforced. "
-        "Equal-weighted at $2K per position ($100K total). Exits when conviction score drops below 45, "
-        "reinvests into next highest conviction stock available.",
+        "Live HIGH conviction positions · equal-weighted $2K · exits at Low Conviction · auto-reinvests"
     )
 
     sb = _get_supabase()
@@ -6801,33 +6814,12 @@ def page_model_portfolio():
                     f'</div>', unsafe_allow_html=True)
         return
 
-    # ── Fetch live prices via yfinance for all positions ─────────────────────
+    # ── Prices from signal_log only — no yfinance, instant ──────────────────
     live_prices = {}
-    tickers_to_fetch = [p["ticker"] for p in positions]
-    if tickers_to_fetch:
-        try:
-            import yfinance as yf
-            with st.spinner("Fetching live prices..."):
-                hist = yf.download(
-                    tickers_to_fetch, period="1d",
-                    auto_adjust=True, progress=False, threads=True
-                )
-                if not hist.empty:
-                    close = hist["Close"]
-                    if hasattr(close, "columns"):
-                        # MultiIndex — multiple tickers
-                        for tk in tickers_to_fetch:
-                            if tk in close.columns:
-                                val = close[tk].dropna()
-                                if not val.empty:
-                                    live_prices[tk] = float(val.iloc[-1])
-                    else:
-                        # Single ticker
-                        val = close.dropna()
-                        if not val.empty and len(tickers_to_fetch) == 1:
-                            live_prices[tickers_to_fetch[0]] = float(val.iloc[-1])
-        except Exception:
-            pass  # fall back to signal_log prices
+    for p in positions:
+        tk = p["ticker"]
+        if score_map.get(tk, {}).get("price"):
+            live_prices[tk] = float(score_map[tk]["price"])
 
     # ── Calculate portfolio metrics ───────────────────────────────────────────
     today = datetime.date.today().isoformat()
@@ -6881,14 +6873,18 @@ def page_model_portfolio():
     sign        = "+" if port_return >= 0 else ""
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
-    # ── SPY benchmark comparison ──────────────────────────────────────────────
-    # Per-position SPY comparison (each position vs SPY over its own holding window)
+    # ── SPY benchmark — use cached value only, skip slow download ────────────
     spy_return = 0.0
     spy_pnl    = 0.0
     try:
         import yfinance as yf
         from datetime import date as _dt
-        spy_hist = yf.download("SPY", start="2026-05-19", progress=False, auto_adjust=True)
+        if "_mp_spy" not in st.session_state:
+            st.session_state._mp_spy = None  # fetch deferred
+        spy_hist = st.session_state._mp_spy
+        if spy_hist is None:
+            spy_hist = yf.download("SPY", start="2026-05-19", progress=False, auto_adjust=True)
+            st.session_state._mp_spy = spy_hist
         if not spy_hist.empty:
             spy_close = spy_hist["Close"]
             if hasattr(spy_close, "columns"): spy_close = spy_close.iloc[:,0]
@@ -6981,81 +6977,31 @@ def page_model_portfolio():
         except Exception:
             pass
 
-    for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg       = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
-        rc       = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-        sg       = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
-        cur_str   = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
-        pnl_str   = f'{sg}${abs(h["pnl"]):,.0f}' if h["entry_price"] and h["current_price"] else "—"
-        ret_str   = f'{sg}{h["pnl_pct"]:.2f}%'   if h["entry_price"] and h["current_price"] else "—"
-        shares    = (h["pos_size"] / h["entry_price"]) if h.get("entry_price") and h["entry_price"] > 0 else None
-        shares_str = f'{shares:,.1f} sh' if shares else "—"
-        score     = h["current_score"]
-        score_col = "#00ff87" if score >= 70 else ("#fbbf24" if score >= 55 else "#ef4444")
-        gem_badge = "💎 " if h["ticker"] in port_gem_tickers else ""
-
-        # Company name + sector from score_map
-        sd       = score_map.get(h["ticker"], {})
-        ci       = get_company_info(h["ticker"])
-        co_name  = (ci.get("name","") if ci else "")[:28] or h["ticker"]
-        from model_engine import SECTORS as _MP_SECTORS
-        sector   = sd.get("sector","") or _MP_SECTORS.get(h["ticker"],"") or "—"
-        sec_short = sector[:18] + "…" if len(sector) > 18 else sector
-
-        # Left border accent by return
-        border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-
-        st.markdown(
-            # Desktop row (hidden on mobile via CSS class)
-            f'<div class="mp-row" style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
-            f'gap:8px;padding:8px 16px;background:{bg};margin-bottom:1px;'
-            f'border-left:3px solid {border_c};align-items:center;">'
-            # Ticker + name
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
-            f'<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">{co_name}</div>'
-            f'</div>'
-            # Sector + entry date
-            f'<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sec_short} · {h["entry_date"]}</div>'
-            # Entry → current
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;text-align:right;white-space:nowrap;">{entry_str}→{cur_str}</div>'
-            # Shares
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;text-align:right;">{shares_str}</div>'
-            # P&L
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
-            # Return + score
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">s:{score:.0f}</div>'
-            f'</div>'
-            f'</div>'
-            # Mobile card (shown on mobile via CSS class)
-            f'<div class="mp-card" style="display:none;padding:12px 16px;background:{bg};margin-bottom:1px;'
-            f'border-left:3px solid {border_c};">'
-            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{gem_badge}{h["ticker"]}</div>'
-            f'<div style="font-size:11px;color:#64748b;">{co_name}</div>'
-            f'<div style="font-size:10px;color:#475569;margin-top:2px;">{sec_short} · {h["entry_date"]}</div>'
-            f'</div>'
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{rc};">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">score: {score:.0f}</div>'
-            f'</div>'
-            f'</div>'
-            f'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">ENTRY</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{entry_str}</div></div>'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">CURRENT</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{cur_str}</div></div>'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">SHARES</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{shares_str}</div></div>'
-            f'</div>'
-            + _build_why_html(h) +
-            f'</div>',
-            unsafe_allow_html=True)
+    # Render positions as collapsed cards — same pattern as screener/portfolio
+    from model_engine import SECTORS as _MP_SECTORS
+    _mp_html = ""
+    for h in sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True):
+        tk    = h["ticker"]
+        score = h["current_score"]
+        sc    = dict(score_map.get(tk, {}) or {})
+        sc["ticker"]        = tk
+        sc["adj_composite"] = score
+        sc["adj_action"]    = "BUY" if score >= 60 else ("SELL" if score < 45 else "HOLD")
+        sc["momentum"]      = h["momentum"]
+        sc["quality"]       = h["quality"]
+        sc["volume"]        = h["volume"]
+        sc["value"]         = h["value"]
+        sc["sentiment"]     = h["sentiment"]
+        sc["price"]         = h["current_price"]
+        sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
+        sc["signal_date"]   = str(h["entry_date"])[:10]
+        # Inject P&L into score_delta for display in collapsed row
+        _sg = "+" if h["pnl_pct"] >= 0 else ""
+        sc["score_delta"]   = 0
+        _ci_cache_mp = st.session_state.get("company_info_cache", {})
+        ci = _ci_cache_mp.get(tk)
+        _mp_html += factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
+    st.markdown(_mp_html, unsafe_allow_html=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
