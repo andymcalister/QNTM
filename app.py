@@ -1828,19 +1828,10 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         + f'</div>'
     )
 
-    # ── Pure div onclick toggle — no checkbox, no label, no CSS needed ────────
-    _oc = (
-        "var d=this.querySelector('.qcard-detail');"
-        "if(d){"
-        "var open=d.style.display==='block';"
-        "var all=document.querySelectorAll('.qcard-detail');"
-        "for(var i=0;i<all.length;i++)all[i].style.display='none';"
-        "if(!open){d.style.display='block';}"
-        "}"
-    )
+    # ── div with data-cid for JS binding ─────────────────────────────────────
     return (
         f'<div class="qcard-wrap" style="margin-bottom:4px;">'
-        f'<div class="qcard-header" onclick="{_oc}" style="display:block;background:rgba(255,255,255,.02);'
+        f'<div class="qcard-header" data-cid="{cid}" style="display:block;background:rgba(255,255,255,.02);'
         f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
         f'border-radius:8px;overflow:hidden;cursor:pointer;'
         f'transition:border-color .15s ease;">'
@@ -4371,7 +4362,21 @@ def page_screener():
                     elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                         r = dict(r); r["adj_action"] = "BUY"
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
-                st.html(cards_html)
+                st.html(cards_html + '''
+<script>
+(function(){
+  document.querySelectorAll('.qcard-header').forEach(function(h){
+    h.addEventListener('click', function(){
+      var d = h.querySelector('.qcard-detail');
+      if(!d) return;
+      var open = d.style.display === 'block';
+      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
+      if(!open) d.style.display = 'block';
+    });
+  });
+})();
+</script>
+''')
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4474,7 +4479,21 @@ def page_screener():
                     _fu_html += _ch
         _fu_prog.empty()
         if _fu_html:
-            st.html(_fu_html)
+            st.html(_fu_html + '''
+<script>
+(function(){
+  document.querySelectorAll('.qcard-header').forEach(function(h){
+    h.addEventListener('click', function(){
+      var d = h.querySelector('.qcard-detail');
+      if(!d) return;
+      var open = d.style.display === 'block';
+      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
+      if(!open) d.style.display = 'block';
+    });
+  });
+})();
+</script>
+''')
 
         if _show_gate:
             st.markdown(
@@ -4751,7 +4770,21 @@ def page_watchlist():
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
         _cards_html += factor_panel_html(sc, False, company_info=ci)
-    st.html(_cards_html)
+    st.html(_cards_html + '''
+<script>
+(function(){
+  document.querySelectorAll('.qcard-header').forEach(function(h){
+    h.addEventListener('click', function(){
+      var d = h.querySelector('.qcard-detail');
+      if(!d) return;
+      var open = d.style.display === 'block';
+      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
+      if(!open) d.style.display = 'block';
+    });
+  });
+})();
+</script>
+''')
 
     # Remove buttons — one per stock, below each card
     for w in watchlist:
@@ -4916,7 +4949,21 @@ def page_gems():
             cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
         except Exception:
             pass
-    st.html('<div style="padding:0 4px;">' + cards_html + '</div>')
+    st.html('<div style="padding:0 4px;">' + cards_html + '</div>' + '''
+<script>
+(function(){
+  document.querySelectorAll('.qcard-header').forEach(function(h){
+    h.addEventListener('click', function(){
+      var d = h.querySelector('.qcard-detail');
+      if(!d) return;
+      var open = d.style.display === 'block';
+      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
+      if(!open) d.style.display = 'block';
+    });
+  });
+})();
+</script>
+''')
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -7038,7 +7085,21 @@ def page_model_portfolio():
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
     if _mp_html:
-        st.html(_mp_html)
+        st.html(_mp_html + '''
+<script>
+(function(){
+  document.querySelectorAll('.qcard-header').forEach(function(h){
+    h.addEventListener('click', function(){
+      var d = h.querySelector('.qcard-detail');
+      if(!d) return;
+      var open = d.style.display === 'block';
+      document.querySelectorAll('.qcard-detail').forEach(function(x){ x.style.display='none'; });
+      if(!open) d.style.display = 'block';
+    });
+  });
+})();
+</script>
+''')
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
