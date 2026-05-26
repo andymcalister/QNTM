@@ -4425,16 +4425,41 @@ def page_screener():
                f' · Showing {RENDER_LIMIT} of {_total_filtered} — filter to see all' if _show_render_cap else '') +
             f'</div>',
             unsafe_allow_html=True)
-        _show_sparkline = len(filtered) <= 20
-        if not _show_sparkline and len(filtered) < 834:
-            st.markdown(
-                '<div style="font-size:12px;color:#475569;margin-bottom:8px;">'
-                '⚡ Filter to 20 or fewer stocks to see conviction trend charts.</div>',
-                unsafe_allow_html=True)
-        # Single st.markdown — same as Top 10 so CSS card toggle works
+        # Paginate at 50 per page — each page is one st.markdown so CSS toggle works
+        _PAGE_SIZE = 50
+        _total_pages = max(1, (len(filtered) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+        if "_fu_page" not in st.session_state:
+            st.session_state._fu_page = 0
+        # Reset page when filters change
+        _fu_filter_key = f"{filter_sec}_{filter_act}_{filter_min}"
+        if st.session_state.get("_fu_filter_key") != _fu_filter_key:
+            st.session_state._fu_page = 0
+            st.session_state._fu_filter_key = _fu_filter_key
+        _page = min(st.session_state._fu_page, _total_pages - 1)
+        _page_items = filtered[_page * _PAGE_SIZE:(_page + 1) * _PAGE_SIZE]
+
+        # Prev / Next
+        if _total_pages > 1:
+            _pn1, _pn2, _pn3 = st.columns([1, 2, 1])
+            with _pn1:
+                if _page > 0 and st.button("← Prev", key="fu_prev", use_container_width=True):
+                    st.session_state._fu_page = _page - 1
+                    st.session_state.nav = "screener"
+                    st.rerun()
+            with _pn2:
+                st.markdown(f'<div style="text-align:center;font-family:DM Mono,monospace;'
+                            f'font-size:11px;color:#475569;padding:8px 0;">'
+                            f'Page {_page+1} of {_total_pages}</div>', unsafe_allow_html=True)
+            with _pn3:
+                if _page < _total_pages - 1 and st.button("Next →", key="fu_next", use_container_width=True):
+                    st.session_state._fu_page = _page + 1
+                    st.session_state.nav = "screener"
+                    st.rerun()
+
+        _show_sparkline = len(_page_items) <= 20
         _ci_cache = st.session_state.get("company_info_cache", {})
         _fu_html = ""
-        for r in filtered:
+        for r in _page_items:
             ci = _ci_cache.get(r["ticker"])
             _fu_html += factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci)
             if _show_sparkline:
@@ -4442,7 +4467,8 @@ def page_screener():
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
                     _fu_html += _ch
-        st.markdown(_fu_html, unsafe_allow_html=True)
+        if _fu_html:
+            st.markdown(_fu_html, unsafe_allow_html=True)
 
         if _show_gate:
             st.markdown(
