@@ -1725,22 +1725,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         pc   = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
         full = PILLAR_FULL_NAMES.get(pname, pname)
         tip  = PILLAR_TIPS.get(full, {})
-        tip_body   = tip.get("body","")
         tip_weight = tip.get("weight","")
-        weight_html = f'<div class="tip-weight">{tip_weight}</div>' if tip_weight else ""
-        label_html = (
-            f'<span class="qntm-tip" style="font-size:12px;color:#94a3b8;cursor:help;">'
-            f'{full}<i class="tip-icon">i</i>'
-            f'<span class="tip-box"><div class="tip-title">{full}</div>'
-            f'<div class="tip-body">{tip_body}</div>{weight_html}</span></span>'
-        )
         pillar_bars += (
-            f'<div style="flex:1;min-width:80px;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-            f'{label_html}'
+            f'<div style="flex:1;min-width:72px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+            f'<span style="font-size:11px;color:#64748b;">{full}</span>'
             f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{pc};font-weight:700;">{pval:.0f}</span>'
             f'</div>'
-            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:5px;overflow:hidden;">'
+            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:4px;overflow:hidden;">'
             f'<div style="width:{pval}%;height:100%;background:{pc};border-radius:3px;"></div>'
             f'</div></div>'
         )
