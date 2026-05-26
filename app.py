@@ -632,6 +632,13 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
    TASK 4 — SPACING & BREATHING ROOM PASS
    ══════════════════════════════════════════════════════════ */
 
+/* ── Card toggle — global rules so they work across separate st.markdown calls ── */
+input[id^='c']:checked ~ label .qcard-detail { display: block !important; }
+input[id^='c']:checked ~ label {
+  border-color: rgba(255,255,255,.14) !important;
+  background: rgba(255,255,255,.035) !important;
+}
+
 /* ── Card spacing — more room between cards ── */
 .qcard-wrap { margin-bottom: 10px !important; }
 
@@ -1390,24 +1397,24 @@ def signal_color(sig):
 # ── PILLAR TOOLTIPS ──────────────────────────────────────────────────────────
 PILLAR_TIPS = {
     "Momentum": {
-        "weight": "30% of composite score",
-        "body": "Price trend strength over 1, 3, and 6 months. RSI, MACD, moving average crossovers, and proximity to 52-week high. High momentum means the stock is in a confirmed uptrend with buying pressure — historically the single strongest predictor of near-term outperformance.",
+        "weight": "30%",
+        "body": "Price trend, RSI, MACD, MA crossovers, 52-week proximity.",
     },
     "Quality": {
-        "weight": "25% of composite score",
-        "body": "Business quality measured by Return on Equity, profit margin, revenue growth, EPS beat rate, and free cash flow yield. High-quality companies survive downturns, compound capital, and tend to revert to outperformance after temporary selloffs.",
+        "weight": "25%",
+        "body": "ROE, profit margin, revenue growth, EPS beat rate, FCF yield.",
     },
     "Volume": {
-        "weight": "20% of composite score",
-        "body": "Relative trading volume, On-Balance Volume (OBV), Chaikin Money Flow, and accumulation/distribution patterns. Rising price with rising volume confirms institutional buying. Volume divergences often precede reversals.",
+        "weight": "20%",
+        "body": "Relative volume, OBV, Chaikin Money Flow, accumulation/distribution.",
     },
     "Value": {
-        "weight": "15% of composite score",
-        "body": "Forward P/E, PEG ratio, EV/EBITDA, Price-to-Sales, and FCF yield. The model looks for stocks trading cheaply relative to their growth and quality — not just low P/E, but low P/E relative to earnings growth rate. Cheap quality beats expensive mediocrity.",
+        "weight": "15%",
+        "body": "Forward P/E, PEG, EV/EBITDA, Price-to-Sales, FCF yield.",
     },
     "Sentiment": {
-        "weight": "10% of composite score",
-        "body": "Short interest (% of float), insider buy/sell ratio, institutional ownership changes, and options put/call ratio. Low short interest + high insider buying + rising institutional ownership is a powerful contrarian signal that big money is accumulating.",
+        "weight": "10%",
+        "body": "Short interest, insider buy ratio, institutional ownership changes.",
     },
 }
 
@@ -1718,22 +1725,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         pc   = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
         full = PILLAR_FULL_NAMES.get(pname, pname)
         tip  = PILLAR_TIPS.get(full, {})
-        tip_body   = tip.get("body","")
         tip_weight = tip.get("weight","")
-        weight_html = f'<div class="tip-weight">{tip_weight}</div>' if tip_weight else ""
-        label_html = (
-            f'<span class="qntm-tip" style="font-size:12px;color:#94a3b8;cursor:help;">'
-            f'{full}<i class="tip-icon">i</i>'
-            f'<span class="tip-box"><div class="tip-title">{full}</div>'
-            f'<div class="tip-body">{tip_body}</div>{weight_html}</span></span>'
-        )
         pillar_bars += (
-            f'<div style="flex:1;min-width:80px;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-            f'{label_html}'
+            f'<div style="flex:1;min-width:72px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+            f'<span style="font-size:11px;color:#64748b;">{full}</span>'
             f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{pc};font-weight:700;">{pval:.0f}</span>'
             f'</div>'
-            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:5px;overflow:hidden;">'
+            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:4px;overflow:hidden;">'
             f'<div style="width:{pval}%;height:100%;background:{pc};border-radius:3px;"></div>'
             f'</div></div>'
         )
@@ -1799,7 +1798,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
            f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:20]}</span>'
            f'<span style="font-size:11px;color:#475569;">{driver}</span>'
            f'</div>' if (price_html or r.get("sector")) else "")
-        + f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">{pillar_bars}</div>'
+        + f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;"'
+          f'class="qcard-pillars">{pillar_bars}</div>'
         + f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
         f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
@@ -1821,14 +1821,10 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         + f'</div>'
     )
 
-    # ── Radio button collapse — one-at-a-time, pure CSS ───────────────────────
-    # The label acts as the visible card row. The hidden radio input controls state.
-    # CSS: input:checked ~ .qcard-detail { display:block }
-    # Since all radios share name="qntm_card", only one can be checked at a time.
+    # ── div with data-cid for JS binding ─────────────────────────────────────
     return (
-        f'<div class="qcard-wrap" style="margin-bottom:4px;">' 
-        f'<input type="checkbox" id="{cid}" style="display:none;">'
-        f'<label for="{cid}" style="display:block;background:rgba(255,255,255,.02);'
+        f'<div class="qcard-wrap" style="margin-bottom:4px;">'
+        f'<div class="qcard-header" data-cid="{cid}" style="display:block;background:rgba(255,255,255,.02);'
         f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
         f'border-radius:8px;overflow:hidden;cursor:pointer;'
         f'transition:border-color .15s ease;">'
@@ -1853,15 +1849,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<span style="font-size:13px;color:#334155;transition:transform .2s;">›</span>'
         f'</div>'
         f'</div>'
-        # Detail panel — hidden by default, shown via CSS when radio checked
         + detail_html
-        + f'</label>'
-        # CSS rule scoped to this card
-        + ('<style>#' + cid + ':checked+label .qcard-detail{display:block!important}'
-           '#' + cid + ':checked+label{border-color:rgba(255,255,255,.14)!important;'
-           'background:rgba(255,255,255,.035)!important;'
-           '}</style>')
-        + '</div>'
+        + '</div>'  # close qcard-header
+        + '</div>'  # close qcard-wrap
     )
 
 def signal_history_chart(ticker: str, current_score: float) -> str:
@@ -2530,7 +2520,14 @@ def page_landing():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap');
 
-    /* ── Hard reset Streamlit to dark theme + kill all horizontal scroll ── */
+    /* ── Prevent white flash on page transitions ── */
+html { background-color: #0a0b14 !important; }
+body { background-color: #0a0b14 !important; }
+[data-testid="stAppViewContainer"] { background-color: #0a0b14 !important; }
+[data-testid="stApp"] { background-color: #0a0b14 !important; }
+.main { background-color: #0a0b14 !important; }
+
+/* ── Hard reset Streamlit to dark theme + kill all horizontal scroll ── */
     html, body { overflow-x: hidden !important; max-width: 100vw !important; }
     html, body, [class*="css"], .main, .block-container,
     [data-testid="stAppViewContainer"], [data-testid="stMain"],
@@ -4119,7 +4116,9 @@ def page_screener():
                         sr["promoted"] = False
                     sr["pct_rank"] = 50
                     ci = get_company_info(resolved_tk)
-                    st.markdown(factor_panel_html(sr, False, company_info=ci), unsafe_allow_html=True)
+                    import streamlit.components.v1 as _cv1_sr
+                    _sr_html = factor_panel_html(sr, False, company_info=ci)
+                    _cv1_sr.html(_sr_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=420, scrolling=False)
                     # Signal history sparkline
                     _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
                     if _chart_html:
@@ -4358,7 +4357,9 @@ def page_screener():
                     elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                         r = dict(r); r["adj_action"] = "BUY"
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
-                st.markdown(cards_html, unsafe_allow_html=True)
+                import streamlit.components.v1 as _cv1_t10
+                _t10_ht = max(60, cards_html.count('qcard-wrap') * 62)
+                _cv1_t10.html(cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_t10_ht,8000), scrolling=False)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4366,7 +4367,7 @@ def page_screener():
         with fc1:
             filter_sec = st.selectbox("Sector", ["All"]+sorted(set(SECTORS.values())), key="f_sec")
         with fc2:
-            filter_act = st.selectbox("Conviction", ["All","High Conviction","Moderate","Low Conviction"], key="f_act")
+            filter_act = st.selectbox("Conviction", ["All","High","Moderate","Low"], key="f_act")
         with fc3:
             filter_min = st.selectbox("Min Score", ["All","60+","70+","80+"], key="f_min")
         # Rescan — small right-aligned, below filters
@@ -4387,7 +4388,7 @@ def page_screener():
         filtered = results
         if filter_sec != "All": filtered = [r for r in filtered if r.get("sector")==filter_sec]
         if filter_act != "All":
-            act_map = {"High Conviction":"BUY","Moderate":"HOLD","Low Conviction":"SELL"}
+            act_map = {"High":"BUY","Moderate":"HOLD","Low":"SELL"}
             filtered = [r for r in filtered if r.get("adj_action",r.get("action"))==act_map.get(filter_act)]
         if filter_min != "All":
             min_score = int(filter_min.replace("+",""))
@@ -4396,33 +4397,74 @@ def page_screener():
         # Free tier: show top 50 results only
         _user_plan = (st.session_state.user or {}).get("plan", "free")
         FREE_LIMIT = 50
+        RENDER_LIMIT = 200  # cap render to 200 cards max for performance
         _total_filtered = len(filtered)
         if _user_plan == "free" and _total_filtered > FREE_LIMIT:
             filtered = filtered[:FREE_LIMIT]
             _show_gate = True
         else:
             _show_gate = False
+        # Cap render for performance — prompt user to filter
+        _show_render_cap = not _show_gate and len(filtered) > RENDER_LIMIT
+        if _show_render_cap:
+            filtered = filtered[:RENDER_LIMIT]
 
         st.markdown(
             f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;'
             f'letter-spacing:.1em;margin:8px 0 12px;">{len(filtered)} STOCKS · 💎 = HIDDEN GEM'
-            + (f' · Showing {FREE_LIMIT} of {_total_filtered}' if _show_gate else '') +
+            + (f' · Showing {FREE_LIMIT} of {_total_filtered}' if _show_gate else
+               f' · Showing {RENDER_LIMIT} of {_total_filtered} — filter to see all' if _show_render_cap else '') +
             f'</div>',
             unsafe_allow_html=True)
-        _show_sparkline = len(filtered) <= 20
-        if not _show_sparkline and len(filtered) < 834:
-            st.markdown(
-                '<div style="font-size:12px;color:#475569;margin-bottom:8px;">'
-                '⚡ Filter to 20 or fewer stocks to see conviction trend charts.</div>',
-                unsafe_allow_html=True)
-        for r in filtered:
-            ci = get_company_info(r["ticker"])
-            st.markdown(factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci), unsafe_allow_html=True)
+        # Paginate at 50 per page — each page is one st.markdown so CSS toggle works
+        _PAGE_SIZE = 50
+        _total_pages = max(1, (len(filtered) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+        if "_fu_page" not in st.session_state:
+            st.session_state._fu_page = 0
+        # Reset page when filters change
+        _fu_filter_key = f"{filter_sec}_{filter_act}_{filter_min}"
+        if st.session_state.get("_fu_filter_key") != _fu_filter_key:
+            st.session_state._fu_page = 0
+            st.session_state._fu_filter_key = _fu_filter_key
+        _page = min(st.session_state._fu_page, _total_pages - 1)
+        _page_items = filtered[_page * _PAGE_SIZE:(_page + 1) * _PAGE_SIZE]
+
+        # Prev / Next
+        if _total_pages > 1:
+            _pn1, _pn2, _pn3 = st.columns([1, 2, 1])
+            with _pn1:
+                if _page > 0 and st.button("← Prev", key="fu_prev", use_container_width=True):
+                    st.session_state._fu_page = _page - 1
+                    st.session_state.nav = "screener"
+                    st.rerun()
+            with _pn2:
+                st.markdown(f'<div style="text-align:center;font-family:DM Mono,monospace;'
+                            f'font-size:11px;color:#475569;padding:8px 0;">'
+                            f'Page {_page+1} of {_total_pages}</div>', unsafe_allow_html=True)
+            with _pn3:
+                if _page < _total_pages - 1 and st.button("Next →", key="fu_next", use_container_width=True):
+                    st.session_state._fu_page = _page + 1
+                    st.session_state.nav = "screener"
+                    st.rerun()
+
+        _show_sparkline = len(_page_items) <= 20
+        _ci_cache = st.session_state.get("company_info_cache", {})
+        _fu_prog = st.progress(0, text="Loading cards...")
+        _fu_html = ""
+        for _fu_i, r in enumerate(_page_items):
+            ci = _ci_cache.get(r["ticker"])
+            _fu_html += factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci)
+            _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
             if _show_sparkline:
                 _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
-                    st.markdown(_ch, unsafe_allow_html=True)
+                    _fu_html += _ch
+        _fu_prog.empty()
+        if _fu_html:
+            import streamlit.components.v1 as _cv1_fu
+            _fu_ht = max(60, _fu_html.count('qcard-wrap') * 62)
+            _cv1_fu.html(_fu_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_fu_ht,8000), scrolling=False)
 
         if _show_gate:
             st.markdown(
@@ -4699,7 +4741,9 @@ def page_watchlist():
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
         _cards_html += factor_panel_html(sc, False, company_info=ci)
-    st.markdown(_cards_html, unsafe_allow_html=True)
+    import streamlit.components.v1 as _cv1_wl
+    _wl_ht = max(60, _cards_html.count('qcard-wrap') * 62)
+    _cv1_wl.html(_cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_wl_ht,8000), scrolling=False)
 
     # Remove buttons — one per stock, below each card
     for w in watchlist:
@@ -4864,7 +4908,10 @@ def page_gems():
             cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
         except Exception:
             pass
-    st.markdown('<div style="padding:0 4px;">' + cards_html + '</div>', unsafe_allow_html=True)
+    import streamlit.components.v1 as _cv1_gems
+    _gems_h = '<div style="padding:0 4px;">' + cards_html + '</div>'
+    _gems_ht = max(60, _gems_h.count('qcard-wrap') * 62)
+    _cv1_gems.html(_gems_h + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_gems_ht,8000), scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -5419,7 +5466,7 @@ def page_portfolio():
             f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO CONVICTION</div>'
             f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
             f'<div>'
-            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};">{_conv_label}</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};white-space:nowrap;">{_conv_label}</span>'
             f'{_trend_html}'
             f'<div style="font-size:11px;color:#475569;margin-top:2px;">avg score {_avg:.0f} · {len(holdings)} positions</div>'
             f'</div>'
@@ -5813,7 +5860,9 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        st.markdown(factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        import streamlit.components.v1 as _cv1_psc
+        _psc_html = factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True)
+        _cv1_psc.html(_psc_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=420, scrolling=False)
 
         # Remove from portfolio button
         _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
@@ -6102,7 +6151,9 @@ def page_simulator():
         _sel_r["adj_composite"] = _sel_adj
         _sel_ci = get_company_info(_sim_sel_tk)
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
-        st.markdown(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        import streamlit.components.v1 as _cv1_sim
+        _sim_card = factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True)
+        _cv1_sim.html(_sim_card + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=420, scrolling=False)
         # Add / Remove CTA
         _in_sim = _sim_sel_tk in st.session_state.get("sim_selected", [])
         if _in_sim:
@@ -6713,20 +6764,13 @@ def page_account():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_model_portfolio():
     _pin_nav("model_portfolio")
-    """
-    QNTM Model Portfolio — top 20 BUY signals tracked from today's entry.
-    Entry date sourced from model_portfolio_positions (seeded 2026-05-19).
-    Exits when conviction score drops below 45. Reinvests into next highest conviction signal.
-    """
+    # Model portfolio: HIGH conviction positions, exits at score < 45
     from data_refresh import _get_supabase
     import datetime
 
     page_summary(
         "🏆", "Model Portfolio",
-        "50 High Conviction positions built across May 19–23, 2026 — all HIGH signals on Monday, "
-        "topped up daily with new HIGH conviction stocks until reaching 50. 30% sector cap enforced. "
-        "Equal-weighted at $2K per position ($100K total). Exits when conviction score drops below 45, "
-        "reinvests into next highest conviction stock available.",
+        "Live HIGH conviction positions · equal-weighted $2K · exits at Low Conviction · auto-reinvests"
     )
 
     sb = _get_supabase()
@@ -6801,33 +6845,38 @@ def page_model_portfolio():
                     f'</div>', unsafe_allow_html=True)
         return
 
-    # ── Fetch live prices via yfinance for all positions ─────────────────────
-    live_prices = {}
+    # ── Live prices via yfinance — cached per session (5 min TTL) ───────────
+    import time as _mp_time
+    _mp_cache_age = _mp_time.time() - st.session_state.get("_mp_prices_at", 0)
     tickers_to_fetch = [p["ticker"] for p in positions]
-    if tickers_to_fetch:
+    if _mp_cache_age > 300 or not st.session_state.get("_mp_prices"):
+        live_prices = {}
+        # First fill from signal_log (instant)
+        for tk in tickers_to_fetch:
+            if score_map.get(tk, {}).get("price"):
+                live_prices[tk] = float(score_map[tk]["price"])
+        # Then fetch live prices from yfinance to get current market prices
         try:
             import yfinance as yf
-            with st.spinner("Fetching live prices..."):
-                hist = yf.download(
-                    tickers_to_fetch, period="1d",
-                    auto_adjust=True, progress=False, threads=True
-                )
-                if not hist.empty:
-                    close = hist["Close"]
-                    if hasattr(close, "columns"):
-                        # MultiIndex — multiple tickers
-                        for tk in tickers_to_fetch:
-                            if tk in close.columns:
-                                val = close[tk].dropna()
-                                if not val.empty:
-                                    live_prices[tk] = float(val.iloc[-1])
-                    else:
-                        # Single ticker
-                        val = close.dropna()
-                        if not val.empty and len(tickers_to_fetch) == 1:
-                            live_prices[tickers_to_fetch[0]] = float(val.iloc[-1])
+            _px_data = yf.download(tickers_to_fetch, period="1d", interval="1d",
+                                   auto_adjust=True, progress=False, threads=True)
+            if not _px_data.empty:
+                _cls = _px_data["Close"]
+                if hasattr(_cls, "columns"):
+                    for tk in tickers_to_fetch:
+                        if tk in _cls.columns:
+                            _v = _cls[tk].dropna()
+                            if not _v.empty: live_prices[tk] = float(_v.iloc[-1])
+                else:
+                    _v = _cls.dropna()
+                    if not _v.empty and len(tickers_to_fetch)==1:
+                        live_prices[tickers_to_fetch[0]] = float(_v.iloc[-1])
         except Exception:
             pass  # fall back to signal_log prices
+        st.session_state._mp_prices    = live_prices
+        st.session_state._mp_prices_at = _mp_time.time()
+    else:
+        live_prices = st.session_state._mp_prices
 
     # ── Calculate portfolio metrics ───────────────────────────────────────────
     today = datetime.date.today().isoformat()
@@ -6881,14 +6930,18 @@ def page_model_portfolio():
     sign        = "+" if port_return >= 0 else ""
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
-    # ── SPY benchmark comparison ──────────────────────────────────────────────
-    # Per-position SPY comparison (each position vs SPY over its own holding window)
+    # ── SPY benchmark — use cached value only, skip slow download ────────────
     spy_return = 0.0
     spy_pnl    = 0.0
     try:
         import yfinance as yf
         from datetime import date as _dt
-        spy_hist = yf.download("SPY", start="2026-05-19", progress=False, auto_adjust=True)
+        if "_mp_spy" not in st.session_state:
+            st.session_state._mp_spy = None  # fetch deferred
+        spy_hist = st.session_state._mp_spy
+        if spy_hist is None:
+            spy_hist = yf.download("SPY", start="2026-05-19", progress=False, auto_adjust=True)
+            st.session_state._mp_spy = spy_hist
         if not spy_hist.empty:
             spy_close = spy_hist["Close"]
             if hasattr(spy_close, "columns"): spy_close = spy_close.iloc[:,0]
@@ -6917,21 +6970,26 @@ def page_model_portfolio():
 
 
     # ── Methodology banner ────────────────────────────────────────────────────
+    # Dynamic entry dates from positions
+    _entry_dates = sorted(set(str(p.get('entry_date',''))[:10] for p in positions if p.get('entry_date')))
+    _start_date  = _entry_dates[0] if _entry_dates else '2026-05-19'
+    _end_date    = _entry_dates[-1] if _entry_dates else '2026-05-25'
     st.markdown(
         '<div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);'
         'border-radius:8px;padding:16px 20px;margin-bottom:20px;">'
         '<div style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;'
         'letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>'
         '<div style="font-size:13px;color:#94a3b8;line-height:1.7;">'
-        'Built across <strong style="color:#cbd5e1;">May 19–23, 2026</strong> — '
-        '~10 highest conviction signals entered each trading day until reaching 50 positions. '
-        'Entry threshold: blended conviction score '
-        '<strong style="color:#00ff87;">≥ 60</strong> across 5 factors + macro overlay. '
-        'Equal-weighted at <strong style="color:#cbd5e1;">$2,000 per position</strong> ($100K total).'
+        f'Built from <strong style="color:#cbd5e1;">{_start_date}</strong> — '
+        'highest conviction signals entered each day. '
+        'Entry threshold: <strong style="color:#00ff87;">≥ 67</strong> in HIGH VOLATILITY regime, '
+        '<strong style="color:#00ff87;">≥ 60</strong> in normal regimes. '
+        'Equal-weighted at <strong style="color:#cbd5e1;">$2,000 per position</strong> ($100K total). '
+        '30% sector cap enforced at entry.'
         '<br><br>'
-        '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions are held until conviction '
-        'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into the next '
-        'highest conviction signal not already held. No discretionary overrides.'
+        '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions exit when conviction '
+        'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into next '
+        'highest conviction signal. No discretionary overrides.'
         '</div></div>',
         unsafe_allow_html=True
     )
@@ -6981,81 +7039,67 @@ def page_model_portfolio():
         except Exception:
             pass
 
-    for i, h in enumerate(sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)):
-        bg       = "rgba(255,255,255,.025)" if i % 2 == 0 else "rgba(255,255,255,.01)"
-        rc       = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-        sg       = "+" if h["pnl_pct"] >= 0 else ""
-        entry_str = f'${h["entry_price"]:,.2f}'  if h["entry_price"]   else "—"
-        cur_str   = f'${h["current_price"]:,.2f}' if h["current_price"] else "—"
-        pnl_str   = f'{sg}${abs(h["pnl"]):,.0f}' if h["entry_price"] and h["current_price"] else "—"
-        ret_str   = f'{sg}{h["pnl_pct"]:.2f}%'   if h["entry_price"] and h["current_price"] else "—"
-        shares    = (h["pos_size"] / h["entry_price"]) if h.get("entry_price") and h["entry_price"] > 0 else None
-        shares_str = f'{shares:,.1f} sh' if shares else "—"
-        score     = h["current_score"]
-        score_col = "#00ff87" if score >= 70 else ("#fbbf24" if score >= 55 else "#ef4444")
-        gem_badge = "💎 " if h["ticker"] in port_gem_tickers else ""
-
-        # Company name + sector from score_map
-        sd       = score_map.get(h["ticker"], {})
-        ci       = get_company_info(h["ticker"])
-        co_name  = (ci.get("name","") if ci else "")[:28] or h["ticker"]
-        from model_engine import SECTORS as _MP_SECTORS
-        sector   = sd.get("sector","") or _MP_SECTORS.get(h["ticker"],"") or "—"
-        sec_short = sector[:18] + "…" if len(sector) > 18 else sector
-
-        # Left border accent by return
-        border_c = "#00ff87" if h["pnl_pct"] >= 0 else "#ef4444"
-
-        st.markdown(
-            # Desktop row (hidden on mobile via CSS class)
-            f'<div class="mp-row" style="display:grid;grid-template-columns:120px 1fr 110px 80px 70px 60px;'
-            f'gap:8px;padding:8px 16px;background:{bg};margin-bottom:1px;'
-            f'border-left:3px solid {border_c};align-items:center;">'
-            # Ticker + name
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;line-height:1;">{gem_badge}{h["ticker"]}</div>'
-            f'<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">{co_name}</div>'
+    # Render positions as collapsed cards with P&L data
+    from model_engine import SECTORS as _MP_SECTORS
+    _mp_prog = st.progress(0, text="Building positions...")
+    _mp_html = ""
+    _mp_sorted = sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)
+    for _mp_i, h in enumerate(_mp_sorted):
+        tk    = h["ticker"]
+        score = h["current_score"]
+        sc    = dict(score_map.get(tk, {}) or {})
+        sc["ticker"]        = tk
+        sc["adj_composite"] = score
+        sc["adj_action"]    = "BUY" if score >= 60 else ("SELL" if score < 45 else "HOLD")
+        sc["momentum"]      = h["momentum"]
+        sc["quality"]       = h["quality"]
+        sc["volume"]        = h["volume"]
+        sc["value"]         = h["value"]
+        sc["sentiment"]     = h["sentiment"]
+        sc["price"]         = h["current_price"]
+        sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
+        sc["signal_date"]   = str(h["entry_date"])[:10]
+        sc["score_delta"]   = 0
+        _ci_cache_mp = st.session_state.get("company_info_cache", {})
+        ci = _ci_cache_mp.get(tk)
+        # Build card + P&L strip
+        _card = factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
+        # Inject P&L row into the detail section
+        _ep   = h.get('entry_price')
+        _cp   = h.get('current_price')
+        _pct  = h.get('pnl_pct', 0)
+        _pnl  = h.get('pnl', 0)
+        _edate= str(h.get('entry_date',''))[:10]
+        _rc   = '#00ff87' if _pct >= 0 else '#ef4444'
+        _sg   = '+' if _pct >= 0 else ''
+        _ep_str = f'${_ep:,.2f}' if _ep else '—'
+        _cp_str = f'${_cp:,.2f}' if _cp else '—'
+        _pnl_str = f'{_sg}${abs(_pnl):,.0f}' if _ep and _cp else '—'
+        _pct_str = f'{_sg}{_pct:.2f}%' if _ep and _cp else '—'
+        _pnl_html = (
+            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
+            f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
+            f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{_edate}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{_ep_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{_cp_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{_rc};">{_pnl_str}</div></div>'
             f'</div>'
-            # Sector + entry date
-            f'<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sec_short} · {h["entry_date"]}</div>'
-            # Entry → current
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;text-align:right;white-space:nowrap;">{entry_str}→{cur_str}</div>'
-            # Shares
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;text-align:right;">{shares_str}</div>'
-            # P&L
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:{rc};text-align:right;">{pnl_str}</div>'
-            # Return + score
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{rc};">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">s:{score:.0f}</div>'
-            f'</div>'
-            f'</div>'
-            # Mobile card (shown on mobile via CSS class)
-            f'<div class="mp-card" style="display:none;padding:12px 16px;background:{bg};margin-bottom:1px;'
-            f'border-left:3px solid {border_c};">'
-            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-            f'<div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{gem_badge}{h["ticker"]}</div>'
-            f'<div style="font-size:11px;color:#64748b;">{co_name}</div>'
-            f'<div style="font-size:10px;color:#475569;margin-top:2px;">{sec_short} · {h["entry_date"]}</div>'
-            f'</div>'
-            f'<div style="text-align:right;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{rc};">{ret_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{rc};">{pnl_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{score_col};">score: {score:.0f}</div>'
-            f'</div>'
-            f'</div>'
-            f'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">ENTRY</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{entry_str}</div></div>'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">CURRENT</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{cur_str}</div></div>'
-            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;">SHARES</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#64748b;">{shares_str}</div></div>'
-            f'</div>'
-            + _build_why_html(h) +
-            f'</div>',
-            unsafe_allow_html=True)
+        )
+        # Insert P&L before the closing qcard-detail div
+        _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
+        _mp_html += _card
+        _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
+    _mp_prog.empty()
+    if _mp_html:
+        import streamlit.components.v1 as _cv1_mp
+        _mp_ht = max(60, _mp_html.count('qcard-wrap') * 62)
+        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_mp_ht,8000), scrolling=False)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
