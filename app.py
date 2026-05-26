@@ -4479,10 +4479,7 @@ def page_screener():
                     _fu_html += _ch
         _fu_prog.empty()
         if _fu_html:
-            # Wrap in column — same as Top 10 which works correctly
-            _fu_col, = st.columns(1)
-            with _fu_col:
-                st.markdown(_fu_html, unsafe_allow_html=True)
+            st.html(_fu_html)
 
         if _show_gate:
             st.markdown(
@@ -7045,7 +7042,8 @@ def page_model_portfolio():
         _mp_html += factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
-    st.markdown(_mp_html, unsafe_allow_html=True)
+    if _mp_html:
+        st.html(_mp_html)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
