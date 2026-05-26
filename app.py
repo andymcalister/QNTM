@@ -4137,7 +4137,7 @@ def page_screener():
                         sr["promoted"] = False
                     sr["pct_rank"] = 50
                     ci = get_company_info(resolved_tk)
-                    st.markdown(factor_panel_html(sr, False, company_info=ci), unsafe_allow_html=True)
+                    st.html(factor_panel_html(sr, False, company_info=ci))
                     # Signal history sparkline
                     _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
                     if _chart_html:
@@ -4376,7 +4376,7 @@ def page_screener():
                     elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                         r = dict(r); r["adj_action"] = "BUY"
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
-                st.markdown(cards_html, unsafe_allow_html=True)
+                st.html(cards_html)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4756,7 +4756,7 @@ def page_watchlist():
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
         _cards_html += factor_panel_html(sc, False, company_info=ci)
-    st.markdown(_cards_html, unsafe_allow_html=True)
+    st.html(_cards_html)
 
     # Remove buttons — one per stock, below each card
     for w in watchlist:
@@ -4921,7 +4921,7 @@ def page_gems():
             cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
         except Exception:
             pass
-    st.markdown('<div style="padding:0 4px;">' + cards_html + '</div>', unsafe_allow_html=True)
+    st.html('<div style="padding:0 4px;">' + cards_html + '</div>')
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -5870,7 +5870,7 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        st.markdown(factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        st.html(factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True))
 
         # Remove from portfolio button
         _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
@@ -6159,7 +6159,7 @@ def page_simulator():
         _sel_r["adj_composite"] = _sel_adj
         _sel_ci = get_company_info(_sim_sel_tk)
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
-        st.markdown(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        st.html(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True))
         # Add / Remove CTA
         _in_sim = _sim_sel_tk in st.session_state.get("sim_selected", [])
         if _in_sim:
