@@ -4479,7 +4479,10 @@ def page_screener():
                     _fu_html += _ch
         _fu_prog.empty()
         if _fu_html:
-            st.markdown(_fu_html, unsafe_allow_html=True)
+            # Wrap in column — same as Top 10 which works correctly
+            _fu_col, = st.columns(1)
+            with _fu_col:
+                st.markdown(_fu_html, unsafe_allow_html=True)
 
         if _show_gate:
             st.markdown(
