@@ -1798,7 +1798,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
            f'<span style="font-size:11px;color:#475569;">{r.get("sector","")[:20]}</span>'
            f'<span style="font-size:11px;color:#475569;">{driver}</span>'
            f'</div>' if (price_html or r.get("sector")) else "")
-        + f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">{pillar_bars}</div>'
+        + f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;"'
+          f'class="qcard-pillars">{pillar_bars}</div>'
         + f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
         f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
@@ -4356,7 +4357,7 @@ def page_screener():
                     cards_html += factor_panel_html(r, is_gem, company_info=ci)
                 import streamlit.components.v1 as _cv1_t10
                 _t10_ht = max(60, cards_html.count('qcard-wrap') * 62)
-                _cv1_t10.html(cards_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_t10_ht,8000), scrolling=True)
+                _cv1_t10.html(cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_t10_ht,8000), scrolling=True)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4461,7 +4462,7 @@ def page_screener():
         if _fu_html:
             import streamlit.components.v1 as _cv1_fu
             _fu_ht = max(60, _fu_html.count('qcard-wrap') * 62)
-            _cv1_fu.html(_fu_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_fu_ht,8000), scrolling=True)
+            _cv1_fu.html(_fu_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_fu_ht,8000), scrolling=True)
 
         if _show_gate:
             st.markdown(
@@ -4740,7 +4741,7 @@ def page_watchlist():
         _cards_html += factor_panel_html(sc, False, company_info=ci)
     import streamlit.components.v1 as _cv1_wl
     _wl_ht = max(60, _cards_html.count('qcard-wrap') * 62)
-    _cv1_wl.html(_cards_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_wl_ht,8000), scrolling=True)
+    _cv1_wl.html(_cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_wl_ht,8000), scrolling=True)
 
     # Remove buttons — one per stock, below each card
     for w in watchlist:
@@ -4908,7 +4909,7 @@ def page_gems():
     import streamlit.components.v1 as _cv1_gems
     _gems_h = '<div style="padding:0 4px;">' + cards_html + '</div>'
     _gems_ht = max(60, _gems_h.count('qcard-wrap') * 62)
-    _cv1_gems.html(_gems_h + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_gems_ht,8000), scrolling=True)
+    _cv1_gems.html(_gems_h + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_gems_ht,8000), scrolling=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -7032,7 +7033,7 @@ def page_model_portfolio():
     if _mp_html:
         import streamlit.components.v1 as _cv1_mp
         _mp_ht = max(60, _mp_html.count('qcard-wrap') * 62)
-        _cv1_mp.html(_mp_html + "<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_mp_ht,8000), scrolling=True)
+        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\n</style>\n<script>\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n  });\n});\n</script>", height=min(_mp_ht,8000), scrolling=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
