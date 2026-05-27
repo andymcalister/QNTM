@@ -576,16 +576,18 @@ def check_and_notify_signal_changes(user_id: str, plan: str,
         if prev_action and curr_action != prev_action:
             ntype = {"BUY": "buy_signal", "SELL": "sell_signal"}.get(curr_action, "system")
             arrow = "▲" if curr_action == "BUY" else "▼" if curr_action == "SELL" else "─"
+            prev_lbl = _sig_label(prev_action)
+            curr_lbl = _sig_label(curr_action)
             create_notification(
                 user_id, ticker, ntype,
-                f"{arrow} {ticker}: {prev_action} → {curr_action}",
+                f"{arrow} {ticker}: {prev_lbl} → {curr_lbl} conviction",
                 f"Score {curr_score:.0f} (was {prev_score:.0f}) · "
                 f"Momentum {curr_mom:.0f} · Quality {curr_qual:.0f}. "
-                f"Model signal changed from {prev_action} to {curr_action}."
+                f"Model conviction changed from {prev_lbl} to {curr_lbl}."
             )
             changes.append({"ticker": ticker, "from": prev_action, "to": curr_action, "type": "action_change"})
 
-        # ── Score deterioration alert (≥10pt drop, still HOLD) ───────────────
+        # ── Score deterioration alert (≥10pt drop, still MODERATE) ───────────
         elif curr_action == "HOLD" and score_delta <= -10:
             create_notification(
                 user_id, ticker, "sell_signal",
@@ -596,7 +598,7 @@ def check_and_notify_signal_changes(user_id: str, plan: str,
             changes.append({"ticker": ticker, "from": prev_action, "to": curr_action,
                            "type": "deterioration", "delta": score_delta})
 
-        # ── Score recovery alert (≥10pt gain back into BUY territory) ────────
+        # ── Score recovery alert (≥10pt gain back into HIGH territory) ────────
         elif curr_action == "BUY" and prev_action == "HOLD" and score_delta >= 10:
             create_notification(
                 user_id, ticker, "buy_signal",

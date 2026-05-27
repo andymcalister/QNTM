@@ -1059,157 +1059,9 @@ def show_onboarding():
 
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# LEGAL PAGES
-# ══════════════════════════════════════════════════════════════════════════════
-PRIVACY_POLICY = """
-## Privacy Policy
-**Effective Date: May 16, 2025 | QNTM Platform**
-
-### 1. Who We Are
-QNTM is a quantitative investment research platform operated by QNTM Technologies Inc.
-Contact: privacy@qntm.app
-
-### 2. Data We Collect
-**Account data:** Name, email address (encrypted at rest), password (bcrypt hashed — unreadable by us).
-**Usage data:** Pages visited, features used, scan timestamps. No browsing data outside QNTM.
-**Portfolio data:** Tickers, share counts, average cost. Stored encrypted, never sold.
-**Authentication data:** TOTP secrets (encrypted). Session tokens.
-
-### 3. How We Use Data
-- Authenticate your account and maintain your session
-- Run the quantitative model against your portfolio
-- Send signal change notifications (Pro users, opt-in only)
-- Improve platform performance via anonymized analytics
-- We do **not** sell, rent, or share your personal data with third parties for advertising
-
-### 4. Data Storage & Security
-All data stored in Supabase (SOC 2 Type II certified). Sensitive fields encrypted with AES-256-GCM
-before storage. Passwords hashed with bcrypt (cost factor 12). TOTP secrets encrypted separately.
-Email address stored in encrypted form plus a one-way SHA-256 hash for login lookup.
-
-### 5. Data Retention
-Account data retained while account is active. You may request deletion at any time.
-Anonymized usage statistics retained up to 2 years.
-
-### 6. Your Rights
-You have the right to: access your data, correct inaccuracies, request deletion, export your data,
-and withdraw consent at any time. Email privacy@qntm.app to exercise these rights.
-
-### 7. Cookies
-Essential session cookies: required for authentication. Cannot be disabled.
-Analytical cookies: usage patterns to improve the platform. Can be declined at the cookie banner.
-No advertising cookies. No third-party tracking pixels.
-
-### 8. Changes
-We will notify users of material changes via in-app notification 14 days in advance.
-"""
-
-TERMS_OF_SERVICE = """
-## Terms of Service
-**Effective Date: May 16, 2025 | QNTM Platform**
-
-### 1. Acceptance
-By creating an account or using QNTM, you agree to these Terms. If you do not agree, do not use the platform.
-
-### 2. Service Description
-QNTM is a **quantitative research and factor analysis tool**. It provides algorithmic scoring,
-signal generation, and portfolio tracking for informational and educational purposes only.
-
-### 3. NOT Investment Advice
-**QNTM is not a registered investment adviser, broker-dealer, or financial planner.**
-Nothing on QNTM constitutes investment advice, a recommendation to buy or sell any security,
-or a guarantee of future performance. All model outputs are for research purposes only.
-Past performance of the model does not predict future results. You are solely responsible
-for your investment decisions. Always consult a qualified financial adviser.
-
-### 4. Eligibility
-You must be 18 or older. QNTM is available globally but users are responsible for compliance
-with local financial regulations regarding investment research tools.
-
-### 5. Account Responsibilities
-You are responsible for maintaining the security of your account credentials. Enable two-factor
-authentication. Notify us immediately at security@qntm.app of any unauthorized access.
-
-### 6. Acceptable Use
-You may not: scrape or copy model outputs for commercial redistribution; reverse-engineer the
-scoring algorithm; share account access; use automated bots against the platform; or upload
-malicious content.
-
-### 7. Intellectual Property
-The QNTM scoring model, factor methodology, and platform are proprietary. Market data displayed
-is sourced from public APIs (Yahoo Finance). Company names and ticker symbols are the property
-of their respective owners.
-
-### 8. Subscriptions & Billing
-Free plan: no charge, limited features as described. Pro plan: $29/month, billed monthly.
-Founding Member: first 50 users receive Pro access free indefinitely. Cancel anytime.
-No refunds for partial months.
-
-### 9. Limitation of Liability
-QNTM's total liability to you for any claim shall not exceed the amount you paid in the
-prior 12 months (or $0 for free users). We are not liable for investment losses, market data
-inaccuracies, or decisions made based on model output.
-
-### 10. Governing Law
-These Terms are governed by the laws of the State of Florida, USA.
-Disputes shall be resolved by binding arbitration in Miami, Florida.
-"""
-
-DISCLAIMER_FULL = """
-## Investment Disclaimer
-**This disclaimer applies to all content on the QNTM platform.**
-
-QNTM provides quantitative factor analysis, model scores, and signal generation as an educational
-and research resource. The following must be understood before using any QNTM output:
-
-**No Investment Advice:** Model HIGH, MODERATE, and LOW conviction signals are algorithmic outputs based on
-historical factor analysis. They are NOT recommendations to purchase or sell any security.
-
-**Past Performance:** The 5-year backtest results shown are based on historical data using the
-model's current rules applied retroactively. Past model performance does not guarantee future results.
-Backtests are subject to look-ahead bias and survivorship bias limitations despite our methodology.
-
-**Market Risk:** All investments carry risk of loss, including the possible loss of the entire
-principal amount invested. Equity markets can and do decline significantly.
-
-**Model Limitations:** The QNTM model uses publicly available data and estimated fundamentals.
-Data may be delayed, inaccurate, or incomplete. The model does not account for taxes, transaction
-costs, liquidity constraints, or individual financial circumstances.
-
-**Not a Fiduciary:** QNTM has no fiduciary duty to users. We are a technology platform, not a
-registered investment adviser.
-
-**Consult a Professional:** Before making any investment decision, consult a qualified financial
-adviser, tax professional, or legal counsel appropriate to your situation.
-
-**Regulatory Notice:** QNTM is not registered with the SEC, FINRA, or any state securities regulator.
-"""
-
-COOKIE_POLICY = """
-## Cookie Policy
-**Effective Date: May 16, 2025**
-
-### Cookies We Use
-
-| Cookie | Type | Purpose | Duration |
-|--------|------|---------|----------|
-| Session token | Essential | Maintains your login session | Session |
-| CSRF protection | Essential | Prevents cross-site request forgery | Session |
-| UI preferences | Functional | Remembers your dark/light mode preference | 1 year |
-| Analytics | Analytical | Anonymous usage statistics | 90 days |
-
-### No Advertising Cookies
-We do not use cookies for advertising, retargeting, or tracking across other websites.
-
-### Control Your Cookies
-You can decline analytical cookies at the consent banner when you first visit.
-Essential cookies cannot be disabled — the platform cannot function without them.
-To remove all cookies, clear your browser storage for qntm.app.
-
-### Contact
-Cookie questions: privacy@qntm.app
-"""
+# Legal page constants (PRIVACY_POLICY, TERMS_OF_SERVICE, BILLING_POLICY,
+# DISCLAIMER_FULL, COOKIE_POLICY) live near page_legal() below — single source
+# of truth. Edit them there.
 
 
 def data_freshness_banner():
@@ -1766,7 +1618,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         if _in_wl:
             _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_self" style="display:block;width:100%;'
+                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
@@ -1776,7 +1628,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         elif _uid_v:
             _wl_url = _qp_base + f'&wl_action=add&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_self" style="display:block;width:100%;'
+                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
@@ -2263,164 +2115,313 @@ DISCLAIMER = """<div style="display:flex;align-items:center;gap:8px;padding:6px 
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# LEGAL PAGES
+# LEGAL PAGES — content matches QNTM_POLICIES_FINAL.md (draft for attorney review)
+# Update both files together when policies change.
 # ══════════════════════════════════════════════════════════════════════════════
 PRIVACY_POLICY = """
 ## Privacy Policy
-**Effective Date: May 16, 2025 | QNTM Platform**
+**Effective Date: To be set at publication** · QNTM LLC (California)
 
-### 1. Who We Are
-QNTM is a quantitative investment research platform operated by QNTM Technologies Inc.
-Contact: privacy@qntm.app
+### What We Collect
 
-### 2. Data We Collect
-**Account data:** Name, email address (encrypted at rest), password (bcrypt hashed — unreadable by us).
-**Usage data:** Pages visited, features used, scan timestamps. No browsing data outside QNTM.
-**Portfolio data:** Tickers, share counts, average cost. Stored encrypted, never sold.
-**Authentication data:** TOTP secrets (encrypted). Session tokens.
+**You give us:**
+- Email address and password (passwords are bcrypt-hashed — we cannot see them)
+- Optional 2FA secret (encrypted at rest)
+- Optional full name
+- Payment method (processed and stored by Stripe — we never see your card number)
+- Your watchlist, portfolio, and simulator data
 
-### 3. How We Use Data
-- Authenticate your account and maintain your session
-- Run the quantitative model against your portfolio
-- Send signal change notifications (Pro users, opt-in only)
-- Improve platform performance via anonymized analytics
-- We do **not** sell, rent, or share your personal data with third parties for advertising
+**We collect automatically:**
+- Login times and session data
+- IP address (for security only — not tracked across sites, not sold)
+- Anonymous, aggregated feature usage (used to improve the product)
 
-### 4. Data Storage & Security
-All data stored in Supabase (SOC 2 Type II certified). Sensitive fields encrypted with AES-256-GCM
-before storage. Passwords hashed with bcrypt (cost factor 12). TOTP secrets encrypted separately.
-Email address stored in encrypted form plus a one-way SHA-256 hash for login lookup.
+### What We Don't Do
+- We don't sell your data
+- We don't use your data for advertising
+- We don't share your data except as described below
+- We don't track you across other websites
 
-### 5. Data Retention
-Account data retained while account is active. You may request deletion at any time.
-Anonymized usage statistics retained up to 2 years.
+### Who We Share Data With
 
-### 6. Your Rights
-You have the right to: access your data, correct inaccuracies, request deletion, export your data,
-and withdraw consent at any time. Email privacy@qntm.app to exercise these rights.
+| Provider | Purpose | Their privacy policy |
+|----------|---------|---------------------|
+| Stripe, Inc. | Payment processing | stripe.com/privacy |
+| Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
+| Streamlit (a Snowflake company) | Application hosting | streamlit.io/privacy |
+| SendGrid (Twilio) | Transactional email — only if you enable email notifications | sendgrid.com/policies/privacy |
+| GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
-### 7. Cookies
-Essential session cookies: required for authentication. Cannot be disabled.
-Analytical cookies: usage patterns to improve the platform. Can be declined at the cookie banner.
-No advertising cookies. No third-party tracking pixels.
+Market data is sourced from public providers (Yahoo Finance, FRED) and is not personal data.
 
-### 8. Changes
-We will notify users of material changes via in-app notification 14 days in advance.
+We will share data with law enforcement if legally required, and may disclose data to protect QNTM's rights or the safety of users.
+
+### Security
+- Passwords: bcrypt-hashed (cost factor 12)
+- Sensitive personal fields (email, name, 2FA secret): AES-256 encrypted at rest
+- Email-hash lookup so we can find your account without decrypting your email
+- Two-factor authentication available and strongly recommended
+- Login events are logged for security review
+- HTTPS for all traffic
+
+### How Long We Keep Your Data
+- **Active accounts:** kept while your account exists
+- **Deleted accounts:** personal data is removed within 30 days. Founding Member status is forfeited at deletion and cannot be restored — see Terms §6.
+- **Payment records:** kept 7 years as required by tax and financial-record law
+- **Anonymous, aggregated usage statistics:** kept indefinitely
+
+### Your Rights
+Email privacy@qntm.app to:
+- See what data we hold about you
+- Correct inaccurate data
+- Delete your account and personal data
+- Export your data in machine-readable form
+
+We will respond within 30 days.
+
+California residents have additional rights under the California Consumer Privacy Act (CCPA), including the right to know what personal information we collect, the right to delete it, and the right to non-discrimination for exercising these rights. We do not sell personal information as defined by CCPA.
+
+### Children
+QNTM is not directed to anyone under 18. We do not knowingly collect data from anyone under 18. If you believe a child has provided us data, contact privacy@qntm.app and we will delete it.
+
+### Contact
+privacy@qntm.app
 """
 
 TERMS_OF_SERVICE = """
 ## Terms of Service
-**Effective Date: May 16, 2025 | QNTM Platform**
+**Effective Date: To be set at publication** · QNTM LLC (California)
 
-### 1. Acceptance
+### 1. Who We Are and What We Do
+QNTM is a quantitative research platform operated by QNTM LLC, a California limited liability company. We score stocks using a five-factor model, apply a live macro regime overlay, and surface conviction signals. Everything we produce is algorithmic research — not investment advice.
+
+### 2. Agreement
 By creating an account or using QNTM, you agree to these Terms. If you do not agree, do not use the platform.
 
-### 2. Service Description
-QNTM is a **quantitative research and factor analysis tool**. It provides algorithmic scoring,
-signal generation, and portfolio tracking for informational and educational purposes only.
-
-### 3. NOT Investment Advice
+### 3. Not Investment Advice
 **QNTM is not a registered investment adviser, broker-dealer, or financial planner.**
-Nothing on QNTM constitutes investment advice, a recommendation to buy or sell any security,
-or a guarantee of future performance. All model outputs are for research purposes only.
-Past performance of the model does not predict future results. You are solely responsible
-for your investment decisions. Always consult a qualified financial adviser.
 
-### 4. Eligibility
-You must be 18 or older. QNTM is available globally but users are responsible for compliance
-with local financial regulations regarding investment research tools.
+HIGH, MODERATE, and LOW conviction signals are algorithmic outputs — not recommendations to buy or sell any security. You make your own investment decisions. QNTM is not responsible for investment losses. Past model performance does not guarantee future results. Consult a qualified financial adviser before investing.
 
-### 5. Account Responsibilities
-You are responsible for maintaining the security of your account credentials. Enable two-factor
-authentication. Notify us immediately at security@qntm.app of any unauthorized access.
+### 4. Who Can Use QNTM
+You must be 18 or older. By using QNTM you confirm this. You are responsible for complying with the financial research laws in your country.
 
-### 6. Acceptable Use
-You may not: scrape or copy model outputs for commercial redistribution; reverse-engineer the
-scoring algorithm; share account access; use automated bots against the platform; or upload
-malicious content.
+### 5. Your Account
+- Use accurate information when signing up
+- Keep your password and 2FA credentials secure
+- You are responsible for all activity on your account
+- Report unauthorized access immediately to security@qntm.app
 
-### 7. Intellectual Property
-The QNTM scoring model, factor methodology, and platform are proprietary. Market data displayed
-is sourced from public APIs (Yahoo Finance). Company names and ticker symbols are the property
-of their respective owners.
+### 6. Subscriptions
 
-### 8. Subscriptions & Billing
-Free plan: no charge, limited features as described. Pro plan: $29/month, billed monthly.
-Founding Member: first 50 users receive Pro access free indefinitely. Cancel anytime.
-No refunds for partial months.
+**Plans**
 
-### 9. Limitation of Liability
-QNTM's total liability to you for any claim shall not exceed the amount you paid in the
-prior 12 months (or $0 for free users). We are not liable for investment losses, market data
-inaccuracies, or decisions made based on model output.
+| Plan | Price | Notes |
+|------|-------|-------|
+| Free | $0/month | Limited features |
+| Pro | $29/month | Full access — first 7 days free |
+| Founding Member | $0 forever | First 50 accounts, Pro access, tied to original account |
 
-### 10. Governing Law
-These Terms are governed by the laws of the State of Florida, USA.
-Disputes shall be resolved by binding arbitration in Miami, Florida.
+**Free Trial**
+- Pro subscriptions include a 7-day free trial. You will not be charged until the trial ends.
+- One free trial per customer (per person, per household, per payment method). We reserve the right to decline a trial to any account where we reasonably believe a trial has already been used.
+- Cancel before the trial ends and you pay nothing.
+
+**Billing**
+- Pro is billed monthly on the date your trial ends (your billing anniversary).
+- Payments are processed by Stripe.
+- By subscribing you authorize recurring monthly charges until you cancel.
+- You will receive an email receipt for every charge.
+
+**Cancellation**
+
+You can cancel anytime from Account Settings. Cancellations take effect at the end of your current billing period.
+
+What happens when you cancel:
+1. Pro access continues until the end of your current billing period.
+2. You will not be charged again.
+3. **No refunds are issued for partial months.** The price you pay is for a full month of access; canceling mid-month does not produce a refund.
+4. At the end of the period, your account automatically converts to Free. Your data is preserved.
+
+You can reactivate Pro at any time from Account Settings. Reactivation begins a new billing period.
+
+**Failed Payments**
+1. Stripe retries the charge up to 3 times over 7 days
+2. You will receive an email notification each retry
+3. After 3 failures, your subscription is paused — you keep your account and data but lose Pro access
+4. Restore Pro access anytime by updating your payment method in Account Settings
+5. No data is deleted during a paused subscription
+
+**Price Changes**
+
+We will give you 30 days' email notice before any price increase. Existing Pro subscribers continue at their current price for the remainder of the billing period in which the change is announced. Founding Members are not subject to price changes.
+
+**Founding Members**
+- The first 50 customer accounts receive Pro access free, for as long as the account remains active.
+- Tied to the original account. Founding Member status is not transferable.
+- If you delete your QNTM account, you forfeit Founding Member status. Re-registering with a new email does not restore it.
+- One per person. We may decline Founding Member status if we reasonably believe an account is a duplicate of a previous Founding Member.
+- 90 days' notice before any material change to the Founding Member program.
+
+### 7. What You Can't Do
+- Scrape or redistribute model outputs commercially
+- Share your account with others
+- Try to reverse-engineer the scoring model
+- Use bots or automated tools against the platform
+- Use QNTM for anything illegal
+
+Violations may result in immediate account termination without refund.
+
+### 8. Our Intellectual Property
+The QNTM model, methodology, source code, and platform are proprietary to QNTM LLC. You receive a personal, non-exclusive, non-transferable license to access the platform for your own use during your subscription.
+
+Market data is provided by third parties (including Yahoo Finance and the Federal Reserve Bank of St. Louis / FRED) under their respective terms of service. QNTM does not claim ownership of market data or company identifiers. Ticker symbols and company names are used for identification only.
+
+### 9. Our Liability to You
+QNTM is provided "as is" and "as available." We do not guarantee the platform will always be available or that model scores will be accurate, current, or complete.
+
+To the maximum extent permitted by law, our total liability to you for any claim is capped at the greater of (a) the amount you paid us in the 12 months before the claim, or (b) $100. We are not liable for investment losses, market data errors, indirect or consequential damages, or any decisions you make based on our outputs.
+
+### 10. Disputes
+
+**Informal resolution.** We would prefer to resolve issues directly. Email legal@qntm.app first. If we cannot resolve it within 30 days, then arbitration applies.
+
+**Arbitration.** Any dispute that we cannot resolve informally will be resolved by binding individual arbitration administered by JAMS under its Streamlined Arbitration Rules and Procedures. The arbitration will take place in Orange County, California, or by video conference at your option. Judgment on the arbitration award may be entered in any court of competent jurisdiction.
+
+**Class action waiver.** You and QNTM agree to resolve disputes only on an individual basis. Class actions, collective actions, and representative actions are waived to the extent permitted by law.
+
+**Right to opt out of arbitration.** You can opt out of this arbitration agreement (including the class action waiver) by sending written notice to legal@qntm.app within 30 days of first creating your QNTM account. Opting out does not affect any other part of these Terms. If you opt out, disputes will be resolved in the state or federal courts located in Orange County, California, and both parties consent to personal jurisdiction and venue there.
+
+**Governing law.** These Terms are governed by the laws of the State of California, without regard to conflict-of-laws principles. The Federal Arbitration Act governs the interpretation and enforcement of the arbitration provision.
+
+### 11. Changes to These Terms
+We will give you 14 days' email notice before material changes take effect. Continued use after the effective date means you accept the updated Terms. If you do not agree, you can cancel your subscription and delete your account.
+
+### 12. Contact
+- General: hello@qntm.app
+- Legal: legal@qntm.app
+- Security: security@qntm.app
+- Billing: billing@qntm.app
+- Privacy: privacy@qntm.app
+"""
+
+BILLING_POLICY = """
+## Billing & Refund Policy
+**Effective Date: To be set at publication** · QNTM LLC (California)
+
+### Plans
+
+| Plan | Price | Trial |
+|------|-------|-------|
+| Free | $0 | No trial needed |
+| Pro | $29/month | 7 days free, one per customer |
+| Founding Member | Free forever | First 50 accounts (see Terms §6) |
+
+### Free Trial
+- Pro includes a 7-day free trial
+- No charge until the trial ends
+- One trial per customer (per person, per household, per payment method)
+- Cancel before the trial ends: no charge
+
+### Billing
+- Billed monthly on the day your trial ends (your billing anniversary)
+- Payments processed via Stripe (credit and debit cards)
+- Email receipt sent for every charge
+
+### Cancellations
+
+You can cancel anytime in Account Settings.
+
+What happens when you cancel:
+1. Pro access continues until the end of your current billing period.
+2. You will not be charged again.
+3. **We do not issue refunds for partial months.** The monthly fee is for one full month of access; canceling mid-cycle does not generate a refund.
+4. At the end of the period, your account converts to Free. Your data is preserved.
+5. You can reactivate Pro at any time. Reactivation begins a new billing period.
+
+### Failed Payments
+- Stripe retries 3 times over 7 days
+- Email notification sent each attempt
+- After 3 failures: subscription paused (account and data preserved, Pro access suspended)
+- Reactivate anytime by updating your payment method
+- No late fees
+
+### Exceptional Refunds
+We may issue a refund at our discretion in cases of duplicate charges, billing errors on our side, or extended platform outages. Refunds in those cases are processed within 5–10 business days via Stripe to the original payment method.
+
+### Founding Members
+- First 50 customer accounts get Pro free, for as long as the account remains active.
+- Founding Member status is tied to the original account and is not transferable. If the account is deleted, the status is forfeited.
+- 90 days' notice before any material change to Founding Member benefits.
+- See Terms §6 for full Founding Member terms.
+
+### Billing Disputes
+Email billing@qntm.app within 60 days of a charge. Include your account email and the date of the charge. We will respond within 5 business days. If you dispute a charge directly with your card issuer (chargeback) before contacting us, your account may be suspended pending resolution.
 """
 
 DISCLAIMER_FULL = """
 ## Investment Disclaimer
-**This disclaimer applies to all content on the QNTM platform.**
+**Applies to all QNTM content and outputs.**
 
-QNTM provides quantitative factor analysis, model scores, and signal generation as an educational
-and research resource. The following must be understood before using any QNTM output:
+### QNTM is a Research Tool, Not a Financial Adviser
+QNTM LLC is not registered with the SEC, FINRA, or any state securities regulator. We are not a registered investment adviser, broker-dealer, or financial planner.
 
-**No Investment Advice:** Model HIGH, MODERATE, and LOW conviction signals are algorithmic outputs based on
-historical factor analysis. They are NOT recommendations to purchase or sell any security.
+### What Our Signals Mean
+HIGH, MODERATE, and LOW conviction signals are produced by an algorithm. They reflect quantitative patterns — not a judgment about whether you personally should buy or sell a stock. The same signal means different things for different investors depending on their situation, risk tolerance, tax position, and goals.
 
-**Past Performance:** The 5-year backtest results shown are based on historical data using the
-model's current rules applied retroactively. Past model performance does not guarantee future results.
-Backtests are subject to look-ahead bias and survivorship bias limitations despite our methodology.
+**A HIGH conviction signal is not a buy recommendation.**
+**A LOW conviction signal is not a sell recommendation.**
+**A MODERATE signal is not a hold recommendation.**
 
-**Market Risk:** All investments carry risk of loss, including the possible loss of the entire
-principal amount invested. Equity markets can and do decline significantly.
+### Model Portfolio
+The Model Portfolio shown in QNTM is a hypothetical illustration of how the model's signals would translate into a position book. It uses equal-weighted notional sizing, ignores slippage, taxes, brokerage commissions, and dividend treatment. It is not a real portfolio, no securities are held on your behalf, and no trades are executed. It is provided for transparency about the model's behavior, not as a recommendation.
 
-**Model Limitations:** The QNTM model uses publicly available data and estimated fundamentals.
-Data may be delayed, inaccurate, or incomplete. The model does not account for taxes, transaction
-costs, liquidity constraints, or individual financial circumstances.
+### Past Performance
+Our 5-year backtest covers Q2 2020 through Q1 2025. It uses historical data with the same model rules applied throughout — no changes between periods. It does not account for all real-world costs, taxes, or execution constraints. Survivorship bias is disclosed in our methodology page and quantified in the adjusted return figures. Past model performance is not a guarantee of future results.
 
-**Not a Fiduciary:** QNTM has no fiduciary duty to users. We are a technology platform, not a
-registered investment adviser.
+### You Can Lose Money
+All equity investments carry the risk of loss, including loss of your entire investment.
 
-**Consult a Professional:** Before making any investment decision, consult a qualified financial
-adviser, tax professional, or legal counsel appropriate to your situation.
-
-**Regulatory Notice:** QNTM is not registered with the SEC, FINRA, or any state securities regulator.
+### Get Professional Advice
+Before making any investment decision, speak with a qualified financial adviser who understands your complete financial picture.
 """
 
 COOKIE_POLICY = """
 ## Cookie Policy
-**Effective Date: May 16, 2025**
+**Effective Date: To be set at publication**
 
 ### Cookies We Use
 
-| Cookie | Type | Purpose | Duration |
-|--------|------|---------|----------|
-| Session token | Essential | Maintains your login session | Session |
-| CSRF protection | Essential | Prevents cross-site request forgery | Session |
-| UI preferences | Functional | Remembers your dark/light mode preference | 1 year |
-| Analytics | Analytical | Anonymous usage statistics | 90 days |
+| Cookie | Required | Purpose | Expires |
+|--------|----------|---------|---------|
+| Session token | Yes | Keeps you logged in | End of session |
+| CSRF token | Yes | Security protection | End of session |
+| Auth state | Yes | Remembers your login across visits | 30 days |
+| Cookie consent | Yes | Records your cookie preference | 12 months |
 
-### No Advertising Cookies
-We do not use cookies for advertising, retargeting, or tracking across other websites.
+We do not currently use analytics, advertising, or third-party tracking cookies. If we add analytics in the future, we will update this policy and require fresh consent.
 
-### Control Your Cookies
-You can decline analytical cookies at the consent banner when you first visit.
-Essential cookies cannot be disabled — the platform cannot function without them.
-To remove all cookies, clear your browser storage for qntm.app.
+### No Ad Tracking
+We do not use advertising cookies. We do not track you across other websites. We do not share cookie data with advertisers.
+
+### Stripe Cookies
+When you visit the upgrade or checkout flow, Stripe sets its own cookies to process payment and prevent fraud. See stripe.com/cookies.
+
+### Managing Cookies
+Required cookies cannot be turned off — the platform will not function without them. To remove all QNTM cookies, clear your browser storage for qntm.app. This will log you out.
 
 ### Contact
-Cookie questions: privacy@qntm.app
+privacy@qntm.app
 """
 
 
 def page_legal(doc_key: str = "privacy"):
     docs = {
-        "privacy":    ("Privacy Policy",    PRIVACY_POLICY),
-        "terms":      ("Terms of Service",  TERMS_OF_SERVICE),
+        "privacy":    ("Privacy Policy",        PRIVACY_POLICY),
+        "terms":      ("Terms of Service",      TERMS_OF_SERVICE),
+        "billing":    ("Billing & Refund Policy", BILLING_POLICY),
         "disclaimer": ("Investment Disclaimer", DISCLAIMER_FULL),
-        "cookies":    ("Cookie Policy",     COOKIE_POLICY),
+        "cookies":    ("Cookie Policy",         COOKIE_POLICY),
     }
     title, text = docs.get(doc_key, docs["privacy"])
 
@@ -3373,6 +3374,8 @@ body { background-color: #0a0b14 !important; }
             <div style="font-size:13px;color:#94a3b8;line-height:2.2;">
               <a href="?legal=privacy" style="color:#94a3b8;text-decoration:none;display:block;">Privacy Policy</a>
               <a href="?legal=terms" style="color:#94a3b8;text-decoration:none;display:block;">Terms of Service</a>
+              <a href="?legal=billing" style="color:#94a3b8;text-decoration:none;display:block;">Billing & Refunds</a>
+              <a href="?legal=disclaimer" style="color:#94a3b8;text-decoration:none;display:block;">Investment Disclaimer</a>
               <a href="?legal=cookies" style="color:#94a3b8;text-decoration:none;display:block;">Cookie Policy</a>
             </div>
           </div>
@@ -3635,10 +3638,11 @@ def page_auth():
         st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
         st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    # Legal footer — 2x2 grid, always fits any screen width
+    # Legal footer — 3 rows of 2 cols, always fits any screen width
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
     r1c1, r1c2 = st.columns(2)
     r2c1, r2c2 = st.columns(2)
+    r3c1, r3c2 = st.columns(2)
     link_style = (
         "display:block;text-align:center;font-family:'DM Mono',monospace;"
         "font-size:11px;letter-spacing:.07em;color:#64748b;text-decoration:none;"
@@ -3649,9 +3653,13 @@ def page_auth():
     with r1c2:
         st.markdown(f'<a href="?legal=terms" style="{link_style}">TERMS OF SERVICE</a>', unsafe_allow_html=True)
     with r2c1:
-        st.markdown(f'<a href="?legal=disclaimer" style="{link_style}">INVESTMENT DISCLAIMER</a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="?legal=billing" style="{link_style}">BILLING &amp; REFUNDS</a>', unsafe_allow_html=True)
     with r2c2:
+        st.markdown(f'<a href="?legal=disclaimer" style="{link_style}">INVESTMENT DISCLAIMER</a>', unsafe_allow_html=True)
+    with r3c1:
         st.markdown(f'<a href="?legal=cookies" style="{link_style}">COOKIE POLICY</a>', unsafe_allow_html=True)
+    with r3c2:
+        st.markdown('<div></div>', unsafe_allow_html=True)
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
     cookie_banner()
@@ -4728,23 +4736,38 @@ def page_watchlist():
     # Watchlist — collapsed card pattern, no table header needed
     _uid_wl  = (st.session_state.user or {}).get("id","")
     _pln_wl  = (st.session_state.user or {}).get("plan","free")
+
+    # Detect current hidden gems so the watchlist matches the screener.
+    _wl_gems = set()
+    try:
+        _wl_gem_list = detect_hidden_gems(
+            list(score_map.values()),
+            macro_data=st.session_state.get("macro_data"),
+        )
+        _wl_gems = {g["ticker"] for g in _wl_gem_list}
+    except Exception:
+        pass
+
     _cards_html = ""
     for w in watchlist:
         tk  = w["ticker"]
         sc  = dict(score_map.get(tk, {}) or {})
         adj = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
         if sc:
+            quant = float(sc.get("composite", adj) or adj)
             sc["adj_action"]    = "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD")
             sc["adj_composite"] = adj
-            # Inject trend delta into score for display
-            _ta, _tc, _td = wl_trend.get(tk, ("","",""))
-            _show = _ta and _td and _td not in ('+0','-0','0','→')
-            sc["score_delta"]   = float(_td.replace("+","")) if _show and _td else 0
+            sc["composite"]     = quant
+            # Preserve macro overlay impact. If signal_log didn't carry
+            # score_delta, recompute from adj − quant so the MACRO box shows the
+            # same number the screener does (not the day-over-day trend).
+            if "score_delta" not in sc or sc.get("score_delta") in (None, ""):
+                sc["score_delta"] = round(adj - quant, 1)
         else:
             sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
-        _cards_html += factor_panel_html(sc, False, company_info=ci)
+        _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
         # Inline Remove button — navigates parent window via target="_top"
         _rm_url = f"?qnav=watchlist&uid={_uid_wl}&plan={_pln_wl}&ck=1&wl_action=remove&wl_ticker={tk}"
         _cards_html += (
@@ -5297,11 +5320,11 @@ document.body.prepend(c);
     st.markdown(
         '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
         '<div style="min-width:520px;">'
-        '<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
+        '<div style="display:grid;grid-template-columns:80px 100px 100px 1fr 110px 90px;'
         'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
         'border:1px solid rgba(255,255,255,.07);">'
         '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">ACTION</div>'
+        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">CONVICTION</div>'
         '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
         '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
         '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
@@ -5312,6 +5335,8 @@ document.body.prepend(c);
     for h in bt["holdings_12m"]:
         ret    = h["return_pct"]
         act    = h["action"]
+        # Display conviction labels — schema still uses BUY/SELL/HOLD internally
+        act_label = "HIGH" if act == "BUY" else ("LOW" if act == "SELL" else "MODERATE")
         act_c  = "#00ff87" if act=="BUY" else "#ef4444"
         ret_c  = "#00ff87" if ret > 0 else "#ef4444"
         arrow  = "▲" if act=="BUY" else "▼"
@@ -5320,14 +5345,14 @@ document.body.prepend(c);
         result   = "✓ WIN" if win else "✗ LOSS"
         row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:80px 80px 100px 1fr 110px 90px;'
+            f'<div style="display:grid;grid-template-columns:80px 100px 100px 1fr 110px 90px;'
             f'gap:8px;padding:9px 16px;background:{row_bg};'
             f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
             f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
             f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
             f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
             f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
-            f'{arrow} {act}</span></div>'
+            f'{arrow} {act_label}</span></div>'
             f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
             f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
@@ -5832,6 +5857,19 @@ def page_portfolio():
     _uid_pv  = (st.session_state.user or {}).get("id","")
     _pln_pv  = (st.session_state.user or {}).get("plan","free")
 
+    # Detect current hidden gems across the held universe so the 💎 emoji is
+    # consistent with the screener.
+    _port_gems = set()
+    try:
+        _port_gem_list = detect_hidden_gems(
+            list(score_map.values()),
+            macro_data=st.session_state.get("macro_data"),
+        )
+        _port_gems = {g["ticker"] for g in _port_gem_list}
+    except Exception:
+        pass
+
+    _port_html = ""
     for h in holdings:
         tk     = h["ticker"]
         sc     = dict(score_map.get(tk, {}) or {})  # copy — don't mutate shared dict
@@ -5844,19 +5882,18 @@ def page_portfolio():
         if sc.get("price"):
             live_price = float(sc["price"])
 
-        # P&L
-        unrealized_gl = (live_price - cost) * shares if live_price and cost and shares else None
-        gl_pct        = ((live_price - cost) / cost * 100) if live_price and cost else None
-        gl_c          = "#00ff87" if (unrealized_gl or 0) >= 0 else "#ef4444"
-        gl_arrow      = "▲" if (unrealized_gl or 0) >= 0 else "▼"
-
         if sc:
             comp = float(sc.get("adj_composite", sc.get("composite", 50)) or 50)
+            quant = float(sc.get("composite", comp) or comp)
             sc["adj_action"]    = "BUY" if comp >= 60 else ("SELL" if comp < 45 else "HOLD")
             sc["adj_composite"] = comp
+            sc["composite"]     = quant
+            # Preserve the model's score_delta so the MACRO box shows the real
+            # overlay impact. Recompute from adj − quant if missing.
+            if "score_delta" not in sc or sc.get("score_delta") in (None, "", 0):
+                sc["score_delta"] = round(comp - quant, 1)
             sc["signal_date"]   = str(entry)[:10] if entry else sc.get("signal_date","")
-            # Show P&L in price field
-            if unrealized_gl is not None:
+            if live_price is not None:
                 sc["price"] = live_price
         else:
             sc = {"ticker": tk, "adj_action": "N/A", "adj_composite": 0,
@@ -5864,17 +5901,31 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        st.markdown(factor_panel_html(sc, False, company_info=ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        _port_html += factor_panel_html(
+            sc, tk in _port_gems, company_info=ci, suppress_wl_btn=True
+        )
 
-        # Remove from portfolio button
+        # Remove from portfolio button — target="_top" so the link reaches main()
+        # even when rendered inside the components.v1.html iframe below.
         _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
-        st.markdown(
-            f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
+        _port_html += (
+            f'<a href="{_rm_url}" target="_top" style="display:block;width:100%;text-align:center;'
             f'padding:5px;margin-top:-4px;margin-bottom:8px;box-sizing:border-box;'
             f'background:transparent;border:1px solid rgba(255,255,255,.05);'
             f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
-            f'letter-spacing:.06em;color:#334155;text-decoration:none;">✕ Remove {tk}</a>',
-            unsafe_allow_html=True
+            f'letter-spacing:.06em;color:#334155;text-decoration:none;">✕ Remove {tk}</a>'
+        )
+
+    if _port_html:
+        import streamlit.components.v1 as _cv1_pv
+        _pv_n  = _port_html.count('qcard-wrap')
+        _pv_ht = max(60, (_pv_n - 1) * 90 + 620) if _pv_n > 0 else 60
+        _cv1_pv.html(
+            _port_html
+            + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n"
+            "<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>",
+            height=min(_pv_ht, 12000),
+            scrolling=False,
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -6061,7 +6112,8 @@ def page_simulator():
         margin-top:4px !important;
     }
     /* Remove from sim button */
-    div[data-testid='stButton'][data-key='sim_rm_sel'] > div > button {
+    div[data-testid='stButton'][data-key='sim_rm_sel'] > div > button,
+    div[data-testid='stButton'][data-key^='sim_rm_'] > div > button {
         background:rgba(239,68,68,.08) !important;
         border:1px solid rgba(239,68,68,.3) !important;
         color:#ef4444 !important;
@@ -6275,15 +6327,16 @@ def page_simulator():
                                      help="Normalised to 100% across all positions")
                 if new_pct != raw_pct:
                     st.session_state.sim_weights[a["ticker"]] = new_pct
-            _rm_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&sim_remove={a['ticker']}&_n=simulator"
-            st.markdown(
-                f'<a href="{_rm_url}" target="_self" style="display:block;width:100%;text-align:center;'
-                f'padding:7px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);'
-                f'border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.06em;'
-                f'text-transform:uppercase;color:#ef4444;text-decoration:none;'
-                f'box-sizing:border-box;">✕ Remove {a["ticker"]}</a>',
-                unsafe_allow_html=True
-            )
+            # Remove uses a real st.button so the state mutation is server-side
+            # and not dependent on URL params surviving an iframe roundtrip.
+            if st.button(f"✕ Remove {a['ticker']}",
+                          key=f"sim_rm_{a['ticker']}",
+                          use_container_width=True):
+                if a["ticker"] in st.session_state.sim_selected:
+                    st.session_state.sim_selected.remove(a["ticker"])
+                st.session_state.get("sim_weights", {}).pop(a["ticker"], None)
+                st.session_state.nav = "simulator"
+                st.rerun()
 
     st.markdown(
         f'<div style="font-size:11px;color:#475569;padding-top:12px;margin-top:8px;'
@@ -7048,8 +7101,13 @@ def page_model_portfolio():
         tk    = h["ticker"]
         score = h["current_score"]
         sc    = dict(score_map.get(tk, {}) or {})
+        # Preserve quant composite and macro delta so the MACRO box reflects the
+        # real overlay impact (matches screener). If we only have adj, leave the
+        # signal_log score_delta in place; otherwise recompute.
+        _quant = float(sc.get("composite", score) or score)
         sc["ticker"]        = tk
         sc["adj_composite"] = score
+        sc["composite"]     = _quant
         sc["adj_action"]    = "BUY" if score >= 60 else ("SELL" if score < 45 else "HOLD")
         sc["momentum"]      = h["momentum"]
         sc["quality"]       = h["quality"]
@@ -7059,7 +7117,8 @@ def page_model_portfolio():
         sc["price"]         = h["current_price"]
         sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
         sc["signal_date"]   = str(h["entry_date"])[:10]
-        sc["score_delta"]   = 0
+        if "score_delta" not in sc or sc.get("score_delta") in (None, "", 0):
+            sc["score_delta"] = round(score - _quant, 1)
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
         # Build card + P&L strip
@@ -7099,8 +7158,10 @@ def page_model_portfolio():
     if _mp_html:
         import streamlit.components.v1 as _cv1_mp
         _mp_n = _mp_html.count('qcard-wrap')
-        _mp_ht = max(60, (_mp_n - 1) * 62 + 620) if _mp_n > 0 else 60
-        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_mp_ht,8000), scrolling=False)
+        # 90px/closed card covers header + injected P&L strip; the embedded
+        # resize script grows the iframe further when a card opens.
+        _mp_ht = max(60, _mp_n * 90 + 620) if _mp_n > 0 else 60
+        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_mp_ht,16000), scrolling=False)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
@@ -7468,7 +7529,7 @@ def page_upgrade():
 
 def main():
     # ── Legal page via footer links ───────────────────────────────────────────
-    if st.query_params.get("legal") in ("privacy","terms","cookies","disclaimer"):
+    if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
         st.session_state.page = "legal"
 

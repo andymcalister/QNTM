@@ -775,7 +775,7 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     if not sb:
         return {"success": False, "error": "No Supabase connection"}
 
-    today = datetime.date.today().isoformat()
+    today = date.today().isoformat()
     updated = 0
     failed  = 0
 
@@ -837,21 +837,9 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     if sb and updated > 0:
         try:
             sb.table("fundamentals_cache").upsert(
-                {"ticker": "_intraday_sentinel", "data_date": datetime.date.today().isoformat(),
-                 "refreshed_at": datetime.datetime.utcnow().isoformat(),
-                 "fundamentals": {}, "price": None, "vol_ratio": None},
-                on_conflict="ticker,data_date"
-            ).execute()
-        except Exception:
-            pass  # non-critical
-
-    # Touch fundamentals_cache.refreshed_at so the app pill shows intraday time
-    if sb and updated > 0:
-        try:
-            sb.table("fundamentals_cache").upsert(
-                {"ticker": "_intraday_sentinel", "data_date": datetime.date.today().isoformat(),
-                 "refreshed_at": datetime.datetime.utcnow().isoformat(),
-                 "fundamentals": {}, "price": None, "vol_ratio": None},
+                {"ticker": "_intraday_sentinel", "data_date": date.today().isoformat(),
+                 "refreshed_at": datetime.utcnow().isoformat(),
+                 "fundamentals": "{}", "price": None, "vol_ratio": None},
                 on_conflict="ticker,data_date"
             ).execute()
         except Exception:
