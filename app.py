@@ -1532,6 +1532,66 @@ def _build_why_html(r: dict) -> str:
     )
 
 
+# ── Shared iframe tail for batch card pages ───────────────────────────────────
+# Style + click-to-expand + dynamic resize logic. Used wherever multiple cards
+# are rendered into a single st.components.v1.html iframe (screener, watchlist,
+# portfolio, model portfolio). Resize logic uses ResizeObserver + multiple
+# retries so the iframe grows to actual content height even when paint is slow.
+CARD_IFRAME_TAIL = """
+<style>
+@media(max-width:640px){ .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;} }
+body{margin:0;padding-bottom:60px;}
+</style>
+<script>
+(function(){
+  var _maxH=0, _pending=null;
+  function _measure(){
+    var h=Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+      document.documentElement.offsetHeight,
+      document.body.offsetHeight
+    );
+    if(h>_maxH){
+      _maxH=h;
+      if(window.Streamlit&&window.Streamlit.setFrameHeight){
+        window.Streamlit.setFrameHeight(_maxH);
+      }
+      if(window.parent){
+        try{ window.parent.postMessage(
+          {type:'streamlit:setFrameHeight',height:_maxH},'*'); }catch(e){}
+      }
+    }
+  }
+  function _schedule(){
+    if(_pending)cancelAnimationFrame(_pending);
+    _pending=requestAnimationFrame(_measure);
+  }
+  // Click-to-expand (one open at a time)
+  document.querySelectorAll('.qcard-header').forEach(function(h){
+    h.addEventListener('click',function(){
+      var d=h.querySelector('.qcard-detail');
+      if(!d)return;
+      var open=d.style.display==='block';
+      document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});
+      if(!open)d.style.display='block';
+      // Two-phase: measure after layout, then again after browser settles
+      setTimeout(_schedule,10);
+      setTimeout(_schedule,150);
+    });
+  });
+  // ResizeObserver picks up font/image loads, async layout shifts
+  if(window.ResizeObserver){
+    new ResizeObserver(_schedule).observe(document.body);
+  }
+  // Multi-shot initial measure: covers slow paint on long lists
+  [0,100,300,600,1200].forEach(function(t){ setTimeout(_schedule,t); });
+  window.addEventListener('load',_schedule);
+})();
+</script>
+"""
+
+
 def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False) -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
@@ -4370,7 +4430,7 @@ def page_screener():
                 import streamlit.components.v1 as _cv1_t10
                 _t10_n = cards_html.count('qcard-wrap')
                 _t10_ht = max(60, (_t10_n - 1) * 62 + 560) if _t10_n > 0 else 60
-                _cv1_t10.html(cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_t10_ht,8000), scrolling=False)
+                _cv1_t10.html(cards_html + CARD_IFRAME_TAIL, height=min(_t10_ht,8000), scrolling=False)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4476,7 +4536,7 @@ def page_screener():
             import streamlit.components.v1 as _cv1_fu
             _fu_n = _fu_html.count('qcard-wrap')
             _fu_ht = max(60, (_fu_n - 1) * 62 + 560) if _fu_n > 0 else 60
-            _cv1_fu.html(_fu_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_fu_ht,8000), scrolling=False)
+            _cv1_fu.html(_fu_html + CARD_IFRAME_TAIL, height=min(_fu_ht,8000), scrolling=False)
 
         if _show_gate:
             st.markdown(
@@ -4778,7 +4838,7 @@ def page_watchlist():
     import streamlit.components.v1 as _cv1_wl
     _wl_n = _cards_html.count('qcard-wrap')
     _wl_ht = max(60, (_wl_n - 1) * 90 + 580) if _wl_n > 0 else 60
-    _cv1_wl.html(_cards_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_wl_ht,8000), scrolling=False)
+    _cv1_wl.html(_cards_html + CARD_IFRAME_TAIL, height=min(_wl_ht,8000), scrolling=False)
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
@@ -4935,7 +4995,7 @@ def page_gems():
     _gems_h = '<div style="padding:0 4px;">' + cards_html + '</div>'
     _gems_n = _gems_h.count('qcard-wrap')
     _gems_ht = max(60, (_gems_n - 1) * 62 + 560) if _gems_n > 0 else 60
-    _cv1_gems.html(_gems_h + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_gems_ht,8000), scrolling=False)
+    _cv1_gems.html(_gems_h + CARD_IFRAME_TAIL, height=min(_gems_ht,8000), scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -5920,9 +5980,7 @@ def page_portfolio():
         # is a safety net so nothing clips if a card runs taller than expected.
         _pv_ht = max(60, _pv_n * 110 + 680) if _pv_n > 0 else 60
         _cv1_pv.html(
-            _port_html
-            + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n"
-            "<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>",
+            _port_html + CARD_IFRAME_TAIL,
             height=min(_pv_ht, 16000),
             scrolling=True,
         )
@@ -7163,7 +7221,7 @@ def page_model_portfolio():
         # grows the iframe further when a card opens; scrolling=True is a
         # belt-and-suspenders fallback so no card ever clips.
         _mp_ht = max(60, _mp_n * 120 + 720) if _mp_n > 0 else 60
-        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_mp_ht,20000), scrolling=True)
+        _cv1_mp.html(_mp_html + CARD_IFRAME_TAIL, height=min(_mp_ht,20000), scrolling=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
