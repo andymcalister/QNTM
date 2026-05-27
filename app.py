@@ -4758,11 +4758,8 @@ def page_watchlist():
             sc["adj_action"]    = "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD")
             sc["adj_composite"] = adj
             sc["composite"]     = quant
-            # Preserve macro overlay impact. If signal_log didn't carry
-            # score_delta, recompute from adj − quant so the MACRO box shows the
-            # same number the screener does (not the day-over-day trend).
-            if "score_delta" not in sc or sc.get("score_delta") in (None, ""):
-                sc["score_delta"] = round(adj - quant, 1)
+            # Always recompute macro impact so the MACRO box matches the screener.
+            sc["score_delta"]   = round(adj - quant, 1)
         else:
             sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
@@ -5888,10 +5885,10 @@ def page_portfolio():
             sc["adj_action"]    = "BUY" if comp >= 60 else ("SELL" if comp < 45 else "HOLD")
             sc["adj_composite"] = comp
             sc["composite"]     = quant
-            # Preserve the model's score_delta so the MACRO box shows the real
-            # overlay impact. Recompute from adj − quant if missing.
-            if "score_delta" not in sc or sc.get("score_delta") in (None, "", 0):
-                sc["score_delta"] = round(comp - quant, 1)
+            # Always recompute macro from the underlying values, since
+            # signal_log does not persist score_delta as a column and we want
+            # the MACRO box to reflect what the user sees on the screener.
+            sc["score_delta"]   = round(comp - quant, 1)
             sc["signal_date"]   = str(entry)[:10] if entry else sc.get("signal_date","")
             if live_price is not None:
                 sc["price"] = live_price
@@ -5919,13 +5916,15 @@ def page_portfolio():
     if _port_html:
         import streamlit.components.v1 as _cv1_pv
         _pv_n  = _port_html.count('qcard-wrap')
-        _pv_ht = max(60, (_pv_n - 1) * 90 + 620) if _pv_n > 0 else 60
+        # 110px/closed card covers header + remove button row; scrolling=True
+        # is a safety net so nothing clips if a card runs taller than expected.
+        _pv_ht = max(60, _pv_n * 110 + 680) if _pv_n > 0 else 60
         _cv1_pv.html(
             _port_html
             + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n"
             "<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>",
-            height=min(_pv_ht, 12000),
-            scrolling=False,
+            height=min(_pv_ht, 16000),
+            scrolling=True,
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -7117,8 +7116,9 @@ def page_model_portfolio():
         sc["price"]         = h["current_price"]
         sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
         sc["signal_date"]   = str(h["entry_date"])[:10]
-        if "score_delta" not in sc or sc.get("score_delta") in (None, "", 0):
-            sc["score_delta"] = round(score - _quant, 1)
+        # Always recompute macro impact from adj_composite − composite; signal_log
+        # does not persist score_delta as a column.
+        sc["score_delta"] = round(score - _quant, 1)
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
         # Build card + P&L strip
@@ -7158,10 +7158,12 @@ def page_model_portfolio():
     if _mp_html:
         import streamlit.components.v1 as _cv1_mp
         _mp_n = _mp_html.count('qcard-wrap')
-        # 90px/closed card covers header + injected P&L strip; the embedded
-        # resize script grows the iframe further when a card opens.
-        _mp_ht = max(60, _mp_n * 90 + 620) if _mp_n > 0 else 60
-        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_mp_ht,16000), scrolling=False)
+        # 120px/closed card is a safe conservative estimate (closed cards run
+        # 80-95px each plus inter-card spacing). The embedded resize script
+        # grows the iframe further when a card opens; scrolling=True is a
+        # belt-and-suspenders fallback so no card ever clips.
+        _mp_ht = max(60, _mp_n * 120 + 720) if _mp_n > 0 else 60
+        _cv1_mp.html(_mp_html + "<style>\n@media(max-width:640px){\n  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}\n}\nbody{margin:0;}\n</style>\n<script>\nvar _qntmMaxH=0;\nfunction _qntmResize(){\n  var h=document.documentElement.scrollHeight;\n  if(h>_qntmMaxH)_qntmMaxH=h;\n  if(window.Streamlit&&Streamlit.setFrameHeight){Streamlit.setFrameHeight(_qntmMaxH);}\n  else if(window.parent){window.parent.postMessage({type:'streamlit:setFrameHeight',height:_qntmMaxH},'*');}\n}\ndocument.querySelectorAll('.qcard-header').forEach(function(h){\n  h.addEventListener('click',function(){\n    var d=h.querySelector('.qcard-detail');\n    if(!d)return;\n    var open=d.style.display==='block';\n    document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});\n    if(!open)d.style.display='block';\n    setTimeout(_qntmResize,10);\n  });\n});\nwindow.addEventListener('load',_qntmResize);\nsetTimeout(_qntmResize,50);\n</script>", height=min(_mp_ht,20000), scrolling=True)
 
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
