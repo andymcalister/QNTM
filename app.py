@@ -1814,7 +1814,6 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'</div>'
         + why_html
         + _wl_btn_html
-        + _debug_line(r)
         + f'</div>'
     )
 
@@ -5604,6 +5603,36 @@ def page_portfolio():
     score_map = {s["ticker"]: s for s in st.session_state.scan_results}
     holdings  = get_holdings(uid())
     n_holdings = len(holdings)
+
+    # Always pull holdings' scores directly from signal_log so portfolio matches
+    # the screener, home, gems, watchlist exactly. scan_results can drift if the
+    # session started on a different page that did its own macro fetch — the
+    # nightly cron's adj_composite in signal_log is the canonical value.
+    if holdings:
+        try:
+            from data_refresh import _get_supabase as _pf_sb
+            _sb_pf = _pf_sb()
+            if _sb_pf:
+                _pf_tks = [h["ticker"] for h in holdings]
+                _pf_resp = _sb_pf.table("signal_log") \
+                    .select("ticker,signal_date,adj_composite,composite,signal,"
+                            "momentum,quality,volume,value,sentiment,price,"
+                            "is_hidden_gem,hidden_gem_reason") \
+                    .in_("ticker", _pf_tks) \
+                    .order("signal_date", desc=True) \
+                    .execute()
+                _pf_seen = set()
+                _pf_rows = []
+                for _row in (_pf_resp.data or []):
+                    if _row["ticker"] not in _pf_seen:
+                        _pf_seen.add(_row["ticker"])
+                        _pf_rows.append(_row)
+                # Normalize via the same finalizer so adj_action/score_delta match
+                finalize_scores_from_signal_log(_pf_rows, st.session_state.get("macro_data"))
+                for _row in _pf_rows:
+                    score_map[_row["ticker"]] = _row
+        except Exception:
+            pass
 
     # ── Portfolio conviction summary — single primary card ──────────────
     if holdings and score_map:
