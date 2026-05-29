@@ -503,6 +503,58 @@ def upgrade_plan(user_id: str, new_plan: str) -> bool:
     return ok
 
 
+def schedule_cancellation(user_id: str, period_end_date: str) -> bool:
+    """
+    Mark a Pro/Founding Member account as scheduled to cancel at the end of
+    the current billing period. Stored as `cancel_at` (ISO date) inside the
+    user's notifications JSON blob so no schema migration is needed.
+    Cancellation does not take effect immediately — the user keeps Pro access
+    until period_end_date, at which point a separate downgrade step (Stripe
+    webhook later, manual job today) flips plan to "free".
+    """
+    user = get_user_by_id(user_id) or {}
+    prefs = user.get("notifications") or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    prefs["cancel_at"] = str(period_end_date)
+    ok = update_preferences(user_id, {"notifications": prefs})
+    if ok:
+        if st.session_state.get("user"):
+            cur = st.session_state.user.get("notifications") or {}
+            cur["cancel_at"] = str(period_end_date)
+            st.session_state.user["notifications"] = cur
+        create_notification(
+            user_id, "", "plan_change",
+            "Cancellation scheduled",
+            f"Your Pro subscription will end on {period_end_date}. "
+            f"Pro access continues until then. No refunds for partial months.",
+        )
+    return ok
+
+
+def undo_cancellation(user_id: str) -> bool:
+    """Remove a pending cancellation so the subscription continues."""
+    user = get_user_by_id(user_id) or {}
+    prefs = user.get("notifications") or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    if "cancel_at" not in prefs:
+        return True  # nothing to undo
+    prefs.pop("cancel_at", None)
+    ok = update_preferences(user_id, {"notifications": prefs})
+    if ok:
+        if st.session_state.get("user"):
+            cur = st.session_state.user.get("notifications") or {}
+            cur.pop("cancel_at", None)
+            st.session_state.user["notifications"] = cur
+        create_notification(
+            user_id, "", "plan_change",
+            "Cancellation undone",
+            "Your Pro subscription will continue. Billing resumes on your normal anniversary.",
+        )
+    return ok
+
+
 def get_user_by_id(user_id: str) -> Optional[dict]:
     sb = get_supabase()
     if sb:

@@ -6089,9 +6089,44 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        _port_html += factor_panel_html(
+        _card = factor_panel_html(
             sc, tk in _port_gems, company_info=ci, suppress_wl_btn=True
         )
+
+        # Build P&L strip in the same style as the Model Portfolio page so a
+        # held position shows entry date, entry price, current, and return.
+        _edate   = str(entry)[:10] if entry else "—"
+        _ep_str  = f'${cost:,.2f}' if cost else "—"
+        _cp_str  = f'${live_price:,.2f}' if live_price else "—"
+        if live_price and cost and shares:
+            _pnl_d = (live_price - cost) * shares
+            _pct_v = ((live_price - cost) / cost * 100) if cost else 0.0
+            _rc    = '#00ff87' if _pct_v >= 0 else '#ef4444'
+            _sg    = '+' if _pct_v >= 0 else ''
+            _pct_str = f'{_sg}{_pct_v:.2f}%'
+            _pnl_str = f'{_sg}${abs(_pnl_d):,.0f}'
+        else:
+            _rc, _pct_str, _pnl_str = '#64748b', "—", "—"
+        _shares_str = f'{shares:,.4f}'.rstrip('0').rstrip('.') if shares else "—"
+        _pnl_html = (
+            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
+            f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
+            f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{_edate}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">{_shares_str} sh</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">{_ep_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{_cp_str}</div></div>'
+            f'<div><div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{_rc};">{_pnl_str}</div></div>'
+            f'</div>'
+        )
+        # Inject the P&L strip into the qcard-detail (same trick as model portfolio)
+        _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
+        _port_html += _card
 
         # Remove from portfolio button — target="_top" so the link reaches main()
         # even when rendered inside the components.v1.html iframe below.
@@ -6107,9 +6142,9 @@ def page_portfolio():
     if _port_html:
         import streamlit.components.v1 as _cv1_pv
         _pv_n  = _port_html.count('qcard-wrap')
-        # 110px/closed card covers header + remove button row; scrolling=True
-        # is a safety net so nothing clips if a card runs taller than expected.
-        _pv_ht = max(60, _pv_n * 110 + 680) if _pv_n > 0 else 60
+        # 130px/closed card + 520px for one expanded card (pillars, 4-box row,
+        # WHY THIS SCORE, P&L strip); scrolling=True is a safety net.
+        _pv_ht = max(60, _pv_n * 130 + 680 + 520) if _pv_n > 0 else 60
         _cv1_pv.html(
             _port_html + CARD_IFRAME_TAIL,
             height=min(_pv_ht, 16000),
@@ -6961,13 +6996,154 @@ def page_account():
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif plan in ("pro","institutional"):
-            st.markdown("""
-            <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);
-                 border-radius:8px;padding:16px 20px;font-size:13px;color:#4ade80;">
-              ✓ You have full Pro access. All features are enabled.
-              Contact hello@qntm.app for billing questions or to upgrade to Institutional.
-            </div>
-            """, unsafe_allow_html=True)
+            # ── Subscription detail + cancellation flow ───────────────────────
+            from db import schedule_cancellation, undo_cancellation
+            from datetime import date, timedelta
+
+            _notif = user.get("notifications") or {}
+            _cancel_at = _notif.get("cancel_at") if isinstance(_notif, dict) else None
+            _is_founding = (plan == "pro" and not _cancel_at and not _notif.get("billing_active"))
+            # NB: Stripe wiring will populate `billing_active=True` and a proper
+            # `current_period_end` later. For now, paid Pro users without a
+            # cancel_at look identical to Founding Members.
+
+            if _cancel_at:
+                # Cancellation scheduled — show pending state with Undo
+                st.markdown(f"""
+                <div style="background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.25);
+                     border-radius:8px;padding:18px 22px;margin-bottom:12px;">
+                  <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
+                       color:#fbbf24;letter-spacing:.05em;margin-bottom:6px;">
+                    CANCELLATION SCHEDULED
+                  </div>
+                  <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
+                    Your subscription will end on <strong style="color:#e2e8f0;">{_cancel_at}</strong>.
+                    You keep Pro access until that date. No refunds for partial months.
+                    After that, your account converts to Free and your data is preserved.
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("Undo Cancellation — Keep My Subscription",
+                              key="undo_cancel_btn", use_container_width=True):
+                    if undo_cancellation(uid()):
+                        st.success("Cancellation undone — your subscription continues.")
+                        st.rerun()
+                    else:
+                        st.error("Could not undo cancellation — contact billing@qntm.app")
+            else:
+                # Active subscription panel
+                st.markdown(f"""
+                <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);
+                     border-radius:8px;padding:16px 20px;font-size:13px;color:#4ade80;margin-bottom:18px;">
+                  ✓ You have full Pro access. All features are enabled.
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Billing summary panel
+                _next_bill = _notif.get("current_period_end") if isinstance(_notif, dict) else None
+                _next_bill_display = _next_bill if _next_bill else "—"
+                _billing_label = "FOUNDING MEMBER" if _is_founding else "PRO · $29/month"
+                _billing_note = (
+                    "Free forever as a Founding Member. No billing scheduled."
+                    if _is_founding
+                    else f"Next charge: {_next_bill_display}"
+                )
+                st.markdown(f"""
+                <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
+                     border-radius:8px;padding:18px 22px;margin-bottom:16px;">
+                  <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap;">
+                    <div>
+                      <div style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;
+                           letter-spacing:.12em;margin-bottom:4px;">SUBSCRIPTION</div>
+                      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;
+                           color:#d4a843;">{_billing_label}</div>
+                      <div style="font-size:12px;color:#94a3b8;margin-top:4px;">{_billing_note}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;
+                           letter-spacing:.12em;margin-bottom:4px;">STATUS</div>
+                      <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
+                           color:#00ff87;">ACTIVE</div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Cancel button — only meaningful for paid Pro, not Founding
+                # Members (they have nothing to cancel — they pay $0 forever
+                # per ToS §6). Still show as informational so they understand
+                # what happens if they ever convert.
+                with st.expander("Cancel subscription", expanded=False):
+                    if _is_founding:
+                        st.markdown(
+                            '<div style="font-size:13px;color:#94a3b8;line-height:1.7;">'
+                            'You are a Founding Member — no payment is scheduled, '
+                            'so there is nothing to cancel. If you delete your account, '
+                            'your Founding Member status is forfeited and cannot be restored.'
+                            '</div>',
+                            unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            '<div style="font-size:13px;color:#94a3b8;line-height:1.7;'
+                            'margin-bottom:14px;">'
+                            '<strong style="color:#e2e8f0;">What happens when you cancel:</strong><br>'
+                            '1. Pro access continues until the end of your current billing period<br>'
+                            '2. You will not be charged again<br>'
+                            '3. <strong style="color:#fbbf24;">No refunds for partial months</strong> '
+                            '— the price you pay is for a full month<br>'
+                            '4. At period end your account converts to Free; your data is preserved<br>'
+                            '5. You can reactivate anytime'
+                            '</div>',
+                            unsafe_allow_html=True)
+                        # 30-day default since we don't have Stripe period yet.
+                        # When Stripe lands, replace with current_period_end.
+                        _proposed_end = (
+                            _next_bill if _next_bill
+                            else (date.today() + timedelta(days=30)).isoformat()
+                        )
+                        st.markdown(
+                            f'<div style="font-size:12px;color:#64748b;margin-bottom:10px;">'
+                            f'Pro access continues until <strong style="color:#94a3b8;">{_proposed_end}</strong>. '
+                            f'After that, your account converts to Free.'
+                            f'</div>',
+                            unsafe_allow_html=True)
+                        if not st.session_state.get("_confirm_cancel"):
+                            if st.button("Cancel subscription",
+                                          key="cancel_sub_btn",
+                                          use_container_width=True):
+                                st.session_state._confirm_cancel = True
+                                st.rerun()
+                        else:
+                            st.warning(
+                                "Are you sure? You'll keep Pro access until "
+                                f"{_proposed_end}, then your account converts to Free. "
+                                "No refund will be issued for the remainder of the period."
+                            )
+                            cc1, cc2 = st.columns(2)
+                            with cc1:
+                                if st.button("Yes, cancel my subscription",
+                                              key="confirm_cancel_btn",
+                                              use_container_width=True):
+                                    if schedule_cancellation(uid(), _proposed_end):
+                                        st.session_state._confirm_cancel = False
+                                        st.success(
+                                            f"Cancellation scheduled. Pro access ends {_proposed_end}."
+                                        )
+                                        st.rerun()
+                                    else:
+                                        st.error(
+                                            "Could not schedule cancellation — contact billing@qntm.app"
+                                        )
+                            with cc2:
+                                if st.button("Keep my subscription",
+                                              key="keep_sub_btn",
+                                              use_container_width=True):
+                                    st.session_state._confirm_cancel = False
+                                    st.rerun()
+                st.caption(
+                    "Billing questions: billing@qntm.app · "
+                    "[Billing & Refund Policy](?legal=billing)"
+                )
 
     # ── NOTIFICATION PREFS ────────────────────────────────────────────────────
     with tab_notifs:
@@ -7347,11 +7523,11 @@ def page_model_portfolio():
     if _mp_html:
         import streamlit.components.v1 as _cv1_mp
         _mp_n = _mp_html.count('qcard-wrap')
-        # 120px/closed card is a safe conservative estimate (closed cards run
-        # 80-95px each plus inter-card spacing). The embedded resize script
-        # grows the iframe further when a card opens; scrolling=True is a
-        # belt-and-suspenders fallback so no card ever clips.
-        _mp_ht = max(60, _mp_n * 120 + 720) if _mp_n > 0 else 60
+        # Closed cards stack ~120px each in practice; one expanded card adds
+        # ~520px (pillars + 4-box row + WHY THIS SCORE + P&L strip). Budget for
+        # closed-state + one expansion + breathing room so the last card never
+        # clips when opened.
+        _mp_ht = max(60, _mp_n * 130 + 720 + 520) if _mp_n > 0 else 60
         _cv1_mp.html(_mp_html + CARD_IFRAME_TAIL, height=min(_mp_ht,20000), scrolling=True)
 
     # Spacer below the iframe so when the last card expands and the iframe
