@@ -446,13 +446,15 @@ EVENT_KEYWORDS = {
 # Based on 2025H1 tariff environment
 _CURRENT_REGIME = {
     "label": "RISK-OFF",
-    "score": -0.55,
-    "active_events": ["tariff_broad", "war_escalation", "oil_spike"],
+    "score": -0.45,
+    "active_events": ["tariff_broad", "war_escalation"],
     "source": "estimated",
     "note": (
-        "Estimated regime May 2025: US-China tariffs active; "
-        "Iran-Israel tensions + Strait of Hormuz constraints driving oil spike; "
-        "war escalation risk elevated. RSS live feeds activate on deployment."
+        "Estimated regime 2026: US tariffs active on major partners; "
+        "Iran-Israel tensions and Strait of Hormuz disruption keep war escalation "
+        "risk elevated. WTI currently $85-92 — within normal range, so oil_spike "
+        "only triggers if RSS headlines surge or WTI breaches $95. "
+        "RSS live feeds activate on deployment."
     )
 }
 
@@ -487,14 +489,15 @@ MACRO_EVENT_INFO = {
     },
     "oil_spike": {
         "label":   "Oil Price Spike",
-        "summary": "Crude oil elevated on Middle East supply fears",
+        "summary": "Crude oil sharply elevated on supply disruption",
         "detail":  (
-            "Brent crude has moved above $90/bbl driven by Middle East conflict risk and "
-            "OPEC+ production discipline. Every $10 increase in oil adds ~0.3-0.5% to "
-            "US headline CPI, complicating Fed rate-cut timing. Energy sector earnings "
-            "expand; transport-heavy industries (airlines, shipping, delivery) face margin "
-            "compression. Consumer spending typically weakens when energy takes a larger "
-            "share of household budgets."
+            "WTI crude has moved above $95/bbl, signalling a genuine supply-side "
+            "disruption (Middle East conflict, OPEC+ shock, infrastructure damage). "
+            "Every $10 increase in oil adds ~0.3-0.5% to US headline CPI, complicating "
+            "Fed rate-cut timing. Energy sector earnings expand; transport-heavy "
+            "industries (airlines, shipping, delivery) face margin compression. "
+            "Consumer spending typically weakens when energy takes a larger share of "
+            "household budgets."
         ),
         "impact":  "Bearish: Consumer Discretionary, Airlines, Industrials",
         "bullish": "Bullish: XOM, CVX, COP, SLB",
@@ -617,13 +620,16 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                 event_scores["war_escalation"]   += 0.5
 
         # ── Oil price event injection ─────────────────────────────────────────
+        # Thresholds calibrated to 2025-2026 reality: WTI normal range is
+        # $70-90. "Spike" only applies above $95 (geopolitical disruption
+        # territory). Below that, RSS headlines alone need to corroborate.
         if oil_price is not None:
-            if oil_price >= 90:
+            if oil_price >= 100:
                 event_scores["oil_spike"] += 3.0
-            elif oil_price >= 80:
+            elif oil_price >= 95:
                 event_scores["oil_spike"] += 1.5
-            elif oil_price <= 65:
-                # Low oil = bearish demand signal
+            elif oil_price <= 60:
+                # Low oil = bearish demand signal (recession territory)
                 event_scores["recession_signal"] += 1.0
 
         # ── Select active events (threshold: ≥2 signals) ─────────────────────
