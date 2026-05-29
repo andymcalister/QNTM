@@ -1129,6 +1129,66 @@ def data_freshness_banner():
     except Exception:
         pass
 
+def finalize_scores_from_signal_log(results: list, macro_data: dict = None) -> list:
+    """
+    Single source of truth for displayed scores.
+
+    Trusts adj_composite from signal_log (the nightly cron's macro overlay).
+    Computes adj_action, score_delta, and applies sorting + MIN_POSITIONS floor
+    without ever recomputing adj_composite. This guarantees every page that
+    reads the same signal_log row shows the same score — home, screener, gems,
+    watchlist, portfolio, model portfolio, simulator.
+
+    Use this everywhere on read-side. apply_macro_overlay() is reserved for the
+    nightly cron (data_refresh.py) where overlay actually needs to be computed.
+    """
+    from model_engine import ENTRY_THRESHOLD, EXIT_THRESHOLD, MOM_EXIT, MIN_POSITIONS, DYNAMIC_THRESHOLD_HI
+
+    if not results:
+        return results
+
+    # Dynamic threshold mirrors apply_macro_overlay so action labels match the cron
+    n_above_60 = sum(1 for s in results
+                     if float(s.get("composite", 0) or 0) >= ENTRY_THRESHOLD)
+    eff_threshold = DYNAMIC_THRESHOLD_HI if n_above_60 > 30 else ENTRY_THRESHOLD
+
+    for s in results:
+        try:
+            adj   = float(s.get("adj_composite") or s.get("composite") or 50)
+            quant = float(s.get("composite") or adj)
+        except (TypeError, ValueError):
+            adj, quant = 50.0, 50.0
+
+        # Normalize so factor_panel_html and all downstream readers see identical values
+        s["adj_composite"] = adj
+        s["composite"]     = quant
+        s["score_delta"]   = round(adj - quant, 1)
+
+        mom = float(s.get("momentum", 50) or 50)
+        if adj >= eff_threshold:
+            s["adj_action"] = "BUY"
+        elif adj < EXIT_THRESHOLD or mom < MOM_EXIT:
+            s["adj_action"] = "SELL"
+        else:
+            s["adj_action"] = "HOLD"
+
+    # Sort by adjusted composite, same as the cron does
+    results.sort(key=lambda x: float(x.get("adj_composite", 0) or 0), reverse=True)
+
+    # MIN_POSITIONS floor: promote top HOLDs to BUY if we don't have enough BUYs.
+    # Matches apply_macro_overlay so screener doesn't show a different BUY count
+    # than what the cron produced.
+    buys = [s for s in results if s.get("adj_action") == "BUY"]
+    if len(buys) < MIN_POSITIONS:
+        holds = [s for s in results if s.get("adj_action") == "HOLD"]
+        needed = MIN_POSITIONS - len(buys)
+        for s in holds[:needed]:
+            s["adj_action"] = "BUY"
+            s["promoted"]   = True
+
+    return results
+
+
 def enrich_with_signal_log(results: list) -> list:
     """
     Replaces model-computed scores with latest signal_log values from Supabase.
@@ -1592,6 +1652,30 @@ body{margin:0;padding-bottom:60px;}
 """
 
 
+def _debug_line(r: dict) -> str:
+    """Return a debug strip showing raw score fields. Only renders when
+    ?debug=1 is in the URL. Used to diagnose score divergence across pages.
+    Append the result to a card's detail HTML."""
+    try:
+        if st.query_params.get("debug") != "1":
+            return ""
+    except Exception:
+        return ""
+    return (
+        f'<div style="margin-top:8px;padding:6px 10px;background:rgba(212,168,67,.06);'
+        f'border:1px dashed rgba(212,168,67,.3);border-radius:4px;'
+        f'font-family:DM Mono,monospace;font-size:10px;color:#d4a843;'
+        f'letter-spacing:.04em;line-height:1.5;">'
+        f'DEBUG · ticker={r.get("ticker","?")} · '
+        f'adj_composite={r.get("adj_composite","?")} · '
+        f'composite={r.get("composite","?")} · '
+        f'score_delta={r.get("score_delta","?")} · '
+        f'adj_action={r.get("adj_action","?")} · '
+        f'signal_date={str(r.get("signal_date","?"))[:10]}'
+        f'</div>'
+    )
+
+
 def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False) -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
@@ -1730,6 +1814,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'</div>'
         + why_html
         + _wl_btn_html
+        + _debug_line(r)
         + f'</div>'
     )
 
@@ -4268,10 +4353,15 @@ def page_screener():
             for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
+            # Score with overlay once for any tickers that don't have a signal_log row
             results = apply_macro_overlay(raw, macro)
+            # Replace anything that has a signal_log row with the cron's values —
+            # that's our single source of truth
             enriched = enrich_with_signal_log(results)
-            # Re-apply macro overlay after DB enrichment so adj_composite is consistent
-            st.session_state.scan_results = apply_macro_overlay(enriched, macro)
+            # Normalize action/sort/floor from those values WITHOUT recomputing
+            # adj_composite again (which would diverge from what the home page,
+            # gems, watchlist, portfolio, etc. all read from signal_log).
+            st.session_state.scan_results = finalize_scores_from_signal_log(enriched, macro)
             st.session_state.macro_data   = macro
 
     results = st.session_state.scan_results
@@ -4626,11 +4716,17 @@ def page_watchlist():
                     .limit(len(tickers) * 3) \
                     .execute()
                 seen = set()
+                _rows = []
                 for row in (resp.data or []):
                     tk = row["ticker"]
                     if tk not in seen:
                         seen.add(tk)
-                        score_map[tk] = row
+                        _rows.append(row)
+                # Normalize action labels, score_delta etc. so MACRO box and
+                # conviction label match what the screener shows for the same tickers
+                finalize_scores_from_signal_log(_rows, st.session_state.get("macro_data"))
+                for r in _rows:
+                    score_map[r["ticker"]] = r
         except Exception:
             pass
 
@@ -4924,7 +5020,8 @@ def page_gems():
             _res = apply_macro_overlay(_raw, _mac)
             _gems_prog.progress(85, text="Detecting gems...")
             _enriched = enrich_with_signal_log(_res)
-            st.session_state.scan_results = apply_macro_overlay(_enriched, _mac)
+            # Single source of truth — finalize from signal_log values, no recompute
+            st.session_state.scan_results = finalize_scores_from_signal_log(_enriched, _mac)
             st.session_state.macro_data   = _mac
             _gems_prog.progress(100, text="Done")
             _gems_prog.empty()
@@ -5496,7 +5593,12 @@ def page_portfolio():
         with st.spinner("Loading model signals..."):
             raw   = run_full_scan(use_live_prices=False)
             macro = fetch_macro_overlay()
-            st.session_state.scan_results = apply_macro_overlay(raw, macro)
+            for r in raw:
+                if not r.get("sector") or r.get("sector") == "Unknown":
+                    r["sector"] = SECTORS.get(r["ticker"], "Unknown")
+            results  = apply_macro_overlay(raw, macro)
+            enriched = enrich_with_signal_log(results)
+            st.session_state.scan_results = finalize_scores_from_signal_log(enriched, macro)
             st.session_state.macro_data   = macro
 
     score_map = {s["ticker"]: s for s in st.session_state.scan_results}
@@ -7223,6 +7325,10 @@ def page_model_portfolio():
         _mp_ht = max(60, _mp_n * 120 + 720) if _mp_n > 0 else 60
         _cv1_mp.html(_mp_html + CARD_IFRAME_TAIL, height=min(_mp_ht,20000), scrolling=True)
 
+    # Spacer below the iframe so when the last card expands and the iframe
+    # grows, the parent page has scroll room to reveal the new content.
+    st.markdown('<div style="height:160px;"></div>', unsafe_allow_html=True)
+
     st.markdown(
         '<div style="font-size:10px;color:#475569;padding:6px 8px;background:#050a0f;'
         'border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;margin-bottom:8px;">'
@@ -7634,9 +7740,11 @@ def main():
             for _r in _raw:
                 if not _r.get("sector") or _r.get("sector") == "Unknown":
                     _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")
-            _scored = apply_macro_overlay(_raw, _mac)
-            st.session_state.scan_results = _scored
-            st.session_state.sim_data     = _scored  # also update sim_data
+            _scored   = apply_macro_overlay(_raw, _mac)
+            _enriched = enrich_with_signal_log(_scored)
+            _final    = finalize_scores_from_signal_log(_enriched, _mac)
+            st.session_state.scan_results = _final
+            st.session_state.sim_data     = _final  # also update sim_data
             st.session_state.macro_data   = _mac
         except Exception:
             pass
@@ -7663,8 +7771,6 @@ def main():
                     _seen2 = {}
                     for _r2 in (_resp2.data or []):
                         if _r2["ticker"] not in _seen2:
-                            _adj2 = float(_r2.get("adj_composite") or _r2.get("composite") or 50)
-                            _r2["adj_action"] = "BUY" if _adj2 >= 60 else ("SELL" if _adj2 < 45 else "HOLD")
                             _seen2[_r2["ticker"]] = _r2
                     try:
                         from model_engine import SECTORS as _SIM_SECTORS2
@@ -7672,7 +7778,11 @@ def main():
                             _row2["sector"] = _SIM_SECTORS2.get(_tk2, "Unknown")
                     except Exception:
                         pass
-                    st.session_state.scan_results = list(_seen2.values())
+                    _final2 = finalize_scores_from_signal_log(
+                        list(_seen2.values()),
+                        st.session_state.get("macro_data"),
+                    )
+                    st.session_state.scan_results = _final2
             except Exception:
                 pass
 
