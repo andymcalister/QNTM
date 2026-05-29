@@ -1407,14 +1407,6 @@ def get_company_info(ticker: str) -> dict:
         f'</span></span>'
     )
 
-def action_badge(action):
-    colors = {"BUY":("#00ff87","rgba(0,255,135,.12)"),
-              "HOLD":("#fbbf24","rgba(251,191,36,.12)"),
-              "SELL":("#ef4444","rgba(239,68,68,.12)")}
-    c, bg = colors.get(action, ("#64748b","rgba(100,116,139,.1)"))
-    font_style = "font-family:'Syne',sans-serif;"
-    return f'<span style="color:{c};background:{bg};border:1px solid {c}44;padding:2px 10px;border-radius:3px;font-size:13px;font-weight:600;letter-spacing:.08em;{font_style}">{action}</span>'
-
 def score_bar_html(val, width=80):
     col = "#00ff87" if val>=65 else "#fbbf24" if val>=50 else "#ef4444"
     return f'<div style="width:{width}px;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;"><div style="width:{val}%;height:100%;background:{col};border-radius:2px;"></div></div>'
@@ -2037,141 +2029,11 @@ def resolve_ticker(query: str) -> tuple[str, str]:
 
     # Fall back to treating input as ticker
     return q, q
-    """
-    Renders a full factor transparency panel for a single stock.
-    Shows: ticker · signal badge · 5-pillar bars · quant vs macro breakdown · factor driver text.
-    """
-    act    = r.get("adj_action", r.get("action","HOLD"))
-    score  = r.get("adj_composite", r.get("composite", 50))
-    quant  = r.get("composite", 50)
-    delta  = r.get("score_delta", 0)
-    regime = r.get("macro_regime","") or ""
 
-    act_colors = {"BUY":("#00ff87","rgba(0,255,135,.1)","rgba(0,255,135,.35)"),
-                  "HOLD":("#fbbf24","rgba(251,191,36,.1)","rgba(251,191,36,.3)"),
-                  "SELL":("#ef4444","rgba(239,68,68,.1)","rgba(239,68,68,.3)")}
-    act_c, act_bg, act_brd = act_colors.get(act, ("#64748b","rgba(100,116,139,.1)","rgba(100,116,139,.3)"))
-    left_border = f"3px solid {act_c}"
 
-    # 5 pillar bars
-    pillars = [
-        ("MOM",  r.get("momentum",50)),
-        ("QUAL", r.get("quality",50)),
-        ("VOL",  r.get("volume",50)),
-        ("VAL",  r.get("value",50)),
-        ("SENT", r.get("sentiment",50)),
-    ]
-    PILLAR_FULL_NAMES = {
-        "MOM": "Momentum", "QUAL": "Quality",
-        "VOL": "Volume",   "VAL":  "Value", "SENT": "Sentiment"
-    }
-    pillar_bars = ""
-    for pname, pval in pillars:
-        pc = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
-        full = PILLAR_FULL_NAMES.get(pname, pname)
-        tip = PILLAR_TIPS.get(full, {})
-        tip_title = full
-        tip_body  = tip.get("body", "")
-        tip_weight= tip.get("weight", "")
-        weight_html = f'<div class="tip-weight">{tip_weight}</div>' if tip_weight else ""
-        label_html = (
-            f'<span class="qntm-tip" style="font-size:13px;color:#64748b;cursor:help;">'
-            f'{full}'
-            f'<i class="tip-icon">i</i>'
-            f'<span class="tip-box">'
-            f'<div class="tip-title">{tip_title}</div>'
-            f'<div class="tip-body">{tip_body}</div>'
-            f'{weight_html}'
-            f'</span></span>'
-        )
-        pillar_bars += (
-            f'<div style="flex:1;min-width:90px;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
-            f'{label_html}'
-            f'<div style="font-family:DM Mono,monospace;font-size:15px;color:{pc};font-weight:700;">{pval:.0f}</div>'
-            f'</div>'
-            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:7px;overflow:hidden;">'
-            f'<div style="width:{pval}%;height:100%;background:linear-gradient(90deg,{pc}99,{pc});border-radius:3px;transition:width .4s;"></div>'
-            f'</div></div>'
-        )
-
-    # Factor driver: identify top 2 and weakest pillar
-    sorted_pillars = sorted(pillars, key=lambda x: x[1], reverse=True)
-    top2 = [p[0] for p in sorted_pillars[:2]]
-    weak = [p[0] for p in sorted_pillars if p[1] < 45]
-    driver = f"Driven by {top2[0]} + {top2[1]}"
-    if weak:
-        driver += f" — watch {weak[0]}"
-
-    # Macro delta chip
-    delta_c = "#1D9E75" if delta >= 0 else "#ef4444"
-    delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
-
-    gem_badge = '<span style="font-size:13px;margin-left:6px;">💎</span>' if is_gem else ""
-    action_label = "HIGH" if act=="BUY" else "LOW" if act=="SELL" else "MODERATE"
-    action_arrow = "▲" if act=="BUY" else "▼" if act=="SELL" else "─"
-
-    # Build HTML as a variable first — no comments, no risk of comment stripping
-    html_parts = [
-        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-        f'border-left:{left_border};border-radius:8px;padding:16px 18px;margin-bottom:8px;">',
-
-        f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">',
-        f'<div style="display:flex;align-items:center;gap:10px;">',
-        f'<div>'
-        f'<div style="display:flex;align-items:center;gap:6px;">'
-        + (
-            f'<span class="qntm-tip" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;cursor:help;">'
-            f'{r["ticker"]}{gem_badge}'
-            f'<span class="tip-box" style="width:320px;">'
-            f'<div class="tip-title" style="font-size:13px;">{company_info["name"]}</div>'
-            f'<div class="tip-body">{company_info.get("description") or "Search this ticker for a full company overview."}</div>'
-            f'</span></span>'
-            if (company_info and company_info.get("name") and company_info["name"] != r["ticker"])
-            else f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#e2e8f0;">{r["ticker"]}{gem_badge}</span>'
-        ) +
-        f'</div>'
-        + (
-            f'<div style="font-size:13px;color:#94a3b8;margin-top:1px;">{company_info["name"]}</div>'
-            if (company_info and company_info.get("name") and company_info["name"] != r["ticker"])
-            else ''
-        )
-        + (
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;margin-top:3px;">'
-            f'${r["price"]:,.2f} <span style="font-size:13px;color:#94a3b8;">/ share</span></div>'
-            if r.get("price") else ''
-        ) +
-        f'</div>',
-        f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{act_c};'
-        f'background:{act_bg};border:1px solid {act_brd};padding:3px 10px;border-radius:3px;'
-        f'letter-spacing:.1em;">{action_arrow} {action_label}</span>',
-        f'<span style="font-size:13px;color:#94a3b8;">{r.get("sector","")[:16]}</span>',
-        f'</div>',
-        f'<div style="text-align:right;">',
-        f'<div style="font-family:DM Mono,monospace;font-size:26px;font-weight:500;color:{act_c};">{score:.0f}</div>',
-        f'<div style="font-size:14px;color:#94a3b8;margin-top:2px;">blended score</div>',
-        f'</div></div>',
-
-        f'<div style="display:flex;gap:10px;margin-bottom:12px;">{pillar_bars}</div>',
-
-        f'<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">',
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">QUANT</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;font-weight:500;">{quant:.1f}</div></div>',
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">MACRO</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:{delta_c};font-weight:500;">{delta_str}</div></div>',
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">BLEND</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;font-weight:500;">75/25</div></div>',
-        f'<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 12px;flex:1;min-width:70px;">'
-        f'<div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">RANK</div>'
-        f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#94a3b8;font-weight:500;">{r.get("pct_rank",50):.0f}th</div></div>',
-        f'</div></div>',
-    ]
-    return "".join(html_parts)
-
-# ── COOKIE BANNER ─────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# WATCHLIST HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 def get_watchlist(user_id: str) -> list:
     """Fetch user watchlist from Supabase."""
     try:

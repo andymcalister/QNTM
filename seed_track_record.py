@@ -79,6 +79,19 @@ QUARTER_REGIME = {
     "2024-Q4": "RISK_ON",  "2025-Q1": "RISK_OFF",
 }
 
+# Representative active_events per regime. These feed _build_overlay_from_regime
+# (model_engine.py) which produces the per-sector overlay magnitudes the live
+# apply_macro_overlay then consumes. Picking events that broadly match each
+# regime is enough — the goal is to use the SAME formula production uses, not
+# to reconstruct every historical headline. The exact event set per quarter
+# can be refined later without changing the math.
+# Event names must match keys in SECTOR_EVENT_MAP (model_engine.py).
+REGIME_EVENTS = {
+    "RISK_ON":  ["tariff_relief", "fed_dovish"],       # cyclicals tailwind
+    "NEUTRAL":  ["fed_hawkish"],                       # mild rate pressure
+    "RISK_OFF": ["fed_hawkish", "war_escalation"],     # rate + geopolitical drag
+}
+
 
 def _get_supabase():
     """Return Supabase client from env or Streamlit secrets."""
@@ -137,46 +150,16 @@ def _fetch_price_history(tickers: list, start: str, end: str) -> dict:
     return histories
 
 
-def _score_historical(ticker: str, price_history: list, quarter: str) -> dict:
+def _score_historical(ticker: str, price_history: list) -> dict:
     """
-    Score a ticker using historical price data as-of the quarter start.
-    Uses static fundamentals only (live data not available for historical periods).
+    Compute the raw quant composite for a ticker using historical prices and
+    static fundamentals. Returns the scored dict with `composite`, `momentum`,
+    `quality`, etc. — but NOT `adj_composite`. The macro overlay is applied
+    cross-sectionally by `seed_quarter` via the production `apply_macro_overlay`
+    so the formula matches what the live model produces.
     """
-    from model_engine import score_stock, apply_macro_overlay
-    from universe_data import FUNDAMENTALS
-
-    # Score with static fundamentals (historical — no live data for past quarters)
-    scored = score_stock(ticker, price_history, live_fundamentals=None, vol_ratio=None)
-
-    # Apply macro regime from the backtest
-    regime = QUARTER_REGIME.get(quarter, "NEUTRAL")
-    macro_weights = {
-        "RISK_ON":  {"weight": 0.15},
-        "RISK_OFF": {"weight": 0.35},
-        "NEUTRAL":  {"weight": 0.10},
-    }
-    w = macro_weights.get(regime, {"weight": 0.10})["weight"]
-
-    # Apply regime scaling (mirrors apply_macro_overlay logic)
-    quant = scored["composite"]
-    # Risk-off: blend toward 50 (neutral) with regime weight; risk-on: slight boost
-    if regime == "RISK_OFF":
-        adj = quant * (1 - w) + 50 * w
-    elif regime == "RISK_ON":
-        adj = quant + (quant - 50) * w * 0.2
-    else:
-        adj = quant
-
-    adj = round(max(0, min(100, adj)), 1)
-    action = "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD")
-
-    scored["adj_composite"]  = adj
-    scored["adj_action"]     = action
-    scored["macro_regime"]   = regime
-    scored["score_delta"]    = round(adj - quant, 1)
-    scored["pct_rank"]       = 50   # not meaningful for historical seeding
-
-    return scored
+    from model_engine import score_stock
+    return score_stock(ticker, price_history, live_fundamentals=None, vol_ratio=None)
 
 
 def seed_quarter(
@@ -193,20 +176,47 @@ def seed_quarter(
     Score and write all tickers for one quarter to signal_log.
     Returns {"written": N, "skipped": N, "failed": N}.
     """
-    from model_engine import SECTORS
+    from model_engine import SECTORS, apply_macro_overlay, _build_overlay_from_regime
 
     written = skipped = failed = 0
-    rows = []
 
+    # ── Step 1: score every ticker (quant only) ───────────────────────────────
+    scored_list = []
     for ticker in tickers:
         hist = price_histories.get(ticker, [])
-        scored = None
-        if hist:
-            try:
-                scored = _score_historical(ticker, hist, quarter)
-            except Exception as e:
-                log.debug(f"  Scoring failed for {ticker} in {quarter}: {e}")
+        if not hist:
+            scored_list.append(None)
+            continue
+        try:
+            s = _score_historical(ticker, hist)
+            # Fill sector so apply_macro_overlay can look up the per-sector overlay
+            s["sector"] = SECTORS.get(ticker, "Unknown")
+            scored_list.append(s)
+        except Exception as e:
+            log.debug(f"  Scoring failed for {ticker} in {quarter}: {e}")
+            scored_list.append(None)
 
+    # ── Step 2: apply production macro overlay once on the whole list ─────────
+    regime = QUARTER_REGIME.get(quarter, "NEUTRAL")
+    regime_dict = {
+        "label":         regime,
+        "score":         {"RISK_ON": 0.5, "NEUTRAL": 0.0, "RISK_OFF": -0.5}.get(regime, 0.0),
+        "active_events": REGIME_EVENTS.get(regime, []),
+    }
+    macro_data = _build_overlay_from_regime(regime_dict)
+    # Filter out the None placeholders before passing to apply_macro_overlay,
+    # but keep position so we can match results back to tickers
+    valid_scores  = [s for s in scored_list if s is not None]
+    if valid_scores:
+        apply_macro_overlay(valid_scores, macro_data)  # mutates in place
+
+    # Re-align: build {ticker → scored dict} for fast lookup after the
+    # in-place sort that apply_macro_overlay performs
+    scored_by_tk = {s["ticker"]: s for s in valid_scores}
+
+    rows = []
+    for ticker in tickers:
+        scored = scored_by_tk.get(ticker)
         if scored:
             adj = scored.get("adj_composite", scored.get("composite", 50))
             row = {
@@ -219,8 +229,8 @@ def seed_quarter(
                 "value":             scored.get("value", 50),
                 "sentiment":         scored.get("sentiment", 50),
                 "adj_composite":     adj,
-                "signal":            "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD"),
-                "macro_overlay":     adj,
+                "signal":            scored.get("adj_action", "HOLD"),
+                "macro_overlay":     scored.get("macro_overlay", 0),
                 "price":             scored.get("price"),
                 "is_hidden_gem":     False,
                 "hidden_gem_reason": None,
@@ -237,7 +247,7 @@ def seed_quarter(
                 "sentiment":         50,
                 "adj_composite":     50,
                 "signal":            "HOLD",
-                "macro_overlay":     50,
+                "macro_overlay":     0,
                 "price":             None,
                 "is_hidden_gem":     False,
                 "hidden_gem_reason": None,
