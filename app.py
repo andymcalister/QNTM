@@ -1809,27 +1809,21 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         if _in_wl:
             _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_top" '
-                f'onclick="event.stopPropagation();event.preventDefault();'
-                f'window.open(this.href,\'_top\');return false;" '
-                f'style="display:block;width:100%;'
+                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;cursor:pointer;">'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;">'
                 f'✕ Remove from Watchlist</a>'
             )
         elif _uid_v:
             _wl_url = _qp_base + f'&wl_action=add&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_top" '
-                f'onclick="event.stopPropagation();event.preventDefault();'
-                f'window.open(this.href,\'_top\');return false;" '
-                f'style="display:block;width:100%;'
+                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#d4a843;text-decoration:none;cursor:pointer;">'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#d4a843;text-decoration:none;">'
                 f'☆ Add to Watchlist</a>'
             )
         else:
@@ -4171,6 +4165,7 @@ def page_screener():
         display_query = f"{resolved_name} ({resolved_tk})" if resolved_name and resolved_name != resolved_tk else resolved_tk
 
         st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin:6px 0 6px;">SCORE FOR {display_query}</div>', unsafe_allow_html=True)
+        _sr_ok = None
         with st.spinner(f"Scoring {resolved_tk}..."):
             try:
                 price_data = fetch_price_data([resolved_tk], period="1y")
@@ -4210,51 +4205,13 @@ def page_screener():
                     _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
                     if _chart_html:
                         st.markdown(_chart_html, unsafe_allow_html=True)
-                    # Watchlist — native button (iframe/markdown links unreliable)
-                    from db import (get_watchlist_items as _gwi, add_watchlist_item as _awi,
-                                    remove_watchlist_item as _rwi, get_watchlists as _gws,
-                                    get_price_on_date_latest as _gpl)
-                    _wl_uid_s = uid()
-                    _def_lists = _gws(_wl_uid_s)
-                    _def_id = next((l["id"] for l in _def_lists if l.get("is_default")), 
-                                   _def_lists[0]["id"] if _def_lists else None)
-                    _wl_tickers = {w["ticker"] for w in _gwi(_wl_uid_s, _def_id)} if _def_id else set()
-                    in_wl = resolved_tk in _wl_tickers
-                    st.markdown("""
-                    <style>
-                    div[data-testid='stButton'][data-key='sr_wl_btn'] > div > button {
-                        background: linear-gradient(135deg,#d4a843,#b8922e) !important;
-                        color:#0a0b14 !important; border:none !important;
-                        font-family:Syne,sans-serif !important; font-weight:800 !important;
-                        font-size:12px !important; letter-spacing:.06em !important;
-                        border-radius:6px !important; text-transform:uppercase !important;
-                    }
-                    div[data-testid='stButton'][data-key='sr_wl_btn_rm'] > div > button {
-                        background:rgba(239,68,68,.08) !important;
-                        border:1px solid rgba(239,68,68,.35) !important;
-                        color:#ef4444 !important;
-                        font-family:Syne,sans-serif !important; font-weight:700 !important;
-                        font-size:12px !important; letter-spacing:.06em !important;
-                        border-radius:6px !important; text-transform:uppercase !important;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-                    if in_wl:
-                        if st.button("✕ Remove from Watchlist", key="sr_wl_btn_rm", use_container_width=True):
-                            if _def_id and _rwi(_wl_uid_s, _def_id, resolved_tk):
-                                st.session_state.pop("_wl_daychange_cache", None)
-                                st.toast(f"Removed {resolved_tk}")
-                                st.rerun()
-                    else:
-                        if st.button("☆ + Watchlist", key="sr_wl_btn", use_container_width=True):
-                            _px_s = sr.get("price") or _gpl(resolved_tk)
-                            if _def_id and _awi(_wl_uid_s, _def_id, resolved_tk, _px_s):
-                                st.session_state.pop("_wl_daychange_cache", None)
-                                st.toast(f"Added {resolved_tk} to watchlist")
-                                st.rerun()
+                    # Flag this ticker as successfully scored so the watchlist
+                    # button can render AFTER the try block (never masked by except).
+                    _sr_ok = {"ticker": resolved_tk, "price": sr.get("price")}
                     if resolved_tk not in ALL_SECTORS:
                         st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception:
+                _sr_ok = None
                 st.markdown(
                     f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
                     f'border-radius:8px;padding:20px 24px;">'
@@ -4263,6 +4220,50 @@ def page_screener():
                     f'<div style="font-size:13px;color:#475569;">Could not retrieve data. Check the symbol and try again.</div>'
                     f'</div>',
                     unsafe_allow_html=True)
+
+        # ── Watchlist add/remove for the searched stock — OUTSIDE the try so a
+        # button error can never show as "not found", and it always renders. ──
+        if _sr_ok:
+            _srtk = _sr_ok["ticker"]
+            from db import (get_watchlist_items as _gwi, add_watchlist_item as _awi,
+                            remove_watchlist_item as _rwi, get_watchlists as _gws,
+                            get_price_on_date_latest as _gpl)
+            _wl_uid_s = uid()
+            _def_lists = _gws(_wl_uid_s)
+            _def_id = next((l["id"] for l in _def_lists if l.get("is_default")),
+                           _def_lists[0]["id"] if _def_lists else None)
+            _wl_tickers = {w["ticker"] for w in _gwi(_wl_uid_s, _def_id)} if _def_id else set()
+            st.markdown("""
+            <style>
+            div[data-testid='stButton'][data-key='sr_wl_btn'] button {
+                background: linear-gradient(135deg,#d4a843,#b8922e) !important;
+                color:#0a0b14 !important; border:none !important;
+                font-family:Syne,sans-serif !important; font-weight:800 !important;
+                letter-spacing:.06em !important; border-radius:6px !important;
+                text-transform:uppercase !important;
+            }
+            div[data-testid='stButton'][data-key='sr_wl_btn_rm'] button {
+                background:rgba(239,68,68,.08) !important;
+                border:1px solid rgba(239,68,68,.35) !important; color:#ef4444 !important;
+                font-family:Syne,sans-serif !important; font-weight:700 !important;
+                letter-spacing:.06em !important; border-radius:6px !important;
+                text-transform:uppercase !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            if _srtk in _wl_tickers:
+                if st.button("✕ Remove from Watchlist", key="sr_wl_btn_rm", use_container_width=True):
+                    if _def_id and _rwi(_wl_uid_s, _def_id, _srtk):
+                        st.session_state.pop("_wl_daychange_cache", None)
+                        st.toast(f"Removed {_srtk}")
+                        st.rerun()
+            else:
+                if st.button("☆ + Watchlist", key="sr_wl_btn", use_container_width=True):
+                    _px_s = _sr_ok.get("price") or _gpl(_srtk)
+                    if _def_id and _awi(_wl_uid_s, _def_id, _srtk, _px_s):
+                        st.session_state.pop("_wl_daychange_cache", None)
+                        st.toast(f"Added {_srtk} to watchlist")
+                        st.rerun()
         st.markdown('<div style="height:1px;background:rgba(255,255,255,.05);margin:8px 0 12px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
