@@ -2058,45 +2058,55 @@ def resolve_ticker(query: str) -> tuple[str, str]:
 # ══════════════════════════════════════════════════════════════════════════════
 # WATCHLIST HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
-def get_watchlist(user_id: str) -> list:
-    """Fetch user watchlist from Supabase."""
+def _default_watchlist_id(user_id: str):
+    """Resolve (and auto-create) the user's default watchlist id."""
     try:
-        from data_refresh import _get_supabase
-        sb = _get_supabase()
-        if not sb: return []
-        resp = sb.table("user_watchlist").select("*").eq("user_id", user_id).order("added_at", desc=True).execute()
-        return resp.data or []
+        from db import get_watchlists
+        lists = get_watchlists(user_id)
+        if not lists:
+            return None
+        # Prefer the flagged default, else the first list
+        for w in lists:
+            if w.get("is_default"):
+                return w["id"]
+        return lists[0]["id"]
+    except Exception:
+        return None
+
+
+def get_watchlist(user_id: str) -> list:
+    """Back-compat shim: return items from the user's DEFAULT named list,
+    shaped like the old flat watchlist rows (ticker, price_at_add, added_at)."""
+    try:
+        from db import get_watchlist_items
+        lid = _default_watchlist_id(user_id)
+        if not lid:
+            return []
+        return get_watchlist_items(user_id, lid)
     except Exception:
         return []
 
 
 def add_to_watchlist(user_id: str, ticker: str, price_at_add: float = None) -> bool:
-    """Add ticker to watchlist. Returns True on success."""
+    """Add ticker to the user's DEFAULT named list. Returns True on success."""
     try:
-        from data_refresh import _get_supabase
-        from datetime import datetime
-        sb = _get_supabase()
-        if not sb: return False
-        payload = {"user_id": user_id, "ticker": ticker,
-                   "added_at": datetime.utcnow().isoformat()}
-        if price_at_add:
-            payload["price_at_add"] = round(price_at_add, 4)
-        sb.table("user_watchlist").upsert(
-            payload, on_conflict="user_id,ticker"
-        ).execute()
-        return True
+        from db import add_watchlist_item
+        lid = _default_watchlist_id(user_id)
+        if not lid:
+            return False
+        return add_watchlist_item(user_id, lid, ticker, price_at_add)
     except Exception:
         return False
 
 
 def remove_from_watchlist(user_id: str, ticker: str) -> bool:
-    """Remove ticker from watchlist."""
+    """Remove ticker from the user's DEFAULT named list."""
     try:
-        from data_refresh import _get_supabase
-        sb = _get_supabase()
-        if not sb: return False
-        sb.table("user_watchlist").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
-        return True
+        from db import remove_watchlist_item
+        lid = _default_watchlist_id(user_id)
+        if not lid:
+            return False
+        return remove_watchlist_item(user_id, lid, ticker)
     except Exception:
         return False
 
@@ -4577,7 +4587,95 @@ def page_watchlist():
     page_summary("★", "Watchlist", "Your tracked stocks · conviction scores updated daily")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    watchlist = get_watchlist(uid())
+    from db import (get_watchlists, create_watchlist, rename_watchlist,
+                    delete_watchlist, get_watchlist_items, remove_watchlist_item)
+    _wl_uid = uid()
+
+    # ── Handle list-management actions via query params ───────────────────────
+    _list_action = st.query_params.get("wl_list_action", "")
+    if _list_action:
+        _tgt = st.query_params.get("wl_list_id", "")
+        if _list_action == "select" and _tgt:
+            st.session_state.active_wl_list = _tgt
+        elif _list_action == "delete" and _tgt:
+            delete_watchlist(_wl_uid, _tgt)
+            st.session_state.pop("active_wl_list", None)
+        elif _list_action == "remove_item":
+            _rm_tk = st.query_params.get("wl_rm_ticker", "")
+            if _tgt and _rm_tk:
+                remove_watchlist_item(_wl_uid, _tgt, _rm_tk)
+                st.session_state.active_wl_list = _tgt
+        st.query_params.pop("wl_list_action", None)
+        st.query_params.pop("wl_list_id", None)
+        st.query_params.pop("wl_rm_ticker", None)
+
+    _all_lists = get_watchlists(_wl_uid)   # auto-creates default if none
+    if not _all_lists:
+        st.warning("Could not load your watchlists. Try refreshing.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # Resolve active list — session pick, else default, else first
+    _active_id = st.session_state.get("active_wl_list")
+    if _active_id not in {w["id"] for w in _all_lists}:
+        _active_id = next((w["id"] for w in _all_lists if w.get("is_default")), _all_lists[0]["id"])
+        st.session_state.active_wl_list = _active_id
+    _active_list = next(w for w in _all_lists if w["id"] == _active_id)
+
+    # ── List selector bar ─────────────────────────────────────────────────────
+    _tabs_html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">'
+    for w in _all_lists:
+        _is_act = w["id"] == _active_id
+        _bg  = "rgba(212,168,67,.15)" if _is_act else "rgba(255,255,255,.03)"
+        _bd  = "rgba(212,168,67,.5)"  if _is_act else "rgba(255,255,255,.08)"
+        _tc  = "#d4a843" if _is_act else "#94a3b8"
+        _url = f"?qnav=watchlist&wl_list_action=select&wl_list_id={w['id']}"
+        _tabs_html += (
+            f'<a href="{_url}" target="_top" style="text-decoration:none;">'
+            f'<div style="background:{_bg};border:1px solid {_bd};border-radius:6px;'
+            f'padding:6px 14px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+            f'color:{_tc};">{w["name"]}</div></a>'
+        )
+    _tabs_html += '</div>'
+    st.markdown(_tabs_html, unsafe_allow_html=True)
+
+    # New / rename / delete controls
+    _c_new, _c_ren, _c_del = st.columns(3)
+    with _c_new:
+        with st.popover("➕ New list", use_container_width=True):
+            _nm = st.text_input("List name", key="wl_new_name", placeholder="e.g. Tech Watch")
+            if st.button("Create", key="wl_new_go", use_container_width=True):
+                _n = (_nm or "").strip()
+                if not _n:
+                    st.warning("Enter a name.")
+                else:
+                    _created = create_watchlist(_wl_uid, _n)
+                    if _created:
+                        st.session_state.active_wl_list = _created["id"]
+                        st.rerun()
+                    else:
+                        st.error("That name may already exist.")
+    with _c_ren:
+        with st.popover("✏️ Rename", use_container_width=True):
+            _rn = st.text_input("New name", key="wl_ren_name", value=_active_list["name"])
+            if st.button("Save name", key="wl_ren_go", use_container_width=True):
+                if rename_watchlist(_wl_uid, _active_id, _rn):
+                    st.rerun()
+                else:
+                    st.error("Rename failed (name may be taken).")
+    with _c_del:
+        _can_del = len(_all_lists) > 1
+        with st.popover("🗑 Delete", use_container_width=True, disabled=not _can_del):
+            st.markdown(f"Delete **{_active_list['name']}** and all its tickers?")
+            if st.button("Confirm delete", key="wl_del_go", use_container_width=True):
+                if delete_watchlist(_wl_uid, _active_id):
+                    st.session_state.pop("active_wl_list", None)
+                    st.rerun()
+                else:
+                    st.error("Can't delete your only list.")
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+
+    watchlist = get_watchlist_items(_wl_uid, _active_id)
     scan      = st.session_state.get("scan_results") or []
     score_map = {r["ticker"]: r for r in scan}
 
@@ -4815,9 +4913,31 @@ def page_watchlist():
             sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
+        # "% since added" from price_at_add baseline vs current price
+        _since_html = ""
+        _entry_px = w.get("price_at_add")
+        _cur_px = (day_change.get(tk) or {}).get("price") or sc.get("price")
+        if _entry_px and _cur_px:
+            try:
+                _ep = float(_entry_px); _cp = float(_cur_px)
+                if _ep > 0:
+                    _ret = (_cp - _ep) / _ep * 100
+                    _rc = "#00ff87" if _ret > 0 else ("#ef4444" if _ret < 0 else "#94a3b8")
+                    _sign = "+" if _ret > 0 else ""
+                    _since_html = (
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                        f'padding:4px 12px;margin:-4px 0 4px 0;background:rgba(255,255,255,.015);">'
+                        f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.06em;">'
+                        f'SINCE ADDED · ${_ep:,.2f} → ${_cp:,.2f}</span>'
+                        f'<span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:{_rc};">'
+                        f'{_sign}{_ret:.1f}%</span></div>'
+                    )
+            except Exception:
+                pass
         _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
-        # Inline Remove button — navigates parent window via target="_top"
-        _rm_url = f"?qnav=watchlist&uid={_uid_wl}&plan={_pln_wl}&ck=1&wl_action=remove&wl_ticker={tk}"
+        _cards_html += _since_html
+        # Inline Remove button — scoped to the ACTIVE list, navigates parent window
+        _rm_url = f"?qnav=watchlist&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}"
         _cards_html += (
             f'<a href="{_rm_url}" target="_top" style="display:block;width:100%;'
             f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
@@ -6375,6 +6495,12 @@ def page_simulator():
     weighted_score = sum(a["pct"] * a["score"] for a in alloc) / 100
     sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
 
+    # Aggregate per-pillar averages — weighted by the SAME pct the score uses,
+    # so flipping the equal/dollar toggle reweights pillars and score together.
+    agg_pillars = {}
+    for _pk in ("momentum", "quality", "volume", "value", "sentiment"):
+        agg_pillars[_pk] = sum(a["pct"] * float(a.get(_pk, 50) or 50) for a in alloc) / 100
+
     st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
     st.markdown(
         f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">'
@@ -6389,22 +6515,110 @@ def page_simulator():
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{sc_col};">{weighted_score:.1f}</div></div>'
         f'</div>', unsafe_allow_html=True)
 
+    # ── Save / Load basket to named watchlists ────────────────────────────────
+    from db import (get_watchlists, create_watchlist, add_watchlist_item,
+                    get_watchlist_items)
+    _sim_uid = uid()
+    st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
+    _save_c, _load_c = st.columns(2)
+    with _save_c:
+        with st.popover("💾 Save as watchlist", use_container_width=True):
+            _new_name = st.text_input("List name", key="sim_save_name",
+                                       placeholder="e.g. High Momentum Basket")
+            if st.button("Save basket", key="sim_save_go", use_container_width=True):
+                _nm = (_new_name or "").strip()
+                if not _nm:
+                    st.warning("Name the list first.")
+                else:
+                    _lst = create_watchlist(_sim_uid, _nm)
+                    if not _lst:
+                        # name may already exist — find it
+                        _existing = [w for w in get_watchlists(_sim_uid) if w["name"] == _nm]
+                        _lst = _existing[0] if _existing else None
+                    if _lst:
+                        _ok = 0
+                        for _t in st.session_state.sim_selected:
+                            _p = (ticker_map.get(_t) or {}).get("price")
+                            if add_watchlist_item(_sim_uid, _lst["id"], _t, _p):
+                                _ok += 1
+                        st.success(f"Saved {_ok} positions to “{_nm}”.")
+                    else:
+                        st.error("Could not create that list.")
+    with _load_c:
+        _all_lists = get_watchlists(_sim_uid)
+        with st.popover("📂 Load from watchlist", use_container_width=True,
+                        disabled=not _all_lists):
+            if _all_lists:
+                _names = [w["name"] for w in _all_lists]
+                _pick = st.selectbox("Choose a list", _names, key="sim_load_pick")
+                if st.button("Load into simulator", key="sim_load_go", use_container_width=True):
+                    _chosen = next((w for w in _all_lists if w["name"] == _pick), None)
+                    if _chosen:
+                        _items = get_watchlist_items(_sim_uid, _chosen["id"])
+                        _loaded = [it["ticker"] for it in _items if it["ticker"] in ticker_map]
+                        if _loaded:
+                            st.session_state.sim_selected = _loaded
+                            st.session_state.sim_weights = {}
+                            st.session_state.sim_profile_applied = "_loaded_"
+                            st.session_state.nav = "simulator"
+                            st.rerun()
+                        else:
+                            st.warning("No tickers from that list are in the current universe.")
+
     sector_totals = {}
     for a in alloc:
         sector_totals[a["sector"]] = sector_totals.get(a["sector"], 0) + a["allocation"]
+    SECTOR_CAP_PCT = 30.0
+    _over_cap = []
     bars_html = ""
     for sec, val in sorted(sector_totals.items(), key=lambda x: x[1], reverse=True)[:6]:
         pct = val / sim_amount * 100
+        _is_over = pct > SECTOR_CAP_PCT
+        if _is_over:
+            _over_cap.append((sec, pct))
+        _bar_col = "#f59e0b" if _is_over else "#d4a843"
+        _pct_col = "#f59e0b" if _is_over else "#cbd5e1"
+        _flag = ' <span style="font-size:10px;color:#f59e0b;">⚠ over 30%</span>' if _is_over else ''
         bars_html += (f'<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
-                      f'<span style="font-size:12px;color:#94a3b8;">{sec}</span>'
-                      f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">{pct:.1f}%</span></div>'
+                      f'<span style="font-size:12px;color:#94a3b8;">{sec}{_flag}</span>'
+                      f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{_pct_col};">{pct:.1f}%</span></div>'
                       f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
-                      f'<div style="width:{min(pct,100):.1f}%;height:100%;background:#d4a843;border-radius:3px;"></div></div></div>')
+                      f'<div style="width:{min(pct,100):.1f}%;height:100%;background:{_bar_col};border-radius:3px;"></div></div></div>')
+    _cap_note = ''
+    if _over_cap:
+        _cap_note = ('<div style="font-size:11px;color:#f59e0b;margin-top:4px;padding-top:8px;'
+                     'border-top:1px solid rgba(245,158,11,.15);">Concentration flag — '
+                     + ', '.join(f'{s} {p:.0f}%' for s, p in _over_cap)
+                     + ' exceeds the 30% single-sector guideline.</div>')
     st.markdown(
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
         f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
         f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
-        f'{bars_html}</div>', unsafe_allow_html=True)
+        f'{bars_html}{_cap_note}</div>', unsafe_allow_html=True)
+
+    # ── Aggregate pillar profile (weighted, recomputes with the toggle) ────────
+    def _agg_bar(label, v):
+        c = "#00ff87" if v >= 60 else ("#f59e0b" if v >= 45 else "#ef4444")
+        return (f'<div style="margin-bottom:10px;">'
+                f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
+                f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;letter-spacing:.06em;">{label}</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{c};">{v:.1f}</span></div>'
+                f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:6px;">'
+                f'<div style="width:{min(max(v,2),100):.1f}%;height:100%;background:{c};border-radius:3px;"></div></div></div>')
+    _pillar_bars = (
+        _agg_bar("MOMENTUM",  agg_pillars["momentum"])
+        + _agg_bar("QUALITY",  agg_pillars["quality"])
+        + _agg_bar("VOLUME",   agg_pillars["volume"])
+        + _agg_bar("VALUE",    agg_pillars["value"])
+        + _agg_bar("SENTIMENT", agg_pillars["sentiment"])
+    )
+    st.markdown(
+        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
+        f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;">PORTFOLIO FACTOR PROFILE</span>'
+        f'<span style="font-size:10px;color:#475569;">{"equal-weighted" if equal_weight else "dollar-weighted"}</span></div>'
+        f'{_pillar_bars}</div>', unsafe_allow_html=True)
 
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:8px;">POSITIONS</div>', unsafe_allow_html=True)
 
@@ -7941,7 +8155,23 @@ def main():
     _wl_ticker = st.query_params.get("wl_ticker", "")
     if _wl_action and _wl_ticker and st.session_state.get("logged_in"):
         if _wl_action == "add":
-            add_to_watchlist(uid(), _wl_ticker)
+            # Capture price at add time so "% since added" has a baseline.
+            _add_px = None
+            try:
+                _smap = {r["ticker"]: r for r in (st.session_state.get("scan_results") or [])}
+                _add_px = (_smap.get(_wl_ticker) or {}).get("price")
+                if not _add_px:
+                    from db import get_supabase as _gsb
+                    _sb = _gsb()
+                    if _sb:
+                        _r = _sb.table("signal_log").select("price") \
+                            .eq("ticker", _wl_ticker).order("signal_date", desc=True) \
+                            .limit(1).execute()
+                        if _r.data and _r.data[0].get("price"):
+                            _add_px = float(_r.data[0]["price"])
+            except Exception:
+                _add_px = None
+            add_to_watchlist(uid(), _wl_ticker, _add_px)
         elif _wl_action == "remove":
             remove_from_watchlist(uid(), _wl_ticker)
         st.query_params.pop("wl_action", None)

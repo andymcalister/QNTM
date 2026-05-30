@@ -730,3 +730,230 @@ def get_signal_snapshot(user_id: str) -> dict:
         except Exception:
             pass
     return {}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MULTI-WATCHLISTS  (watchlists + watchlist_items)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_watchlists(user_id: str) -> list:
+    """Return all named watchlists for a user, default first. Auto-creates a
+    default list if none exist. Returns [{id, name, is_default, created_at}]."""
+    sb = get_supabase()
+    if not sb:
+        return []
+    try:
+        resp = sb.table("watchlists").select("*").eq("user_id", user_id) \
+            .order("is_default", desc=True).order("created_at", desc=False).execute()
+        lists = resp.data or []
+        if not lists:
+            created = create_watchlist(user_id, "My Watchlist", is_default=True)
+            return [created] if created else []
+        return lists
+    except Exception:
+        return []
+
+
+def create_watchlist(user_id: str, name: str, is_default: bool = False) -> Optional[dict]:
+    """Create a new named watchlist. Returns the created row or None."""
+    sb = get_supabase()
+    if not sb:
+        return None
+    name = (name or "").strip()
+    if not name:
+        return None
+    try:
+        resp = sb.table("watchlists").insert({
+            "user_id": user_id, "name": name, "is_default": is_default,
+        }).execute()
+        return (resp.data or [None])[0]
+    except Exception:
+        return None
+
+
+def rename_watchlist(user_id: str, list_id: str, new_name: str) -> bool:
+    sb = get_supabase()
+    if not sb:
+        return False
+    new_name = (new_name or "").strip()
+    if not new_name:
+        return False
+    try:
+        sb.table("watchlists").update({"name": new_name}) \
+            .eq("id", list_id).eq("user_id", user_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def delete_watchlist(user_id: str, list_id: str) -> bool:
+    """Delete a watchlist and its items (cascade). Refuses to delete the
+    user's last remaining list."""
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        existing = sb.table("watchlists").select("id").eq("user_id", user_id).execute()
+        if len((existing.data or [])) <= 1:
+            return False
+        sb.table("watchlists").delete().eq("id", list_id).eq("user_id", user_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def get_watchlist_items(user_id: str, list_id: str) -> list:
+    """Return items in a specific watchlist, newest first.
+    Each item: {id, ticker, price_at_add, added_at}."""
+    sb = get_supabase()
+    if not sb:
+        return []
+    try:
+        resp = sb.table("watchlist_items").select("*") \
+            .eq("user_id", user_id).eq("watchlist_id", list_id) \
+            .order("added_at", desc=True).execute()
+        return resp.data or []
+    except Exception:
+        return []
+
+
+def add_watchlist_item(user_id: str, list_id: str, ticker: str,
+                       price_at_add: float = None) -> bool:
+    """Add a ticker to a specific watchlist (idempotent per list+ticker)."""
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        payload = {
+            "watchlist_id": list_id, "user_id": user_id,
+            "ticker": ticker.strip().upper(),
+        }
+        if price_at_add:
+            payload["price_at_add"] = round(float(price_at_add), 4)
+        sb.table("watchlist_items").upsert(
+            payload, on_conflict="watchlist_id,ticker"
+        ).execute()
+        return True
+    except Exception:
+        return False
+
+
+def remove_watchlist_item(user_id: str, list_id: str, ticker: str) -> bool:
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        sb.table("watchlist_items").delete() \
+            .eq("user_id", user_id).eq("watchlist_id", list_id) \
+            .eq("ticker", ticker.strip().upper()).execute()
+        return True
+    except Exception:
+        return False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAPER TRADING  (paper_positions)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_paper_positions(user_id: str, open_only: bool = False) -> list:
+    """Return paper-trade positions for a user, newest entry first."""
+    sb = get_supabase()
+    if not sb:
+        return []
+    try:
+        q = sb.table("paper_positions").select("*").eq("user_id", user_id)
+        if open_only:
+            q = q.eq("is_open", True)
+        resp = q.order("entry_date", desc=True).execute()
+        return resp.data or []
+    except Exception:
+        return []
+
+
+def open_paper_position(user_id: str, ticker: str, entry_date: str,
+                        entry_price: float, shares: float,
+                        note: str = None) -> Optional[dict]:
+    """Open a paper trade. position_size is denormalized (entry_price*shares)."""
+    sb = get_supabase()
+    if not sb:
+        return None
+    try:
+        entry_price = round(float(entry_price), 4)
+        shares = round(float(shares), 6)
+        payload = {
+            "user_id": user_id, "ticker": ticker.strip().upper(),
+            "entry_date": entry_date, "entry_price": entry_price,
+            "shares": shares, "position_size": round(entry_price * shares, 4),
+            "is_open": True,
+        }
+        if note:
+            payload["note"] = note
+        resp = sb.table("paper_positions").insert(payload).execute()
+        return (resp.data or [None])[0]
+    except Exception:
+        return None
+
+
+def close_paper_position(user_id: str, position_id: str, exit_date: str,
+                         exit_price: float) -> bool:
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        sb.table("paper_positions").update({
+            "is_open": False, "exit_date": exit_date,
+            "exit_price": round(float(exit_price), 4),
+        }).eq("id", position_id).eq("user_id", user_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def delete_paper_position(user_id: str, position_id: str) -> bool:
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        sb.table("paper_positions").delete() \
+            .eq("id", position_id).eq("user_id", user_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def get_signal_dates(limit: int = 60) -> list:
+    """Return distinct signal_date values (newest first) so the paper-trade
+    entry-date picker only offers dates that actually have prices."""
+    sb = get_supabase()
+    if not sb:
+        return []
+    try:
+        resp = sb.table("signal_log").select("signal_date") \
+            .order("signal_date", desc=True).limit(5000).execute()
+        seen = []
+        for r in (resp.data or []):
+            d = r.get("signal_date")
+            if d and d not in seen:
+                seen.append(d)
+            if len(seen) >= limit:
+                break
+        return seen
+    except Exception:
+        return []
+
+
+def get_price_on_date(ticker: str, signal_date: str) -> Optional[float]:
+    """Closing price for a ticker on a specific signal_date (for entry-price
+    auto-fill). Returns None if no row exists."""
+    sb = get_supabase()
+    if not sb:
+        return None
+    try:
+        resp = sb.table("signal_log").select("price") \
+            .eq("ticker", ticker.strip().upper()).eq("signal_date", signal_date) \
+            .limit(1).execute()
+        if resp.data and resp.data[0].get("price"):
+            return float(resp.data[0]["price"])
+        return None
+    except Exception:
+        return None
