@@ -4359,12 +4359,22 @@ def page_screener():
                 info = MACRO_EVENT_INFO.get(evt)
                 if not info: continue
                 st.markdown(
-                    f'<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
-                    f'<div style="font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:4px;">{info["label"]}</div>'
-                    f'<div style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:6px;">{info["detail"]}</div>'
-                    f'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
-                    f'<span style="font-size:12px;color:#ef4444;">▼ {info["impact"]}</span>'
-                    f'<span style="font-size:12px;color:#00ff87;">▲ {info["bullish"]}</span>'
+                    f'<div style="padding:14px 16px;margin-bottom:8px;'
+                    f'background:rgba(255,255,255,.02);'
+                    f'border:1px solid rgba(255,255,255,.06);'
+                    f'border-left:2px solid rgba(212,168,67,.5);'
+                    f'border-radius:6px;">'
+                    f'<div style="font-family:Syne,sans-serif;font-size:12px;'
+                    f'font-weight:700;color:#d4a843;letter-spacing:.08em;'
+                    f'text-transform:uppercase;margin-bottom:8px;">{info["label"]}</div>'
+                    f'<div style="font-family:Inter,sans-serif;font-size:12px;'
+                    f'color:#64748b;line-height:1.65;margin-bottom:10px;">{info["detail"]}</div>'
+                    f'<div style="display:flex;gap:14px;flex-wrap:wrap;'
+                    f'padding-top:8px;border-top:1px solid rgba(255,255,255,.04);">'
+                    f'<span style="font-family:DM Mono,monospace;font-size:11px;'
+                    f'color:#ef4444;letter-spacing:.04em;">▼ {info["impact"]}</span>'
+                    f'<span style="font-family:DM Mono,monospace;font-size:11px;'
+                    f'color:#00ff87;letter-spacing:.04em;">▲ {info["bullish"]}</span>'
                     f'</div></div>',
                     unsafe_allow_html=True)
 
