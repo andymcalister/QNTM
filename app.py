@@ -1723,6 +1723,47 @@ def _debug_line(r: dict) -> str:
     )
 
 
+def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set = None):
+    """Render add/remove watchlist links in the MAIN document (not the card
+    iframe) using st.markdown + target="_self" — the only pattern that reaches
+    the router and survives mobile reconnects (handoff rule #1).
+
+    `tickers`  — tickers to show an action for (e.g. the Top 10).
+    `nav`      — current nav key, preserved in the URL.
+    `in_list`  — set of tickers already on the watchlist (show Remove for those).
+    """
+    if not tickers:
+        return
+    _uid_v = (st.session_state.user or {}).get("id", "")
+    _pln_v = (st.session_state.user or {}).get("plan", "free")
+    if not _uid_v:
+        return
+    if in_list is None:
+        in_list = {w["ticker"] for w in get_watchlist(_uid_v)}
+    _qp = f"?qnav={nav}&uid={_uid_v}&plan={_pln_v}&ck=1&_n={nav}"
+    _chips = ""
+    for tk in tickers:
+        _is_in = tk in in_list
+        if _is_in:
+            _url = _qp + f"&wl_action=remove&wl_ticker={tk}"
+            _bg, _bd, _col, _lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.25)", "#ef4444", f"✕ {tk}"
+        else:
+            _url = _qp + f"&wl_action=add&wl_ticker={tk}"
+            _bg, _bd, _col, _lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.28)", "#d4a843", f"☆ {tk}"
+        _chips += (
+            f'<a href="{_url}" target="_self" style="text-decoration:none;display:inline-block;'
+            f'margin:3px;padding:6px 12px;background:{_bg};border:1px solid {_bd};'
+            f'border-radius:6px;font-family:DM Mono,monospace;font-size:12px;font-weight:600;'
+            f'color:{_col};white-space:nowrap;">{_lbl}</a>'
+        )
+    st.markdown(
+        '<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;'
+        'letter-spacing:.12em;margin:14px 0 6px;">WATCHLIST · TAP TO ADD / REMOVE</div>'
+        f'<div style="display:flex;flex-wrap:wrap;">{_chips}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False) -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
@@ -1798,40 +1839,12 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     elif r.get("signal_date"):
         price_html = f'<span style="font-size:11px;color:#334155;">{r["signal_date"]}</span>'
 
-    # ── Watchlist button — reads session state to show add/remove ──────────
-    try:
-        _uid_v  = (st.session_state.user or {}).get('id', '')
-        _pln_v  = (st.session_state.user or {}).get('plan', 'free')
-        _nav_v  = st.session_state.get('nav', 'screener')
-        _wl_set = {w['ticker'] for w in get_watchlist(_uid_v)} if _uid_v else set()
-        _in_wl  = r['ticker'] in _wl_set
-        _qp_base = f'?qnav={_nav_v}&uid={_uid_v}&plan={_pln_v}&ck=1'
-        if _in_wl:
-            _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
-            _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
-                f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
-                f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);'
-                f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;">'
-                f'✕ Remove from Watchlist</a>'
-            )
-        elif _uid_v:
-            _wl_url = _qp_base + f'&wl_action=add&wl_ticker={r["ticker"]}'
-            _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
-                f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
-                f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);'
-                f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#d4a843;text-decoration:none;">'
-                f'☆ Add to Watchlist</a>'
-            )
-        else:
-            _wl_btn_html = ''
-    except Exception:
-        _wl_btn_html = ''
-    if suppress_wl_btn:
-        _wl_btn_html = ''
+    # ── Watchlist button DISABLED in-iframe ────────────────────────────────────
+    # Links inside st.components.v1.html iframes cannot drive the parent session
+    # (this was the long-standing add/remove bug). The watchlist action now lives
+    # in the MAIN document via st.markdown + target="_self" (handoff rule #1),
+    # rendered alongside each card list. factor_panel_html never emits it.
+    _wl_btn_html = ''
 
     detail_html = (
         f'<div class="qcard-detail" style="display:none;padding:0 20px 20px;'
@@ -4233,38 +4246,8 @@ def page_screener():
             _def_id = next((l["id"] for l in _def_lists if l.get("is_default")),
                            _def_lists[0]["id"] if _def_lists else None)
             _wl_tickers = {w["ticker"] for w in _gwi(_wl_uid_s, _def_id)} if _def_id else set()
-            st.markdown("""
-            <style>
-            .st-key-sr_wl_btn button {
-                background: linear-gradient(135deg,#d4a843,#b8922e) !important;
-                color:#0a0b14 !important; border:none !important;
-                font-family:Syne,sans-serif !important; font-weight:800 !important;
-                letter-spacing:.06em !important; border-radius:8px !important;
-                text-transform:uppercase !important;
-                box-shadow:0 2px 12px rgba(212,168,67,.2) !important;
-            }
-            .st-key-sr_wl_btn_rm button {
-                background:rgba(239,68,68,.08) !important;
-                border:1px solid rgba(239,68,68,.35) !important; color:#ef4444 !important;
-                font-family:Syne,sans-serif !important; font-weight:700 !important;
-                letter-spacing:.06em !important; border-radius:8px !important;
-                text-transform:uppercase !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            if _srtk in _wl_tickers:
-                if st.button("✕ Remove from Watchlist", key="sr_wl_btn_rm", use_container_width=True):
-                    if _def_id and _rwi(_wl_uid_s, _def_id, _srtk):
-                        st.session_state.pop("_wl_daychange_cache", None)
-                        st.toast(f"Removed {_srtk}")
-                        st.rerun()
-            else:
-                if st.button("☆ + Watchlist", key="sr_wl_btn", use_container_width=True):
-                    _px_s = _sr_ok.get("price") or _gpl(_srtk)
-                    if _def_id and _awi(_wl_uid_s, _def_id, _srtk, _px_s):
-                        st.session_state.pop("_wl_daychange_cache", None)
-                        st.toast(f"Added {_srtk} to watchlist")
-                        st.rerun()
+            # Use the shared main-document action row (target=_self, mobile-safe)
+            render_watchlist_actions([_srtk], nav="screener", in_list=_wl_tickers)
         st.markdown('<div style="height:1px;background:rgba(255,255,255,.05);margin:8px 0 12px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -4478,6 +4461,8 @@ def page_screener():
                 _t10_n = cards_html.count('qcard-wrap')
                 _t10_ht = max(60, (_t10_n - 1) * 62 + 560) if _t10_n > 0 else 60
                 _cv1_t10.html(cards_html + CARD_IFRAME_TAIL, height=min(_t10_ht,8000), scrolling=False)
+                # Watchlist add/remove row — MAIN document, target=_self (works)
+                render_watchlist_actions([r["ticker"] for r in ranked], nav="screener")
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -5104,19 +5089,9 @@ def page_watchlist():
             )
         _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
         _cards_html += _since_html
-        # Inline Remove button — scoped to active list, plain target=_top (the form that worked)
-        _rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
-                   f"&plan={st.query_params.get('plan','free')}&ck=1"
-                   f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
-        _cards_html += (
-            f'<a href="{_rm_url}" target="_top" '
-            f'style="display:block;width:100%;'
-            f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
-            f'background:transparent;border:1px solid rgba(255,255,255,.05);'
-            f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
-            f'letter-spacing:.06em;color:#334155;text-decoration:none;cursor:pointer;">'
-            f'&#x2715; Remove {tk}</a>'
-        )
+        # (Per-card remove removed — it lived inside the card iframe and could
+        # never reach the router. Removal is handled by the native Remove
+        # dropdown rendered above the card list, in the main document.)
     import streamlit.components.v1 as _cv1_wl
     _wl_n = _cards_html.count('qcard-wrap')
     _wl_ht = max(60, (_wl_n - 1) * 90 + 580) if _wl_n > 0 else 60
@@ -5279,6 +5254,9 @@ def page_gems():
     _gems_n = _gems_h.count('qcard-wrap')
     _gems_ht = max(60, (_gems_n - 1) * 62 + 560) if _gems_n > 0 else 60
     _cv1_gems.html(_gems_h + CARD_IFRAME_TAIL, height=min(_gems_ht,8000), scrolling=False)
+    # Watchlist add/remove row — main document, target=_self
+    render_watchlist_actions([g.get("ticker","") for g in gems if g.get("ticker")],
+                             nav="gems", in_list=wl_tickers)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
