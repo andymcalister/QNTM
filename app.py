@@ -8149,6 +8149,16 @@ def page_methodology():
          "• Conviction scores are quantitative model outputs — not buy or sell recommendations\n"
          "• Prices shown are indicative snapshots — not real-time execution prices\n\n"
          "Always consult a qualified financial adviser before making investment decisions."),
+
+        ("Billing & Cancellation", "#d4a843",
+         "• Pro includes a 7-day free trial — you are not charged during the trial.\n"
+         "• After the trial, QNTM Pro automatically renews at $29.00/month until you cancel.\n"
+         "• You are charged $29.00 on the same date each month.\n"
+         "• Cancel anytime in Account Settings → Subscription with a single click. "
+         "Cancelling stops your next charge immediately; you keep Pro access until the end "
+         "of your current paid period, then your account converts to Free.\n"
+         "• Founding Members pay $0 and have no auto-renewal.\n\n"
+         "Full terms are in the Billing & Refund Policy and Terms of Service."),
     ]
 
     for title, color, body in sections:
