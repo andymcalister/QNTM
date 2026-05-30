@@ -7531,6 +7531,81 @@ def page_account():
                             'your Founding Member status is forfeited and cannot be restored.'
                             '</div>',
                             unsafe_allow_html=True)
+
+                    # ── Optional: become a paying supporter ───────────────────
+                    # A Founding Member already has Pro free. They may CHOOSE to
+                    # start the $29/mo subscription to support the product. This
+                    # is voluntary and has a one-way consequence: converting gives
+                    # up Founding status, so if they later cancel they fall to
+                    # regular Free (not free Founding Pro). Because it's an auto-
+                    # renewing subscription, the ARL notice + affirmative consent
+                    # still apply. FLAG FOR ATTORNEY REVIEW.
+                    st.markdown('<div style="height:18px"></div>', unsafe_allow_html=True)
+                    with st.expander("💛 Support QNTM — start a paid subscription (optional)", expanded=False):
+                        st.markdown(
+                            '<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.25);'
+                            'border-radius:8px;padding:16px 18px;margin-bottom:14px;">'
+                            '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+                            'color:#d4a843;margin-bottom:8px;">You don\u2019t need to do this</div>'
+                            '<div style="font-size:13px;color:#94a3b8;line-height:1.8;">'
+                            'As a Founding Member you already have full Pro access, free, for as long as '
+                            'you keep your account. Starting a paid subscription is <strong style="color:#e2e8f0;">'
+                            'completely optional</strong> \u2014 a way to support QNTM\u2019s development if you want to. '
+                            'It does not unlock anything extra.'
+                            '<br><br>'
+                            '<strong style="color:#fbbf24;">Important \u2014 this is a one-way change:</strong> if you '
+                            'start a paid subscription, you give up your free Founding Member status. '
+                            'If you later cancel, your account will convert to the <strong style="color:#e2e8f0;">'
+                            'regular Free tier</strong> (limited) at the end of the paid period \u2014 '
+                            '<strong style="color:#e2e8f0;">not</strong> back to free Founding Pro. '
+                            'Founding status, once given up, cannot be restored.'
+                            '</div></div>',
+                            unsafe_allow_html=True)
+
+                        # Reuse the ARL initial notice (auto-renewal disclosure).
+                        try:
+                            import arl as _arl_f
+                            _acct_u = f"?qnav=account&uid={uid()}&plan=pro&ck=1&_n=account"
+                            st.markdown(_arl_f.initial_notice_html(_acct_u), unsafe_allow_html=True)
+                            _f_consent = st.checkbox(
+                                "I understand I already have Pro free as a Founding Member, that this paid "
+                                "subscription is optional, and that if I cancel later I\u2019ll move to the "
+                                "regular Free tier \u2014 not back to free Founding Pro. " + _arl_f.CHECKBOX_TEXT,
+                                value=False, key="founder_paid_consent")
+                        except Exception:
+                            _f_consent = False
+
+                        if _f_consent:
+                            import stripe_billing as _sb_f
+                            if _sb_f.billing_configured():
+                                if st.button("Start $29/mo subscription", key="founder_start_paid",
+                                             use_container_width=True):
+                                    import arl as _arl_f2
+                                    _ipf = None
+                                    try:
+                                        _ipf = st.context.headers.get("X-Forwarded-For")
+                                    except Exception:
+                                        _ipf = None
+                                    _arl_f2.log_consent(uid(), plan="pro_supporter", ip_address=_ipf)
+                                    from db import get_stripe_billing as _gsbf
+                                    _exf = _gsbf(uid()).get("stripe_customer_id")
+                                    _basef = "https://qntmmvp.streamlit.app"
+                                    try:
+                                        _basef = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                                    except Exception:
+                                        pass
+                                    _emf = (st.session_state.user or {}).get("email", "")
+                                    _urlf = _sb_f.create_checkout_url(uid(), _emf, _basef, _exf)
+                                    if _urlf:
+                                        st.markdown(
+                                            f'<meta http-equiv="refresh" content="0; url={_urlf}">'
+                                            f'<a href="{_urlf}" target="_self">Continue to secure checkout →</a>',
+                                            unsafe_allow_html=True)
+                                        st.stop()
+                                    else:
+                                        st.error("Could not start checkout. Contact hello@qntm.app")
+                            else:
+                                st.info("Paid subscriptions aren\u2019t enabled yet. Check back soon.")
                 else:
                     _proposed_end = (
                         _next_bill if _next_bill
