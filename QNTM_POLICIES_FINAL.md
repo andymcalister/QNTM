@@ -61,7 +61,7 @@ You must be 18 or older. By using QNTM you confirm this. You're responsible for 
 
 ### Cancellation
 
-You can cancel anytime from Account Settings. Cancellations take effect at the end of your current billing period.
+You can cancel anytime from Account Settings → Subscription with a single click. Clicking Cancel stops your next charge immediately. You keep Pro access until the end of your current paid period, after which your account converts to Free.
 
 **What happens when you cancel:**
 1. Pro access continues until the end of your current billing period.
@@ -82,7 +82,7 @@ If your payment fails:
 
 ### Price Changes
 
-We'll give you 30 days' email notice before any price increase. Existing Pro subscribers continue at their current price for the remainder of the billing period in which the change is announced.
+We'll give you between 7 and 30 days' email notice before any price increase. The notice will state the new price, the date it takes effect, and how to cancel. Existing Pro subscribers continue at their current price for the remainder of the billing period in which the change is announced.
 
 Founding Members are not subject to price changes. See Founding Member terms below.
 
@@ -141,7 +141,7 @@ These Terms are governed by the laws of the State of California, without regard 
 
 ## 11. Changes to These Terms
 
-We'll give you 14 days' email notice before material changes take effect. Continued use after the effective date means you accept the updated Terms. If you don't agree, you can cancel your subscription and delete your account.
+We'll give you 14 days' email notice before material changes take effect. The notice will explain how to cancel: Account Settings → Subscription → Cancel. Continued use after the effective date means you accept the updated Terms. If you don't agree, you can cancel your subscription and delete your account.
 
 ## 12. Contact
 

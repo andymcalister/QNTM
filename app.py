@@ -2468,7 +2468,7 @@ You must be 18 or older. By using QNTM you confirm this. You are responsible for
 
 **Cancellation**
 
-You can cancel anytime from Account Settings. Cancellations take effect at the end of your current billing period.
+You can cancel anytime from Account Settings → Subscription with a single click. Clicking Cancel stops your next charge immediately. You keep Pro access until the end of your current paid period, after which your account converts to Free.
 
 What happens when you cancel:
 1. Pro access continues until the end of your current billing period.
@@ -2487,7 +2487,7 @@ You can reactivate Pro at any time from Account Settings. Reactivation begins a 
 
 **Price Changes**
 
-We will give you 30 days' email notice before any price increase. Existing Pro subscribers continue at their current price for the remainder of the billing period in which the change is announced. Founding Members are not subject to price changes.
+We will give you between 7 and 30 days' email notice before any price increase. The notice will state the new price, the date it takes effect, and how to cancel. Existing Pro subscribers continue at their current price for the remainder of the billing period in which the change is announced. Founding Members are not subject to price changes.
 
 **Founding Members**
 - The first 50 customer accounts receive Pro access free, for as long as the account remains active.
@@ -2528,7 +2528,7 @@ To the maximum extent permitted by law, our total liability to you for any claim
 **Governing law.** These Terms are governed by the laws of the State of California, without regard to conflict-of-laws principles. The Federal Arbitration Act governs the interpretation and enforcement of the arbitration provision.
 
 ### 11. Changes to These Terms
-We will give you 14 days' email notice before material changes take effect. Continued use after the effective date means you accept the updated Terms. If you do not agree, you can cancel your subscription and delete your account.
+We will give you 14 days' email notice before material changes take effect. The notice will explain how to cancel: Account Settings → Subscription → Cancel. Continued use after the effective date means you accept the updated Terms. If you do not agree, you can cancel your subscription and delete your account.
 
 ### 12. Contact
 - General: hello@qntm.app
@@ -2563,7 +2563,7 @@ BILLING_POLICY = """
 
 ### Cancellations
 
-You can cancel anytime in Account Settings.
+You can cancel anytime in Account Settings → Subscription with a single click. Clicking Cancel stops your next charge immediately.
 
 What happens when you cancel:
 1. Pro access continues until the end of your current billing period.
@@ -7517,12 +7517,13 @@ def page_account():
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Cancel button — only meaningful for paid Pro, not Founding
-                # Members (they have nothing to cancel — they pay $0 forever
-                # per ToS §6). Still show as informational so they understand
-                # what happens if they ever convert.
-                with st.expander("Cancel subscription", expanded=False):
-                    if _is_founding:
+                # ── Cancellation ──────────────────────────────────────────────
+                # ARL §17602(e)/(f): paid subscribers get TRUE one-click cancel —
+                # a single visible click immediately stops the next renewal. No
+                # expander maze, no multi-step confirm, no survey. Founding $0
+                # members have nothing to cancel (informational only).
+                if _is_founding:
+                    with st.expander("Cancel subscription", expanded=False):
                         st.markdown(
                             '<div style="font-size:13px;color:#94a3b8;line-height:1.7;">'
                             'You are a Founding Member — no payment is scheduled, '
@@ -7530,64 +7531,40 @@ def page_account():
                             'your Founding Member status is forfeited and cannot be restored.'
                             '</div>',
                             unsafe_allow_html=True)
-                    else:
-                        st.markdown(
-                            '<div style="font-size:13px;color:#94a3b8;line-height:1.7;'
-                            'margin-bottom:14px;">'
-                            '<strong style="color:#e2e8f0;">What happens when you cancel:</strong><br>'
-                            '1. Pro access continues until the end of your current billing period<br>'
-                            '2. You will not be charged again<br>'
-                            '3. <strong style="color:#fbbf24;">No refunds for partial months</strong> '
-                            '— the price you pay is for a full month<br>'
-                            '4. At period end your account converts to Free; your data is preserved<br>'
-                            '5. You can reactivate anytime'
-                            '</div>',
-                            unsafe_allow_html=True)
-                        # 30-day default since we don't have Stripe period yet.
-                        # When Stripe lands, replace with current_period_end.
-                        _proposed_end = (
-                            _next_bill if _next_bill
-                            else (date.today() + timedelta(days=30)).isoformat()
-                        )
-                        st.markdown(
-                            f'<div style="font-size:12px;color:#64748b;margin-bottom:10px;">'
-                            f'Pro access continues until <strong style="color:#94a3b8;">{_proposed_end}</strong>. '
-                            f'After that, your account converts to Free.'
-                            f'</div>',
-                            unsafe_allow_html=True)
-                        if not st.session_state.get("_confirm_cancel"):
-                            if st.button("Cancel subscription",
-                                          key="cancel_sub_btn",
-                                          use_container_width=True):
-                                st.session_state._confirm_cancel = True
-                                st.rerun()
-                        else:
-                            st.warning(
-                                "Are you sure? You'll keep Pro access until "
-                                f"{_proposed_end}, then your account converts to Free. "
-                                "No refund will be issued for the remainder of the period."
+                else:
+                    _proposed_end = (
+                        _next_bill if _next_bill
+                        else (date.today() + timedelta(days=30)).isoformat()
+                    )
+                    st.markdown(
+                        '<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-bottom:6px;">'
+                        '<strong style="color:#e2e8f0;">Cancel your subscription</strong></div>'
+                        '<div style="font-size:12px;color:#64748b;line-height:1.7;margin-bottom:12px;">'
+                        'Clicking Cancel stops your next charge immediately. You keep Pro access '
+                        f'until the end of your current paid period (<strong style="color:#94a3b8;">{_proposed_end}</strong>), '
+                        'then your account converts to Free. Your data is preserved.'
+                        '</div>',
+                        unsafe_allow_html=True)
+                    # TRUE one-click cancel — single button, immediate effect.
+                    if st.button("Cancel subscription", key="cancel_sub_btn",
+                                 use_container_width=True):
+                        if schedule_cancellation(uid(), _proposed_end):
+                            # 2D — confirmation email (stubbed send + logged).
+                            try:
+                                import arl as _arl_c
+                                _em = user.get("email")
+                                if _em:
+                                    _arl_c.send_cancellation_confirmation(uid(), _em, _proposed_end)
+                            except Exception:
+                                pass
+                            st.success(
+                                "Your subscription is cancelled. Your next charge has been "
+                                f"stopped. You keep Pro access until {_proposed_end}, then your "
+                                "account converts to Free. A confirmation email is on its way."
                             )
-                            cc1, cc2 = st.columns(2)
-                            with cc1:
-                                if st.button("Yes, cancel my subscription",
-                                              key="confirm_cancel_btn",
-                                              use_container_width=True):
-                                    if schedule_cancellation(uid(), _proposed_end):
-                                        st.session_state._confirm_cancel = False
-                                        st.success(
-                                            f"Cancellation scheduled. Pro access ends {_proposed_end}."
-                                        )
-                                        st.rerun()
-                                    else:
-                                        st.error(
-                                            "Could not schedule cancellation — contact billing@qntm.app"
-                                        )
-                            with cc2:
-                                if st.button("Keep my subscription",
-                                              key="keep_sub_btn",
-                                              use_container_width=True):
-                                    st.session_state._confirm_cancel = False
-                                    st.rerun()
+                            st.rerun()
+                        else:
+                            st.error("Could not cancel — contact billing@qntm.app")
                 st.caption(
                     "Billing questions: billing@qntm.app · "
                     "[Billing & Refund Policy](?legal=billing)"
@@ -8406,7 +8383,61 @@ def page_upgrade():
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(_cta_gold("✓ Claim Founding Member Access", _confirm_url), unsafe_allow_html=True)
+    # ── ARL paid-trial mode ───────────────────────────────────────────────────
+    # The live flow is the $0 Founding Member signup — there is nothing that
+    # auto-renews, so California's ARL initial-notice/consent requirements don't
+    # attach yet. When real $29 Stripe billing goes live (a paid 7-day trial),
+    # set st.session_state._paid_trial_mode = True (or flip this flag from the
+    # Stripe wiring) and the full ARL checkout (notice block + affirmative
+    # consent checkbox + consent log + acknowledgment email) activates.
+    # FLAG FOR ATTORNEY REVIEW before taking paying users.
+    _paid_trial = bool(st.session_state.get("_paid_trial_mode", False))
+
+    if _paid_trial:
+        import arl as _arl
+        _acct_url = f"?qnav=account&uid={_uid_val}&plan={_plan_val}&ck=1&_n=account"
+        # 1A — six-element initial notice, ON the page, before the button.
+        st.markdown(
+            f'<div style="max-width:480px;margin:0 auto;padding:0 16px;">'
+            f'{_arl.initial_notice_html(_acct_url)}</div>',
+            unsafe_allow_html=True,
+        )
+        # 1B — separate affirmative-consent checkbox (unchecked default), gates button.
+        _, _cb_col, _ = st.columns([1, 10, 1])
+        with _cb_col:
+            _arl_consent = st.checkbox(_arl.CHECKBOX_TEXT, value=False, key="arl_consent_cb")
+        if _arl_consent:
+            # 1C/1D — log consent artifact + acknowledgment email, then proceed.
+            if st.button("Start free trial", key="arl_start_trial", use_container_width=True):
+                _ip = None
+                try:
+                    _ip = st.context.headers.get("X-Forwarded-For")  # best-effort
+                except Exception:
+                    _ip = None
+                _arl.log_consent(_uid_val, plan="pro", ip_address=_ip)
+                _email = (st.session_state.user or {}).get("email")
+                if _email:
+                    _arl.send_acknowledgment(_uid_val, _email)
+                ok = upgrade_plan(uid(), "pro")
+                if ok and st.session_state.get("user"):
+                    st.session_state.user["plan"] = "pro"
+                st.session_state.nav  = return_nav
+                st.session_state.page = "platform"
+                st.rerun()
+        else:
+            st.markdown(
+                '<div style="max-width:480px;margin:8px auto 0;padding:0 16px;'
+                'text-align:center;opacity:.5;pointer-events:none;">'
+                '<div style="background:rgba(212,168,67,.15);border-radius:8px;'
+                'padding:12px;font-family:Syne,sans-serif;font-weight:800;color:#0a0b14;'
+                'background:linear-gradient(135deg,#d4a843,#b8922e);">Start free trial</div>'
+                '<div style="font-size:11px;color:#64748b;margin-top:8px;">'
+                'Check the box above to continue.</div></div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        # Founding $0 flow — no auto-renewal, no ARL notice/consent required.
+        st.markdown(_cta_gold("✓ Claim Founding Member Access", _confirm_url), unsafe_allow_html=True)
 
     st.markdown("""
     <div style="text-align:center;margin-top:12px;font-size:11px;color:#334155;line-height:1.6;">
