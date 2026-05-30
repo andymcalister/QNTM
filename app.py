@@ -872,9 +872,10 @@ for k, v in {
         st.session_state[k] = v
 
 # ── TIMEZONE DETECTION ────────────────────────────────────────────────────────
-# Read ?_tz= query param set by browser JS on first load, store in session state
+# Read ?_tz= query param set by browser JS, store in session state
+# Always read it (don't gate on session_state) so re-injections refresh the value.
 _tz_param = st.query_params.get("_tz", "")
-if _tz_param and st.session_state.get("tz_offset_hours") is None:
+if _tz_param:
     try:
         st.session_state.tz_offset_hours = float(_tz_param)
         st.query_params.pop("_tz", None)
@@ -882,28 +883,40 @@ if _tz_param and st.session_state.get("tz_offset_hours") is None:
         pass
 
 _tz_name_param = st.query_params.get("_tzname", "")
-if _tz_name_param and st.session_state.get("tz_name") is None:
+if _tz_name_param:
     st.session_state.tz_name = _tz_name_param
     st.query_params.pop("_tzname", None)
 
-# Inject timezone detector on any page where it's still unknown. Detector
-# only writes _tz/_tzname to the URL once — subsequent runs short-circuit
-# because the session_state values are populated. No cookies needed.
+# Timezone detector — write _tz/_tzname to URL via JS so Python can read them.
+# Gate on session_state: if we don't have a tz_offset yet, inject the JS.
+# Once injected, the JS replaces the URL with _tz params; Python reads them on
+# the next rerun, stores in session_state, pops the URL. After that, the gate
+# is False and JS never runs again.
 if st.session_state.get("tz_offset_hours") is None:
     import streamlit.components.v1 as _tz_cv1
     _tz_cv1.html("""
     <script>
     (function() {
         try {
+            var url = new URL(window.parent.location.href);
+            if (url.searchParams.get('_tz')) return;  // already set
             var offset = -(new Date().getTimezoneOffset() / 60);
             var tzname = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            var url = new URL(window.parent.location.href);
-            if (!url.searchParams.get('_tz')) {
-                url.searchParams.set('_tz', offset.toString());
-                url.searchParams.set('_tzname', tzname);
-                window.parent.location.replace(url.toString());
-            }
-        } catch(e) {}
+            url.searchParams.set('_tz', offset.toString());
+            url.searchParams.set('_tzname', tzname);
+            window.parent.location.replace(url.toString());
+        } catch(e) {
+            // Cross-origin restriction or other — try writing to top instead
+            try {
+                var url2 = new URL(window.top.location.href);
+                if (url2.searchParams.get('_tz')) return;
+                var offset = -(new Date().getTimezoneOffset() / 60);
+                var tzname = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                url2.searchParams.set('_tz', offset.toString());
+                url2.searchParams.set('_tzname', tzname);
+                window.top.location.replace(url2.toString());
+            } catch(e2) {}
+        }
     })();
     </script>
     """, height=0)
