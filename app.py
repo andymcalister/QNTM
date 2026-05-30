@@ -65,6 +65,13 @@ st.markdown("""
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
+/* ── Per-card action buttons (Add/Remove) — mobile text fit ── */
+@media(max-width:640px){
+  a[href*="wl_action"], a[href*="port_action"], a[href*="sim_add"], a[href*="sim_remove"]{
+    font-size:10px !important; letter-spacing:.02em !important; padding:8px 4px !important;
+  }
+}
+
 /* ── Popover trigger buttons — match institutional dark/gold aesthetic ── */
 div[data-testid="stPopover"] > button,
 button[data-testid="stPopoverButton"],
@@ -1689,23 +1696,19 @@ body{margin:0;padding-bottom:8px;}
       var open=d.style.display==='block';
       document.querySelectorAll('.qcard-detail').forEach(function(x){x.style.display='none';});
       if(!open)d.style.display='block';
-      // Two-phase: measure after layout, then again after browser settles
       setTimeout(_schedule,10);
       setTimeout(_schedule,150);
     });
   });
-  // Watchlist/portfolio/simulator action links — navigate the PARENT window.
-  // A plain <a target=_top> is blocked from inside the component iframe, but
-  // driving window.top.location from a click listener works.
+  // Action button (Add/Remove watchlist/portfolio) — navigate the PARENT.
+  // window.open(url,'_top') is the call the component-iframe sandbox permits
+  // (a plain <a target=_top> and window.top.location assignment are blocked).
   document.querySelectorAll('.qntm-action-link').forEach(function(a){
     a.addEventListener('click',function(e){
       e.preventDefault();
       e.stopPropagation();
       var href=a.getAttribute('data-wlhref');
-      if(href){
-        try{ window.top.location.href = href; }
-        catch(err){ window.parent.location.href = href; }
-      }
+      if(href){ window.open(href,'_top'); }
     });
   });
   // ResizeObserver picks up font/image loads, async layout shifts
@@ -1770,9 +1773,9 @@ def _card_action_button(tk: str, mode: str, nav: str, in_set: set,
             url = _qp + f"&wl_action=add&wl_ticker={tk}"
             bg, bd, col, lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Watchlist"
     return (
-        f'<a class="qntm-action-link" data-wlhref="{url}" href="{url}" '
+        f'<a class="qntm-action-link" data-wlhref="{url}" href="{url}" target="_top" '
         f'style="display:block;width:100%;text-align:center;'
-        f'padding:9px 7px;margin:8px 0 4px;box-sizing:border-box;background:{bg};'
+        f'padding:9px 7px;margin:12px 0 2px;box-sizing:border-box;background:{bg};'
         f'border:1px solid {bd};border-radius:6px;font-family:Syne,sans-serif;'
         f'font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;'
         f'color:{col};text-decoration:none;cursor:pointer;line-height:1.3;'
@@ -1794,22 +1797,20 @@ def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = Fa
     """
     import streamlit.components.v1 as _cv1_card
     tk = r.get("ticker", "")
-    # Build the card with the action button INSIDE the iframe HTML so it moves
-    # with the card on expand/collapse. The button navigates the parent via the
-    # JS handler in CARD_IFRAME_TAIL (a plain <a> can't, but window.top.location
-    # driven by a click listener can).
     _uid_v = (st.session_state.user or {}).get("id", "")
     _pln_v = (st.session_state.user or {}).get("plan", "free")
     if in_list is None and mode == "watchlist":
         in_list = {w["ticker"] for w in get_watchlist(_uid_v)} if _uid_v else set()
-    _html = factor_panel_html(r, is_gem, company_info=company_info)
+    # Button INSIDE the card detail (moves with expand/collapse, no clipping).
+    # Navigation handled by the JS click listener in CARD_IFRAME_TAIL using
+    # window.open(url,'_top') — the call the iframe sandbox actually permits.
+    _btn = _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url) if (_uid_v and tk) else ""
+    _html = factor_panel_html(r, is_gem, company_info=company_info, wl_btn=_btn)
     if extra_detail:
-        _html += extra_detail
-    _html += _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url)
-    # Collapsed = header (~70) + action button (~50). CARD_IFRAME_TAIL's resize
-    # JS grows the iframe when the card expands, and the button (inside the
-    # iframe, below the card) moves down with it — so it never clips.
-    _cv1_card.html(_html + CARD_IFRAME_TAIL, height=128, scrolling=False)
+        # extra_detail (P&L strip / sparkline) goes before the button visually;
+        # re-inject so it sits inside the detail above the action button.
+        _html = _html.replace(_btn, extra_detail + _btn, 1) if _btn else (_html + extra_detail)
+    _cv1_card.html(_html + CARD_IFRAME_TAIL, height=120, scrolling=False)
 
 
 def _unused_external_button():
@@ -1850,7 +1851,7 @@ def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set 
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False) -> str:
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False, wl_btn: str = "") -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
     All cards share radio group "qntm_card" — checking one unchecks others.
@@ -1930,7 +1931,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     # (this was the long-standing add/remove bug). The watchlist action now lives
     # in the MAIN document via st.markdown + target="_self" (handoff rule #1),
     # rendered alongside each card list. factor_panel_html never emits it.
-    _wl_btn_html = ''
+    _wl_btn_html = '' if suppress_wl_btn else wl_btn
 
     detail_html = (
         f'<div class="qcard-detail" style="display:none;padding:0 20px 20px;'
@@ -6340,8 +6341,10 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
+        _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&_n=portfolio&port_action=remove&port_ticker={tk}"
+        _pbtn = _card_action_button(tk, "portfolio", "portfolio", set(), _uid_pv, _pln_pv, remove_url=_rm_url)
         _card = factor_panel_html(
-            sc, tk in _port_gems, company_info=ci, suppress_wl_btn=True
+            sc, tk in _port_gems, company_info=ci, wl_btn=_pbtn
         )
 
         # Build P&L strip in the same style as the Model Portfolio page so a
@@ -6375,14 +6378,10 @@ def page_portfolio():
             f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{_rc};">{_pnl_str}</div></div>'
             f'</div>'
         )
-        # Inject the P&L strip into the qcard-detail (same trick as model portfolio)
+        # Inject the P&L strip into the qcard-detail (button already inside via wl_btn)
         _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
-        # Button INSIDE the iframe so it moves with expand/collapse (no clipping).
-        _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&_n=portfolio&port_action=remove&port_ticker={tk}"
-        _card += _card_action_button(tk, "portfolio", "portfolio", set(),
-                                     _uid_pv, _pln_pv, remove_url=_rm_url)
         import streamlit.components.v1 as _cv1_pcard
-        _cv1_pcard.html(_card + CARD_IFRAME_TAIL, height=128, scrolling=False)
+        _cv1_pcard.html(_card + CARD_IFRAME_TAIL, height=120, scrolling=False)
 
     if False:  # legacy batch render disabled — cards now render per-card above
         import streamlit.components.v1 as _cv1_pv
@@ -7851,7 +7850,8 @@ def page_model_portfolio():
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
         # Build card + P&L strip
-        _card = factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, suppress_wl_btn=True)
+        _mpbtn = _card_action_button(tk, "watchlist", "model_portfolio", _mp_wl_now, _mp_uid, _mp_pln)
+        _card = factor_panel_html(sc, tk in port_gem_tickers, company_info=ci, wl_btn=_mpbtn)
         # Inject P&L row into the detail section
         _ep   = h.get('entry_price')
         _cp   = h.get('current_price')
@@ -7879,13 +7879,10 @@ def page_model_portfolio():
             f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{_rc};">{_pnl_str}</div></div>'
             f'</div>'
         )
-        # Insert P&L before the closing qcard-detail div
+        # Insert P&L before the closing qcard-detail div (button already inside via wl_btn)
         _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
-        # Button INSIDE the iframe so it moves with expand/collapse (no clipping).
-        _card += _card_action_button(tk, "watchlist", "model_portfolio", _mp_wl_now,
-                                     _mp_uid, _mp_pln)
         import streamlit.components.v1 as _cv1_mpcard
-        _cv1_mpcard.html(_card + CARD_IFRAME_TAIL, height=128, scrolling=False)
+        _cv1_mpcard.html(_card + CARD_IFRAME_TAIL, height=120, scrolling=False)
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
     if False:  # legacy batch render disabled — per-card above
