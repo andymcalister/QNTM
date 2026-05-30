@@ -892,7 +892,7 @@ if _tz_name_param:
 # Once injected, the JS replaces the URL with _tz params; Python reads them on
 # the next rerun, stores in session_state, pops the URL. After that, the gate
 # is False and JS never runs again.
-if st.session_state.get("tz_offset_hours") is None:
+if st.session_state.get("tz_offset_hours") is None or not st.session_state.get("tz_name"):
     import streamlit.components.v1 as _tz_cv1
     _tz_cv1.html("""
     <script>
@@ -1105,7 +1105,16 @@ def data_freshness_banner():
                 sign     = "+" if tz_offset >= 0 else ""
                 hrs      = int(tz_offset)
                 return dt_local.strftime(f"%b %d · %H:%M UTC{sign}{hrs}")
-            return dt_utc.strftime("%b %d · %H:%M UTC")
+            # No client TZ info available — default to America/Los_Angeles
+            # so US users (the majority) don't see UTC. Override available
+            # in Account → Preferences when that ships.
+            try:
+                from zoneinfo import ZoneInfo
+                dt_local = dt_utc.astimezone(ZoneInfo("America/Los_Angeles"))
+                tz_abbr  = dt_local.strftime("%Z")
+                return dt_local.strftime(f"%b %d · %H:%M {tz_abbr}")
+            except Exception:
+                return dt_utc.strftime("%b %d · %H:%M UTC")
 
         try:
             sb = _get_supabase()
