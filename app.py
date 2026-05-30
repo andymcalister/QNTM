@@ -1809,21 +1809,27 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         if _in_wl:
             _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
+                f'<a href="{_wl_url}" '
+                f'onclick="event.stopPropagation();event.preventDefault();'
+                f'window.top.location.href=this.href;return false;" '
+                f'style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;">'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;cursor:pointer;">'
                 f'✕ Remove from Watchlist</a>'
             )
         elif _uid_v:
             _wl_url = _qp_base + f'&wl_action=add&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" target="_top" style="display:block;width:100%;'
+                f'<a href="{_wl_url}" '
+                f'onclick="event.stopPropagation();event.preventDefault();'
+                f'window.top.location.href=this.href;return false;" '
+                f'style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);'
                 f'border-radius:6px;font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                f'letter-spacing:.06em;text-transform:uppercase;color:#d4a843;text-decoration:none;">'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#d4a843;text-decoration:none;cursor:pointer;">'
                 f'☆ Add to Watchlist</a>'
             )
         else:
@@ -5032,11 +5038,14 @@ def page_watchlist():
                    f"&plan={st.query_params.get('plan','free')}&ck=1"
                    f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
         _cards_html += (
-            f'<a href="{_rm_url}" target="_top" style="display:block;width:100%;'
+            f'<a href="{_rm_url}" '
+            f'onclick="event.stopPropagation();event.preventDefault();'
+            f'window.top.location.href=this.href;return false;" '
+            f'style="display:block;width:100%;'
             f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
             f'background:transparent;border:1px solid rgba(255,255,255,.05);'
             f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
-            f'letter-spacing:.06em;color:#334155;text-decoration:none;">'
+            f'letter-spacing:.06em;color:#334155;text-decoration:none;cursor:pointer;">'
             f'&#x2715; Remove {tk}</a>'
         )
     import streamlit.components.v1 as _cv1_wl
@@ -8124,23 +8133,10 @@ def page_upgrade():
 
 
 def main():
-    # ── DEBUG: dump every query param that arrives, every run ──
-    try:
-        _qp_dump = dict(st.query_params)
-        if _qp_dump:
-            st.toast(f"DEBUG params: {_qp_dump}")
-    except Exception:
-        pass
-
     # ── Capture watchlist add/remove intent FIRST, before any handler pops
     # params or the iframe-top navigation re-encodes the URL. ──
     _early_wl_action = st.query_params.get("wl_action", "")
     _early_wl_ticker = st.query_params.get("wl_ticker", "")
-    if _early_wl_action:
-        try:
-            st.toast(f"DEBUG: saw wl_action={_early_wl_action} tk={_early_wl_ticker} login={st.session_state.get('logged_in')}")
-        except Exception:
-            pass
 
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
