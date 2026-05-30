@@ -65,6 +65,37 @@ st.markdown("""
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
+/* ── Popover trigger buttons — match institutional dark/gold aesthetic ── */
+div[data-testid="stPopover"] > button,
+button[data-testid="stPopoverButton"],
+[data-testid="stPopover"] button[kind],
+[data-testid="stPopover"] button {
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid rgba(212,168,67,.25) !important;
+  color: #d4a843 !important;
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  letter-spacing: .06em !important;
+  border-radius: 6px !important;
+}
+div[data-testid="stPopover"] > button:hover,
+[data-testid="stPopover"] button:hover {
+  background: rgba(212,168,67,.12) !important;
+  border-color: rgba(212,168,67,.5) !important;
+}
+/* Popover panel body — dark surface, not white */
+div[data-testid="stPopoverBody"],
+[data-baseweb="popover"] div[data-testid="stPopoverBody"],
+div[data-testid="stPopover"] [data-baseweb="popover"] > div {
+  background: #0a0b14 !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 10px !important;
+}
+[data-baseweb="popover"] [data-testid="stPopoverBody"] * {
+  color: #cbd5e1 !important;
+}
+
 /* ── Kill all horizontal overflow everywhere ── */
 html, body {
   overflow-x: hidden !important;
@@ -991,7 +1022,7 @@ if not st.session_state.logged_in:
                     st.session_state.page            = "platform"
                     st.session_state.onboarding_done = True
                     _dest = params.get("qnav", "")
-                    _VALID = {"screener","gems","backtest","portfolio","simulator",
+                    _VALID = {"screener","gems","backtest","portfolio","simulator","watchlist",
                               "model_portfolio","alerts","account","methodology"}
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
                     _restore_ok = True
@@ -1005,7 +1036,7 @@ if not st.session_state.logged_in:
                     st.session_state.page            = "platform"
                     st.session_state.onboarding_done = True
                     _dest = params.get("qnav", "")
-                    _VALID = {"screener","gems","backtest","portfolio","simulator",
+                    _VALID = {"screener","gems","backtest","portfolio","simulator","watchlist",
                               "model_portfolio","alerts","account","methodology"}
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
                     _restore_ok = True
@@ -4629,7 +4660,9 @@ def page_watchlist():
         _bg  = "rgba(212,168,67,.15)" if _is_act else "rgba(255,255,255,.03)"
         _bd  = "rgba(212,168,67,.5)"  if _is_act else "rgba(255,255,255,.08)"
         _tc  = "#d4a843" if _is_act else "#94a3b8"
-        _url = f"?qnav=watchlist&wl_list_action=select&wl_list_id={w['id']}"
+        _url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
+                f"&plan={st.query_params.get('plan','free')}&ck=1"
+                f"&wl_list_action=select&wl_list_id={w['id']}")
         _tabs_html += (
             f'<a href="{_url}" target="_top" style="text-decoration:none;">'
             f'<div style="background:{_bg};border:1px solid {_bd};border-radius:6px;'
@@ -4937,7 +4970,9 @@ def page_watchlist():
         _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
         _cards_html += _since_html
         # Inline Remove button — scoped to the ACTIVE list, navigates parent window
-        _rm_url = f"?qnav=watchlist&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}"
+        _rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
+                   f"&plan={st.query_params.get('plan','free')}&ck=1"
+                   f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
         _cards_html += (
             f'<a href="{_rm_url}" target="_top" style="display:block;width:100%;'
             f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
@@ -8171,9 +8206,17 @@ def main():
                             _add_px = float(_r.data[0]["price"])
             except Exception:
                 _add_px = None
-            add_to_watchlist(uid(), _wl_ticker, _add_px)
+            _ok_add = add_to_watchlist(uid(), _wl_ticker, _add_px)
+            try:
+                st.toast(f"{'Added' if _ok_add else 'Could not add'} {_wl_ticker} to watchlist")
+            except Exception:
+                pass
         elif _wl_action == "remove":
-            remove_from_watchlist(uid(), _wl_ticker)
+            _ok_rm = remove_from_watchlist(uid(), _wl_ticker)
+            try:
+                st.toast(f"{'Removed' if _ok_rm else 'Could not remove'} {_wl_ticker}")
+            except Exception:
+                pass
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
 
