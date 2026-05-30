@@ -148,9 +148,10 @@ def score_stock(ticker: str, price_history: list = None,
                  volume*PILLAR_W["volume"] + value*PILLAR_W["value"] +
                  sentiment*PILLAR_W["sentiment"])
 
-    sig = ("STRONG ALIGN" if composite>=75 else "HIGH ALIGN" if composite>=62
-           else "MODERATE"   if composite>=50 else "LOW ALIGN" if composite>=38
-           else "WEAK/NEG")
+    # Public conviction label — HIGH / MODERATE / LOW only.
+    # (Was STRONG ALIGN / HIGH ALIGN / LOW ALIGN / WEAK/NEG — non-compliant
+    #  vocabulary that leaked into the DB. Normalized to the published bands.)
+    sig = ("HIGH" if composite >= 60 else "MODERATE" if composite >= 45 else "LOW")
 
     return {
         "ticker":ticker, "sector":SECTORS.get(ticker,"Unknown"),
@@ -159,6 +160,9 @@ def score_stock(ticker: str, price_history: list = None,
         "value":round(value,1),          "sentiment":round(sentiment,1),
         "signal":sig,
         "price": f.get("price"),
+        # `action` is an INTERNAL enum (BUY/SELL/HOLD) consumed by
+        # apply_macro_overlay / portfolio logic — never shown to users, always
+        # converted to HIGH/MODERATE/LOW at display time. Do not surface raw.
         "action": ("BUY" if composite>=ENTRY_THRESHOLD
                    else "SELL" if composite<EXIT_THRESHOLD or mom<MOM_EXIT
                    else "HOLD"),
@@ -776,6 +780,10 @@ def apply_macro_overlay(scores: list, macro_data: dict,
             s["adj_action"] = "SELL"
         else:
             s["adj_action"] = "HOLD"
+
+        # Public conviction label reflects the macro-adjusted score (source of
+        # truth), kept in HIGH/MODERATE/LOW vocabulary for the DB and UI.
+        s["signal"] = "HIGH" if adj >= 60 else "MODERATE" if adj >= 45 else "LOW"
 
     # Re-sort by adjusted composite
     scores.sort(key=lambda x: x["adj_composite"], reverse=True)

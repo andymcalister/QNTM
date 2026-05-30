@@ -353,6 +353,82 @@ def write_signal_snapshot(scored_list: list) -> bool:
         return False
 
 
+def publish_signal_batch(scored_list: list, signal_date: str = None) -> Optional[str]:
+    """
+    ATOMIC, SIMULTANEOUS PUBLISH (compliance Part 1).
+
+    Commits the entire day's signal batch in a SINGLE database transaction via
+    the `publish_signal_batch` Postgres RPC (see migrations/atomic_publishing.sql).
+    Either the whole new batch becomes visible at once, or — on any failure —
+    nothing changes and the prior batch stays live. No partial/mixed state, and
+    no per-user staggering: every reader of signal_log flips to the new batch at
+    the same published_at instant.
+
+    Also writes the append-only audit row (batch_id, published_at, ticker list,
+    signal values, content hash) inside the same transaction as the evidence of
+    when each signal became public.
+
+    Returns the published_at ISO timestamp on success, else None.
+
+    FLAG FOR ATTORNEY REVIEW before taking paying users.
+    """
+    import uuid
+
+    sb = _get_supabase()
+    if not sb:
+        return False if False else None
+
+    sig_date = signal_date or date.today().isoformat()
+    batch_id = str(uuid.uuid4())
+
+    rows = []
+    for s in scored_list:
+        rows.append({
+            "ticker":        s["ticker"],
+            "composite":     s.get("composite"),
+            "momentum":      s.get("momentum"),
+            "quality":       s.get("quality"),
+            "volume":        s.get("volume"),
+            "value":         s.get("value"),
+            "sentiment":     s.get("sentiment"),
+            "signal":        s.get("signal"),
+            "macro_overlay": s.get("macro_overlay"),
+            "adj_composite": s.get("adj_composite"),
+            "price":         s.get("price"),
+            "is_hidden_gem": s.get("is_hidden_gem", False),
+            "hidden_gem_reason": (
+                ", ".join(s.get("gem_reasons", [])) if s.get("gem_reasons") else None
+            ),
+        })
+
+    # Canonical content hash of the batch (stable key ordering) — the integrity
+    # fingerprint stored in the audit log.
+    canonical = json.dumps(
+        sorted(
+            [{"t": r["ticker"], "a": r["adj_composite"], "s": r["signal"]} for r in rows],
+            key=lambda x: x["t"],
+        ),
+        separators=(",", ":"), sort_keys=True,
+    )
+    content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    try:
+        resp = sb.rpc("publish_signal_batch", {
+            "p_batch_id":     batch_id,
+            "p_signal_date":  sig_date,
+            "p_rows":         rows,
+            "p_content_hash": content_hash,
+        }).execute()
+        published_at = resp.data if isinstance(resp.data, str) else None
+        # Out-of-band leakage guard (Part 1 #6): only log new signal values AFTER
+        # the public commit and after published_at is set.
+        log.info(f"Published batch {batch_id} ({len(rows)} signals) at {published_at}")
+        return published_at or batch_id
+    except Exception as e:
+        log.error(f"Atomic publish failed (rolled back, prior batch still live): {e}")
+        return None
+
+
 # ── SUPABASE CACHE: READ ──────────────────────────────────────────────────────
 
 def load_cached_fundamentals(max_age_hours: int = STALE_HOURS) -> dict:

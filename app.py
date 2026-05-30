@@ -2287,6 +2287,8 @@ By creating an account or using QNTM, you agree to these Terms. If you do not ag
 
 HIGH, MODERATE, and LOW conviction signals are algorithmic outputs — not recommendations to buy or sell any security. You make your own investment decisions. QNTM is not responsible for investment losses. Past model performance does not guarantee future results. Consult a qualified financial adviser before investing.
 
+QNTM LLC holds no securities. Its principals may personally hold or trade securities the model scores; see the Conflicts of Interest section of our Investment Disclaimer.
+
 ### 4. Who Can Use QNTM
 You must be 18 or older. By using QNTM you confirm this. You are responsible for complying with the financial research laws in your country.
 
@@ -2456,6 +2458,18 @@ HIGH, MODERATE, and LOW conviction signals are produced by an algorithm. They re
 **A HIGH conviction signal is not a buy recommendation.**
 **A LOW conviction signal is not a sell recommendation.**
 **A MODERATE signal is not a hold recommendation.**
+
+## Conflicts of Interest
+
+QNTM LLC does not hold, buy, or sell any securities. The company takes no position in any stock the model scores.
+
+The founder and any principals of QNTM LLC may personally own and trade securities the model scores, including securities carrying a HIGH, MODERATE, or LOW signal. To manage this conflict:
+
+- We act only on signals after they are published to subscribers, using the same information available to every user at the same time.
+- We do not trade ahead of a signal we know is about to publish or change.
+- Scoring is fully algorithmic. Personal holdings do not influence how any security is scored, ranked, or labeled.
+
+The model applies the same rules to every security in its universe, regardless of whether anyone connected to QNTM holds it.
 
 ### Model Portfolio
 The Model Portfolio shown in QNTM is a hypothetical illustration of how the model's signals would translate into a position book. It uses equal-weighted notional sizing, ignores slippage, taxes, brokerage commissions, and dividend treatment. It is not a real portfolio, no securities are held on your behalf, and no trades are executed. It is provided for transparency about the model's behavior, not as a recommendation.
@@ -3267,9 +3281,9 @@ body { background-color: #0a0b14 !important; }
     st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
     signals_html = ""
     for label, score, desc, color, brd in [
-        ("▲ HIGH",        "Score ≥ 60", "Enter position. Hold until exit signal fires. Designed for LTCG tax treatment — 12+ month holds.", "#1D9E75", "rgba(29,158,117,.3)"),
-        ("─ MODERATE",    "Score 45–59", "Maintain existing positions. No new capital deployed. Monitor for further deterioration.",           "#f59e0b", "rgba(245,158,11,.25)"),
-        ("▼ EXIT SIGNAL", "Score < 45",  "Exit or reduce. This caught UNH at month 3 — avoided the −49% full-year drawdown.",                "#E24B4A", "rgba(226,75,74,.25)"),
+        ("▲ HIGH",        "Score ≥ 60", "Strongest factor profile in the universe. Historically associated with multi-month relative outperformance. Not a recommendation to buy.", "#1D9E75", "rgba(29,158,117,.3)"),
+        ("─ MODERATE",    "Score 45–59", "Mixed factor profile — neither strong nor deteriorating on the model's measures. Not a recommendation to hold.",           "#f59e0b", "rgba(245,158,11,.25)"),
+        ("▼ LOW",         "Score < 45",  "Weakest factor profile. The model flagged UNH here at month 3, ahead of a −49% full-year drawdown. Not a recommendation to sell.",                "#E24B4A", "rgba(226,75,74,.25)"),
     ]:
         signals_html += (
             f'<div style="background:#0e0f1a;border:1px solid {brd};border-radius:8px;padding:22px;">'
@@ -5982,11 +5996,11 @@ def page_portfolio():
                                 act = sc.get("adj_action", sc.get("action", "HOLD"))
                                 comp = sc.get("adj_composite", sc.get("composite", 50))
                                 if act == "SELL":
-                                    st.warning(f"⚠ Note: Model currently shows EXIT signal on {tk_clean} (score {comp:.0f})")
+                                    st.warning(f"⚠ Note: Model currently shows LOW conviction on {tk_clean} (score {comp:.0f})")
                                 elif act == "BUY":
                                     create_notification(uid(), tk_clean, "buy_signal",
                                         f"HIGH conviction active: {tk_clean}",
-                                        f"Score {comp:.0f} — {sc.get('signal','')}")
+                                        f"Score {comp:.0f} — HIGH conviction")
                             else:
                                 st.info(f"{tk_clean} is outside the model universe — no signal available")
                             st.rerun()
@@ -7929,8 +7943,9 @@ def page_methodology():
 
         ("Conviction Signals", "#00ff87",
          "• High Conviction (score ≥ 60) — model sees strong multi-factor alignment. Top 40% of universe.\n"
-         "• Moderate Conviction (45–59) — mixed signals. Hold existing positions, no new capital.\n"
-         "• Low Conviction (score < 45) — signal weakening. Elevated risk. Review position.\n\n"
+         "• Moderate Conviction (45–59) — mixed factor signals, neither strong nor deteriorating.\n"
+         "• Low Conviction (score < 45) — weakest factor profile in the universe. Elevated model risk.\n\n"
+         "Signals are quantitative rankings, not buy/sell/hold recommendations. "
          "Signals update nightly. In HIGH VOLATILITY regimes, conviction thresholds tighten — "
          "only scores ≥ 67 surface as High Conviction."),
 
@@ -8100,6 +8115,18 @@ def page_platform():
         'Conviction scores are model outputs — not personalized investment advice. '
         'Past model performance does not guarantee future results. '
         'Not a registered investment adviser.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    # ── Conflicts of interest footer (Part 2B — verbatim) ───────────────
+    st.markdown(
+        '<div style="margin:0 32px 8px;padding:8px 16px;font-size:11px;color:#334155;'
+        'line-height:1.6;text-align:center;">'
+        'QNTM LLC holds no securities. Its principals may personally hold securities the model '
+        'scores and trade only on published signals. '
+        '<a href="?legal=disclaimer" target="_self" style="color:#475569;text-decoration:underline;">'
+        'See our Conflicts of Interest disclosure.</a>'
         '</div>',
         unsafe_allow_html=True
     )
