@@ -4980,27 +4980,51 @@ def page_watchlist():
             sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
-        # "% since added" from price_at_add baseline vs current price
-        _since_html = ""
+        # ── P&L strip: entry-return (since added) + today's change ──
         _entry_px = w.get("price_at_add")
-        _cur_px = (day_change.get(tk) or {}).get("price") or sc.get("price")
+        _dc = day_change.get(tk) or {}
+        _cur_px = _dc.get("price") or sc.get("price")
+        _segments = []
+        # Since-added return
         if _entry_px and _cur_px:
             try:
                 _ep = float(_entry_px); _cp = float(_cur_px)
                 if _ep > 0:
                     _ret = (_cp - _ep) / _ep * 100
                     _rc = "#00ff87" if _ret > 0 else ("#ef4444" if _ret < 0 else "#94a3b8")
-                    _sign = "+" if _ret > 0 else ""
-                    _since_html = (
-                        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                        f'padding:4px 12px;margin:-4px 0 4px 0;background:rgba(255,255,255,.015);">'
-                        f'<span style="font-family:DM Mono,monospace;font-size:10px;color:#475569;letter-spacing:.06em;">'
-                        f'SINCE ADDED · ${_ep:,.2f} → ${_cp:,.2f}</span>'
-                        f'<span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:{_rc};">'
-                        f'{_sign}{_ret:.1f}%</span></div>'
+                    _sign = "+" if _ret >= 0 else ""
+                    _segments.append(
+                        f'<div style="flex:1;text-align:center;">'
+                        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:2px;">SINCE ADDED</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_sign}{_ret:.1f}%</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">${_ep:,.2f} → ${_cp:,.2f}</div>'
+                        f'</div>'
                     )
             except Exception:
                 pass
+        # Today's change
+        if _dc.get("chg_pct") is not None:
+            try:
+                _tc_pct = float(_dc["chg_pct"]); _tc_d = float(_dc.get("chg_dollar", 0))
+                _tcc = "#00ff87" if _tc_pct > 0 else ("#ef4444" if _tc_pct < 0 else "#94a3b8")
+                _tsign = "+" if _tc_pct >= 0 else ""
+                _segments.append(
+                    f'<div style="flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.05);">'
+                    f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:2px;">TODAY</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_tcc};">{_tsign}{_tc_pct:.2f}%</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">{_tsign}${_tc_d:,.2f}</div>'
+                    f'</div>'
+                )
+            except Exception:
+                pass
+        _since_html = ""
+        if _segments:
+            _since_html = (
+                '<div style="display:flex;align-items:stretch;gap:0;'
+                'padding:8px 4px;margin:-4px 0 4px 0;background:rgba(255,255,255,.015);'
+                'border-radius:0 0 6px 6px;">'
+                + "".join(_segments) + '</div>'
+            )
         _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
         _cards_html += _since_html
         # Inline Remove button — scoped to the ACTIVE list, navigates parent window
