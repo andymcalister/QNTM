@@ -1646,12 +1646,17 @@ def _build_why_html(r: dict) -> str:
 # retries so the iframe grows to actual content height even when paint is slow.
 CARD_IFRAME_TAIL = """
 <style>
-@media(max-width:640px){ .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;} }
-body{margin:0;padding-bottom:60px;}
+@media(max-width:640px){
+  .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}
+  .qntm-action-link{font-size:10px!important;letter-spacing:.02em!important;padding:8px 4px!important;}
+  .qcard-4box{grid-template-columns:repeat(2,1fr)!important;}
+}
+body{margin:0;padding-bottom:8px;}
+.qntm-action-link:hover{filter:brightness(1.15);}
 </style>
 <script>
 (function(){
-  var _maxH=0, _pending=null;
+  var _lastH=0, _pending=null;
   function _measure(){
     var h=Math.max(
       document.documentElement.scrollHeight,
@@ -1659,14 +1664,16 @@ body{margin:0;padding-bottom:60px;}
       document.documentElement.offsetHeight,
       document.body.offsetHeight
     );
-    if(h>_maxH){
-      _maxH=h;
+    // Set EXACT height (grow on expand, shrink on collapse) so per-card iframes
+    // don't leave a gap after collapsing and never clip when expanded.
+    if(h!==_lastH){
+      _lastH=h;
       if(window.Streamlit&&window.Streamlit.setFrameHeight){
-        window.Streamlit.setFrameHeight(_maxH);
+        window.Streamlit.setFrameHeight(h);
       }
       if(window.parent){
         try{ window.parent.postMessage(
-          {type:'streamlit:setFrameHeight',height:_maxH},'*'); }catch(e){}
+          {type:'streamlit:setFrameHeight',height:h},'*'); }catch(e){}
       }
     }
   }
@@ -1685,6 +1692,20 @@ body{margin:0;padding-bottom:60px;}
       // Two-phase: measure after layout, then again after browser settles
       setTimeout(_schedule,10);
       setTimeout(_schedule,150);
+    });
+  });
+  // Watchlist/portfolio/simulator action links — navigate the PARENT window.
+  // A plain <a target=_top> is blocked from inside the component iframe, but
+  // driving window.top.location from a click listener works.
+  document.querySelectorAll('.qntm-action-link').forEach(function(a){
+    a.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      var href=a.getAttribute('data-wlhref');
+      if(href){
+        try{ window.top.location.href = href; }
+        catch(err){ window.parent.location.href = href; }
+      }
     });
   });
   // ResizeObserver picks up font/image loads, async layout shifts
@@ -1749,11 +1770,13 @@ def _card_action_button(tk: str, mode: str, nav: str, in_set: set,
             url = _qp + f"&wl_action=add&wl_ticker={tk}"
             bg, bd, col, lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Watchlist"
     return (
-        f'<a href="{url}" target="_self" style="display:block;width:100%;text-align:center;'
-        f'padding:7px;margin:-2px 0 10px;box-sizing:border-box;background:{bg};'
+        f'<a class="qntm-action-link" data-wlhref="{url}" href="{url}" '
+        f'style="display:block;width:100%;text-align:center;'
+        f'padding:9px 7px;margin:8px 0 4px;box-sizing:border-box;background:{bg};'
         f'border:1px solid {bd};border-radius:6px;font-family:Syne,sans-serif;'
-        f'font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;'
-        f'color:{col};text-decoration:none;">{lbl}</a>'
+        f'font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;'
+        f'color:{col};text-decoration:none;cursor:pointer;line-height:1.3;'
+        f'word-break:break-word;">{lbl}</a>'
     )
 
 
@@ -1771,20 +1794,26 @@ def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = Fa
     """
     import streamlit.components.v1 as _cv1_card
     tk = r.get("ticker", "")
+    # Build the card with the action button INSIDE the iframe HTML so it moves
+    # with the card on expand/collapse. The button navigates the parent via the
+    # JS handler in CARD_IFRAME_TAIL (a plain <a> can't, but window.top.location
+    # driven by a click listener can).
+    _uid_v = (st.session_state.user or {}).get("id", "")
+    _pln_v = (st.session_state.user or {}).get("plan", "free")
+    if in_list is None and mode == "watchlist":
+        in_list = {w["ticker"] for w in get_watchlist(_uid_v)} if _uid_v else set()
     _html = factor_panel_html(r, is_gem, company_info=company_info)
     if extra_detail:
         _html += extra_detail
-    _cv1_card.html(_html + CARD_IFRAME_TAIL, height=76, scrolling=False)
+    _html += _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url)
+    # Collapsed = header (~70) + action button (~50). CARD_IFRAME_TAIL's resize
+    # JS grows the iframe when the card expands, and the button (inside the
+    # iframe, below the card) moves down with it — so it never clips.
+    _cv1_card.html(_html + CARD_IFRAME_TAIL, height=128, scrolling=False)
 
-    _uid_v = (st.session_state.user or {}).get("id", "")
-    _pln_v = (st.session_state.user or {}).get("plan", "free")
-    if not _uid_v or not tk:
-        return
-    if in_list is None and mode == "watchlist":
-        in_list = {w["ticker"] for w in get_watchlist(_uid_v)}
-    btn = _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url)
-    if btn:
-        st.markdown(btn, unsafe_allow_html=True)
+
+def _unused_external_button():
+    pass
 
 
 def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set = None):
@@ -1913,7 +1942,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
            f'</div>' if (price_html or r.get("sector")) else "")
         + f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;"'
           f'class="qcard-pillars">{pillar_bars}</div>'
-        + f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
+        + f'<div class="qcard-4box" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
         f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
         f'<div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">QUANT</div>'
@@ -6348,16 +6377,12 @@ def page_portfolio():
         )
         # Inject the P&L strip into the qcard-detail (same trick as model portfolio)
         _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
-
-        # Per-card render: card iframe + Remove-from-Portfolio button under it.
-        import streamlit.components.v1 as _cv1_pcard
-        _cv1_pcard.html(_card + CARD_IFRAME_TAIL, height=76, scrolling=False)
+        # Button INSIDE the iframe so it moves with expand/collapse (no clipping).
         _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&_n=portfolio&port_action=remove&port_ticker={tk}"
-        st.markdown(
-            _card_action_button(tk, "portfolio", "portfolio", set(),
-                                _uid_pv, _pln_pv, remove_url=_rm_url),
-            unsafe_allow_html=True,
-        )
+        _card += _card_action_button(tk, "portfolio", "portfolio", set(),
+                                     _uid_pv, _pln_pv, remove_url=_rm_url)
+        import streamlit.components.v1 as _cv1_pcard
+        _cv1_pcard.html(_card + CARD_IFRAME_TAIL, height=128, scrolling=False)
 
     if False:  # legacy batch render disabled — cards now render per-card above
         import streamlit.components.v1 as _cv1_pv
@@ -7856,14 +7881,11 @@ def page_model_portfolio():
         )
         # Insert P&L before the closing qcard-detail div
         _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
-        # Per-card render: card iframe + Add/Remove watchlist button under it.
+        # Button INSIDE the iframe so it moves with expand/collapse (no clipping).
+        _card += _card_action_button(tk, "watchlist", "model_portfolio", _mp_wl_now,
+                                     _mp_uid, _mp_pln)
         import streamlit.components.v1 as _cv1_mpcard
-        _cv1_mpcard.html(_card + CARD_IFRAME_TAIL, height=76, scrolling=False)
-        st.markdown(
-            _card_action_button(tk, "watchlist", "model_portfolio", _mp_wl_now,
-                                _mp_uid, _mp_pln),
-            unsafe_allow_html=True,
-        )
+        _cv1_mpcard.html(_card + CARD_IFRAME_TAIL, height=128, scrolling=False)
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
     if False:  # legacy batch render disabled — per-card above
