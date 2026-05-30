@@ -4653,24 +4653,36 @@ def page_watchlist():
         st.session_state.active_wl_list = _active_id
     _active_list = next(w for w in _all_lists if w["id"] == _active_id)
 
-    # ── List selector bar ─────────────────────────────────────────────────────
-    _tabs_html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">'
-    for w in _all_lists:
+    # ── List selector bar — real buttons (URL links don't survive reliably) ──
+    st.markdown("""
+    <style>
+    div[data-testid='stButton'][data-key^='wltab_'] > div > button {
+        background: rgba(255,255,255,.03) !important;
+        border: 1px solid rgba(255,255,255,.08) !important;
+        color: #94a3b8 !important;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 700 !important; font-size: 12px !important;
+        border-radius: 6px !important; padding: 6px 14px !important;
+    }
+    div[data-testid='stButton'][data-key^='wltabactive_'] > div > button {
+        background: rgba(212,168,67,.15) !important;
+        border: 1px solid rgba(212,168,67,.5) !important;
+        color: #d4a843 !important;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 700 !important; font-size: 12px !important;
+        border-radius: 6px !important; padding: 6px 14px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    _tab_cols = st.columns(max(len(_all_lists), 1))
+    for _i, w in enumerate(_all_lists):
         _is_act = w["id"] == _active_id
-        _bg  = "rgba(212,168,67,.15)" if _is_act else "rgba(255,255,255,.03)"
-        _bd  = "rgba(212,168,67,.5)"  if _is_act else "rgba(255,255,255,.08)"
-        _tc  = "#d4a843" if _is_act else "#94a3b8"
-        _url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
-                f"&plan={st.query_params.get('plan','free')}&ck=1"
-                f"&wl_list_action=select&wl_list_id={w['id']}")
-        _tabs_html += (
-            f'<a href="{_url}" target="_top" style="text-decoration:none;">'
-            f'<div style="background:{_bg};border:1px solid {_bd};border-radius:6px;'
-            f'padding:6px 14px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-            f'color:{_tc};">{w["name"]}</div></a>'
-        )
-    _tabs_html += '</div>'
-    st.markdown(_tabs_html, unsafe_allow_html=True)
+        with _tab_cols[_i]:
+            _key = f"{'wltabactive' if _is_act else 'wltab'}_{w['id']}"
+            if st.button(w["name"], key=_key, use_container_width=True):
+                st.session_state.active_wl_list = w["id"]
+                st.session_state.nav = "watchlist"
+                st.rerun()
 
     # New / rename / delete controls
     _c_new, _c_ren, _c_del = st.columns(3)
@@ -8066,6 +8078,16 @@ def page_upgrade():
 
 
 def main():
+    # ── Capture watchlist add/remove intent FIRST, before any handler pops
+    # params or the iframe-top navigation re-encodes the URL. ──
+    _early_wl_action = st.query_params.get("wl_action", "")
+    _early_wl_ticker = st.query_params.get("wl_ticker", "")
+    if _early_wl_action:
+        try:
+            st.toast(f"DEBUG: saw wl_action={_early_wl_action} tk={_early_wl_ticker} login={st.session_state.get('logged_in')}")
+        except Exception:
+            pass
+
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
@@ -8186,9 +8208,10 @@ def main():
         st.query_params.pop("upgrade", None)
 
     # ── Watchlist add/remove via URL action ──────────────────────────────────
-    _wl_action = st.query_params.get("wl_action", "")
-    _wl_ticker = st.query_params.get("wl_ticker", "")
+    _wl_action = _early_wl_action or st.query_params.get("wl_action", "")
+    _wl_ticker = _early_wl_ticker or st.query_params.get("wl_ticker", "")
     if _wl_action and _wl_ticker and st.session_state.get("logged_in"):
+        _wl_did = False
         if _wl_action == "add":
             # Capture price at add time so "% since added" has a baseline.
             _add_px = None
@@ -8219,8 +8242,10 @@ def main():
                 pass
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
-
-    # ── Portfolio actions via URL ─────────────────────────────────────────────
+        # Force a clean rerun so the screener's add/remove button state and the
+        # watchlist page both reflect the change immediately.
+        st.session_state.scan_results = st.session_state.get("scan_results")
+        st.rerun()
     _port_action = st.query_params.get("port_action", "")
     _port_ticker = st.query_params.get("port_ticker", "")
     if _port_action == "remove" and _port_ticker and st.session_state.get("logged_in"):
