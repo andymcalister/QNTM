@@ -1874,6 +1874,22 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     quant  = r.get("composite", 50)
     delta  = r.get("score_delta", 0)
 
+    # Percentile rank: use the stored value if present, else derive on the fly
+    # from the full-universe distribution in session (watchlist/portfolio rows
+    # loaded from signal_log don't carry pct_rank, so they'd otherwise show 50th).
+    _pct_rank = r.get("pct_rank")
+    if _pct_rank is None:
+        try:
+            _all = st.session_state.get("scan_results") or []
+            _comps = [float(s.get("adj_composite", s.get("composite", 50)) or 50) for s in _all]
+            if _comps:
+                _sc_v = float(score or 50)
+                _pct_rank = sum(1 for c in _comps if c <= _sc_v) / len(_comps) * 100
+        except Exception:
+            _pct_rank = None
+    if _pct_rank is None:
+        _pct_rank = 50
+
     act_colors = {
         "BUY":  ("#00ff87", "rgba(0,255,135,.08)", "rgba(0,255,135,.22)"),
         "HOLD": ("#fbbf24", "rgba(251,191,36,.06)", "rgba(251,191,36,.2)"),
@@ -1968,7 +1984,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
         f'<div style="font-size:10px;color:#475569;letter-spacing:.06em;margin-bottom:2px;">RANK</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;">'
-        f'{r.get("pct_rank",50):.0f}th</div></div>'
+        f'{_pct_rank:.0f}th</div></div>'
         f'</div>'
         + why_html
         + _wl_btn_html
@@ -5201,43 +5217,53 @@ def page_watchlist():
             sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
         ci = get_company_info(tk)
-        # ── P&L strip: entry-return (since added) + today's change ──
+        # ── P&L strip: always two columns (SINCE ADDED + TODAY) for a uniform
+        #    layout across every card; missing data shows "—" rather than
+        #    dropping the column (which made cards look inconsistent).
         _entry_px = w.get("price_at_add")
         _dc = day_change.get(tk) or {}
         _cur_px = _dc.get("price") or sc.get("price")
-        _segments = []
-        # Since-added return
-        if _entry_px and _cur_px:
-            try:
+
+        # SINCE ADDED
+        _since_inner = '<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#475569;">—</div>'
+        try:
+            if _entry_px and _cur_px:
                 _ep = float(_entry_px); _cp = float(_cur_px)
                 if _ep > 0:
                     _ret = (_cp - _ep) / _ep * 100
                     _rc = "#00ff87" if _ret > 0 else ("#ef4444" if _ret < 0 else "#94a3b8")
                     _sign = "+" if _ret >= 0 else ""
-                    _segments.append(
-                        f'<div style="flex:1;text-align:center;">'
-                        f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:2px;">SINCE ADDED</div>'
+                    _since_inner = (
                         f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_sign}{_ret:.1f}%</div>'
                         f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">${_ep:,.2f} → ${_cp:,.2f}</div>'
-                        f'</div>'
                     )
-            except Exception:
-                pass
-        # Today's change
-        if _dc.get("chg_pct") is not None:
-            try:
+        except Exception:
+            pass
+        _seg_since = (
+            f'<div style="flex:1;text-align:center;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:2px;">SINCE ADDED</div>'
+            f'{_since_inner}</div>'
+        )
+
+        # TODAY
+        _today_inner = '<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#475569;">—</div>'
+        try:
+            if _dc.get("chg_pct") is not None:
                 _tc_pct = float(_dc["chg_pct"]); _tc_d = float(_dc.get("chg_dollar", 0))
                 _tcc = "#00ff87" if _tc_pct > 0 else ("#ef4444" if _tc_pct < 0 else "#94a3b8")
                 _tsign = "+" if _tc_pct >= 0 else ""
-                _segments.append(
-                    f'<div style="flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.05);">'
-                    f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:2px;">TODAY</div>'
+                _today_inner = (
                     f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_tcc};">{_tsign}{_tc_pct:.2f}%</div>'
                     f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">{_tsign}${_tc_d:,.2f}</div>'
-                    f'</div>'
                 )
-            except Exception:
-                pass
+        except Exception:
+            pass
+        _seg_today = (
+            f'<div style="flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.05);">'
+            f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#475569;letter-spacing:.08em;margin-bottom:2px;">TODAY</div>'
+            f'{_today_inner}</div>'
+        )
+        _segments = [_seg_since, _seg_today]
         _since_html = ""
         if _segments:
             _since_html = (
@@ -8501,6 +8527,14 @@ def main():
                 _add_px = (_smap.get(_wl_ticker) or {}).get("price")
             except Exception:
                 _add_px = None
+            # Fallback: pull the latest known price from signal_log so the
+            # "since added" baseline is captured even if the scan lacks a price.
+            if not _add_px:
+                try:
+                    from db import get_price_on_date_latest as _gpl_add
+                    _add_px = _gpl_add(_wl_ticker)
+                except Exception:
+                    _add_px = None
             add_to_watchlist(uid(), _wl_ticker, _add_px)
             st.session_state.pop("_wl_daychange_cache", None)
         elif _wl_action == "remove":
