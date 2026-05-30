@@ -886,8 +886,10 @@ if _tz_name_param and st.session_state.get("tz_name") is None:
     st.session_state.tz_name = _tz_name_param
     st.query_params.pop("_tzname", None)
 
-# Only inject timezone detector after cookies accepted — avoids blank box on cookie screen
-if st.session_state.get("tz_offset_hours") is None and st.session_state.get("cookies_accepted"):
+# Inject timezone detector on any page where it's still unknown. Detector
+# only writes _tz/_tzname to the URL once — subsequent runs short-circuit
+# because the session_state values are populated. No cookies needed.
+if st.session_state.get("tz_offset_hours") is None:
     import streamlit.components.v1 as _tz_cv1
     _tz_cv1.html("""
     <script>
@@ -7063,7 +7065,29 @@ def page_model_portfolio():
                 .eq("is_active", True) \
                 .order("entry_date", desc=False) \
                 .execute()
-            positions = resp.data or []
+            raw_positions = resp.data or []
+            # Defensive dedup: keep only the most recent active row per ticker.
+            # Historically the seed + rebuild + intraday cron paths could each
+            # insert without coordinating, producing dupes that inflate totals.
+            # Newest entry_date wins; if entry_dates tie, newest id wins.
+            _dedup = {}
+            for p in raw_positions:
+                tk = p["ticker"]
+                ed = str(p.get("entry_date") or "")
+                pid = p.get("id") or 0
+                cur = _dedup.get(tk)
+                if (cur is None
+                    or ed > str(cur.get("entry_date") or "")
+                    or (ed == str(cur.get("entry_date") or "") and pid > (cur.get("id") or 0))):
+                    _dedup[tk] = p
+            positions = list(_dedup.values())
+            _n_dupes = len(raw_positions) - len(positions)
+            if _n_dupes > 0:
+                st.warning(
+                    f"⚠ Found {_n_dupes} duplicate position rows in the database — "
+                    f"showing the most recent entry per ticker. Run the rebuild "
+                    f"script (`python3 rebuild_model_portfolio.py`) to clean up."
+                )
         except Exception as e:
             st.warning(f"Could not load positions: {e}")
 
