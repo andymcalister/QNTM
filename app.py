@@ -1805,7 +1805,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         _nav_v  = st.session_state.get('nav', 'screener')
         _wl_set = {w['ticker'] for w in get_watchlist(_uid_v)} if _uid_v else set()
         _in_wl  = r['ticker'] in _wl_set
-        _qp_base = f'/?qnav={_nav_v}&uid={_uid_v}&plan={_pln_v}&ck=1'
+        _qp_base = f'?qnav={_nav_v}&uid={_uid_v}&plan={_pln_v}&ck=1'
         if _in_wl:
             _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
@@ -5104,14 +5104,12 @@ def page_watchlist():
             )
         _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
         _cards_html += _since_html
-        # Inline Remove button — scoped to the ACTIVE list, navigates parent window
-        _rm_url = (f"/?qnav=watchlist&uid={st.query_params.get('uid','')}"
+        # Inline Remove button — scoped to active list, plain target=_top (the form that worked)
+        _rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
                    f"&plan={st.query_params.get('plan','free')}&ck=1"
                    f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
         _cards_html += (
             f'<a href="{_rm_url}" target="_top" '
-            f'onclick="event.stopPropagation();event.preventDefault();'
-            f'window.open(this.href,\'_top\');return false;" '
             f'style="display:block;width:100%;'
             f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
             f'background:transparent;border:1px solid rgba(255,255,255,.05);'
@@ -8204,11 +8202,6 @@ def page_upgrade():
 
 
 def main():
-    # ── Capture watchlist add/remove intent FIRST, before any handler pops
-    # params or the iframe-top navigation re-encodes the URL. ──
-    _early_wl_action = st.query_params.get("wl_action", "")
-    _early_wl_ticker = st.query_params.get("wl_ticker", "")
-
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
@@ -8329,46 +8322,23 @@ def main():
         st.query_params.pop("upgrade", None)
 
     # ── Watchlist add/remove via URL action ──────────────────────────────────
-    _wl_action = _early_wl_action or st.query_params.get("wl_action", "")
-    _wl_ticker = _early_wl_ticker or st.query_params.get("wl_ticker", "")
+    _wl_action = st.query_params.get("wl_action", "")
+    _wl_ticker = st.query_params.get("wl_ticker", "")
     if _wl_action and _wl_ticker and st.session_state.get("logged_in"):
-        _wl_did = False
         if _wl_action == "add":
-            # Capture price at add time so "% since added" has a baseline.
             _add_px = None
             try:
                 _smap = {r["ticker"]: r for r in (st.session_state.get("scan_results") or [])}
                 _add_px = (_smap.get(_wl_ticker) or {}).get("price")
-                if not _add_px:
-                    from db import get_supabase as _gsb
-                    _sb = _gsb()
-                    if _sb:
-                        _r = _sb.table("signal_log").select("price") \
-                            .eq("ticker", _wl_ticker).order("signal_date", desc=True) \
-                            .limit(1).execute()
-                        if _r.data and _r.data[0].get("price"):
-                            _add_px = float(_r.data[0]["price"])
             except Exception:
                 _add_px = None
-            _ok_add = add_to_watchlist(uid(), _wl_ticker, _add_px)
-            try:
-                st.toast(f"{'Added' if _ok_add else 'Could not add'} {_wl_ticker} to watchlist")
-            except Exception:
-                pass
+            add_to_watchlist(uid(), _wl_ticker, _add_px)
+            st.session_state.pop("_wl_daychange_cache", None)
         elif _wl_action == "remove":
-            _ok_rm = remove_from_watchlist(uid(), _wl_ticker)
-            try:
-                st.toast(f"{'Removed' if _ok_rm else 'Could not remove'} {_wl_ticker}")
-            except Exception:
-                pass
+            remove_from_watchlist(uid(), _wl_ticker)
+            st.session_state.pop("_wl_daychange_cache", None)
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
-        # Stale: the active list changed, so drop cached live prices.
-        st.session_state.pop("_wl_daychange_cache", None)
-        # Force a clean rerun so the screener's add/remove button state and the
-        # watchlist page both reflect the change immediately.
-        st.session_state.scan_results = st.session_state.get("scan_results")
-        st.rerun()
     _port_action = st.query_params.get("port_action", "")
     _port_ticker = st.query_params.get("port_ticker", "")
     if _port_action == "remove" and _port_ticker and st.session_state.get("logged_in"):
