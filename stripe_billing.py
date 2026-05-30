@@ -53,6 +53,13 @@ def billing_configured() -> bool:
 
 
 # ── CHECKOUT ──────────────────────────────────────────────────────────────────
+_last_error = None  # last failure reason, for surfacing in the UI during testing
+
+
+def last_error() -> str:
+    return _last_error or ""
+
+
 def create_checkout_url(user_id: str, user_email: str, base_url: str,
                         existing_customer_id: str = None) -> str | None:
     """Create a subscription Checkout Session with a 7-day trial and return the
@@ -61,9 +68,15 @@ def create_checkout_url(user_id: str, user_email: str, base_url: str,
 
     base_url: e.g. "https://qntmmvp.streamlit.app"
     """
+    global _last_error
+    _last_error = None
     stripe = _client()
     price_id = _secret("STRIPE_PRICE_ID_PRO")
-    if not stripe or not price_id:
+    if not stripe:
+        _last_error = "Stripe library not available or STRIPE_SECRET_KEY missing."
+        return None
+    if not price_id:
+        _last_error = "STRIPE_PRICE_ID_PRO is not set in secrets."
         return None
     try:
         kwargs = dict(
@@ -82,6 +95,7 @@ def create_checkout_url(user_id: str, user_email: str, base_url: str,
         session = stripe.checkout.Session.create(**kwargs)
         return session.url
     except Exception as e:
+        _last_error = str(e)
         log.error(f"checkout session create failed: {e}")
         return None
 

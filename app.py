@@ -7603,7 +7603,7 @@ def page_account():
                                             unsafe_allow_html=True)
                                         st.stop()
                                     else:
-                                        st.error("Could not start checkout. Contact hello@qntm.app")
+                                        st.error(f"Could not start checkout: {_sb_f.last_error()}  ·  Contact hello@qntm.app")
                             else:
                                 st.info("Paid subscriptions aren\u2019t enabled yet. Check back soon.")
                 else:
@@ -8537,7 +8537,7 @@ def page_upgrade():
                         )
                         st.stop()
                     else:
-                        st.error("Could not start checkout. Please try again or contact hello@qntm.app")
+                        st.error(f"Could not start checkout: {_sb_pay.last_error()}  ·  Contact hello@qntm.app")
                 else:
                     # No Stripe configured — direct upgrade (dev/test only)
                     _email = (st.session_state.user or {}).get("email")
