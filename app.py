@@ -7597,21 +7597,10 @@ def page_account():
                                     _emf = (st.session_state.user or {}).get("email", "")
                                     _urlf = _sb_f.create_checkout_url(uid(), _emf, _basef, _exf)
                                     if _urlf:
-                                        import streamlit.components.v1 as _cvf
-                                        # JS redirect of the PARENT window (reliable; meta-refresh
-                                        # races st.stop and leaves a blank skeleton).
-                                        _cvf.html(
-                                            f'<script>window.top.location.href="{_urlf}";</script>',
-                                            height=0)
-                                        # Visible fallback in case the auto-redirect is blocked.
-                                        st.markdown(
-                                            f'<a href="{_urlf}" target="_top" style="display:block;'
-                                            f'width:100%;text-align:center;padding:12px;margin-top:10px;'
-                                            f'background:linear-gradient(135deg,#d4a843,#b8922e);'
-                                            f'color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;'
-                                            f'border-radius:8px;text-decoration:none;">'
-                                            f'Continue to secure checkout →</a>',
-                                            unsafe_allow_html=True)
+                                        st.success("Your secure checkout is ready.")
+                                        st.link_button("Continue to secure checkout →", _urlf,
+                                                       use_container_width=True, type="primary")
+                                        st.caption("Opens Stripe's secure checkout page.")
                                     else:
                                         st.error(f"Could not start checkout: {_sb_f.last_error()}  ·  Contact hello@qntm.app")
                             else:
@@ -8540,19 +8529,10 @@ def page_upgrade():
                     _url = _sb_pay.create_checkout_url(_uid_val, _email, _base, _existing)
                     if _url:
                         # ack email fires after checkout completes (on return), not here
-                        import streamlit.components.v1 as _cvp
-                        _cvp.html(
-                            f'<script>window.top.location.href="{_url}";</script>',
-                            height=0)
-                        st.markdown(
-                            f'<a href="{_url}" target="_top" style="display:block;'
-                            f'width:100%;text-align:center;padding:14px;margin-top:10px;'
-                            f'background:linear-gradient(135deg,#d4a843,#b8922e);'
-                            f'color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;'
-                            f'border-radius:8px;text-decoration:none;font-size:15px;">'
-                            f'Continue to secure checkout →</a>',
-                            unsafe_allow_html=True,
-                        )
+                        st.success("Your secure checkout is ready.")
+                        st.link_button("Continue to secure checkout →", _url,
+                                       use_container_width=True, type="primary")
+                        st.caption("Opens Stripe's secure checkout page.")
                     else:
                         st.error(f"Could not start checkout: {_sb_pay.last_error()}  ·  Contact hello@qntm.app")
                 else:
