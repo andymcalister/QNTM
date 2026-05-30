@@ -1809,9 +1809,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         if _in_wl:
             _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" '
+                f'<a href="{_wl_url}" target="_top" '
                 f'onclick="event.stopPropagation();event.preventDefault();'
-                f'window.top.location.href=this.href;return false;" '
+                f'window.open(this.href,\'_top\');return false;" '
                 f'style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);'
@@ -1822,9 +1822,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         elif _uid_v:
             _wl_url = _qp_base + f'&wl_action=add&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
-                f'<a href="{_wl_url}" '
+                f'<a href="{_wl_url}" target="_top" '
                 f'onclick="event.stopPropagation();event.preventDefault();'
-                f'window.top.location.href=this.href;return false;" '
+                f'window.open(this.href,\'_top\');return false;" '
                 f'style="display:block;width:100%;'
                 f'text-align:center;padding:8px;margin-top:10px;box-sizing:border-box;'
                 f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.25);'
@@ -5038,9 +5038,9 @@ def page_watchlist():
                    f"&plan={st.query_params.get('plan','free')}&ck=1"
                    f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
         _cards_html += (
-            f'<a href="{_rm_url}" '
+            f'<a href="{_rm_url}" target="_top" '
             f'onclick="event.stopPropagation();event.preventDefault();'
-            f'window.top.location.href=this.href;return false;" '
+            f'window.open(this.href,\'_top\');return false;" '
             f'style="display:block;width:100%;'
             f'text-align:center;padding:5px;margin:-4px 0 8px 0;box-sizing:border-box;'
             f'background:transparent;border:1px solid rgba(255,255,255,.05);'
