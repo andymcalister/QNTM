@@ -5084,9 +5084,23 @@ def page_watchlist():
         with st.spinner(f"Loading live prices for {len(wl_tickers)} stocks…"):
             try:
                 import yfinance as yf
+                from datetime import datetime as _dt_dc
+                try:
+                    from zoneinfo import ZoneInfo as _ZI
+                    _today_str = _dt_dc.now(_ZI("America/New_York")).strftime("%Y-%m-%d")
+                except Exception:
+                    _today_str = _dt_dc.now().strftime("%Y-%m-%d")
                 hist = yf.download(wl_tickers, period="5d", auto_adjust=True,
                                    progress=False, threads=True)
                 if not hist.empty:
+                    # Is the most recent bar actually from today? If the latest
+                    # trading session isn't today (weekend / holiday), there is
+                    # no "today's change" to show — the last bar is a prior close.
+                    try:
+                        _last_bar_date = str(hist.index[-1])[:10]
+                    except Exception:
+                        _last_bar_date = ""
+                    _is_today = (_last_bar_date == _today_str)
                     close = hist["Close"]
                     if hasattr(close, "columns"):
                         for tk in wl_tickers:
@@ -5098,8 +5112,10 @@ def page_watchlist():
                                     day_change[tk] = {
                                         "price":      cur,
                                         "prev_close": prev,
-                                        "chg_pct":    (cur - prev) / prev * 100,
-                                        "chg_dollar": cur - prev,
+                                        # Only a live "today" move when markets traded today.
+                                        "chg_pct":    ((cur - prev) / prev * 100) if _is_today else None,
+                                        "chg_dollar": (cur - prev) if _is_today else None,
+                                        "market_closed": not _is_today,
                                     }
                     else:
                         vals = close.dropna()
@@ -5109,8 +5125,9 @@ def page_watchlist():
                             day_change[wl_tickers[0]] = {
                                 "price":      cur,
                                 "prev_close": prev,
-                                "chg_pct":    (cur - prev) / prev * 100,
-                                "chg_dollar": cur - prev,
+                                "chg_pct":    ((cur - prev) / prev * 100) if _is_today else None,
+                                "chg_dollar": (cur - prev) if _is_today else None,
+                                "market_closed": not _is_today,
                             }
                 _dc_cache[_cache_key] = day_change
             except Exception:
@@ -5247,6 +5264,9 @@ def page_watchlist():
 
         # TODAY
         _today_inner = '<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#475569;">—</div>'
+        if _dc.get("market_closed"):
+            _today_inner = ('<div style="font-family:DM Mono,monospace;font-size:11px;'
+                            'font-weight:700;color:#475569;">CLOSED</div>')
         try:
             if _dc.get("chg_pct") is not None:
                 _tc_pct = float(_dc["chg_pct"]); _tc_d = float(_dc.get("chg_dollar", 0))
