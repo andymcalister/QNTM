@@ -532,6 +532,42 @@ def schedule_cancellation(user_id: str, period_end_date: str) -> bool:
     return ok
 
 
+def set_stripe_billing(user_id: str, customer_id: str = None, subscription_id: str = None,
+                       billing_active: bool = None, status: str = None) -> bool:
+    """Store Stripe IDs + billing state in the user's notifications JSON blob
+    (no schema migration). Any arg left None is preserved."""
+    user = get_user_by_id(user_id) or {}
+    prefs = user.get("notifications") or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    if customer_id is not None:
+        prefs["stripe_customer_id"] = customer_id
+    if subscription_id is not None:
+        prefs["stripe_subscription_id"] = subscription_id
+    if billing_active is not None:
+        prefs["billing_active"] = bool(billing_active)
+    if status is not None:
+        prefs["stripe_status"] = status
+    ok = update_preferences(user_id, {"notifications": prefs})
+    if ok and st.session_state.get("user"):
+        st.session_state.user["notifications"] = prefs
+    return ok
+
+
+def get_stripe_billing(user_id: str) -> dict:
+    """Return {stripe_customer_id, stripe_subscription_id, billing_active, stripe_status}."""
+    user = get_user_by_id(user_id) or {}
+    prefs = user.get("notifications") or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    return {
+        "stripe_customer_id":     prefs.get("stripe_customer_id"),
+        "stripe_subscription_id": prefs.get("stripe_subscription_id"),
+        "billing_active":         bool(prefs.get("billing_active", False)),
+        "stripe_status":          prefs.get("stripe_status"),
+    }
+
+
 def undo_cancellation(user_id: str) -> bool:
     """Remove a pending cancellation so the subscription continues."""
     user = get_user_by_id(user_id) or {}

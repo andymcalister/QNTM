@@ -9,23 +9,69 @@ from datetime import date
 # Load secrets from streamlit
 try:
     import streamlit as st
-    SUPABASE_URL = st.secrets.get("SUPABASE_URL", "") or os.getenv("SUPABASE_URL","")
-    SUPABASE_KEY = st.secrets.get("SUPABASE_ANON_KEY", "") or os.getenv("SUPABASE_ANON_KEY","")
-except:
-    SUPABASE_URL = os.getenv("SUPABASE_URL","")
-    SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY","")
+    SUPABASE_URL = (
+        st.secrets.get("SUPABASE_URL", "")
+        or os.getenv("SUPABASE_URL", "")
+    )
+    SUPABASE_KEY = (
+        st.secrets.get("SUPABASE_SERVICE_KEY", "")
+        or os.getenv("SUPABASE_SERVICE_KEY", "")
+        or st.secrets.get("SUPABASE_ANON_KEY", "")
+        or os.getenv("SUPABASE_ANON_KEY", "")
+    )
+except Exception:
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = (
+        os.getenv("SUPABASE_SERVICE_KEY", "")
+        or os.getenv("SUPABASE_ANON_KEY", "")
+    )
 
-if not SUPABASE_URL:
+if not SUPABASE_URL or not SUPABASE_KEY:
     try:
         import toml
         s = toml.load('.streamlit/secrets.toml')
-        SUPABASE_URL = s.get("SUPABASE_URL","")
-        SUPABASE_KEY = s.get("SUPABASE_ANON_KEY","")
-    except:
+        if "default" in s and isinstance(s["default"], dict):
+            s = s["default"]
+        SUPABASE_URL = SUPABASE_URL or s.get("SUPABASE_URL", "")
+        SUPABASE_KEY = (
+            SUPABASE_KEY
+            or s.get("SUPABASE_SERVICE_KEY", "")
+            or s.get("SUPABASE_ANON_KEY", "")
+        )
+    except Exception:
         pass
 
 if not SUPABASE_URL:
     print("ERROR: No SUPABASE_URL found. Set env vars or run from QNTM directory.")
+    sys.exit(1)
+if not SUPABASE_KEY:
+    print("ERROR: No Supabase key found. Need SUPABASE_SERVICE_KEY (preferred) "
+          "or SUPABASE_ANON_KEY in .streamlit/secrets.toml or env.")
+    sys.exit(1)
+
+# Warn if we ended up using the anon key — insert WILL fail RLS
+_using_service = bool(
+    (os.getenv("SUPABASE_SERVICE_KEY") and SUPABASE_KEY == os.getenv("SUPABASE_SERVICE_KEY"))
+)
+try:
+    import streamlit as _st
+    if _st.secrets.get("SUPABASE_SERVICE_KEY", "") == SUPABASE_KEY:
+        _using_service = True
+except Exception:
+    pass
+try:
+    import toml as _toml
+    _s = _toml.load('.streamlit/secrets.toml')
+    if "default" in _s and isinstance(_s["default"], dict):
+        _s = _s["default"]
+    if _s.get("SUPABASE_SERVICE_KEY", "") == SUPABASE_KEY:
+        _using_service = True
+except Exception:
+    pass
+
+if not _using_service:
+    print("WARNING: Using ANON key. Inserts will fail RLS policy.")
+    print("Add SUPABASE_SERVICE_KEY to .streamlit/secrets.toml and re-run.")
     sys.exit(1)
 
 from supabase import create_client

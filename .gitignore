@@ -1,3 +1,9 @@
 .streamlit/secrets.toml
 .streamlit/secrets.toml
 .DS_Store
+docs/*.docx
+docs/*.pdf
+docs/~$*
+docs/*.docx
+docs/*.pdf
+docs/~$*

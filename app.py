@@ -7548,7 +7548,21 @@ def page_account():
                     # TRUE one-click cancel — single button, immediate effect.
                     if st.button("Cancel subscription", key="cancel_sub_btn",
                                  use_container_width=True):
-                        if schedule_cancellation(uid(), _proposed_end):
+                        # If a real Stripe subscription exists, cancel at period
+                        # end there (during trial = no charge ever; after trial =
+                        # stops next renewal, access to period end).
+                        _stripe_ok = True
+                        try:
+                            import stripe_billing as _sbc
+                            from db import get_stripe_billing as _gsbc
+                            _bsc = _gsbc(uid())
+                            _subc = _bsc.get("stripe_subscription_id")
+                            if _subc and _sbc.billing_configured():
+                                _cres = _sbc.cancel_subscription(_subc)
+                                _stripe_ok = _cres.get("ok", False)
+                        except Exception:
+                            _stripe_ok = True  # don't block local cancel on stripe error
+                        if schedule_cancellation(uid(), _proposed_end) and _stripe_ok:
                             # 2D — confirmation email (stubbed send + logged).
                             try:
                                 import arl as _arl_c
@@ -8394,14 +8408,14 @@ def page_upgrade():
     """, unsafe_allow_html=True)
 
     # ── ARL paid-trial mode ───────────────────────────────────────────────────
-    # The live flow is the $0 Founding Member signup — there is nothing that
-    # auto-renews, so California's ARL initial-notice/consent requirements don't
-    # attach yet. When real $29 Stripe billing goes live (a paid 7-day trial),
-    # set st.session_state._paid_trial_mode = True (or flip this flag from the
-    # Stripe wiring) and the full ARL checkout (notice block + affirmative
-    # consent checkbox + consent log + acknowledgment email) activates.
-    # FLAG FOR ATTORNEY REVIEW before taking paying users.
-    _paid_trial = bool(st.session_state.get("_paid_trial_mode", False))
+    # Activates the full ARL checkout (notice + consent + log + ack email) and
+    # the Stripe Checkout redirect. Auto-on when Stripe billing is configured
+    # (keys + price ID present); can also be forced via session for testing.
+    try:
+        import stripe_billing as _sb_cfg
+        _paid_trial = bool(st.session_state.get("_paid_trial_mode", False)) or _sb_cfg.billing_configured()
+    except Exception:
+        _paid_trial = bool(st.session_state.get("_paid_trial_mode", False))
 
     if _paid_trial:
         import arl as _arl
@@ -8425,15 +8439,41 @@ def page_upgrade():
                 except Exception:
                     _ip = None
                 _arl.log_consent(_uid_val, plan="pro", ip_address=_ip)
-                _email = (st.session_state.user or {}).get("email")
-                if _email:
-                    _arl.send_acknowledgment(_uid_val, _email)
-                ok = upgrade_plan(uid(), "pro")
-                if ok and st.session_state.get("user"):
-                    st.session_state.user["plan"] = "pro"
-                st.session_state.nav  = return_nav
-                st.session_state.page = "platform"
-                st.rerun()
+                # If Stripe is configured, redirect to hosted Checkout (7-day
+                # trial, card collected but not charged). Otherwise fall back to
+                # the direct upgrade (test/dev without Stripe keys).
+                import stripe_billing as _sb_pay
+                if _sb_pay.billing_configured():
+                    from db import get_stripe_billing as _gsb
+                    _existing = _gsb(_uid_val).get("stripe_customer_id")
+                    _base = "https://qntmmvp.streamlit.app"
+                    try:
+                        _base = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                    except Exception:
+                        pass
+                    _email = (st.session_state.user or {}).get("email", "")
+                    _url = _sb_pay.create_checkout_url(_uid_val, _email, _base, _existing)
+                    if _url:
+                        # ack email fires after checkout completes (on return), not here
+                        st.markdown(
+                            f'<meta http-equiv="refresh" content="0; url={_url}">'
+                            f'<a href="{_url}" target="_self">Continue to secure checkout →</a>',
+                            unsafe_allow_html=True,
+                        )
+                        st.stop()
+                    else:
+                        st.error("Could not start checkout. Please try again or contact hello@qntm.app")
+                else:
+                    # No Stripe configured — direct upgrade (dev/test only)
+                    _email = (st.session_state.user or {}).get("email")
+                    if _email:
+                        _arl.send_acknowledgment(_uid_val, _email)
+                    ok = upgrade_plan(uid(), "pro")
+                    if ok and st.session_state.get("user"):
+                        st.session_state.user["plan"] = "pro"
+                    st.session_state.nav  = return_nav
+                    st.session_state.page = "platform"
+                    st.rerun()
         else:
             st.markdown(
                 '<div style="max-width:480px;margin:8px auto 0;padding:0 16px;'
@@ -8576,6 +8616,64 @@ def main():
         if ok and st.session_state.get("user"):
             st.session_state.user["plan"] = "pro"
         st.query_params.pop("upgrade", None)
+
+    # ── Stripe checkout return + status polling ───────────────────────────────
+    _checkout = st.query_params.get("checkout", "")
+    if _checkout and st.session_state.get("logged_in"):
+        if _checkout == "success":
+            try:
+                import stripe_billing as _sbp
+                from db import set_stripe_billing as _ssb, get_stripe_billing as _gsb2
+                import arl as _arl_ck
+                res = _sbp.finalize_checkout(uid())
+                if res.get("ok"):
+                    _grants = _sbp.status_grants_access(res.get("status", ""))
+                    _ssb(uid(),
+                         customer_id=res.get("customer_id"),
+                         subscription_id=res.get("subscription_id"),
+                         billing_active=_grants,
+                         status=res.get("status"))
+                    if _grants:
+                        upgrade_plan(uid(), "pro")
+                        if st.session_state.get("user"):
+                            st.session_state.user["plan"] = "pro"
+                        # ARL acknowledgment email now that the trial truly started
+                        _em = (st.session_state.user or {}).get("email")
+                        if _em:
+                            _arl_ck.send_acknowledgment(uid(), _em)
+                        st.toast("Your 7-day free trial has started.")
+            except Exception:
+                pass
+        st.query_params.pop("checkout", None)
+        st.query_params.pop("plan", None)
+
+    # Lightweight status poll: once per session, sync plan from live Stripe state
+    # for users with a stored subscription (no webhooks).
+    if (st.session_state.get("logged_in")
+            and not st.session_state.get("_stripe_polled")):
+        st.session_state._stripe_polled = True
+        try:
+            import stripe_billing as _sbp2
+            from db import get_stripe_billing as _gsb3, set_stripe_billing as _ssb2
+            _bs = _gsb3(uid())
+            _sub_id = _bs.get("stripe_subscription_id")
+            if _sub_id and _sbp2.billing_configured():
+                _ps = _sbp2.poll_subscription_status(_sub_id)
+                if _ps.get("ok"):
+                    _grant = _sbp2.status_grants_access(_ps.get("status", ""))
+                    _ssb2(uid(), billing_active=_grant, status=_ps.get("status"))
+                    _cur_plan = (st.session_state.user or {}).get("plan", "free")
+                    if _grant and _cur_plan != "pro":
+                        upgrade_plan(uid(), "pro")
+                        if st.session_state.get("user"):
+                            st.session_state.user["plan"] = "pro"
+                    elif not _grant and _cur_plan == "pro":
+                        # subscription ended/canceled past period — downgrade
+                        upgrade_plan(uid(), "free")
+                        if st.session_state.get("user"):
+                            st.session_state.user["plan"] = "free"
+        except Exception:
+            pass
 
     # ── Watchlist add/remove via URL action ──────────────────────────────────
     _wl_action = st.query_params.get("wl_action", "")
