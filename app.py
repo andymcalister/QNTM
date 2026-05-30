@@ -1805,7 +1805,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         _nav_v  = st.session_state.get('nav', 'screener')
         _wl_set = {w['ticker'] for w in get_watchlist(_uid_v)} if _uid_v else set()
         _in_wl  = r['ticker'] in _wl_set
-        _qp_base = f'?qnav={_nav_v}&uid={_uid_v}&plan={_pln_v}&ck=1'
+        _qp_base = f'/?qnav={_nav_v}&uid={_uid_v}&plan={_pln_v}&ck=1'
         if _in_wl:
             _wl_url = _qp_base + f'&wl_action=remove&wl_ticker={r["ticker"]}'
             _wl_btn_html = (
@@ -4235,18 +4235,19 @@ def page_screener():
             _wl_tickers = {w["ticker"] for w in _gwi(_wl_uid_s, _def_id)} if _def_id else set()
             st.markdown("""
             <style>
-            div[data-testid='stButton'][data-key='sr_wl_btn'] button {
+            .st-key-sr_wl_btn button {
                 background: linear-gradient(135deg,#d4a843,#b8922e) !important;
                 color:#0a0b14 !important; border:none !important;
                 font-family:Syne,sans-serif !important; font-weight:800 !important;
-                letter-spacing:.06em !important; border-radius:6px !important;
+                letter-spacing:.06em !important; border-radius:8px !important;
                 text-transform:uppercase !important;
+                box-shadow:0 2px 12px rgba(212,168,67,.2) !important;
             }
-            div[data-testid='stButton'][data-key='sr_wl_btn_rm'] button {
+            .st-key-sr_wl_btn_rm button {
                 background:rgba(239,68,68,.08) !important;
                 border:1px solid rgba(239,68,68,.35) !important; color:#ef4444 !important;
                 font-family:Syne,sans-serif !important; font-weight:700 !important;
-                letter-spacing:.06em !important; border-radius:6px !important;
+                letter-spacing:.06em !important; border-radius:8px !important;
                 text-transform:uppercase !important;
             }
             </style>
@@ -4763,19 +4764,22 @@ def page_watchlist():
     # ── Native add/remove controls (iframe links are sandbox-blocked) ──────────
     st.markdown("""
     <style>
-    div[data-testid='stButton'][data-key='wl_native_add'] > div > button {
+    div[data-testid='stButton'][class*='wl_native_add'] button,
+    .st-key-wl_native_add button {
         background: linear-gradient(135deg,#d4a843,#b8922e) !important;
-        color:#000 !important; border:none !important;
+        color:#0a0b14 !important; border:none !important;
         font-family:Syne,sans-serif !important; font-weight:800 !important;
         font-size:12px !important; letter-spacing:.06em !important;
-        border-radius:6px !important;
+        border-radius:8px !important; text-transform:uppercase !important;
+        box-shadow:0 2px 12px rgba(212,168,67,.2) !important;
     }
-    div[data-testid='stButton'][data-key='wl_native_rm'] > div > button {
+    .st-key-wl_native_rm button {
         background:rgba(239,68,68,.08) !important;
         border:1px solid rgba(239,68,68,.3) !important;
         color:#ef4444 !important;
         font-family:Syne,sans-serif !important; font-weight:700 !important;
-        font-size:12px !important; border-radius:6px !important;
+        font-size:12px !important; border-radius:8px !important;
+        text-transform:uppercase !important; letter-spacing:.06em !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -5101,7 +5105,7 @@ def page_watchlist():
         _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
         _cards_html += _since_html
         # Inline Remove button — scoped to the ACTIVE list, navigates parent window
-        _rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
+        _rm_url = (f"/?qnav=watchlist&uid={st.query_params.get('uid','')}"
                    f"&plan={st.query_params.get('plan','free')}&ck=1"
                    f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
         _cards_html += (
