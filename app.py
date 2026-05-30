@@ -4141,18 +4141,25 @@ def page_screener():
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
 
-    # Compact header — title + refresh inline, no wasted vertical space
+    # Compact header — title + refresh inline, no wasted vertical space.
+    # The "updated" date only changes once nightly, so cache it per session
+    # rather than querying signal_log on every screener render.
     _fresh_html = ""
-    try:
-        from data_refresh import _get_supabase as _hdr_sb
-        from datetime import datetime, timezone, timedelta
-        _sb_h = _hdr_sb()
-        if _sb_h:
-            _hr = _sb_h.table("signal_log").select("signal_date").order("signal_date", desc=True).limit(1).execute()
-            if _hr.data:
-                _fresh_html = f' · updated {_hr.data[0]["signal_date"]}'
-    except Exception:
-        pass
+    _cached_fresh = st.session_state.get("_hdr_fresh_date")
+    if _cached_fresh:
+        _fresh_html = f' · updated {_cached_fresh}'
+    else:
+        try:
+            from data_refresh import _get_supabase as _hdr_sb
+            from datetime import datetime, timezone, timedelta
+            _sb_h = _hdr_sb()
+            if _sb_h:
+                _hr = _sb_h.table("signal_log").select("signal_date").order("signal_date", desc=True).limit(1).execute()
+                if _hr.data:
+                    st.session_state._hdr_fresh_date = _hr.data[0]["signal_date"]
+                    _fresh_html = f' · updated {_hr.data[0]["signal_date"]}'
+        except Exception:
+            pass
     st.markdown(
         f'<div style="padding:10px 32px 4px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">📊 Market Screener</span>'
@@ -4379,22 +4386,30 @@ def page_screener():
         st.markdown('<div style="height:1px;background:rgba(255,255,255,.05);margin:8px 0 12px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Invalidate cache if signal_log has newer data than what we have cached
+    # Invalidate cache if signal_log has newer data than what we have cached.
+    # Signals only change once nightly, so checking on EVERY rerun (e.g. after a
+    # watchlist button click) is wasteful — it adds a Supabase round-trip to each
+    # page load. Throttle to at most once every 5 minutes per session.
     if st.session_state.scan_results is not None:
-        try:
-            from data_refresh import _get_supabase as _sc_sb
-            _sb_sc = _sc_sb()
-            if _sb_sc:
-                _latest_date = _sb_sc.table("signal_log").select("signal_date") \
-                    .order("signal_date", desc=True).limit(1).execute()
-                if _latest_date.data:
-                    _db_date = str(_latest_date.data[0]["signal_date"])[:10]
-                    _cached_date = str((st.session_state.scan_results[0] or {}).get("signal_date",""))[:10]
-                    if _db_date > _cached_date:
-                        st.session_state.scan_results = None  # force reload
-                        st.session_state._live_prices_fetched = False
-        except Exception:
-            pass
+        import time as _time_fc
+        _last_fc = st.session_state.get("_last_freshness_check", 0)
+        if _time_fc.time() - _last_fc > 300:
+            st.session_state._last_freshness_check = _time_fc.time()
+            try:
+                from data_refresh import _get_supabase as _sc_sb
+                _sb_sc = _sc_sb()
+                if _sb_sc:
+                    _latest_date = _sb_sc.table("signal_log").select("signal_date") \
+                        .order("signal_date", desc=True).limit(1).execute()
+                    if _latest_date.data:
+                        _db_date = str(_latest_date.data[0]["signal_date"])[:10]
+                        _cached_date = str((st.session_state.scan_results[0] or {}).get("signal_date",""))[:10]
+                        if _db_date > _cached_date:
+                            st.session_state.scan_results = None  # force reload
+                            st.session_state._live_prices_fetched = False
+                            st.session_state.pop("_hdr_fresh_date", None)  # refresh header label too
+            except Exception:
+                pass
 
     if st.session_state.scan_results is None:
         # Auto-trigger if data is old
