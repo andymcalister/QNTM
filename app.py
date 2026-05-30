@@ -4636,6 +4636,7 @@ def page_watchlist():
             if _tgt and _rm_tk:
                 remove_watchlist_item(_wl_uid, _tgt, _rm_tk)
                 st.session_state.active_wl_list = _tgt
+                st.session_state.pop("_wl_daychange_cache", None)
         st.query_params.pop("wl_list_action", None)
         st.query_params.pop("wl_list_id", None)
         st.query_params.pop("wl_rm_ticker", None)
@@ -4657,29 +4658,43 @@ def page_watchlist():
     st.markdown("""
     <style>
     div[data-testid='stButton'][data-key^='wltab_'] > div > button {
-        background: rgba(255,255,255,.03) !important;
-        border: 1px solid rgba(255,255,255,.08) !important;
-        color: #94a3b8 !important;
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.07) !important;
+        color: #64748b !important;
         font-family: 'Syne', sans-serif !important;
         font-weight: 700 !important; font-size: 12px !important;
-        border-radius: 6px !important; padding: 6px 14px !important;
+        letter-spacing: .04em !important;
+        border-radius: 8px !important; padding: 9px 16px !important;
+        transition: all .18s ease !important;
+        box-shadow: none !important;
+    }
+    div[data-testid='stButton'][data-key^='wltab_'] > div > button:hover {
+        background: rgba(255,255,255,.05) !important;
+        border-color: rgba(212,168,67,.3) !important;
+        color: #cbd5e1 !important;
+        transform: translateY(-1px) !important;
     }
     div[data-testid='stButton'][data-key^='wltabactive_'] > div > button {
-        background: rgba(212,168,67,.15) !important;
-        border: 1px solid rgba(212,168,67,.5) !important;
-        color: #d4a843 !important;
+        background: linear-gradient(135deg, rgba(212,168,67,.22), rgba(212,168,67,.08)) !important;
+        border: 1px solid rgba(212,168,67,.55) !important;
+        color: #f0c668 !important;
         font-family: 'Syne', sans-serif !important;
-        font-weight: 700 !important; font-size: 12px !important;
-        border-radius: 6px !important; padding: 6px 14px !important;
+        font-weight: 800 !important; font-size: 12px !important;
+        letter-spacing: .04em !important;
+        border-radius: 8px !important; padding: 9px 16px !important;
+        box-shadow: 0 0 0 1px rgba(212,168,67,.12), 0 2px 12px rgba(212,168,67,.15) !important;
     }
     </style>
     """, unsafe_allow_html=True)
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;'
+                'letter-spacing:.12em;margin-bottom:8px;">LISTS</div>', unsafe_allow_html=True)
     _tab_cols = st.columns(max(len(_all_lists), 1))
     for _i, w in enumerate(_all_lists):
         _is_act = w["id"] == _active_id
         with _tab_cols[_i]:
             _key = f"{'wltabactive' if _is_act else 'wltab'}_{w['id']}"
-            if st.button(w["name"], key=_key, use_container_width=True):
+            _lbl = f"●  {w['name']}" if _is_act else w["name"]
+            if st.button(_lbl, key=_key, use_container_width=True):
                 st.session_state.active_wl_list = w["id"]
                 st.session_state.nav = "watchlist"
                 st.rerun()
@@ -4824,39 +4839,46 @@ def page_watchlist():
     # Fetch live prices + prev close for day change via yfinance
     wl_tickers = [w["ticker"] for w in watchlist]
     day_change  = {}   # ticker -> {price, prev_close, chg_pct, chg_dollar}
-    if wl_tickers:
-        try:
-            import yfinance as yf
-            hist = yf.download(wl_tickers, period="5d", auto_adjust=True,
-                               progress=False, threads=True)
-            if not hist.empty:
-                close = hist["Close"]
-                if hasattr(close, "columns"):
-                    for tk in wl_tickers:
-                        if tk in close.columns:
-                            vals = close[tk].dropna()
-                            if len(vals) >= 2:
-                                cur  = float(vals.iloc[-1])
-                                prev = float(vals.iloc[-2])
-                                day_change[tk] = {
-                                    "price":      cur,
-                                    "prev_close": prev,
-                                    "chg_pct":    (cur - prev) / prev * 100,
-                                    "chg_dollar": cur - prev,
-                                }
-                else:
-                    vals = close.dropna()
-                    if len(vals) >= 2 and len(wl_tickers) == 1:
-                        cur  = float(vals.iloc[-1])
-                        prev = float(vals.iloc[-2])
-                        day_change[wl_tickers[0]] = {
-                            "price":      cur,
-                            "prev_close": prev,
-                            "chg_pct":    (cur - prev) / prev * 100,
-                            "chg_dollar": cur - prev,
-                        }
-        except Exception:
-            pass
+    # Cache by sorted ticker set so toggling back to a loaded list is instant.
+    _dc_cache = st.session_state.setdefault("_wl_daychange_cache", {})
+    _cache_key = ",".join(sorted(wl_tickers))
+    if wl_tickers and _cache_key in _dc_cache:
+        day_change = _dc_cache[_cache_key]
+    elif wl_tickers:
+        with st.spinner(f"Loading live prices for {len(wl_tickers)} stocks…"):
+            try:
+                import yfinance as yf
+                hist = yf.download(wl_tickers, period="5d", auto_adjust=True,
+                                   progress=False, threads=True)
+                if not hist.empty:
+                    close = hist["Close"]
+                    if hasattr(close, "columns"):
+                        for tk in wl_tickers:
+                            if tk in close.columns:
+                                vals = close[tk].dropna()
+                                if len(vals) >= 2:
+                                    cur  = float(vals.iloc[-1])
+                                    prev = float(vals.iloc[-2])
+                                    day_change[tk] = {
+                                        "price":      cur,
+                                        "prev_close": prev,
+                                        "chg_pct":    (cur - prev) / prev * 100,
+                                        "chg_dollar": cur - prev,
+                                    }
+                    else:
+                        vals = close.dropna()
+                        if len(vals) >= 2 and len(wl_tickers) == 1:
+                            cur  = float(vals.iloc[-1])
+                            prev = float(vals.iloc[-2])
+                            day_change[wl_tickers[0]] = {
+                                "price":      cur,
+                                "prev_close": prev,
+                                "chg_pct":    (cur - prev) / prev * 100,
+                                "chg_dollar": cur - prev,
+                            }
+                _dc_cache[_cache_key] = day_change
+            except Exception:
+                pass
 
     # Also fetch entry prices from watchlist record if stored, else use first observed price
     wl_entry = {w["ticker"]: w.get("entry_price") or w.get("price_at_add") for w in watchlist}
@@ -8242,6 +8264,8 @@ def main():
                 pass
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
+        # Stale: the active list changed, so drop cached live prices.
+        st.session_state.pop("_wl_daychange_cache", None)
         # Force a clean rerun so the screener's add/remove button state and the
         # watchlist page both reflect the change immediately.
         st.session_state.scan_results = st.session_state.get("scan_results")
