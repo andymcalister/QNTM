@@ -8124,6 +8124,14 @@ def page_upgrade():
 
 
 def main():
+    # ── DEBUG: dump every query param that arrives, every run ──
+    try:
+        _qp_dump = dict(st.query_params)
+        if _qp_dump:
+            st.toast(f"DEBUG params: {_qp_dump}")
+    except Exception:
+        pass
+
     # ── Capture watchlist add/remove intent FIRST, before any handler pops
     # params or the iframe-top navigation re-encodes the URL. ──
     _early_wl_action = st.query_params.get("wl_action", "")
