@@ -1723,15 +1723,53 @@ def _debug_line(r: dict) -> str:
     )
 
 
-def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set = None):
-    """Render add/remove watchlist links in the MAIN document (not the card
-    iframe) using st.markdown + target="_self" — the only pattern that reaches
-    the router and survives mobile reconnects (handoff rule #1).
+def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = False,
+                               company_info: dict = None, in_list: set = None,
+                               extra_detail: str = "", remove_url: str = None):
+    """Render ONE stock card in its own auto-resizing iframe, with a styled
+    Add/Remove watchlist button directly underneath in the MAIN document.
 
-    `tickers`  — tickers to show an action for (e.g. the Top 10).
-    `nav`      — current nav key, preserved in the URL.
-    `in_list`  — set of tickers already on the watchlist (show Remove for those).
+    The per-card iframe keeps click-to-expand (CARD_IFRAME_TAIL resizes it),
+    and the button lives outside the iframe so its target=_self link actually
+    reaches the router. Button shows whether the card is collapsed or expanded.
+
+    remove_url: optional override for the Remove link (used by the watchlist
+    page so removal targets the active named list, not the default list).
     """
+    import streamlit.components.v1 as _cv1_card
+    tk = r.get("ticker", "")
+    _html = factor_panel_html(r, is_gem, company_info=company_info)
+    if extra_detail:
+        _html += extra_detail
+    # Height: collapsed ~70px; CARD_IFRAME_TAIL grows it on expand.
+    _cv1_card.html(_html + CARD_IFRAME_TAIL, height=76, scrolling=False)
+
+    _uid_v = (st.session_state.user or {}).get("id", "")
+    _pln_v = (st.session_state.user or {}).get("plan", "free")
+    if not _uid_v or not tk:
+        return
+    if in_list is None:
+        in_list = {w["ticker"] for w in get_watchlist(_uid_v)}
+    _qp = f"?qnav={nav}&uid={_uid_v}&plan={_pln_v}&ck=1&_n={nav}"
+    if tk in in_list:
+        _url = remove_url or (_qp + f"&wl_action=remove&wl_ticker={tk}")
+        _bg, _bd, _col, _lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Watchlist"
+    else:
+        _url = _qp + f"&wl_action=add&wl_ticker={tk}"
+        _bg, _bd, _col, _lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Watchlist"
+    st.markdown(
+        f'<a href="{_url}" target="_self" style="display:block;width:100%;text-align:center;'
+        f'padding:7px;margin:-2px 0 10px;box-sizing:border-box;background:{_bg};'
+        f'border:1px solid {_bd};border-radius:6px;font-family:Syne,sans-serif;'
+        f'font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;'
+        f'color:{_col};text-decoration:none;">{_lbl}</a>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set = None):
+    """Legacy chip-row (kept for any caller still using it). Prefer
+    render_card_with_watchlist for per-card buttons."""
     if not tickers:
         return
     _uid_v = (st.session_state.user or {}).get("id", "")
@@ -1743,8 +1781,7 @@ def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set 
     _qp = f"?qnav={nav}&uid={_uid_v}&plan={_pln_v}&ck=1&_n={nav}"
     _chips = ""
     for tk in tickers:
-        _is_in = tk in in_list
-        if _is_in:
+        if tk in in_list:
             _url = _qp + f"&wl_action=remove&wl_ticker={tk}"
             _bg, _bd, _col, _lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.25)", "#ef4444", f"✕ {tk}"
         else:
@@ -4461,7 +4498,7 @@ def page_screener():
                     f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
                     f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>',
                     unsafe_allow_html=True)
-                cards_html = ""
+                _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
                 for i, r in enumerate(ranked):
                     ci     = get_company_info(r["ticker"])
                     is_gem = r["ticker"] in gem_tickers
@@ -4470,13 +4507,8 @@ def page_screener():
                         r = dict(r); r["adj_action"] = "SELL"
                     elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                         r = dict(r); r["adj_action"] = "BUY"
-                    cards_html += factor_panel_html(r, is_gem, company_info=ci)
-                import streamlit.components.v1 as _cv1_t10
-                _t10_n = cards_html.count('qcard-wrap')
-                _t10_ht = max(60, (_t10_n - 1) * 62 + 560) if _t10_n > 0 else 60
-                _cv1_t10.html(cards_html + CARD_IFRAME_TAIL, height=min(_t10_ht,8000), scrolling=False)
-                # Watchlist add/remove row — MAIN document, target=_self (works)
-                render_watchlist_actions([r["ticker"] for r in ranked], nav="screener")
+                    render_card_with_watchlist(r, nav="screener", is_gem=is_gem,
+                                               company_info=ci, in_list=_wl_now)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4567,22 +4599,21 @@ def page_screener():
         _show_sparkline = len(_page_items) <= 20
         _ci_cache = st.session_state.get("company_info_cache", {})
         _fu_prog = st.progress(0, text="Loading cards...")
-        _fu_html = ""
+        _fu_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
         for _fu_i, r in enumerate(_page_items):
             ci = _ci_cache.get(r["ticker"])
-            _fu_html += factor_panel_html(r, r["ticker"] in gem_tickers, company_info=ci)
-            _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
+            _extra = ""
             if _show_sparkline:
                 _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
-                    _fu_html += _ch
+                    _extra = _ch
+            render_card_with_watchlist(r, nav="screener",
+                                       is_gem=(r["ticker"] in gem_tickers),
+                                       company_info=ci, in_list=_fu_wl_now,
+                                       extra_detail=_extra)
+            _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
         _fu_prog.empty()
-        if _fu_html:
-            import streamlit.components.v1 as _cv1_fu
-            _fu_n = _fu_html.count('qcard-wrap')
-            _fu_ht = max(60, (_fu_n - 1) * 62 + 560) if _fu_n > 0 else 60
-            _cv1_fu.html(_fu_html + CARD_IFRAME_TAIL, height=min(_fu_ht,8000), scrolling=False)
 
         if _show_gate:
             st.markdown(
@@ -5040,6 +5071,7 @@ def page_watchlist():
     except Exception:
         pass
 
+    _wl_active_tickers = {w["ticker"] for w in watchlist}
     _cards_html = ""
     for w in watchlist:
         tk  = w["ticker"]
@@ -5101,15 +5133,15 @@ def page_watchlist():
                 'border-radius:0 0 6px 6px;">'
                 + "".join(_segments) + '</div>'
             )
-        _cards_html += factor_panel_html(sc, tk in _wl_gems, company_info=ci)
-        _cards_html += _since_html
-        # (Per-card remove removed — it lived inside the card iframe and could
-        # never reach the router. Removal is handled by the native Remove
-        # dropdown rendered above the card list, in the main document.)
-    import streamlit.components.v1 as _cv1_wl
-    _wl_n = _cards_html.count('qcard-wrap')
-    _wl_ht = max(60, (_wl_n - 1) * 90 + 580) if _wl_n > 0 else 60
-    _cv1_wl.html(_cards_html + CARD_IFRAME_TAIL, height=min(_wl_ht,8000), scrolling=False)
+        # Per-card: card iframe (+ P&L strip) and a Remove button underneath.
+        _wl_rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
+                      f"&plan={st.query_params.get('plan','free')}&ck=1&_n=watchlist"
+                      f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
+        render_card_with_watchlist(sc, nav="watchlist", is_gem=(tk in _wl_gems),
+                                   company_info=ci, in_list=_wl_active_tickers,
+                                   extra_detail=_since_html, remove_url=_wl_rm_url)
+
+    # (legacy batch iframe render removed — cards now render per-card above)
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
@@ -5247,8 +5279,7 @@ def page_gems():
     # Load current watchlist to know which gems are already added
     wl_tickers = {w["ticker"] for w in get_watchlist(uid())}
 
-    # Gems use same collapsed card pattern as screener — consistent hierarchy
-    cards_html = ""
+    # Gems use same collapsed card pattern — now per-card with watchlist button
     for g in gems:
         tk = g.get("ticker", "")
         try:
@@ -5256,21 +5287,13 @@ def page_gems():
             raw   = float(g.get("composite") or 0)
             g["adj_action"]  = "BUY"
             g["score_delta"] = round(adj - raw, 1)
-            # Enrich sector from SECTORS dict — detect_hidden_gems doesn't set it
             if not g.get("sector") or g.get("sector") == "Unknown":
                 g["sector"] = SECTORS.get(tk, "")
             ci = get_company_info(tk)
-            cards_html += factor_panel_html(g, is_gem=True, company_info=ci)
+            render_card_with_watchlist(g, nav="gems", is_gem=True,
+                                       company_info=ci, in_list=wl_tickers)
         except Exception:
             pass
-    import streamlit.components.v1 as _cv1_gems
-    _gems_h = '<div style="padding:0 4px;">' + cards_html + '</div>'
-    _gems_n = _gems_h.count('qcard-wrap')
-    _gems_ht = max(60, (_gems_n - 1) * 62 + 560) if _gems_n > 0 else 60
-    _cv1_gems.html(_gems_h + CARD_IFRAME_TAIL, height=min(_gems_ht,8000), scrolling=False)
-    # Watchlist add/remove row — main document, target=_self
-    render_watchlist_actions([g.get("ticker","") for g in gems if g.get("ticker")],
-                             nav="gems", in_list=wl_tickers)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
