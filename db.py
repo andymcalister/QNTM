@@ -957,3 +957,19 @@ def get_price_on_date(ticker: str, signal_date: str) -> Optional[float]:
         return None
     except Exception:
         return None
+
+
+def get_price_on_date_latest(ticker: str):
+    """Most recent signal_log price for a ticker (for 'add now' baseline)."""
+    sb = get_supabase()
+    if not sb:
+        return None
+    try:
+        resp = sb.table("signal_log").select("price") \
+            .eq("ticker", ticker.strip().upper()).order("signal_date", desc=True) \
+            .limit(1).execute()
+        if resp.data and resp.data[0].get("price"):
+            return float(resp.data[0]["price"])
+        return None
+    except Exception:
+        return None

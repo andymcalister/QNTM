@@ -4210,35 +4210,48 @@ def page_screener():
                     _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
                     if _chart_html:
                         st.markdown(_chart_html, unsafe_allow_html=True)
-                    # Watchlist — HTML link with action params, same pattern as gems
-                    wl = get_watchlist(uid())
-                    wl_tickers = {w["ticker"] for w in wl}
-                    in_wl = resolved_tk in wl_tickers
-                    _uid_val = (st.session_state.user or {}).get("id", "")
-                    _plan_val = (st.session_state.user or {}).get("plan", "free")
-                    _qp = f"?qnav=screener&uid={_uid_val}&plan={_plan_val}&ck=1&sq={resolved_tk}"
+                    # Watchlist — native button (iframe/markdown links unreliable)
+                    from db import (get_watchlist_items as _gwi, add_watchlist_item as _awi,
+                                    remove_watchlist_item as _rwi, get_watchlists as _gws,
+                                    get_price_on_date_latest as _gpl)
+                    _wl_uid_s = uid()
+                    _def_lists = _gws(_wl_uid_s)
+                    _def_id = next((l["id"] for l in _def_lists if l.get("is_default")), 
+                                   _def_lists[0]["id"] if _def_lists else None)
+                    _wl_tickers = {w["ticker"] for w in _gwi(_wl_uid_s, _def_id)} if _def_id else set()
+                    in_wl = resolved_tk in _wl_tickers
+                    st.markdown("""
+                    <style>
+                    div[data-testid='stButton'][data-key='sr_wl_btn'] > div > button {
+                        background: linear-gradient(135deg,#d4a843,#b8922e) !important;
+                        color:#0a0b14 !important; border:none !important;
+                        font-family:Syne,sans-serif !important; font-weight:800 !important;
+                        font-size:12px !important; letter-spacing:.06em !important;
+                        border-radius:6px !important; text-transform:uppercase !important;
+                    }
+                    div[data-testid='stButton'][data-key='sr_wl_btn_rm'] > div > button {
+                        background:rgba(239,68,68,.08) !important;
+                        border:1px solid rgba(239,68,68,.35) !important;
+                        color:#ef4444 !important;
+                        font-family:Syne,sans-serif !important; font-weight:700 !important;
+                        font-size:12px !important; letter-spacing:.06em !important;
+                        border-radius:6px !important; text-transform:uppercase !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
                     if in_wl:
-                        _action_url = _qp + f"&wl_action=remove&wl_ticker={resolved_tk}"
-                        st.markdown(
-                            f'<a href="{_action_url}" target="_self" style="'
-                            f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
-                            f'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);'
-                            f'border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
-                            f'letter-spacing:.06em;text-transform:uppercase;color:#ef4444;text-decoration:none;'
-                            f'box-sizing:border-box;">✕ Remove from Watchlist</a>',
-                            unsafe_allow_html=True
-                        )
+                        if st.button("✕ Remove from Watchlist", key="sr_wl_btn_rm", use_container_width=True):
+                            if _def_id and _rwi(_wl_uid_s, _def_id, resolved_tk):
+                                st.session_state.pop("_wl_daychange_cache", None)
+                                st.toast(f"Removed {resolved_tk}")
+                                st.rerun()
                     else:
-                        _action_url = _qp + f"&wl_action=add&wl_ticker={resolved_tk}"
-                        st.markdown(
-                            f'<a href="{_action_url}" target="_self" style="'
-                            f'display:block;width:100%;text-align:center;padding:10px;margin-top:8px;'
-                            f'background:linear-gradient(135deg,#d4a843 0%,#b8922e 50%,#d4a843 100%);'
-                            f'border:none;border-radius:6px;font-family:Syne,sans-serif;font-size:12px;font-weight:800;'
-                            f'letter-spacing:.06em;text-transform:uppercase;color:#0a0b14;text-decoration:none;'
-                            f'box-sizing:border-box;">☆ + Watchlist</a>',
-                            unsafe_allow_html=True
-                        )
+                        if st.button("☆ + Watchlist", key="sr_wl_btn", use_container_width=True):
+                            _px_s = sr.get("price") or _gpl(resolved_tk)
+                            if _def_id and _awi(_wl_uid_s, _def_id, resolved_tk, _px_s):
+                                st.session_state.pop("_wl_daychange_cache", None)
+                                st.toast(f"Added {resolved_tk} to watchlist")
+                                st.rerun()
                     if resolved_tk not in ALL_SECTORS:
                         st.markdown('<div style="font-size:13px;color:#475569;margin-bottom:16px;">⚠ Not in core universe — scored from live price data. Fundamental data may be limited.</div>', unsafe_allow_html=True)
             except Exception:
@@ -4625,7 +4638,8 @@ def page_watchlist():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     from db import (get_watchlists, create_watchlist, rename_watchlist,
-                    delete_watchlist, get_watchlist_items, remove_watchlist_item)
+                    delete_watchlist, get_watchlist_items, remove_watchlist_item,
+                    add_watchlist_item, get_price_on_date_latest)
     _wl_uid = uid()
 
     # ── Handle list-management actions via query params ───────────────────────
@@ -4744,6 +4758,58 @@ def page_watchlist():
     watchlist = get_watchlist_items(_wl_uid, _active_id)
     scan      = st.session_state.get("scan_results") or []
     score_map = {r["ticker"]: r for r in scan}
+
+    # ── Native add/remove controls (iframe links are sandbox-blocked) ──────────
+    st.markdown("""
+    <style>
+    div[data-testid='stButton'][data-key='wl_native_add'] > div > button {
+        background: linear-gradient(135deg,#d4a843,#b8922e) !important;
+        color:#000 !important; border:none !important;
+        font-family:Syne,sans-serif !important; font-weight:800 !important;
+        font-size:12px !important; letter-spacing:.06em !important;
+        border-radius:6px !important;
+    }
+    div[data-testid='stButton'][data-key='wl_native_rm'] > div > button {
+        background:rgba(239,68,68,.08) !important;
+        border:1px solid rgba(239,68,68,.3) !important;
+        color:#ef4444 !important;
+        font-family:Syne,sans-serif !important; font-weight:700 !important;
+        font-size:12px !important; border-radius:6px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    _add_c, _addbtn_c = st.columns([3, 1])
+    with _add_c:
+        _new_tk = st.text_input("Add ticker", key="wl_native_add_tk",
+                                placeholder="Add a ticker — e.g. NVDA",
+                                label_visibility="collapsed")
+    with _addbtn_c:
+        if st.button("☆ Add", key="wl_native_add", use_container_width=True):
+            _tk_clean = (_new_tk or "").strip().upper()
+            if _tk_clean:
+                # price baseline from scan or signal_log
+                _px = (score_map.get(_tk_clean) or {}).get("price")
+                if not _px:
+                    _px = get_price_on_date_latest(_tk_clean)
+                if add_watchlist_item(_wl_uid, _active_id, _tk_clean, _px):
+                    st.session_state.pop("_wl_daychange_cache", None)
+                    st.session_state.pop("wl_native_add_tk", None)
+                    st.toast(f"Added {_tk_clean}")
+                    st.rerun()
+                else:
+                    st.toast(f"Could not add {_tk_clean}")
+    if watchlist:
+        _rm_c, _rmbtn_c = st.columns([3, 1])
+        with _rm_c:
+            _rm_pick = st.selectbox("Remove ticker", [w["ticker"] for w in watchlist],
+                                    key="wl_native_rm_pick", label_visibility="collapsed")
+        with _rmbtn_c:
+            if st.button("✕ Remove", key="wl_native_rm", use_container_width=True):
+                if remove_watchlist_item(_wl_uid, _active_id, _rm_pick):
+                    st.session_state.pop("_wl_daychange_cache", None)
+                    st.toast(f"Removed {_rm_pick}")
+                    st.rerun()
+    st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
 
     if not watchlist:
         st.markdown(
