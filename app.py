@@ -1723,48 +1723,68 @@ def _debug_line(r: dict) -> str:
     )
 
 
+def _card_action_button(tk: str, mode: str, nav: str, in_set: set,
+                        uid_v: str, pln_v: str, remove_url: str = None) -> str:
+    """Build the styled main-document action link under a card. `mode` selects
+    the action vocabulary: 'watchlist' | 'portfolio' | 'simulator'."""
+    if not uid_v or not tk:
+        return ""
+    _qp = f"?qnav={nav}&uid={uid_v}&plan={pln_v}&ck=1&_n={nav}"
+    if mode == "portfolio":
+        # Portfolio holdings: remove only (adding happens via the Add-holding form).
+        url = remove_url or (_qp + f"&port_action=remove&port_ticker={tk}")
+        bg, bd, col, lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Portfolio"
+    elif mode == "simulator":
+        if tk in in_set:
+            url = _qp + f"&sim_remove={tk}"
+            bg, bd, col, lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Simulation"
+        else:
+            url = _qp + f"&sim_add={tk}"
+            bg, bd, col, lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Simulation"
+    else:  # watchlist
+        if tk in in_set:
+            url = remove_url or (_qp + f"&wl_action=remove&wl_ticker={tk}")
+            bg, bd, col, lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Watchlist"
+        else:
+            url = _qp + f"&wl_action=add&wl_ticker={tk}"
+            bg, bd, col, lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Watchlist"
+    return (
+        f'<a href="{url}" target="_self" style="display:block;width:100%;text-align:center;'
+        f'padding:7px;margin:-2px 0 10px;box-sizing:border-box;background:{bg};'
+        f'border:1px solid {bd};border-radius:6px;font-family:Syne,sans-serif;'
+        f'font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;'
+        f'color:{col};text-decoration:none;">{lbl}</a>'
+    )
+
+
 def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = False,
                                company_info: dict = None, in_list: set = None,
-                               extra_detail: str = "", remove_url: str = None):
+                               extra_detail: str = "", remove_url: str = None,
+                               mode: str = "watchlist"):
     """Render ONE stock card in its own auto-resizing iframe, with a styled
-    Add/Remove watchlist button directly underneath in the MAIN document.
+    action button directly underneath in the MAIN document.
 
-    The per-card iframe keeps click-to-expand (CARD_IFRAME_TAIL resizes it),
-    and the button lives outside the iframe so its target=_self link actually
-    reaches the router. Button shows whether the card is collapsed or expanded.
-
-    remove_url: optional override for the Remove link (used by the watchlist
-    page so removal targets the active named list, not the default list).
+    `mode`: 'watchlist' (add/remove watchlist), 'portfolio' (remove holding),
+    or 'simulator' (add/remove from the simulated basket). The per-card iframe
+    keeps click-to-expand (CARD_IFRAME_TAIL resizes it); the button lives
+    outside the iframe so its target=_self link reaches the router.
     """
     import streamlit.components.v1 as _cv1_card
     tk = r.get("ticker", "")
     _html = factor_panel_html(r, is_gem, company_info=company_info)
     if extra_detail:
         _html += extra_detail
-    # Height: collapsed ~70px; CARD_IFRAME_TAIL grows it on expand.
     _cv1_card.html(_html + CARD_IFRAME_TAIL, height=76, scrolling=False)
 
     _uid_v = (st.session_state.user or {}).get("id", "")
     _pln_v = (st.session_state.user or {}).get("plan", "free")
     if not _uid_v or not tk:
         return
-    if in_list is None:
+    if in_list is None and mode == "watchlist":
         in_list = {w["ticker"] for w in get_watchlist(_uid_v)}
-    _qp = f"?qnav={nav}&uid={_uid_v}&plan={_pln_v}&ck=1&_n={nav}"
-    if tk in in_list:
-        _url = remove_url or (_qp + f"&wl_action=remove&wl_ticker={tk}")
-        _bg, _bd, _col, _lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Watchlist"
-    else:
-        _url = _qp + f"&wl_action=add&wl_ticker={tk}"
-        _bg, _bd, _col, _lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Watchlist"
-    st.markdown(
-        f'<a href="{_url}" target="_self" style="display:block;width:100%;text-align:center;'
-        f'padding:7px;margin:-2px 0 10px;box-sizing:border-box;background:{_bg};'
-        f'border:1px solid {_bd};border-radius:6px;font-family:Syne,sans-serif;'
-        f'font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;'
-        f'color:{_col};text-decoration:none;">{_lbl}</a>',
-        unsafe_allow_html=True,
-    )
+    btn = _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url)
+    if btn:
+        st.markdown(btn, unsafe_allow_html=True)
 
 
 def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set = None):
@@ -6328,20 +6348,18 @@ def page_portfolio():
         )
         # Inject the P&L strip into the qcard-detail (same trick as model portfolio)
         _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
-        _port_html += _card
 
-        # Remove from portfolio button — target="_top" so the link reaches main()
-        # even when rendered inside the components.v1.html iframe below.
-        _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&port_action=remove&port_ticker={tk}"
-        _port_html += (
-            f'<a href="{_rm_url}" target="_top" style="display:block;width:100%;text-align:center;'
-            f'padding:5px;margin-top:-4px;margin-bottom:8px;box-sizing:border-box;'
-            f'background:transparent;border:1px solid rgba(255,255,255,.05);'
-            f'border-radius:0 0 6px 6px;font-family:Syne,sans-serif;font-size:10px;'
-            f'letter-spacing:.06em;color:#334155;text-decoration:none;">✕ Remove {tk}</a>'
+        # Per-card render: card iframe + Remove-from-Portfolio button under it.
+        import streamlit.components.v1 as _cv1_pcard
+        _cv1_pcard.html(_card + CARD_IFRAME_TAIL, height=76, scrolling=False)
+        _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&_n=portfolio&port_action=remove&port_ticker={tk}"
+        st.markdown(
+            _card_action_button(tk, "portfolio", "portfolio", set(),
+                                _uid_pv, _pln_pv, remove_url=_rm_url),
+            unsafe_allow_html=True,
         )
 
-    if _port_html:
+    if False:  # legacy batch render disabled — cards now render per-card above
         import streamlit.components.v1 as _cv1_pv
         _pv_n  = _port_html.count('qcard-wrap')
         # 130px/closed card + 520px for one expanded card (pillars, 4-box row,
@@ -7778,6 +7796,9 @@ def page_model_portfolio():
     from model_engine import SECTORS as _MP_SECTORS
     _mp_prog = st.progress(0, text="Building positions...")
     _mp_html = ""
+    _mp_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+    _mp_uid = (st.session_state.user or {}).get("id", "")
+    _mp_pln = (st.session_state.user or {}).get("plan", "free")
     _mp_sorted = sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)
     for _mp_i, h in enumerate(_mp_sorted):
         tk    = h["ticker"]
@@ -7835,10 +7856,17 @@ def page_model_portfolio():
         )
         # Insert P&L before the closing qcard-detail div
         _card = _card.replace('</div></div>', _pnl_html + '</div></div>', 1)
-        _mp_html += _card
+        # Per-card render: card iframe + Add/Remove watchlist button under it.
+        import streamlit.components.v1 as _cv1_mpcard
+        _cv1_mpcard.html(_card + CARD_IFRAME_TAIL, height=76, scrolling=False)
+        st.markdown(
+            _card_action_button(tk, "watchlist", "model_portfolio", _mp_wl_now,
+                                _mp_uid, _mp_pln),
+            unsafe_allow_html=True,
+        )
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
-    if _mp_html:
+    if False:  # legacy batch render disabled — per-card above
         import streamlit.components.v1 as _cv1_mp
         _mp_n = _mp_html.count('qcard-wrap')
         # Closed cards stack ~120px each in practice; one expanded card adds
