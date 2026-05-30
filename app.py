@@ -1783,6 +1783,29 @@ def _card_action_button(tk: str, mode: str, nav: str, in_set: set,
     )
 
 
+def build_card_html(r: dict, nav: str = "screener", is_gem: bool = False,
+                    company_info: dict = None, in_list: set = None,
+                    extra_detail: str = "", remove_url: str = None,
+                    mode: str = "watchlist") -> str:
+    """Return ONE card's HTML (no st call) so callers can concatenate a whole
+    list and render it in a single st.markdown — far less Streamlit overhead
+    than one markdown call per card."""
+    tk = r.get("ticker", "")
+    _uid_v = (st.session_state.user or {}).get("id", "")
+    _pln_v = (st.session_state.user or {}).get("plan", "free")
+    if in_list is None and mode == "watchlist":
+        in_list = {w["ticker"] for w in get_watchlist(_uid_v)} if _uid_v else set()
+    _btn = _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url) if (_uid_v and tk) else ""
+    return factor_panel_html(r, is_gem, company_info=company_info,
+                             wl_btn=(extra_detail + _btn), as_details=True)
+
+
+def render_cards_batch(cards_html: str):
+    """Render a concatenated string of card HTML in one st.markdown call."""
+    if cards_html:
+        st.markdown(cards_html, unsafe_allow_html=True)
+
+
 def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = False,
                                company_info: dict = None, in_list: set = None,
                                extra_detail: str = "", remove_url: str = None,
@@ -1795,17 +1818,10 @@ def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = Fa
 
     `mode`: 'watchlist' | 'portfolio' | 'simulator'.
     """
-    tk = r.get("ticker", "")
-    _uid_v = (st.session_state.user or {}).get("id", "")
-    _pln_v = (st.session_state.user or {}).get("plan", "free")
-    if in_list is None and mode == "watchlist":
-        in_list = {w["ticker"] for w in get_watchlist(_uid_v)} if _uid_v else set()
-    _btn = _card_action_button(tk, mode, nav, in_list or set(), _uid_v, _pln_v, remove_url) if (_uid_v and tk) else ""
-    # factor_panel_html_flat returns header + detail as plain divs (no iframe,
-    # no qcard-header JS toggle); we wrap the detail in <details> for collapse.
-    _html = factor_panel_html(r, is_gem, company_info=company_info,
-                              wl_btn=(extra_detail + _btn), as_details=True)
-    st.markdown(_html, unsafe_allow_html=True)
+    st.markdown(
+        build_card_html(r, nav, is_gem, company_info, in_list, extra_detail, remove_url, mode),
+        unsafe_allow_html=True,
+    )
 
 
 def _unused_external_button():
@@ -1985,7 +2001,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
             f'</summary>'
         )
         return (
-            f'<details style="margin-bottom:6px;background:rgba(255,255,255,.02);'
+            f'<details name="qntm-cards" class="qntm-card-details" '
+            f'style="margin-bottom:6px;background:rgba(255,255,255,.02);'
             f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
             f'border-radius:8px;overflow:hidden;">'
             + _summary + _body + '</details>'
@@ -4591,6 +4608,7 @@ def page_screener():
                     f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>',
                     unsafe_allow_html=True)
                 _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+                _col_html = ""
                 for i, r in enumerate(ranked):
                     ci     = get_company_info(r["ticker"])
                     is_gem = r["ticker"] in gem_tickers
@@ -4599,8 +4617,9 @@ def page_screener():
                         r = dict(r); r["adj_action"] = "SELL"
                     elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                         r = dict(r); r["adj_action"] = "BUY"
-                    render_card_with_watchlist(r, nav="screener", is_gem=is_gem,
-                                               company_info=ci, in_list=_wl_now)
+                    _col_html += build_card_html(r, nav="screener", is_gem=is_gem,
+                                                 company_info=ci, in_list=_wl_now)
+                render_cards_batch(_col_html)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -4692,6 +4711,7 @@ def page_screener():
         _ci_cache = st.session_state.get("company_info_cache", {})
         _fu_prog = st.progress(0, text="Loading cards...")
         _fu_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+        _fu_html = ""
         for _fu_i, r in enumerate(_page_items):
             ci = _ci_cache.get(r["ticker"])
             _extra = ""
@@ -4700,12 +4720,13 @@ def page_screener():
                 _ch = signal_history_chart(r["ticker"], _sc)
                 if _ch:
                     _extra = _ch
-            render_card_with_watchlist(r, nav="screener",
-                                       is_gem=(r["ticker"] in gem_tickers),
-                                       company_info=ci, in_list=_fu_wl_now,
-                                       extra_detail=_extra)
+            _fu_html += build_card_html(r, nav="screener",
+                                        is_gem=(r["ticker"] in gem_tickers),
+                                        company_info=ci, in_list=_fu_wl_now,
+                                        extra_detail=_extra)
             _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
         _fu_prog.empty()
+        render_cards_batch(_fu_html)
 
         if _show_gate:
             st.markdown(
@@ -5225,15 +5246,15 @@ def page_watchlist():
                 'border-radius:0 0 6px 6px;">'
                 + "".join(_segments) + '</div>'
             )
-        # Per-card: card iframe (+ P&L strip) and a Remove button underneath.
+        # Per-card: card + P&L strip + Remove button, accumulated for one render.
         _wl_rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
                       f"&plan={st.query_params.get('plan','free')}&ck=1&_n=watchlist"
                       f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
-        render_card_with_watchlist(sc, nav="watchlist", is_gem=(tk in _wl_gems),
-                                   company_info=ci, in_list=_wl_active_tickers,
-                                   extra_detail=_since_html, remove_url=_wl_rm_url)
+        _cards_html += build_card_html(sc, nav="watchlist", is_gem=(tk in _wl_gems),
+                                       company_info=ci, in_list=_wl_active_tickers,
+                                       extra_detail=_since_html, remove_url=_wl_rm_url)
 
-    # (legacy batch iframe render removed — cards now render per-card above)
+    render_cards_batch(_cards_html)
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
@@ -5371,7 +5392,8 @@ def page_gems():
     # Load current watchlist to know which gems are already added
     wl_tickers = {w["ticker"] for w in get_watchlist(uid())}
 
-    # Gems use same collapsed card pattern — now per-card with watchlist button
+    # Gems use same collapsed card pattern — batched into one markdown render
+    _gems_html = ""
     for g in gems:
         tk = g.get("ticker", "")
         try:
@@ -5382,10 +5404,11 @@ def page_gems():
             if not g.get("sector") or g.get("sector") == "Unknown":
                 g["sector"] = SECTORS.get(tk, "")
             ci = get_company_info(tk)
-            render_card_with_watchlist(g, nav="gems", is_gem=True,
-                                       company_info=ci, in_list=wl_tickers)
+            _gems_html += build_card_html(g, nav="gems", is_gem=True,
+                                          company_info=ci, in_list=wl_tickers)
         except Exception:
             pass
+    render_cards_batch(_gems_html)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -8120,6 +8143,35 @@ def page_methodology():
 
 
 def page_platform():
+    # ── Accordion behavior for cards (one open at a time) ──────────────────────
+    # Cards render as <details name="qntm-cards">; modern browsers make same-named
+    # details mutually exclusive natively. This JS is a fallback for browsers that
+    # don't yet support the `name` attribute — it closes sibling cards on open.
+    import streamlit.components.v1 as _cv1_acc
+    _cv1_acc.html("""
+    <script>
+    (function(){
+      var pd = parent.document;
+      function bind(){
+        pd.querySelectorAll('details.qntm-card-details').forEach(function(d){
+          if(d._accBound) return;
+          d._accBound = true;
+          d.addEventListener('toggle', function(){
+            if(d.open){
+              pd.querySelectorAll('details.qntm-card-details').forEach(function(o){
+                if(o!==d && o.open) o.open=false;
+              });
+            }
+          });
+        });
+      }
+      bind();
+      var mo = new MutationObserver(bind);
+      mo.observe(pd.body, {childList:true, subtree:true});
+    })();
+    </script>
+    """, height=0)
+
     # ── Force MFA setup on first login ─────────────────────────────────────────
     if st.session_state.get("force_mfa_setup"):
         user = st.session_state.user or {}
