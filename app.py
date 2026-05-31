@@ -2407,7 +2407,7 @@ PRIVACY_POLICY = """
 |----------|---------|---------------------|
 | Stripe, Inc. | Payment processing | stripe.com/privacy |
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
-| Streamlit (a Snowflake company) | Application hosting | streamlit.io/privacy |
+| Render (Render Services, Inc.) | Application hosting | render.com/privacy |
 | SendGrid (Twilio) | Transactional email — only if you enable email notifications | sendgrid.com/policies/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
@@ -7660,9 +7660,9 @@ def page_account():
                                         _arl_f2.log_consent(uid(), plan="pro_supporter", ip_address=_ipf)
                                         from db import get_stripe_billing as _gsbf
                                         _exf = _gsbf(uid()).get("stripe_customer_id")
-                                        _basef = "https://qntmmvp.streamlit.app"
+                                        _basef = "https://qntm.live"
                                         try:
-                                            _basef = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                                            _basef = "https://" + (st.context.headers.get("Host") or "qntm.live")
                                         except Exception:
                                             pass
                                         _emf = (st.session_state.user or {}).get("email", "")
@@ -8634,9 +8634,9 @@ def page_upgrade():
                     _arl.log_consent(_uid_val, plan="pro", ip_address=_ip)
                     from db import get_stripe_billing as _gsb
                     _existing = _gsb(_uid_val).get("stripe_customer_id")
-                    _base = "https://qntmmvp.streamlit.app"
+                    _base = "https://qntm.live"
                     try:
-                        _base = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                        _base = "https://" + (st.context.headers.get("Host") or "qntm.live")
                     except Exception:
                         pass
                     _email = (st.session_state.user or {}).get("email", "")

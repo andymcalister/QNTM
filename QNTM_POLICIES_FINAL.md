@@ -184,7 +184,7 @@ We'll give you 14 days' email notice before material changes take effect. The no
 |----------|---------|---------------------|
 | Stripe, Inc. | Payment processing | stripe.com/privacy |
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
-| Streamlit (a Snowflake company) | Application hosting | streamlit.io/privacy |
+| Render (Render Services, Inc.) | Application hosting | render.com/privacy |
 | SendGrid (Twilio) | Transactional email — only if you enable email notifications | sendgrid.com/policies/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
