@@ -37,6 +37,7 @@ MAX_RETRIES        = 2      # retry failed tickers once
 STALE_HOURS        = 20     # treat cache as stale after this many hours
 FUNDAMENTALS_TABLE = "fundamentals_cache"   # new table (see schema addition below)
 SIGNAL_TABLE       = "signal_log"
+MACRO_STATE_TABLE  = "macro_state"          # single-row live macro overlay (see schema below)
 
 
 # ── SUPABASE CLIENT ───────────────────────────────────────────────────────────
@@ -309,6 +310,42 @@ def write_fundamentals_cache(ticker_data: dict) -> bool:
         return False
 
 
+def _write_macro_state(macro: dict) -> bool:
+    """
+    Persist the latest macro overlay so every reader (intraday pass, app banner,
+    next macro pass) shares one source of truth. Stored json-encoded to match the
+    fundamentals_cache convention.
+    """
+    sb = _get_supabase()
+    if not sb:
+        return False
+    try:
+        sb.table(MACRO_STATE_TABLE).upsert(
+            {"id": 1,
+             "overlay":    json.dumps(macro),
+             "updated_at": datetime.utcnow().isoformat()},
+            on_conflict="id"
+        ).execute()
+        return True
+    except Exception as e:
+        log.warning(f"macro_state write failed: {e}")
+        return False
+
+
+def _load_macro_state() -> dict:
+    """Read the latest persisted macro overlay. Returns {} if unavailable/empty."""
+    sb = _get_supabase()
+    if not sb:
+        return {}
+    try:
+        resp = sb.table(MACRO_STATE_TABLE).select("overlay").eq("id", 1).limit(1).execute()
+        if resp.data:
+            return json.loads(resp.data[0]["overlay"])
+    except Exception:
+        pass
+    return {}
+
+
 def write_signal_snapshot(scored_list: list) -> bool:
     """
     Write today's scored universe to signal_log for historical tracking
@@ -351,6 +388,82 @@ def write_signal_snapshot(scored_list: list) -> bool:
     except Exception as e:
         log.error(f"Signal snapshot write failed: {e}")
         return False
+
+
+def publish_signal_batch(scored_list: list, signal_date: str = None) -> Optional[str]:
+    """
+    ATOMIC, SIMULTANEOUS PUBLISH (compliance Part 1).
+
+    Commits the entire day's signal batch in a SINGLE database transaction via
+    the `publish_signal_batch` Postgres RPC (see migrations/atomic_publishing.sql).
+    Either the whole new batch becomes visible at once, or — on any failure —
+    nothing changes and the prior batch stays live. No partial/mixed state, and
+    no per-user staggering: every reader of signal_log flips to the new batch at
+    the same published_at instant.
+
+    Also writes the append-only audit row (batch_id, published_at, ticker list,
+    signal values, content hash) inside the same transaction as the evidence of
+    when each signal became public.
+
+    Returns the published_at ISO timestamp on success, else None.
+
+    FLAG FOR ATTORNEY REVIEW before taking paying users.
+    """
+    import uuid
+
+    sb = _get_supabase()
+    if not sb:
+        return False if False else None
+
+    sig_date = signal_date or date.today().isoformat()
+    batch_id = str(uuid.uuid4())
+
+    rows = []
+    for s in scored_list:
+        rows.append({
+            "ticker":        s["ticker"],
+            "composite":     s.get("composite"),
+            "momentum":      s.get("momentum"),
+            "quality":       s.get("quality"),
+            "volume":        s.get("volume"),
+            "value":         s.get("value"),
+            "sentiment":     s.get("sentiment"),
+            "signal":        s.get("signal"),
+            "macro_overlay": s.get("macro_overlay"),
+            "adj_composite": s.get("adj_composite"),
+            "price":         s.get("price"),
+            "is_hidden_gem": s.get("is_hidden_gem", False),
+            "hidden_gem_reason": (
+                ", ".join(s.get("gem_reasons", [])) if s.get("gem_reasons") else None
+            ),
+        })
+
+    # Canonical content hash of the batch (stable key ordering) — the integrity
+    # fingerprint stored in the audit log.
+    canonical = json.dumps(
+        sorted(
+            [{"t": r["ticker"], "a": r["adj_composite"], "s": r["signal"]} for r in rows],
+            key=lambda x: x["t"],
+        ),
+        separators=(",", ":"), sort_keys=True,
+    )
+    content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    try:
+        resp = sb.rpc("publish_signal_batch", {
+            "p_batch_id":     batch_id,
+            "p_signal_date":  sig_date,
+            "p_rows":         rows,
+            "p_content_hash": content_hash,
+        }).execute()
+        published_at = resp.data if isinstance(resp.data, str) else None
+        # Out-of-band leakage guard (Part 1 #6): only log new signal values AFTER
+        # the public commit and after published_at is set.
+        log.info(f"Published batch {batch_id} ({len(rows)} signals) at {published_at}")
+        return published_at or batch_id
+    except Exception as e:
+        log.error(f"Atomic publish failed (rolled back, prior batch still live): {e}")
+        return None
 
 
 # ── SUPABASE CACHE: READ ──────────────────────────────────────────────────────
@@ -430,81 +543,128 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
 
 def update_model_portfolio(scored_list: list) -> None:
     """
-    Nightly model portfolio maintenance:
-    1. On first run (no active positions): seed top 20 BUY signals as of today
-    2. On subsequent runs:
-       - Exit any active position whose adj_composite < 45 (SELL signal)
-       - If positions drop below 20, fill from next-best BUY signals not already held
-    Entry date and price = today. Position size = $10,000 equal weight.
+    Model portfolio maintenance — runs nightly AND intraday.
+
+    Strategy:
+    - Target: 50 positions, $2,000 equal weight ($100K total)
+    - Entry:  adj_composite >= 60 (High Conviction)
+    - Hold:   by default — no action while score stays >= 45
+    - Exit:   adj_composite < 45 (conviction collapsed) → sell, log exit
+    - Reinvest: immediately look for next High Conviction stock not held,
+                respecting 30% sector cap (max 15 per sector).
+                If none available, slot stays open — filled on next refresh
+                that finds a qualifying stock.
+    - Sector cap: max 30% of portfolio (15/50) in any one sector at entry time.
+                  Existing positions are never force-exited for sector reasons —
+                  only new entries are blocked.
     """
     sb = _get_supabase()
     if not sb:
-        log.warning("[MODEL PORTFOLIO] No Supabase — skipping update")
+        log.warning("[MODEL PORTFOLIO] No Supabase — skipping")
         return
 
     try:
-        today      = date.today().isoformat()
-        pos_size   = 10000
+        from universe_data import SECTORS as _SECTORS
+    except Exception:
+        _SECTORS = {}
 
-        # Score map: ticker → row
+    try:
+        today     = date.today().isoformat()
+        POS_SIZE  = 2000.0
+        TARGET    = 50
+        SECT_CAP  = 15   # 30% of 50
+
         score_map = {r["ticker"]: r for r in scored_list}
 
-        # ── Fetch active positions ────────────────────────────────────────────
+        # ── Load active positions ─────────────────────────────────────────────
         active_resp = sb.table("model_portfolio_positions") \
             .select("id,ticker,entry_date,entry_price,entry_score") \
             .eq("is_active", True) \
             .execute()
-        active = active_resp.data or []
+        active         = active_resp.data or []
         active_tickers = {p["ticker"] for p in active}
 
-        # ── Step 1: Exit positions that triggered SELL ────────────────────────
+        # ── Build current sector counts from active positions ─────────────────
+        sector_counts: dict = {}
+        for p in active:
+            sec = _SECTORS.get(p["ticker"], "Unknown")
+            sector_counts[sec] = sector_counts.get(sec, 0) + 1
+
+        # ── Step 1: Exit any position whose conviction has collapsed ──────────
         exited = []
         for pos in active:
-            tk = pos["ticker"]
-            scored = score_map.get(tk)
-            if not scored:
+            tk     = pos["ticker"]
+            sc     = score_map.get(tk)
+            if not sc:
                 continue
-            adj = scored.get("adj_composite", scored.get("composite", 50))
+            adj = float(sc.get("adj_composite", sc.get("composite", 50)) or 50)
             if adj < 45:
-                exit_price = scored.get("price")
                 sb.table("model_portfolio_positions").update({
                     "is_active":   False,
                     "exit_date":   today,
-                    "exit_price":  exit_price,
-                    "exit_score":  adj,
+                    "exit_price":  sc.get("price"),
+                    "exit_score":  round(adj, 1),
                     "exit_reason": "SELL_SIGNAL",
                 }).eq("id", pos["id"]).execute()
                 exited.append(tk)
                 active_tickers.discard(tk)
-                log.info(f"[MODEL PORTFOLIO] Exited {tk} (score={adj:.1f})")
+                # Reduce sector count for exited position
+                sec = _SECTORS.get(tk, "Unknown")
+                sector_counts[sec] = max(0, sector_counts.get(sec, 1) - 1)
+                log.info(f"[MODEL PORTFOLIO] EXIT {tk} score={adj:.1f} — conviction collapsed")
 
-        # ── Step 2: Seed or fill to 20 positions ─────────────────────────────
-        # Get ranked BUY signals (score >= 60), excluding already held
-        buys = sorted(
+        # ── Step 2: Fill open slots up to TARGET ─────────────────────────────
+        slots_needed = TARGET - len(active_tickers)
+        if slots_needed <= 0:
+            log.info(f"[MODEL PORTFOLIO] Full ({len(active_tickers)}/{TARGET}) — "
+                     f"{len(exited)} exited this run")
+            return
+
+        # Rank all High Conviction stocks not already held
+        candidates = sorted(
             [r for r in scored_list
-             if r.get("adj_composite", r.get("composite", 0)) >= 60
-             and r["ticker"] not in active_tickers],
-            key=lambda x: x.get("adj_composite", x.get("composite", 0)),
+             if float(r.get("adj_composite", r.get("composite", 0)) or 0) >= 60
+             and r["ticker"] not in active_tickers
+             and r.get("price")],
+            key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0),
             reverse=True
         )
 
-        slots_needed = 20 - len(active_tickers)
-        new_entries  = buys[:slots_needed]
+        entered = []
+        skipped_cap = 0
+        for r in candidates:
+            if len(entered) >= slots_needed:
+                break
+            tk  = r["ticker"]
+            sec = _SECTORS.get(tk, "Unknown")
 
-        for r in new_entries:
-            tk = r["ticker"]
+            # Enforce 30% sector cap on new entries only
+            if sector_counts.get(sec, 0) >= SECT_CAP:
+                skipped_cap += 1
+                continue
+
+            adj = float(r.get("adj_composite", r.get("composite", 60)) or 60)
             sb.table("model_portfolio_positions").insert({
                 "ticker":        tk,
                 "entry_date":    today,
                 "entry_price":   r.get("price"),
-                "entry_score":   r.get("adj_composite", r.get("composite", 50)),
-                "position_size": pos_size,
+                "entry_score":   round(adj, 1),
+                "position_size": POS_SIZE,
                 "is_active":     True,
             }).execute()
-            log.info(f"[MODEL PORTFOLIO] Entered {tk} @ {r.get('price')} (score={r.get('adj_composite', 50):.1f})")
+            sector_counts[sec] = sector_counts.get(sec, 0) + 1
+            active_tickers.add(tk)
+            entered.append(tk)
+            log.info(f"[MODEL PORTFOLIO] ENTER {tk} ({sec}) @ ${r.get('price')} score={adj:.1f}")
 
-        log.info(f"[MODEL PORTFOLIO] Update complete — {len(exited)} exited, {len(new_entries)} entered, "
-                 f"{len(active_tickers)} held")
+        remaining_open = slots_needed - len(entered)
+        log.info(
+            f"[MODEL PORTFOLIO] Run complete — "
+            f"{len(exited)} exited, {len(entered)} entered, "
+            f"{len(active_tickers)} active/{TARGET} target, "
+            f"{remaining_open} slots open (waiting for conviction), "
+            f"{skipped_cap} blocked by sector cap"
+        )
 
     except Exception as e:
         log.error(f"[MODEL PORTFOLIO] Update failed: {e}")
@@ -646,6 +806,7 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
 
         # Apply live macro overlay
         macro = fetch_macro_overlay(use_live_feeds=True)
+        _write_macro_state(macro)
         scored = apply_macro_overlay(scores, macro)
 
         # Write to signal_log
@@ -704,6 +865,19 @@ ALTER TABLE public.fundamentals_cache ENABLE ROW LEVEL SECURITY;
 -- Index for fast date-filtered lookups
 CREATE INDEX IF NOT EXISTS idx_fundamentals_cache_date
     ON public.fundamentals_cache(data_date, refreshed_at);
+
+-- ── macro_state: single-row live macro overlay (run once in Supabase SQL editor) ──
+CREATE TABLE IF NOT EXISTS public.macro_state (
+    id          INT PRIMARY KEY DEFAULT 1,
+    overlay     JSONB NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT macro_state_singleton CHECK (id = 1)
+);
+
+ALTER TABLE public.macro_state ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Macro state public read" ON public.macro_state
+    FOR SELECT USING (true);
 """
 
 
@@ -728,7 +902,7 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     if not sb:
         return {"success": False, "error": "No Supabase connection"}
 
-    today = datetime.date.today().isoformat()
+    today = date.today().isoformat()
     updated = 0
     failed  = 0
 
@@ -790,17 +964,147 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     if sb and updated > 0:
         try:
             sb.table("fundamentals_cache").upsert(
-                {"ticker": "_intraday_sentinel", "data_date": datetime.date.today().isoformat(),
-                 "refreshed_at": datetime.datetime.utcnow().isoformat(),
-                 "fundamentals": {}, "price": None, "vol_ratio": None},
+                {"ticker": "_intraday_sentinel", "data_date": date.today().isoformat(),
+                 "refreshed_at": datetime.utcnow().isoformat(),
+                 "fundamentals": "{}", "price": None, "vol_ratio": None},
                 on_conflict="ticker,data_date"
             ).execute()
         except Exception:
             pass  # non-critical
 
+    # ── Model portfolio maintenance (exits + fills) ───────────────────────────
+    # Load today's scored universe from signal_log and run portfolio logic.
+    # This catches intraday conviction drops (exits) and new entries.
+    try:
+        today_str = date.today().isoformat()
+        sig_resp = sb.table("signal_log") \
+            .select("ticker,adj_composite,composite,price,momentum,quality,volume,value,sentiment") \
+            .eq("signal_date", today_str) \
+            .execute()
+        if sig_resp.data:
+            # Apply macro overlay to get fresh adj_composite scores
+            try:
+                from model_engine import apply_macro_overlay, fetch_macro_overlay
+                macro = _load_macro_state() or fetch_macro_overlay(use_live_feeds=False)
+                scored_today = apply_macro_overlay(sig_resp.data, macro)
+            except Exception:
+                scored_today = sig_resp.data  # use raw if overlay fails
+            update_model_portfolio(scored_today)
+        else:
+            log.info("[MODEL PORTFOLIO] No signal_log data for today — skipping intraday portfolio update")
+    except Exception as e:
+        log.warning(f"[MODEL PORTFOLIO] Intraday update failed: {e}")
+
     if updated == 0 and failed == len(tickers):
         return {"success": False, "error": f"All {failed} batches failed", "updated": 0, "duration_s": duration}
     return {"success": True, "updated": updated, "failed": failed, "duration_s": duration, "mode": "intraday"}
+
+
+# ── LIVE MACRO REFRESH ────────────────────────────────────────────────────────
+def run_macro_refresh(tickers: list = None) -> dict:
+    """
+    Lightweight live macro pass. Re-scans news/macro feeds and re-applies the
+    sector overlay to today's EXISTING scores — no fundamental/price re-fetch.
+    Cheap enough (a handful of RSS + VIX + WTI calls) to run every 30 min all
+    day, including after hours and weekends, so a breaking macro/geopolitical
+    event moves adj_composite intraday instead of waiting for the nightly run.
+
+    Steps:
+      1. fetch_macro_overlay(use_live_feeds=True)        — RSS headlines + VIX + WTI
+      2. persist it to macro_state (single source of truth)
+      3. load today's signal_log rows, attach sector from fundamentals_cache
+      4. apply_macro_overlay -> fresh adj_composite / signal / macro_overlay
+      5. write the refreshed rows back to signal_log
+      6. update_model_portfolio on the new scores
+    """
+    from model_engine import fetch_macro_overlay, apply_macro_overlay
+
+    log.info("Macro refresh: scanning live macro feeds")
+    start = time.time()
+    sb = _get_supabase()
+    if not sb:
+        return {"success": False, "error": "No Supabase connection", "mode": "macro"}
+
+    today = date.today().isoformat()
+
+    # 1-2. Live scan + persist (do this even if there are no scores yet to adjust)
+    macro = fetch_macro_overlay(use_live_feeds=True)
+    _write_macro_state(macro)
+
+    # 3. Load today's scores
+    try:
+        resp = sb.table(SIGNAL_TABLE).select(
+            "ticker,composite,momentum,quality,volume,value,sentiment,"
+            "signal,macro_overlay,adj_composite,price,is_hidden_gem,hidden_gem_reason"
+        ).eq("signal_date", today).execute()
+        rows = resp.data or []
+    except Exception as e:
+        return {"success": False, "error": f"signal_log read failed: {e}",
+                "mode": "macro", "regime": macro.get("regime")}
+
+    if not rows:
+        duration = round(time.time() - start, 1)
+        log.info("Macro refresh: no signal_log rows for today yet — macro_state saved only")
+        return {"success": True, "mode": "macro", "regime": macro.get("regime"),
+                "source": macro.get("source"), "updated": 0, "duration_s": duration}
+
+    # 4. Attach sector (required for the sector overlay) from cached fundamentals
+    fund = load_cached_fundamentals(max_age_hours=48)
+    for r in rows:
+        f = fund.get(r["ticker"], {})
+        r["sector"]    = f.get("sector", "Unknown")
+        r["composite"] = float(r.get("composite") or 50)
+        r["momentum"]  = float(r.get("momentum")  or 50)
+
+    scored = apply_macro_overlay(rows, macro)
+
+    # 5. Write back ONLY the macro-derived columns. The intraday price pass owns
+    #    price/composite/momentum; this pass owns adj_composite/signal/macro_overlay.
+    #    Disjoint column sets => the two jobs can run at the same instant safely
+    #    (PostgREST upserts only the columns present; today's rows already exist).
+    write_rows = []
+    for s in scored:
+        write_rows.append({
+            "ticker":        s["ticker"],
+            "signal_date":   today,
+            "adj_composite": s.get("adj_composite"),
+            "signal":        s.get("signal"),
+            "macro_overlay": s.get("macro_overlay"),
+        })
+    updated = 0
+    try:
+        for i in range(0, len(write_rows), BATCH_SIZE):
+            batch = write_rows[i:i + BATCH_SIZE]
+            sb.table(SIGNAL_TABLE).upsert(batch, on_conflict="ticker,signal_date").execute()
+            updated += len(batch)
+    except Exception as e:
+        return {"success": False, "error": f"signal_log write failed: {e}",
+                "mode": "macro", "regime": macro.get("regime")}
+
+    # 6. Refresh model portfolio (exits/entries) on the new scores
+    try:
+        update_model_portfolio(scored)
+    except Exception as e:
+        log.warning(f"[MODEL PORTFOLIO] Macro-pass update failed: {e}")
+
+    # Touch the pill timestamp (reuse the intraday sentinel row)
+    try:
+        sb.table("fundamentals_cache").upsert(
+            {"ticker": "_intraday_sentinel", "data_date": today,
+             "refreshed_at": datetime.utcnow().isoformat(),
+             "fundamentals": "{}", "price": None, "vol_ratio": None},
+            on_conflict="ticker,data_date"
+        ).execute()
+    except Exception:
+        pass
+
+    duration = round(time.time() - start, 1)
+    log.info(f"Macro refresh complete: regime={macro.get('regime')} "
+             f"({macro.get('source')}) — {updated} rows re-scored in {duration}s")
+    return {"success": True, "mode": "macro",
+            "regime": macro.get("regime"), "source": macro.get("source"),
+            "active_events": macro.get("active_events"),
+            "updated": updated, "duration_s": duration}
 
 
 # ── ENTRYPOINT ────────────────────────────────────────────────────────────────
@@ -810,6 +1114,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="QNTM Nightly Data Refresh")
     parser.add_argument("--force",    action="store_true", help="Bypass freshness check")
     parser.add_argument("--intraday", action="store_true", help="Run lightweight intraday price refresh only")
+    parser.add_argument("--macro",    action="store_true", help="Run lightweight live macro re-scan + overlay re-apply only")
     parser.add_argument("--tickers",  nargs="*",           help="Specific tickers to refresh")
     parser.add_argument("--schema",   action="store_true", help="Print schema SQL and exit")
     args = parser.parse_args()
@@ -821,8 +1126,11 @@ if __name__ == "__main__":
     # Respect INTRADAY_RUN env var (set by GitHub Actions intraday cron)
     import os
     is_intraday = args.intraday or os.getenv("INTRADAY_RUN", "false").lower() == "true"
+    is_macro    = args.macro    or os.getenv("MACRO_RUN",    "false").lower() == "true"
 
-    if is_intraday:
+    if is_macro:
+        result = run_macro_refresh(tickers=args.tickers)
+    elif is_intraday:
         result = run_intraday_refresh(tickers=args.tickers)
     else:
         result = run_refresh(tickers=args.tickers, force=args.force)
