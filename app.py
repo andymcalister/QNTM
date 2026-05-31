@@ -7625,6 +7625,8 @@ def page_account():
                                     _emf = (st.session_state.user or {}).get("email", "")
                                     _urlf = _sb_f.create_checkout_url(uid(), _emf, _basef, _exf)
                                     if _urlf:
+                                        st.session_state["_awaiting_checkout"] = 3
+                                        st.session_state["_stripe_polled"] = False
                                         st.markdown(
                                             f'<a href="{_urlf}" target="_self" style="display:block;'
                                             f'width:100%;box-sizing:border-box;text-align:center;'
@@ -8582,6 +8584,8 @@ def page_upgrade():
                     _email = (st.session_state.user or {}).get("email", "")
                     _url = _sb_pay.create_checkout_url(_uid_val, _email, _base, _existing)
                     if _url:
+                        st.session_state["_awaiting_checkout"] = 3
+                        st.session_state["_stripe_polled"] = False
                         # ack email fires after checkout completes (on return), not here
                         st.markdown(
                             f'<a href="{_url}" target="_self" style="display:block;'
@@ -8821,9 +8825,13 @@ def main():
                         upgrade_plan(uid(), "free")
                         if st.session_state.get("user"):
                             st.session_state.user["plan"] = "free"
-            elif (not _sub_id) and _sbp2.billing_configured() and not _bs.get("billing_active"):
-                # Self-heal: no stored subscription, but the user may have one in
-                # Stripe (e.g. a checkout that failed to finalize). Look up by email.
+            elif (not _sub_id) and _sbp2.billing_configured() and not _bs.get("billing_active") \
+                    and int(st.session_state.get("_awaiting_checkout", 0) or 0) > 0:
+                # Self-heal ONLY when we're expecting a checkout to land (counter
+                # set when the user clicks Start trial). Without this gate, every
+                # free user would trigger a Stripe email lookup on every load,
+                # stalling the page. Decrement so it runs a bounded number of times.
+                st.session_state["_awaiting_checkout"] = int(st.session_state.get("_awaiting_checkout", 0)) - 1
                 _em2 = (st.session_state.user or {}).get("email")
                 if _em2:
                     _fr = _sbp2.finalize_checkout(uid(), _em2)
