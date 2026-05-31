@@ -977,7 +977,7 @@ def _inject_localstorage_reader():
             if (!url.searchParams.get('uid')) {
                 url.searchParams.set('uid', raw);
                 url.searchParams.set('plan', 'restore');
-                window.parent.location.replace(url.toString());
+                window.open(url.toString(), '_top');
             }
         } catch(e) {}
     })();
@@ -994,6 +994,36 @@ def _write_localstorage_token(uid: str, plan: str):
     try {{
         localStorage.setItem('qntm_auth', {_json.dumps(token)});
     }} catch(e) {{}}
+    </script>
+    """, height=0)
+
+
+def _redirect_with_session(user_id: str, plan: str, nav: str = "screener"):
+    """Persist the auth token AND navigate to a ?uid=... URL in ONE browser op,
+    using window.open(url,'_top') — the only parent-navigation primitive that
+    works inside the Streamlit components sandbox (window.top.location and
+    <a target=_top> are blocked; same lesson as the checkout flow).
+
+    This replaces st.rerun() on login. On mobile, st.rerun() + a query-param
+    write did NOT survive the WebSocket reconnect that fires when the soft
+    keyboard dismisses after the button tap, so the session was wiped and login
+    bounced back to the landing page. Landing the browser directly on ?uid=...
+    lets the restore block rehydrate cleanly on the fresh load."""
+    import streamlit.components.v1 as _cv1
+    token = _sign_token(user_id, plan, days=30)
+    _cv1.html(f"""
+    <script>
+    (function() {{
+        try {{ localStorage.setItem('qntm_auth', {_json.dumps(token)}); }} catch(e) {{}}
+        try {{
+            var u = new URL(window.parent.location.href);
+            u.searchParams.set('uid',  {_json.dumps(token)});
+            u.searchParams.set('plan', {_json.dumps(plan)});
+            u.searchParams.set('_n',   {_json.dumps(nav)});
+            u.searchParams.delete('nav');
+            window.open(u.toString(), '_top');
+        }} catch(e) {{}}
+    }})();
     </script>
     """, height=0)
 
@@ -3812,19 +3842,14 @@ def page_auth():
                             # Only prompt MFA if never offered before
                             if not user.get("mfa_offered"):
                                 st.session_state.force_mfa_setup = True
-                            # Always persist — signed 30-day token
-                            _signed = _sign_token(user["id"], user.get("plan","free"))
-                            st.query_params["uid"]  = _signed
-                            st.query_params["plan"] = user.get("plan","free")
-                            # Defer token write to the next render (page_platform):
-                            # calling _write_localstorage_token here is wiped by go()'s
-                            # immediate st.rerun() before the component can execute, so
-                            # the 30-day token never saved — breaking mobile session
-                            # restore on WebSocket reconnect.
-                            st.session_state["_pending_ls_token"] = (user["id"], user.get("plan","free"))
                             st.session_state.nav = "screener"
-
-                            go("platform")
+                            # Navigate via JS redirect, NOT st.rerun(). Writes the
+                            # token and lands the browser on ?uid=... in one op via
+                            # window.open(_top). st.rerun()+query-param writes did not
+                            # survive the mobile WebSocket reconnect (keyboard dismiss),
+                            # so login bounced to landing. Restore reads ?uid= on load.
+                            _redirect_with_session(user["id"], user.get("plan","free"), "screener")
+                            st.stop()
                     else:
                         st.error(res.get("error", "Invalid email or password"))
 
@@ -3969,15 +3994,10 @@ def page_mfa():
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
-                    # Always persist — signed 30-day token
-                    _signed = _sign_token(user["id"], user.get("plan","free"))
-                    st.query_params["uid"]  = _signed
-                    st.query_params["plan"] = user.get("plan","free")
-                    # Defer token write to the next render (see sign-in handler note)
-                    st.session_state["_pending_ls_token"] = (user["id"], user.get("plan","free"))
                     st.session_state.nav = "screener"
-
-                    go("platform")
+                    # Navigate via JS redirect, NOT st.rerun() (see sign-in note)
+                    _redirect_with_session(user["id"], user.get("plan","free"), "screener")
+                    st.stop()
                 else:
                     st.error("Invalid code — check your app and try again")
 
