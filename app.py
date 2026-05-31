@@ -3816,7 +3816,12 @@ def page_auth():
                             _signed = _sign_token(user["id"], user.get("plan","free"))
                             st.query_params["uid"]  = _signed
                             st.query_params["plan"] = user.get("plan","free")
-                            _write_localstorage_token(user["id"], user.get("plan","free"))
+                            # Defer token write to the next render (page_platform):
+                            # calling _write_localstorage_token here is wiped by go()'s
+                            # immediate st.rerun() before the component can execute, so
+                            # the 30-day token never saved — breaking mobile session
+                            # restore on WebSocket reconnect.
+                            st.session_state["_pending_ls_token"] = (user["id"], user.get("plan","free"))
                             st.session_state.nav = "screener"
 
                             go("platform")
@@ -3968,7 +3973,8 @@ def page_mfa():
                     _signed = _sign_token(user["id"], user.get("plan","free"))
                     st.query_params["uid"]  = _signed
                     st.query_params["plan"] = user.get("plan","free")
-                    _write_localstorage_token(user["id"], user.get("plan","free"))
+                    # Defer token write to the next render (see sign-in handler note)
+                    st.session_state["_pending_ls_token"] = (user["id"], user.get("plan","free"))
                     st.session_state.nav = "screener"
 
                     go("platform")
@@ -8339,6 +8345,15 @@ def page_methodology():
 
 
 def page_platform():
+    # Write the deferred 30-day localStorage token here. The login handlers set
+    # _pending_ls_token instead of writing directly, because they call go() ->
+    # st.rerun() immediately, which tore down the component before its script
+    # ran. This render has no immediate rerun, so the token actually persists —
+    # which is what lets mobile restore the session after a WebSocket reconnect.
+    _pending_tok = st.session_state.pop("_pending_ls_token", None)
+    if _pending_tok:
+        _write_localstorage_token(_pending_tok[0], _pending_tok[1])
+
     # ── Accordion behavior for cards (one open at a time) ──────────────────────
     # Cards render as <details name="qntm-cards">; modern browsers make same-named
     # details mutually exclusive natively. This JS is a fallback for browsers that
