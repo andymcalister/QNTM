@@ -7479,6 +7479,20 @@ def page_account():
                     else:
                         st.error("Could not undo cancellation — contact billing@qntm.app")
             else:
+                # One-time themed welcome banner after starting a trial
+                # (replaces the unthemeable white st.toast popup).
+                if st.session_state.pop("_trial_just_started", False):
+                    st.markdown("""
+                    <div style="background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.35);
+                         border-radius:8px;padding:16px 20px;margin-bottom:14px;">
+                      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;
+                           color:#d4a843;margin-bottom:4px;">Your 7-day free trial has started 🎉</div>
+                      <div style="font-size:13px;color:#94a3b8;line-height:1.6;">
+                        You won't be charged during the trial. Cancel anytime below.
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                 # Active subscription panel
                 st.markdown(f"""
                 <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);
@@ -8752,7 +8766,7 @@ def main():
                         _em = (st.session_state.user or {}).get("email")
                         if _em:
                             _arl_ck.send_acknowledgment(uid(), _em)
-                        st.toast("Your 7-day free trial has started.")
+                        st.session_state["_trial_just_started"] = True
                 else:
                     st.warning(
                         "Your payment went through, but we couldn't confirm your "
