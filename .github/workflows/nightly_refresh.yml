@@ -4,8 +4,6 @@ on:
   schedule:
     # 2:00 AM UTC daily (6 PM PT / 9 PM ET — after US market close + settlement)
     - cron: "0 2 * * *"
-    # Intraday refresh every 30 min during US market hours (Mon–Fri, 1:30–8:30 PM UTC = 9:30 AM–4:30 PM ET)
-    - cron: "*/30 13-20 * * 1-5"
   workflow_dispatch:
     inputs:
       force:
@@ -23,20 +21,19 @@ jobs:
   refresh:
     name: Refresh Universe & Score
     runs-on: ubuntu-latest
-    timeout-minutes: 30       # full 834-ticker pass ~4 min; intraday price-only ~90s; 30 min ceiling
+    timeout-minutes: 30
 
     env:
       SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       ENCRYPTION_KEY:       ${{ secrets.ENCRYPTION_KEY }}
-      # Set true during intraday cron — triggers lightweight price-only pass
-      INTRADAY_RUN:         ${{ github.event.schedule == '*/30 13-20 * * 1-5' && 'true' || 'false' }}
+      ENVIRONMENT:          dev
 
     steps:
-      - name: Checkout main branch
+      - name: Checkout dev branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: dev
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -47,13 +44,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run refresh
-        id: refresh
+      - name: Run nightly refresh
         run: |
           ARGS=""
-          if [ "$INTRADAY_RUN" = "true" ]; then
-            ARGS="$ARGS --intraday"
-          fi
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             ARGS="$ARGS --force"
           fi
@@ -62,39 +55,37 @@ jobs:
             ARGS="$ARGS --tickers $TICKER_LIST"
           fi
 
-          echo "Running: python data_refresh.py $ARGS (INTRADAY_RUN=$INTRADAY_RUN)"
+          echo "Running: python data_refresh.py $ARGS"
           python data_refresh.py $ARGS | tee refresh_output.json
-
-          python3 -c "import json; r=json.load(open('refresh_output.json')); print('success='+str(r.get('success','false')).lower())" >> $GITHUB_OUTPUT 2>/dev/null || echo "success=false" >> $GITHUB_OUTPUT
 
       - name: Log refresh summary
         if: always()
         run: |
           echo "──────────────────────────────────────"
-          echo "QNTM Refresh — Summary"
+          echo "QNTM Nightly Refresh — Summary"
           echo "──────────────────────────────────────"
-          cat refresh_output.json 2>/dev/null || echo "(no output)"
-          echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          cat refresh_output.json 2>/dev/null || echo "(no output file)"
 
-      - name: Fail job on refresh error
+      - name: Check refresh result
         if: always()
         run: |
-          python3 -c "
+          python3 - <<'EOF'
           import json, sys
           try:
-              raw = open('refresh_output.json').read().strip()
-              start = raw.find('{')
-              end   = raw.rfind('}') + 1
-              r = json.loads(raw[start:end]) if start >= 0 else {}
-              if not r.get('success') and not r.get('skipped'):
-                  print('Refresh failed: ' + r.get('error', 'unknown'))
-                  sys.exit(1)
-              elif r.get('skipped'):
+              with open('refresh_output.json') as f:
+                  content = f.read()
+              # Find the JSON block (last {...} in output)
+              start = content.rfind('{')
+              end   = content.rfind('}') + 1
+              r = json.loads(content[start:end])
+              if r.get('skipped'):
                   print('Cache was fresh — refresh skipped.')
+              elif r.get('success'):
+                  print(f"Success: {r.get('live_count',0)}/{r.get('total',0)} tickers | {r.get('duration_s',0)}s | regime={r.get('macro_regime','unknown')}")
               else:
-                  print('Success: {}/{} live tickers in {}s | regime={}'.format(
-                      r.get('live_count',0), r.get('total',0),
-                      r.get('duration_s',0), r.get('macro_regime','unknown')))
+                  print(f"Refresh failed: {r.get('error','unknown')}")
+                  sys.exit(1)
           except Exception as e:
-              print('Could not parse output: ' + str(e))
-          "
+              print(f'Could not parse output: {e}')
+              sys.exit(1)
+          EOF
