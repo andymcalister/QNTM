@@ -10,13 +10,40 @@ from datetime import datetime, date
 import sys, os, contextlib
 sys.path.insert(0, os.path.dirname(__file__))
 
-_ICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qntm_icon.png")
+# Resolve the Q favicon robustly across Render/local working dirs; load as a PIL
+# image (the most reliable page_icon input). Fall back to ⚡ only if truly absent.
+_page_icon = "⚡"
+try:
+    from PIL import Image as _PILImage
+    for _cand in (
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "qntm_icon.png"),
+        os.path.join(os.getcwd(), "qntm_icon.png"),
+        "qntm_icon.png",
+    ):
+        if os.path.exists(_cand):
+            _page_icon = _PILImage.open(_cand)
+            break
+except Exception:
+    _page_icon = "⚡"
+
 st.set_page_config(
     page_title="QNTM — Conviction Factor Model",
-    page_icon=(_ICON_PATH if os.path.exists(_ICON_PATH) else "⚡"),
+    page_icon=_page_icon,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+
+def qntm_html(html, *, height=0, scrolling=False):
+    """Version-safe successor to st.components.v1.html (deprecated in Streamlit
+    1.56, removed in a later release). Uses st.iframe when available, otherwise
+    falls back to the pinned-1.55.x components.html. Migration: see MIGRATION.md."""
+    if hasattr(st, "iframe"):
+        st.iframe(html, height=height)
+    else:
+        import streamlit.components.v1 as _cv1_compat
+        _cv1_compat.html(html, height=height, scrolling=scrolling)
+
 
 # ── DEV ENVIRONMENT BANNER ────────────────────────────────────────────────────
 import os
@@ -805,8 +832,7 @@ div[data-baseweb="select"] > div {
 """, unsafe_allow_html=True)
 
 # ── TOOLTIP + MOBILE JS — injected via components (only way to run JS in Streamlit) ──
-import streamlit.components.v1 as _cv1_js
-_cv1_js.html("""
+qntm_html("""
 <script>
 (function() {
     function positionTip(tip, box) {
@@ -942,8 +968,7 @@ if _tz_name_param:
 # the next rerun, stores in session_state, pops the URL. After that, the gate
 # is False and JS never runs again.
 if st.session_state.get("tz_offset_hours") is None or not st.session_state.get("tz_name"):
-    import streamlit.components.v1 as _tz_cv1
-    _tz_cv1.html("""
+    qntm_html("""
     <script>
     (function() {
         try {
@@ -977,8 +1002,7 @@ if st.session_state.get("tz_offset_hours") is None or not st.session_state.get("
 
 def _inject_localstorage_reader():
     """Read QNTM auth token from localStorage and restore session via query params."""
-    import streamlit.components.v1 as _cv1
-    _cv1.html("""
+    qntm_html("""
     <script>
     (function() {
         try {
@@ -998,9 +1022,8 @@ def _inject_localstorage_reader():
 
 def _write_localstorage_token(uid: str, plan: str):
     """Write a signed 30-day auth token to localStorage."""
-    import streamlit.components.v1 as _cv1
     token = _sign_token(uid, plan, days=30)
-    _cv1.html(f"""
+    qntm_html(f"""
     <script>
     try {{
         localStorage.setItem('qntm_auth', {_json.dumps(token)});
@@ -1011,8 +1034,7 @@ def _write_localstorage_token(uid: str, plan: str):
 
 def _clear_localstorage_token():
     """Clear the auth token from localStorage on sign out."""
-    import streamlit.components.v1 as _cv1
-    _cv1.html("""
+    qntm_html("""
     <script>
     try { localStorage.removeItem('qntm_auth'); } catch(e) {}
     </script>
@@ -2349,7 +2371,7 @@ def _render_checkout_button(url: str):
     <a target=_top> and window.top.location are blocked). Renders inside a
     components.v1.html iframe."""
     _safe = (url or "").replace("\\", "\\\\").replace('"', '\\"')
-    _cv1_js.html(
+    qntm_html(
         f'''<div style="font-family:Syne,sans-serif;">
         <button id="qntm-checkout-btn" style="width:100%;box-sizing:border-box;
             padding:16px;border:none;border-radius:8px;cursor:pointer;
@@ -5582,7 +5604,6 @@ def page_backtest():
     """, unsafe_allow_html=True)
 
     # Growth chart — compute from real quarterly returns for accuracy
-    import streamlit.components.v1 as _components
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — Q2 2020 TO Q1 2025</div>', unsafe_allow_html=True)
 
@@ -5702,7 +5723,7 @@ c.innerHTML = `
 document.body.prepend(c);
 </script>
 </body></html>"""
-    _components.html(chart_html, height=480)
+    qntm_html(chart_html, height=480)
 
     # ── Macro Overlay Attribution Section ─────────────────────────────────────
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
@@ -6535,18 +6556,6 @@ def page_portfolio():
             factor_panel_html(sc, tk in _port_gems, company_info=ci,
                               wl_btn=(_pnl_html + _pbtn), as_details=True),
             unsafe_allow_html=True,
-        )
-
-    if False:  # legacy batch render disabled — cards now render per-card above
-        import streamlit.components.v1 as _cv1_pv
-        _pv_n  = _port_html.count('qcard-wrap')
-        # 130px/closed card + 520px for one expanded card (pillars, 4-box row,
-        # WHY THIS SCORE, P&L strip); scrolling=True is a safety net.
-        _pv_ht = max(60, _pv_n * 130 + 680 + 520) if _pv_n > 0 else 60
-        _cv1_pv.html(
-            _port_html + CARD_IFRAME_TAIL,
-            height=min(_pv_ht, 16000),
-            scrolling=True,
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -8152,15 +8161,6 @@ def page_model_portfolio():
         )
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
-    if False:  # legacy batch render disabled — per-card above
-        import streamlit.components.v1 as _cv1_mp
-        _mp_n = _mp_html.count('qcard-wrap')
-        # Closed cards stack ~120px each in practice; one expanded card adds
-        # ~520px (pillars + 4-box row + WHY THIS SCORE + P&L strip). Budget for
-        # closed-state + one expansion + breathing room so the last card never
-        # clips when opened.
-        _mp_ht = max(60, _mp_n * 130 + 720 + 520) if _mp_n > 0 else 60
-        _cv1_mp.html(_mp_html + CARD_IFRAME_TAIL, height=min(_mp_ht,20000), scrolling=True)
 
     # Spacer below the iframe so when the last card expands and the iframe
     # grows, the parent page has scroll room to reveal the new content.
@@ -8359,8 +8359,7 @@ def page_platform():
     # Cards render as <details name="qntm-cards">; modern browsers make same-named
     # details mutually exclusive natively. This JS is a fallback for browsers that
     # don't yet support the `name` attribute — it closes sibling cards on open.
-    import streamlit.components.v1 as _cv1_acc
-    _cv1_acc.html("""
+    qntm_html("""
     <script>
     (function(){
       var pd = parent.document;
