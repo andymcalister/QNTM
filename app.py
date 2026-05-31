@@ -10,9 +10,10 @@ from datetime import datetime, date
 import sys, os, contextlib
 sys.path.insert(0, os.path.dirname(__file__))
 
+_ICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qntm_icon.png")
 st.set_page_config(
     page_title="QNTM — Conviction Factor Model",
-    page_icon="⚡",
+    page_icon=(_ICON_PATH if os.path.exists(_ICON_PATH) else "⚡"),
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -623,6 +624,16 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
   /* Card rows — ensure single line, large tap target */
   .qcard-wrap label { min-height: 48px !important; padding: 10px 12px !important; }
   .qcard-wrap { margin-bottom: 6px !important; }
+
+  /* Top-10 HIGH/LOW conviction grid — stack to one column on phones so the
+     expanded card gets full width instead of being clipped in a half column */
+  .qntm-conv-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
+  .qntm-conv-grid > div { margin-bottom: 10px; }
+
+  /* Expanded-card internals: collapse to 2-up on phones. These main-document
+     cards don't receive CARD_IFRAME_TAIL's copy of this rule, so mirror it. */
+  .qcard-pillars { grid-template-columns: repeat(2,1fr) !important; }
+  .qcard-4box    { grid-template-columns: repeat(2,1fr) !important; }
 
   /* Hide company name in collapsed card on very small screens */
   .qcard-name-mobile { display: none !important; }
@@ -2407,7 +2418,7 @@ PRIVACY_POLICY = """
 |----------|---------|---------------------|
 | Stripe, Inc. | Payment processing | stripe.com/privacy |
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
-| Streamlit (a Snowflake company) | Application hosting | streamlit.io/privacy |
+| Render (Render Services, Inc.) | Application hosting | render.com/privacy |
 | SendGrid (Twilio) | Transactional email — only if you enable email notifications | sendgrid.com/policies/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
@@ -4640,30 +4651,35 @@ def page_screener():
 
     # ── TAB 1: TOP 10 — scan mode ───────────────────────────────────────────
     with scr_tab1:
-        t1c1, t1c2 = st.columns(2)
-        for col, label, color, ranked in [
-            (t1c1, "▲ HIGH CONVICTION", "#00ff87", buys_ranked[:10]),
-            (t1c2, "▼ LOW CONVICTION",  "#ef4444", sells_ranked[:10]),
-        ]:
-            with col:
-                st.markdown(
-                    f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{color};'
-                    f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
-                    f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>',
-                    unsafe_allow_html=True)
-                _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
-                _col_html = ""
-                for i, r in enumerate(ranked):
-                    ci     = get_company_info(r["ticker"])
-                    is_gem = r["ticker"] in gem_tickers
-                    # Ensure action matches list — signal_log BUY/SELL may not match adj
-                    if color == "#ef4444" and r.get("adj_action",r.get("action")) != "SELL":
-                        r = dict(r); r["adj_action"] = "SELL"
-                    elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
-                        r = dict(r); r["adj_action"] = "BUY"
-                    _col_html += build_card_html(r, nav="screener", is_gem=is_gem,
-                                                 company_info=ci, in_list=_wl_now)
-                render_cards_batch(_col_html)
+        # Responsive CSS grid (not st.columns, which won't stack on mobile and
+        # clips the expanded card on narrow screens). 2 cols on desktop, 1 col
+        # on phones via the .qntm-conv-grid media query in the main-doc <style>.
+        _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+
+        def _conv_col(label, color, ranked):
+            out = (f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{color};'
+                   f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
+                   f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>')
+            for r in ranked:
+                ci     = get_company_info(r["ticker"])
+                is_gem = r["ticker"] in gem_tickers
+                # Ensure action matches list — signal_log BUY/SELL may not match adj
+                if color == "#ef4444" and r.get("adj_action",r.get("action")) != "SELL":
+                    r = dict(r); r["adj_action"] = "SELL"
+                elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
+                    r = dict(r); r["adj_action"] = "BUY"
+                out += build_card_html(r, nav="screener", is_gem=is_gem,
+                                       company_info=ci, in_list=_wl_now)
+            return out
+
+        _high_html = _conv_col("▲ HIGH CONVICTION", "#00ff87", buys_ranked[:10])
+        _low_html  = _conv_col("▼ LOW CONVICTION",  "#ef4444", sells_ranked[:10])
+        st.markdown(
+            '<div class="qntm-conv-grid" style="display:grid;'
+            'grid-template-columns:1fr 1fr;gap:16px;align-items:start;">'
+            f'<div>{_high_html}</div><div>{_low_html}</div>'
+            '</div>',
+            unsafe_allow_html=True)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
@@ -7660,9 +7676,9 @@ def page_account():
                                         _arl_f2.log_consent(uid(), plan="pro_supporter", ip_address=_ipf)
                                         from db import get_stripe_billing as _gsbf
                                         _exf = _gsbf(uid()).get("stripe_customer_id")
-                                        _basef = "https://qntmmvp.streamlit.app"
+                                        _basef = "https://qntm.live"
                                         try:
-                                            _basef = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                                            _basef = "https://" + (st.context.headers.get("Host") or "qntm.live")
                                         except Exception:
                                             pass
                                         _emf = (st.session_state.user or {}).get("email", "")
@@ -8634,9 +8650,9 @@ def page_upgrade():
                     _arl.log_consent(_uid_val, plan="pro", ip_address=_ip)
                     from db import get_stripe_billing as _gsb
                     _existing = _gsb(_uid_val).get("stripe_customer_id")
-                    _base = "https://qntmmvp.streamlit.app"
+                    _base = "https://qntm.live"
                     try:
-                        _base = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                        _base = "https://" + (st.context.headers.get("Host") or "qntm.live")
                     except Exception:
                         pass
                     _email = (st.session_state.user or {}).get("email", "")
