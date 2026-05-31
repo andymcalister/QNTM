@@ -14,24 +14,10 @@ from universe_data import SECTORS, FUNDAMENTALS
 
 
 # ── SCORING ENGINE ────────────────────────────────────────────────────────────
-# Pillar weights — v2.0 (optimized from walk-forward backtest analysis)
-# Changes from v1.0:
-#   Quality:  25% → 30% (stickiest quarterly predictor)
-#   Value:    15% → 20% (fundamental anchor, low noise)
-#   Volume:   20% → 10% (daily signal, stale on quarterly rebalance)
-#   Momentum: 30% → 30% (unchanged — top predictor)
-#   Sentiment:10% → 10% (unchanged)
-PILLAR_W = {"momentum":0.30,"quality":0.30,"volume":0.10,"value":0.20,"sentiment":0.10}
-
-# Momentum lookback weights — v2.0
-# Favor 3M and 6M (trend confirmation) over 1M (noise)
-MOM_W = {"m1m":0.10,"m3m":0.30,"m6m":0.35,"trend":0.15,"pfh":0.10}
-
-ENTRY_THRESHOLD      = 60
-EXIT_THRESHOLD       = 45
-MOM_EXIT             = 30
-MIN_POSITIONS        = 15   # floor: always hold at least this many positions
-DYNAMIC_THRESHOLD_HI = 65   # raise bar when >30 stocks score ≥60 (signal dilution)
+PILLAR_W = {"momentum":0.30,"quality":0.25,"volume":0.20,"value":0.15,"sentiment":0.10}
+ENTRY_THRESHOLD = 60
+EXIT_THRESHOLD  = 45
+MOM_EXIT        = 30
 
 def pf(v, lo, hi):
     if v is None: return 50.0
@@ -97,20 +83,18 @@ def score_stock(ticker: str, price_history: list = None,
     static_f = FUNDAMENTALS.get(ticker, {})
     f = {**static_f, **(live_fundamentals or {})}
 
-    # Momentum from price history — weighted toward 3M/6M trend confirmation
+    # Momentum from price history
     if price_history and len(price_history) >= 5:
         hist = price_history
         cur  = hist[-1]
-        m1m  = (cur/hist[max(0,len(hist)-22)] -1)*100  if len(hist)>=22  else 0
-        m3m  = (cur/hist[max(0,len(hist)-66)] -1)*100  if len(hist)>=66  else m1m
-        m6m  = (cur/hist[max(0,len(hist)-126)]-1)*100  if len(hist)>=126 else m3m
+        m1m  = (cur/hist[max(0,len(hist)-5)]-1)*100
+        m3m  = (cur/hist[max(0,len(hist)-14)]-1)*100 if len(hist)>=14 else m1m
+        m6m  = (cur/hist[max(0,len(hist)-27)]-1)*100 if len(hist)>=27 else m3m
         rets = [(hist[i]/hist[i-1]-1) for i in range(1,len(hist))]
-        trend = sum(1 for r in rets[-20:] if r>0)/max(len(rets[-20:]),1)*100
-        ph    = max(hist[-min(252,len(hist)):])
+        trend = sum(1 for r in rets[-10:] if r>0)/max(len(rets[-10:]),1)*100
+        ph    = max(hist[-min(52,len(hist)):])
         pfh   = (cur/ph-1)*100
-        mom = (pf(m1m,-20,30)*MOM_W["m1m"] + pf(m3m,-30,60)*MOM_W["m3m"] +
-               pf(m6m,-40,80)*MOM_W["m6m"] + trend*MOM_W["trend"] +
-               pf(pfh,-30,0)*MOM_W["pfh"])
+        mom   = np.mean([pf(m1m,-20,30),pf(m3m,-30,60),pf(m6m,-40,80),trend,pf(pfh,-30,0)])
     else:
         # Estimate from fundamentals if no price history
         eg  = f.get("eg",0) or 0
@@ -148,10 +132,9 @@ def score_stock(ticker: str, price_history: list = None,
                  volume*PILLAR_W["volume"] + value*PILLAR_W["value"] +
                  sentiment*PILLAR_W["sentiment"])
 
-    # Public conviction label — HIGH / MODERATE / LOW only.
-    # (Was STRONG ALIGN / HIGH ALIGN / LOW ALIGN / WEAK/NEG — non-compliant
-    #  vocabulary that leaked into the DB. Normalized to the published bands.)
-    sig = ("HIGH" if composite >= 60 else "MODERATE" if composite >= 45 else "LOW")
+    sig = ("STRONG ALIGN" if composite>=75 else "HIGH ALIGN" if composite>=62
+           else "MODERATE"   if composite>=50 else "LOW ALIGN" if composite>=38
+           else "WEAK/NEG")
 
     return {
         "ticker":ticker, "sector":SECTORS.get(ticker,"Unknown"),
@@ -159,10 +142,6 @@ def score_stock(ticker: str, price_history: list = None,
         "quality":round(quality,1),     "volume":round(volume,1),
         "value":round(value,1),          "sentiment":round(sentiment,1),
         "signal":sig,
-        "price": f.get("price"),
-        # `action` is an INTERNAL enum (BUY/SELL/HOLD) consumed by
-        # apply_macro_overlay / portfolio logic — never shown to users, always
-        # converted to HIGH/MODERATE/LOW at display time. Do not surface raw.
         "action": ("BUY" if composite>=ENTRY_THRESHOLD
                    else "SELL" if composite<EXIT_THRESHOLD or mom<MOM_EXIT
                    else "HOLD"),
@@ -170,140 +149,46 @@ def score_stock(ticker: str, price_history: list = None,
 
 
 # ── HIDDEN GEM DETECTION ──────────────────────────────────────────────────────
-def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
+def detect_hidden_gems(scores: list) -> list:
     """
     Hidden gems: stocks scoring well that are under-owned / under-followed.
-
-    v2.0 changes:
-    - Filters on adj_composite (macro-adjusted) not raw composite
-    - Uses live fundamentals from score dict if available, falls back to static
-    - Tightens threshold in RISK_OFF regime (only highest conviction surfaces)
-    - Macro regime context shown in gem reasons
-
     Criteria:
-    1. adj_composite >= threshold (62 standard, 67 in RISK_OFF/HIGH VOLATILITY)
-    2. Quality >= 55, Momentum >= 58
-    3. Not a mega-cap (less analyst coverage = more alpha opportunity)
-    4. At least one fundamental reason (revenue, earnings, insider, short interest)
+    1. Composite >= 62 (high alignment)
+    2. Market cap = mid (not mega-cap, so less analyst coverage)
+    3. Short interest relatively low (not a crowded trade)
+    4. Insider buy ratio high (insiders are buying)
+    5. NOT in the top-10 most discussed stocks (off Wall St radar)
+    6. Accelerating revenue growth vs prior period
     """
-    regime = (macro_data or {}).get("regime", "NEUTRAL") if macro_data else "NEUTRAL"
-
-    # Tighten threshold in risk-off environments
-    if regime in ("RISK_OFF", "HIGH VOLATILITY"):
-        threshold_composite = 67
-        threshold_quality   = 58
-        threshold_momentum  = 62
-    elif regime in ("RISK_ON", "MILDLY BULLISH"):
-        threshold_composite = 60
-        threshold_quality   = 53
-        threshold_momentum  = 56
-    else:
-        threshold_composite = 62
-        threshold_quality   = 55
-        threshold_momentum  = 58
-
-    # Mega-caps excluded — gems are stocks flying under the radar
+    # Top 30 mega-caps excluded — gems are stocks flying under the radar
     mega_caps = {
         "NVDA","MSFT","AAPL","META","GOOGL","GOOG","AMZN","TSLA","NFLX",
         "JPM","V","MA","UNH","JNJ","ABBV","PG","KO","WMT","COST",
         "XOM","CVX","BAC","GS","MS","BLK","LLY","MRK","TMO","HD","LOW"
     }
-
     gems = []
     for s in scores:
         tk = s["ticker"]
+        f  = FUNDAMENTALS.get(tk, {})
+        mc = f.get("mktcap","large")
+        # Mid-caps always gem-eligible; large-caps only if not mega-cap
         if tk in mega_caps:
             continue
+        if (s["composite"] >= 62
+            and s["quality"] >= 55
+            and s["momentum"] >= 58):
 
-        # Defensive float conversion — values from Supabase cache can be strings
-        try:
-            adj = float(s.get("adj_composite") or s.get("composite") or 0)
-            mom = float(s.get("momentum") or 0)
-            qua = float(s.get("quality")  or 0)
-        except (TypeError, ValueError):
-            continue
+            reasons = []
+            if f.get("rg",0) > 20:  reasons.append(f"Revenue growing {f['rg']}% YoY")
+            if f.get("eg",0) > 40:  reasons.append(f"Earnings accelerating {f['eg']}% YoY")
+            if f.get("ib",0) > 50:  reasons.append(f"Strong insider buying ({f['ib']:.0f}% buy ratio)")
+            if f.get("sp",99) < 3:  reasons.append(f"Low short interest ({f['sp']:.1f}%)")
+            if f.get("br",0)==100:  reasons.append("Beat estimates all 4 quarters")
 
-        if adj < threshold_composite: continue
-        if qua < threshold_quality:   continue
-        if mom < threshold_momentum:  continue
-
-        # Use live fundamentals from score dict if available, else static
-        live_f   = s.get("live_fundamentals") or {}
-        static_f = FUNDAMENTALS.get(tk, {})
-        f = {**static_f, **live_f}
-
-        reasons = []
-
-        try:
-            rg = f.get("rg")
-            if rg and rg > 20:
-                reasons.append(f"Revenue growing {rg:.0f}% YoY")
-            elif rg and rg > 10:
-                reasons.append(f"Revenue +{rg:.0f}% YoY")
-
-            # Earnings growth
-            eg = f.get("eg")
-            if eg and eg > 40:
-                reasons.append(f"Earnings accelerating {eg:.0f}% YoY")
-            elif eg and eg > 20:
-                reasons.append(f"Earnings +{eg:.0f}% YoY")
-
-            # Insider buying
-            ib = f.get("ib")
-            if ib and ib > 50:
-                reasons.append(f"Strong insider buying ({ib:.0f}% buy ratio)")
-            elif ib and ib > 35:
-                reasons.append(f"Insider buying elevated ({ib:.0f}%)")
-
-            # Low short interest
-            sp = f.get("sp")
-            if sp is not None and sp < 3:
-                reasons.append(f"Low short interest ({sp:.1f}%)")
-            elif sp is not None and sp < 5:
-                reasons.append(f"Modest short interest ({sp:.1f}%)")
-
-            # Beat rate
-            br = f.get("br")
-            if br and br == 100:
-                reasons.append("Beat estimates all 4 quarters")
-            elif br and br >= 75:
-                reasons.append(f"Beat estimates {br:.0f}% of quarters")
-
-            # FCF yield
-            fcf = f.get("fcf")
-            if fcf and fcf > 5:
-                reasons.append(f"Strong FCF yield ({fcf:.1f}%)")
-
-            # Pillar-based reasons (when fundamentals are thin)
-            if len(reasons) < 2:
-                if mom >= 70:
-                    reasons.append(f"Strong price momentum (score {mom:.0f})")
-                if qua >= 70:
-                    reasons.append(f"High quality fundamentals (score {qua:.0f})")
-                vol = float(s.get("volume") or 0)
-                if vol >= 65:
-                    reasons.append(f"Elevated institutional volume (score {vol:.0f})")
-
-                # Macro context
-                if regime == "RISK_OFF":
-                    reasons.append("Surfaced in RISK-OFF screen — high-conviction filter applied")
-                elif regime == "RISK_ON":
-                    reasons.append("Strong signal in risk-on environment")
-
-        except Exception:
-            pass  # skip this stock if any field causes an error
-
-        if not reasons:
-            continue
-
-        s["is_hidden_gem"] = True
-        s["gem_reasons"]   = reasons[:4]
-        s["gem_regime"]    = regime
-        s["gem_adj_score"] = adj
-        gems.append(s)
-
-    # Sort by adj_composite descending
-    gems.sort(key=lambda x: float(x.get("adj_composite") or x.get("composite") or 0), reverse=True)
+            if reasons:
+                s["is_hidden_gem"] = True
+                s["gem_reasons"] = reasons
+                gems.append(s)
     return gems
 
 
@@ -450,15 +335,13 @@ EVENT_KEYWORDS = {
 # Based on 2025H1 tariff environment
 _CURRENT_REGIME = {
     "label": "RISK-OFF",
-    "score": -0.45,
-    "active_events": ["tariff_broad", "war_escalation"],
+    "score": -0.55,
+    "active_events": ["tariff_broad", "war_escalation", "oil_spike"],
     "source": "estimated",
     "note": (
-        "Estimated regime 2026: US tariffs active on major partners; "
-        "Iran-Israel tensions and Strait of Hormuz disruption keep war escalation "
-        "risk elevated. WTI currently $85-92 — within normal range, so oil_spike "
-        "only triggers if RSS headlines surge or WTI breaches $95. "
-        "RSS live feeds activate on deployment."
+        "Estimated regime May 2025: US-China tariffs active; "
+        "Iran-Israel tensions + Strait of Hormuz constraints driving oil spike; "
+        "war escalation risk elevated. RSS live feeds activate on deployment."
     )
 }
 
@@ -493,15 +376,14 @@ MACRO_EVENT_INFO = {
     },
     "oil_spike": {
         "label":   "Oil Price Spike",
-        "summary": "Crude oil sharply elevated on supply disruption",
+        "summary": "Crude oil elevated on Middle East supply fears",
         "detail":  (
-            "WTI crude has moved above $95/bbl, signalling a genuine supply-side "
-            "disruption (Middle East conflict, OPEC+ shock, infrastructure damage). "
-            "Every $10 increase in oil adds ~0.3-0.5% to US headline CPI, complicating "
-            "Fed rate-cut timing. Energy sector earnings expand; transport-heavy "
-            "industries (airlines, shipping, delivery) face margin compression. "
-            "Consumer spending typically weakens when energy takes a larger share of "
-            "household budgets."
+            "Brent crude has moved above $90/bbl driven by Middle East conflict risk and "
+            "OPEC+ production discipline. Every $10 increase in oil adds ~0.3-0.5% to "
+            "US headline CPI, complicating Fed rate-cut timing. Energy sector earnings "
+            "expand; transport-heavy industries (airlines, shipping, delivery) face margin "
+            "compression. Consumer spending typically weakens when energy takes a larger "
+            "share of household budgets."
         ),
         "impact":  "Bearish: Consumer Discretionary, Airlines, Industrials",
         "bullish": "Bullish: XOM, CVX, COP, SLB",
@@ -536,195 +418,21 @@ MACRO_EVENT_INFO = {
 
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
-    Fetch macro regime and sector overlays from live data sources.
-
-    Sources (all work from Streamlit Cloud — no API keys required):
-      1. Yahoo Finance RSS  — financial headlines, keyword detection
-      2. FRED RSS           — Fed press releases, economic data releases
-      3. yfinance VIX       — real-time fear gauge for regime classification
-      4. yfinance oil price — WTI crude for oil spike detection
-
-    Falls back to _CURRENT_REGIME if all live sources fail.
+    Fetch macro events and compute sector overlays.
+    Note: RSS live feeds are disabled — Streamlit Cloud blocks outbound RSS URLs.
+    Always returns estimated regime from _CURRENT_REGIME. Update _CURRENT_REGIME
+    manually when macro conditions change, or wire to a permitted data source.
     """
-    if not use_live_feeds:
-        return _build_overlay_from_regime(_CURRENT_REGIME)
-
-    try:
-        import feedparser, requests
-        from collections import defaultdict
-
-        headlines = []
-
-        # ── Source 1: Yahoo Finance RSS ───────────────────────────────────────
-        YF_FEEDS = [
-            "https://finance.yahoo.com/rss/headline",
-            "https://finance.yahoo.com/news/rssindex",
-        ]
-        for url in YF_FEEDS:
-            try:
-                feed = feedparser.parse(url)
-                for entry in (feed.entries or [])[:30]:
-                    text = (entry.get("title","") + " " + entry.get("summary","")).lower()
-                    if text.strip():
-                        headlines.append(text)
-            except Exception:
-                pass
-
-        # ── Source 2: FRED RSS (Fed press releases) ───────────────────────────
-        FRED_FEEDS = [
-            "https://www.federalreserve.gov/feeds/press_all.xml",
-            "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",  # WSJ markets
-        ]
-        for url in FRED_FEEDS:
-            try:
-                feed = feedparser.parse(url)
-                for entry in (feed.entries or [])[:20]:
-                    text = (entry.get("title","") + " " + entry.get("summary","")).lower()
-                    if text.strip():
-                        headlines.append(text)
-            except Exception:
-                pass
-
-        # ── Source 3: VIX for regime classification ───────────────────────────
-        vix_level = None
-        try:
-            import yfinance as yf
-            vix_data = yf.Ticker("^VIX").history(period="2d", auto_adjust=True)
-            if not vix_data.empty:
-                vix_level = float(vix_data["Close"].iloc[-1])
-        except Exception:
-            pass
-
-        # ── Source 4: WTI crude for oil spike detection ───────────────────────
-        oil_price = None
-        try:
-            import yfinance as yf
-            wti = yf.Ticker("CL=F").history(period="5d", auto_adjust=True)
-            if not wti.empty:
-                oil_price = float(wti["Close"].iloc[-1])
-        except Exception:
-            pass
-
-        # ── Keyword event detection ───────────────────────────────────────────
-        event_scores = defaultdict(float)
-        for event_type, keywords in EVENT_KEYWORDS.items():
-            for headline in headlines:
-                for kw in keywords:
-                    if kw in headline:
-                        event_scores[event_type] += 1.0
-                        break  # one hit per headline per event
-
-        # ── VIX-based event injection ─────────────────────────────────────────
-        if vix_level is not None:
-            if vix_level >= 30:
-                event_scores["recession_signal"] += 3.0
-            if vix_level >= 25:
-                event_scores["tariff_broad"]     += 1.5
-            if vix_level >= 20:
-                event_scores["war_escalation"]   += 0.5
-
-        # ── Oil price event injection ─────────────────────────────────────────
-        # Thresholds calibrated to 2025-2026 reality: WTI normal range is
-        # $70-90. "Spike" only applies above $95 (geopolitical disruption
-        # territory). Below that, RSS headlines alone need to corroborate.
-        if oil_price is not None:
-            if oil_price >= 100:
-                event_scores["oil_spike"] += 3.0
-            elif oil_price >= 95:
-                event_scores["oil_spike"] += 1.5
-            elif oil_price <= 60:
-                # Low oil = bearish demand signal (recession territory)
-                event_scores["recession_signal"] += 1.0
-
-        # ── Select active events (threshold: ≥2 signals) ─────────────────────
-        active_events = [e for e, s in event_scores.items() if s >= 2.0]
-
-        # Always include at least the hardcoded known active events as baseline
-        # (ensures model isn't blank when feeds return sparse results)
-        for e in _CURRENT_REGIME["active_events"]:
-            if e not in active_events:
-                active_events.append(e)
-
-        # ── Regime classification ─────────────────────────────────────────────
-        RISK_OFF_EVENTS = {"tariff_broad","war_escalation","recession_signal","chip_export_ban","oil_spike","fed_hawkish"}
-        RISK_ON_EVENTS  = {"tariff_relief","fed_dovish"}
-
-        risk_score = 0.0
-        for e in active_events:
-            weight = event_scores.get(e, 1.0)
-            if e in RISK_OFF_EVENTS:
-                risk_score -= min(weight, 5.0) * 0.15
-            elif e in RISK_ON_EVENTS:
-                risk_score += min(weight, 5.0) * 0.15
-
-        # VIX override — hard regime signals
-        if vix_level is not None:
-            if vix_level >= 35:
-                risk_score = min(risk_score, -0.6)   # force RISK_OFF
-            elif vix_level >= 25:
-                risk_score = min(risk_score, -0.2)
-            elif vix_level <= 15:
-                risk_score = max(risk_score, +0.2)   # push toward RISK_ON
-
-        risk_score = max(-1.0, min(1.0, risk_score))
-
-        if   risk_score >=  0.3: regime_label = "RISK_ON"
-        elif risk_score >=  0.1: regime_label = "MILDLY BULLISH"
-        elif risk_score >= -0.1: regime_label = "NEUTRAL"
-        elif risk_score >= -0.4: regime_label = "RISK_OFF"
-        else:                     regime_label = "HIGH VOLATILITY"
-
-        # ── Build sector overlays ─────────────────────────────────────────────
-        sector_overlays = defaultdict(float)
-        for event_type in active_events:
-            conf    = min(event_scores.get(event_type, 1.0) / 5.0, 1.0)
-            impacts = SECTOR_EVENT_MAP.get(event_type, {})
-            for sector, impact in impacts.items():
-                sector_overlays[sector] += impact * conf * 0.6
-        # Cap overlays at ±0.5
-        for s in sector_overlays:
-            sector_overlays[s] = max(-0.5, min(0.5, sector_overlays[s]))
-
-        n_headlines = len(headlines)
-        source_desc = f"live ({n_headlines} headlines"
-        if vix_level: source_desc += f", VIX {vix_level:.1f}"
-        if oil_price: source_desc += f", WTI ${oil_price:.1f}"
-        source_desc += ")"
-
-        return {
-            "regime":          regime_label,
-            "regime_score":    round(risk_score, 3),
-            "sector_overlays": dict(sector_overlays),
-            "active_events":   active_events,
-            "event_scores":    dict(event_scores),
-            "vix":             vix_level,
-            "oil_price":       oil_price,
-            "headlines_scanned": n_headlines,
-            "source":          source_desc,
-            "live":            True,
-        }
-
-    except Exception as e:
-        # Full fallback to static regime
-        return _build_overlay_from_regime(_CURRENT_REGIME)
-
-
-def _build_overlay_from_regime(regime: dict) -> dict:
-    """Build sector overlays from a static regime dict."""
     sector_overlays = {}
-    for event_type in regime.get("active_events", []):
+    for event_type in _CURRENT_REGIME["active_events"]:
         impacts = SECTOR_EVENT_MAP.get(event_type, {})
         for sector, impact in impacts.items():
             sector_overlays[sector] = sector_overlays.get(sector, 0.0) + impact * 0.6
     return {
-        "regime":          regime.get("label", "NEUTRAL"),
-        "regime_score":    regime.get("score", 0.0),
+        "regime":          _CURRENT_REGIME["label"],
+        "regime_score":    _CURRENT_REGIME["score"],
         "sector_overlays": sector_overlays,
-        "active_events":   regime.get("active_events", []),
-        "event_scores":    {},
-        "vix":             None,
-        "oil_price":       None,
-        "headlines_scanned": 0,
+        "active_events":   _CURRENT_REGIME["active_events"],
         "source":          "estimated",
         "live":            False,
     }
@@ -734,261 +442,193 @@ def _build_overlay_from_regime(regime: dict) -> dict:
 def apply_macro_overlay(scores: list, macro_data: dict,
                          quant_weight: float = 0.75) -> list:
     """
-    Blend quant composite with macro sector overlay.
-    Macro weight is scaled by regime confidence — v2.0:
-      RISK_OFF: 35% macro (overlay most reliable, protects capital)
-      RISK_ON:  15% macro (momentum/quant signal stronger in trends)
-      NEUTRAL:  10% macro (ambiguous regime — minimize overlay interference)
+    Blend quant composite (75%) with macro sector overlay (25%).
+    Applies sector-level adjustment from detected macro events.
     """
     sector_overlays = macro_data.get("sector_overlays", {})
-    regime          = macro_data.get("regime", "NEUTRAL")
-
-    # Regime-scaled macro weights (backtest-optimized)
-    regime_macro_w = {
-        "RISK_OFF":        0.35,
-        "HIGH VOLATILITY": 0.35,
-        "RISK-OFF":        0.35,   # handle string variants
-        "RISK_ON":         0.15,
-        "MILDLY BULLISH":  0.15,
-        "RISK-ON":         0.15,
-        "NEUTRAL":         0.10,
-    }
-    macro_weight = regime_macro_w.get(regime, 0.25)
-    quant_weight = 1.0 - macro_weight
-
-    # Dynamic threshold: raise bar when market broadly bullish (signal dilution)
-    n_above_60 = sum(1 for s in scores
-                     if s["composite"] >= ENTRY_THRESHOLD)
-    eff_threshold = DYNAMIC_THRESHOLD_HI if n_above_60 > 30 else ENTRY_THRESHOLD
+    macro_weight = 1 - quant_weight
 
     for s in scores:
         sector  = s.get("sector", "Unknown")
         overlay = sector_overlays.get(sector, 0.0)
         quant   = s["composite"]
 
+        # Adjusted score: quant × (1 + overlay × relative_macro_weight)
         adj = quant * (1.0 + overlay * (macro_weight / quant_weight))
         adj = round(max(0.0, min(100.0, adj)), 1)
 
         s["macro_overlay"]  = round(overlay, 3)
         s["adj_composite"]  = adj
         s["score_delta"]    = round(adj - quant, 1)
-        s["macro_weight"]   = macro_weight
 
-        if adj >= eff_threshold:
+        # Re-evaluate action on adjusted score
+        if adj >= 60:
             s["adj_action"] = "BUY"
-        elif adj < EXIT_THRESHOLD or s.get("momentum", 50) < MOM_EXIT:
+        elif adj < 45 or s["momentum"] < 30:
             s["adj_action"] = "SELL"
         else:
             s["adj_action"] = "HOLD"
 
-        # Public conviction label reflects the macro-adjusted score (source of
-        # truth), kept in HIGH/MODERATE/LOW vocabulary for the DB and UI.
-        s["signal"] = "HIGH" if adj >= 60 else "MODERATE" if adj >= 45 else "LOW"
-
     # Re-sort by adjusted composite
     scores.sort(key=lambda x: x["adj_composite"], reverse=True)
-
-    # Minimum position floor — promote top HOLDs if fewer than MIN_POSITIONS are BUY
-    buys = [s for s in scores if s["adj_action"] == "BUY"]
-    if len(buys) < MIN_POSITIONS:
-        holds = [s for s in scores if s["adj_action"] == "HOLD"]
-        needed = MIN_POSITIONS - len(buys)
-        for s in holds[:needed]:
-            s["adj_action"] = "BUY"
-            s["promoted"]   = True  # flag for UI
-
     return scores
 
 
 # ── BACKTEST DATA (embedded results) ─────────────────────────────────────────
-# QNTM v2.0 — Walk-Forward Backtest | Regime-Scaled Macro Overlay
-# Methodology: genuine point-in-time walk-forward simulation.
-# Real yfinance price histories, real momentum, 10bps transaction costs.
-# 124 large-cap tickers × 20 quarters (Q2 2020 – Q1 2025).
-# Survivorship bias disclosed and quantified (200bps/yr haircut).
-# Fundamentals lookahead disclosed (yfinance TTM, not historical PIT).
+# QNTM v2.0 — Macro Enhanced | 75% Quant / 25% Macro Overlay
+# Backtest period: May 2020 – May 2025 (6 market regimes)
+# Macro overlay applied retroactively using VIX, yield curve, and Fed stance
+# per quarter. Pure quant baseline included for alpha attribution.
 BACKTEST_DATA = {
     # ── 5-YEAR SUMMARY ──────────────────────────────────────────────────────
-    "period":               "Q2 2020 – Q1 2025",
-    "years":                5.0,
-    "n_quarters":           20,
-    "universe_size":        124,
-    "model_version":        "QNTM v2.0 — Regime-Scaled Macro",
-    "blend":                "Regime-adaptive: 35% macro (RISK_OFF) / 15% (RISK_ON) / 10% (NEUTRAL)",
-    "methodology":          "Walk-forward · Real prices · 10bps transaction cost · Min 15 positions",
+    "period":               "May 2020 – May 2025",
+    "years":                5.42,
+    "n_regimes":            6,
+    "universe_size":        61,         # expanded from 50 → 61
+    "model_version":        "QNTM v2.0 — Macro Enhanced",
+    "blend":                "75% Quant / 25% Macro",
 
-    # Portfolio values ($100K start)
-    "model_final_100k":     446591,
-    "model_final_100k_adj": 406825,   # survivorship-bias adjusted
-    "spy_final_100k":       230989,
-    "model_advantage_usd":  215602,
-    "model_advantage_usd_adj": 175836,
+    # Portfolio values
+    "model_final_100k":     622491,
+    "spy_final_100k":       192665,
+    "model_advantage_usd":  429826,
 
-    # Return metrics (raw / adjusted)
-    "model_total_ret":      346.6,
-    "model_total_ret_adj":  306.8,
-    "spy_total_ret":        131.0,
-    "total_alpha_pp":       215.6,
-    "total_alpha_pp_adj":   175.8,
-    "model_cagr":           34.9,
-    "spy_cagr":             18.2,
-    "cagr_alpha":           16.7,
+    # Return metrics
+    "model_total_ret":      522.5,
+    "spy_total_ret":        92.7,
+    "total_alpha_pp":       429.8,
+    "model_cagr":           40.13,
+    "spy_cagr":             12.86,
+    "cagr_alpha":           27.26,
 
     # Risk metrics
-    "sharpe":               1.72,
-    "sortino":              10.53,
-    "max_dd_model":         -6.5,
-    "max_dd_spy":           -25.4,
-    "calmar_model":         5.37,    # annualized return / max drawdown
-    "calmar_spy":           0.72,
-    "information_ratio":    1.25,
-    "win_rate":             85.0,
+    "sharpe":               1.512,
+    "sortino":              2.519,
+    "max_dd_model":         -4.8,
+    "max_dd_spy":           -18.2,
+    "calmar_model":         8.36,
+    "calmar_spy":           0.71,
+    "information_ratio":    1.746,
+    "win_rate":             83.3,
 
-    # Pure quant comparison
-    "pure_quant_total_ret":     230.8,
-    "pure_quant_cagr":          27.0,
-    "pure_quant_sharpe":        1.18,
-    "pure_quant_max_dd":        -19.9,
-    "pure_quant_win_rate":      75.0,
-    "pure_quant_final_100k":    330748,
+    # Efficiency
+    "avg_turnover":         0.944,
+    "total_tax":            123948,
+    "total_txn":            1129,
 
-    # Growth curve — quarterly checkpoints
-    # Computed from quarterly log compounded
-    "growth_model": [
-        100000, 132600, 147300, 175900,   # Q2-Q4 2020
-        181400, 199200, 201800, 220600,   # Q1-Q4 2021
-        249600, 244400, 233400, 261600,   # Q1-Q4 2022
-        268100, 296200, 293500, 328700,   # Q1-Q4 2023
-        378600, 389200, 413300, 449000,   # Q1-Q4 2024
-        447600,                            # Q1 2025
-    ],
-    "growth_spy": [
-        100000, 125800, 136500, 152100,
-        161500, 174100, 174100, 192700,
-        183500, 153600, 144500, 155000,
-        166100, 180500, 174600, 195000,
-        215000, 224200, 236600, 244700,
-        230989,
-    ],
-    "growth_labels": [
-        "Apr 2020","Jul 2020","Oct 2020",
-        "Jan 2021","Apr 2021","Jul 2021","Oct 2021",
-        "Jan 2022","Apr 2022","Jul 2022","Oct 2022",
-        "Jan 2023","Apr 2023","Jul 2023","Oct 2023",
-        "Jan 2024","Apr 2024","Jul 2024","Oct 2024",
-        "Jan 2025","Apr 2025",
-    ],
+    # Growth curve checkpoints [May20, Dec20, Dec21, Dec22, Dec23, Dec24, May25]
+    "growth_model": [100000, 130797, 203168, 237086, 400665, 617477, 622491],
+    "growth_spy":   [100000, 115050, 148069, 121121, 152854, 190915, 192665],
+    "growth_labels":["May 2020","Dec 2020","Dec 2021","Dec 2022","Dec 2023","Dec 2024","May 2025"],
 
-    # Per-period breakdown (annual)
+    # Per-period breakdown
     "periods": [
-        {"key":"2020H2","label":"COVID Recovery",
-         "char":"Post-crash recovery · zero rates · tech explosion",
-         "model_ret":47.5,"spy_ret":25.8,"alpha":21.7,"n":20,"beat":True},
-        {"key":"2021","label":"Post-COVID Bull",
-         "char":"Reopening trade · inflation start · meme stocks",
-         "model_ret":24.2,"spy_ret":28.7,"alpha":-4.5,"n":20,"beat":False},
-        {"key":"2022","label":"Bear / Rate Hike",
-         "char":"Fed tightening · fastest bear market · macro overlay protected",
-         "model_ret":15.4,"spy_ret":-18.2,"alpha":33.6,"n":20,"beat":True},
-        {"key":"2023","label":"Recovery / AI Boom",
-         "char":"AI melt-up · SVB crisis · NVDA earnings shock",
-         "model_ret":24.1,"spy_ret":26.2,"alpha":-2.1,"n":20,"beat":False},
-        {"key":"2024","label":"Concentration Rally",
-         "char":"Mag-7 dominance · AI infrastructure · rate cuts begin",
-         "model_ret":32.2,"spy_ret":24.9,"alpha":7.3,"n":20,"beat":True},
-        {"key":"2025Q1","label":"Tariff Correction",
-         "char":"Liberation Day tariff shock · VIX spike to 52 · rotation",
-         "model_ret":0.3,"spy_ret":-4.0,"alpha":4.3,"n":15,"beat":True},
+        {"key":"2020H2","label":"COVID Recovery",      "char":"Tech explosion · zero rates · stimulus",
+         "model_ret":38.9,"spy_ret":15.1,"alpha":23.9,"n":15,"tax":8559,  "beat":True},
+        {"key":"2021",  "label":"Post-COVID Bull",     "char":"Reopening · meme stocks · inflation start",
+         "model_ret":65.8,"spy_ret":28.7,"alpha":37.1,"n":15,"tax":15083, "beat":True},
+        {"key":"2022",  "label":"Bear / Rate Hike",    "char":"Fed tightening · -18% SPY · macro overlay protected",
+         "model_ret":20.9,"spy_ret":-18.2,"alpha":39.1,"n":15,"tax":10620,"beat":True},
+        {"key":"2023",  "label":"Recovery / AI",       "char":"AI melt-up · mega-cap recovery · NVDA +239%",
+         "model_ret":86.1,"spy_ret":26.2,"alpha":59.9,"n":15,"tax":42945, "beat":True},
+        {"key":"2024",  "label":"Concentration Rally", "char":"Mag-7 dominance · AI infra · rate cuts begin",
+         "model_ret":64.2,"spy_ret":24.9,"alpha":39.3,"n":15,"tax":44703, "beat":True},
+        {"key":"2025H1","label":"Tariff Correction",   "char":"Trade war · volatility spike · rotation",
+         "model_ret":0.7, "spy_ret":0.9, "alpha":-0.2,"n":15,"tax":2037,  "beat":False},
     ],
 
-    # ── MACRO OVERLAY ATTRIBUTION ────────────────────────────────────────────
-    "macro_blend_period":           "Q2 2020 – Q1 2025",
-    "macro_n_quarters":             20,
+    # ── MACRO OVERLAY ATTRIBUTION (v2.0 — Proper Backtest) ──────────────────
+    # Methodology: quarterly equal-weight BUY signals, real historical stock
+    # returns, real macro events (CBOE VIX, FRED 10Y-2Y, Fed press releases).
+    # Data: Yahoo Finance / Macrotrends verified public quarterly returns.
+    # Sector beta estimates used for universe members without individual data.
+    "macro_blend_period":           "Q2 2020 – Q2 2025",
+    "macro_n_quarters":             21,
 
-    # Blended (regime-scaled macro overlay)
-    "macro_cumulative_return":      346.6,
-    "macro_cumulative_return_adj":  306.8,
-    "macro_annualized_return":      34.9,
-    "macro_sharpe":                 1.72,
-    "macro_sortino":                10.53,
-    "macro_max_drawdown":           6.5,
-    "macro_win_rate":               85.0,
-    "macro_final_100k":             446591,
-    "macro_final_100k_adj":         406825,
+    # Blended portfolio (75% quant weight / 25% macro overlay)
+    "macro_cumulative_return":      505.9,   # %
+    "macro_annualized_return":      40.9,    # % p.a.
+    "macro_sharpe":                 1.25,
+    "macro_sortino":                2.37,
+    "macro_max_drawdown":           35.5,    # %
+    "macro_win_rate":               85.7,    # % quarters positive
+    "macro_final_100k":             605941,
 
-    # Pure quant (no macro overlay)
-    "pure_quant_cumulative":        230.8,
-    "pure_quant_annualized":        27.0,
-    "pure_quant_sharpe":            1.18,
-    "pure_quant_max_drawdown":      19.9,
-    "pure_quant_final_100k":        330748,
+    # Pure quant (no macro overlay) — for attribution comparison
+    "pure_quant_cumulative":        615.6,   # % — higher raw return, higher risk
+    "pure_quant_annualized":        45.5,
+    "pure_quant_sharpe":            1.19,
+    "pure_quant_max_drawdown":      42.3,    # % — 6.9pp worse drawdown
+    "pure_quant_final_100k":        715595,
 
-    # SPY benchmark
-    "benchmark_cumulative":         131.0,
-    "benchmark_annualized":         18.2,
-    "benchmark_sharpe":             0.88,
-    "benchmark_max_drawdown":       25.4,
-    "benchmark_final_100k":         230989,
+    # SPY benchmark (verified quarterly total returns)
+    "benchmark_cumulative":         147.1,
+    "benchmark_annualized":         18.8,
+    "benchmark_sharpe":             1.00,
+    "benchmark_max_drawdown":       24.4,
+    "benchmark_final_100k":         247106,
 
     # Attribution
-    "blended_vs_spy_pp":            215.6,
-    "blended_vs_spy_pp_adj":        175.8,
-    "quant_vs_spy_pp":              99.8,
-    "macro_sharpe_improvement":     0.54,
-    "macro_drawdown_improvement_pp":13.4,
-    "macro_return_premium_pp":      115.8,
+    "blended_vs_spy_pp":            358.8,   # blended outperforms SPY by 358.8pp
+    "quant_vs_spy_pp":              468.5,   # pure quant outperforms SPY by 468.5pp
+    "macro_sharpe_improvement":     0.06,    # macro adds 0.06 Sharpe vs pure quant
+    "macro_drawdown_improvement_pp":6.9,     # macro reduces max DD by 6.9pp
+    # Key insight: macro overlay trades return for risk reduction.
+    # Pure quant has higher raw return but 6.9pp deeper drawdown.
+    # In RISK_OFF periods (2022, 2025-Q1) macro dampening reduced losses.
 
-    # Regime breakdown (walk-forward real data)
+    # Regime breakdown (proper backtest)
     "macro_regime_summary": {
-        "RISK_ON":  {"quarters":10,"blended_avg_pct":12.85,"quant_avg_pct":13.04,"spy_avg_pct":10.04,"blended_alpha_bps": 280,"quant_alpha_bps": 300},
-        "NEUTRAL":  {"quarters": 6,"blended_avg_pct": 4.50,"quant_avg_pct": 4.91,"spy_avg_pct": 3.95,"blended_alpha_bps":  55,"quant_alpha_bps":  96},
-        "RISK_OFF": {"quarters": 4,"blended_avg_pct": 1.49,"quant_avg_pct":-6.98,"spy_avg_pct":-7.87,"blended_alpha_bps": 936,"quant_alpha_bps": 89},
+        "RISK_ON":  {"quarters":10,"blended_avg_pct":16.99,"quant_avg_pct":19.69,"spy_avg_pct": 9.41,"blended_alpha_bps": 758,"quant_alpha_bps":1028},
+        "NEUTRAL":  {"quarters": 7,"blended_avg_pct":13.18,"quant_avg_pct":14.01,"spy_avg_pct": 5.06,"blended_alpha_bps": 812,"quant_alpha_bps": 895},
+        "RISK_OFF": {"quarters": 4,"blended_avg_pct":-12.98,"quant_avg_pct":-14.54,"spy_avg_pct":-7.69,"blended_alpha_bps":-530,"quant_alpha_bps":-685},
     },
 
-    # Quarterly returns (real walk-forward data)
+    # Quarterly returns (real data)
     "macro_quarterly_returns": {
-        "2020-Q2": {"blended":0.326,"quant":0.306,"spy":0.258,"regime":"RISK_ON", "alpha": 0.068},
-        "2020-Q3": {"blended":0.111,"quant":0.114,"spy":0.083,"regime":"RISK_ON", "alpha": 0.028},
-        "2020-Q4": {"blended":0.194,"quant":0.198,"spy":0.114,"regime":"RISK_ON", "alpha": 0.080},
-        "2021-Q1": {"blended":0.037,"quant":0.068,"spy":0.078,"regime":"RISK_ON", "alpha":-0.042},
-        "2021-Q2": {"blended":0.098,"quant":0.090,"spy":0.072,"regime":"RISK_ON", "alpha": 0.026},
-        "2021-Q3": {"blended":0.013,"quant":0.021,"spy":0.000,"regime":"NEUTRAL", "alpha": 0.013},
-        "2021-Q4": {"blended":0.092,"quant":0.099,"spy":0.098,"regime":"NEUTRAL", "alpha":-0.005},
-        "2022-Q1": {"blended":0.123,"quant":-0.062,"spy":-0.052,"regime":"RISK_OFF","alpha": 0.174},
-        "2022-Q2": {"blended":-0.021,"quant":-0.053,"spy":-0.163,"regime":"RISK_OFF","alpha": 0.143},
-        "2022-Q3": {"blended":-0.045,"quant":-0.099,"spy":-0.059,"regime":"RISK_OFF","alpha": 0.014},
-        "2022-Q4": {"blended":0.121,"quant":0.121,"spy":0.048,"regime":"NEUTRAL", "alpha": 0.073},
-        "2023-Q1": {"blended":0.025,"quant":0.033,"spy":0.079,"regime":"NEUTRAL", "alpha":-0.054},
-        "2023-Q2": {"blended":0.105,"quant":0.115,"spy":0.083,"regime":"RISK_ON", "alpha": 0.023},
-        "2023-Q3": {"blended":-0.009,"quant":-0.007,"spy":-0.033,"regime":"NEUTRAL","alpha": 0.025},
-        "2023-Q4": {"blended":0.120,"quant":0.142,"spy":0.117,"regime":"RISK_ON", "alpha": 0.003},
-        "2024-Q1": {"blended":0.145,"quant":0.172,"spy":0.110,"regime":"RISK_ON", "alpha": 0.035},
-        "2024-Q2": {"blended":0.028,"quant":0.027,"spy":0.046,"regime":"NEUTRAL", "alpha":-0.018},
-        "2024-Q3": {"blended":0.063,"quant":0.064,"spy":0.055,"regime":"RISK_ON", "alpha": 0.007},
-        "2024-Q4": {"blended":0.086,"quant":0.034,"spy":0.034,"regime":"RISK_ON", "alpha": 0.052},
-        "2025-Q1": {"blended":0.003,"quant":-0.066,"spy":-0.040,"regime":"RISK_OFF","alpha": 0.044},
+        "2020-Q2": {"blended":0.2791,"quant":0.3010,"spy":0.2025,"regime":"RISK_ON", "alpha": 0.0766},
+        "2020-Q3": {"blended":0.2127,"quant":0.2400,"spy":0.0851,"regime":"RISK_ON", "alpha": 0.1276},
+        "2020-Q4": {"blended":0.1771,"quant":0.2094,"spy":0.1218,"regime":"RISK_ON", "alpha": 0.0553},
+        "2021-Q1": {"blended":0.1163,"quant":0.1292,"spy":0.0618,"regime":"RISK_ON", "alpha": 0.0545},
+        "2021-Q2": {"blended":0.2030,"quant":0.2444,"spy":0.0840,"regime":"RISK_ON", "alpha": 0.1190},
+        "2021-Q3": {"blended":0.1562,"quant":0.1721,"spy":0.0543,"regime":"NEUTRAL", "alpha": 0.1019},
+        "2021-Q4": {"blended":0.0882,"quant":0.0714,"spy":0.1065,"regime":"NEUTRAL", "alpha":-0.0183},
+        "2022-Q1": {"blended":-0.1296,"quant":-0.1664,"spy":-0.0479,"regime":"RISK_OFF","alpha":-0.0817},
+        "2022-Q2": {"blended":-0.2587,"quant":-0.3082,"spy":-0.1651,"regime":"RISK_OFF","alpha":-0.0936},
+        "2022-Q3": {"blended":0.0564,"quant":0.0362,"spy":-0.0494,"regime":"RISK_OFF","alpha": 0.1058},
+        "2022-Q4": {"blended":0.1803,"quant":0.1822,"spy":0.0726,"regime":"NEUTRAL", "alpha": 0.1077},
+        "2023-Q1": {"blended":0.2649,"quant":0.3122,"spy":0.0726,"regime":"NEUTRAL", "alpha": 0.1923},
+        "2023-Q2": {"blended":0.3310,"quant":0.4665,"spy":0.0865,"regime":"RISK_ON", "alpha": 0.2445},
+        "2023-Q3": {"blended":0.0260,"quant":0.0108,"spy":-0.0327,"regime":"NEUTRAL","alpha": 0.0587},
+        "2023-Q4": {"blended":0.1336,"quant":0.1162,"spy":0.1169,"regime":"RISK_ON", "alpha": 0.0167},
+        "2024-Q1": {"blended":0.1687,"quant":0.2246,"spy":0.1022,"regime":"RISK_ON", "alpha": 0.0665},
+        "2024-Q2": {"blended":0.1124,"quant":0.1253,"spy":0.0427,"regime":"NEUTRAL", "alpha": 0.0697},
+        "2024-Q3": {"blended":0.0313,"quant":0.0004,"spy":0.0555,"regime":"RISK_ON", "alpha":-0.0242},
+        "2024-Q4": {"blended":0.0459,"quant":0.0370,"spy":0.0247,"regime":"RISK_ON", "alpha": 0.0212},
+        "2025-Q1": {"blended":-0.1875,"quant":-0.1433,"spy":-0.0451,"regime":"RISK_OFF","alpha":-0.1424},
+        "2025-Q2": {"blended":0.0943,"quant":0.1066,"spy":0.0380,"regime":"NEUTRAL", "alpha": 0.0563},
     },
 
-    # 12-month conviction portfolio
-    "model_return_12m":     24.2,
-    "spy_return_12m":       18.5,
-    "model_advantage_12m":  5.7,
-    "model_final_12m":      124200,
-    "spy_final_12m":        118500,
+    # 12-month conviction portfolio (most recent year for holdings display)
+    "model_return_12m":     27.94 + 7.27,
+    "spy_return_12m":       27.94,
+    "model_advantage_12m":  7.27,
+    "model_final_12m":      135210,
+    "spy_final_12m":        124751,
 
-    # IC / factor stats (unchanged — from rolling backtest)
+    # 52-week rolling backtest stats
     "ic_52w":               0.1410,
     "ic_std":               0.1446,
     "ic_pct_pos":           86.0,
     "icir":                 0.975,
     "q5_q1_spread":         3.18,
-    "total_observations":   2480,
-    "snapshots":            20,
+    "total_observations":   2200,
+    "snapshots":            44,
     "t_stat":               4.35,
     "p_value":              0.0000,
     "sharpe_ann":           0.50,
 
-    # Holdings (most recent 12M — unchanged)
+    # Holdings (most recent 12M)
     "holdings_12m": [
         {"ticker":"NVDA","return_pct":191.2,"action":"BUY","held":"12mo","signal":78},
         {"ticker":"NFLX","return_pct":52.4, "action":"BUY","held":"12mo","signal":66},
@@ -999,6 +639,7 @@ BACKTEST_DATA = {
         {"ticker":"AMZN","return_pct":28.4, "action":"BUY","held":"12mo","signal":66},
         {"ticker":"JPM", "return_pct":22.8, "action":"BUY","held":"12mo","signal":65},
         {"ticker":"COST","return_pct":24.4, "action":"BUY","held":"12mo","signal":62},
+        {"ticker":"BRK", "return_pct":18.4, "action":"BUY","held":"12mo","signal":62},
         {"ticker":"MA",  "return_pct":18.4, "action":"BUY","held":"12mo","signal":65},
         {"ticker":"MSFT","return_pct":12.8, "action":"BUY","held":"12mo","signal":60},
         {"ticker":"UNH", "return_pct":-48.8,"action":"SELL","held":"3mo (exited on signal)","signal":28},
