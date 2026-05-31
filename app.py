@@ -8413,16 +8413,14 @@ def page_platform():
                     unsafe_allow_html=True
                 )
                 st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-                b1, b2 = st.columns(2)
-                with b1:
-                    if st.button("⚡ Enable 2FA", key="force_mfa_yes", use_container_width=True):
-                        st.session_state.force_mfa_setup = False
-                        nav("account")
-                        st.session_state.show_mfa_setup = True
-                with b2:
-                    if st.button("Skip", key="force_mfa_skip", use_container_width=True):
-                        st.session_state.force_mfa_setup = False
-                        st.rerun()
+                if st.button("⚡ Enable 2FA", key="force_mfa_yes", use_container_width=True):
+                    st.session_state.force_mfa_setup = False
+                    nav("account")
+                    st.session_state.show_mfa_setup = True
+                st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+                if st.button("Skip", key="force_mfa_skip", use_container_width=True):
+                    st.session_state.force_mfa_setup = False
+                    st.rerun()
             return
         else:
             st.session_state.force_mfa_setup = False
