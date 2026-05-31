@@ -34,12 +34,24 @@ st.set_page_config(
 )
 
 
-def qntm_html(html, *, height=0, scrolling=False):
+def qntm_html(html, *, height=0, scrolling=False, iframe=False):
     """Version-safe successor to st.components.v1.html (deprecated in Streamlit
-    1.56, removed in a later release). Uses st.iframe when available, otherwise
-    falls back to the pinned-1.55.x components.html. Migration: see MIGRATION.md."""
+    1.56, removed in a later release).
+
+    On Streamlit >=1.56:
+      - iframe=True with height>0 -> st.iframe (isolated visible content, e.g. a
+        self-contained chart document).
+      - everything else -> st.html(..., unsafe_allow_javascript=True), which runs
+        inline in the main document. This is required for the zero-height JS-only
+        payloads (st.iframe rejects height=0) and is also more robust: there's no
+        iframe sandbox, so window.parent/parent.document gracefully resolve to the
+        top window.
+    On the pinned 1.55.x: falls back to components.html. See MIGRATION.md."""
     if hasattr(st, "iframe"):
-        st.iframe(html, height=height)
+        if iframe and height and height > 0:
+            st.iframe(html, height=height)
+        else:
+            st.html(html, unsafe_allow_javascript=True)
     else:
         import streamlit.components.v1 as _cv1_compat
         _cv1_compat.html(html, height=height, scrolling=scrolling)
@@ -5723,7 +5735,7 @@ c.innerHTML = `
 document.body.prepend(c);
 </script>
 </body></html>"""
-    qntm_html(chart_html, height=480)
+    qntm_html(chart_html, height=480, iframe=True)
 
     # ── Macro Overlay Attribution Section ─────────────────────────────────────
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
