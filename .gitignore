@@ -7,3 +7,4 @@ docs/~$*
 docs/*.docx
 docs/*.pdf
 docs/~$*
+venv/
