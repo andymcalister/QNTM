@@ -2330,6 +2330,34 @@ def _cta_ghost(label: str, href: str, full_width: bool = True) -> str:
         f'box-sizing:border-box;margin-top:4px;">{label}</a>'
     )
 
+
+def _render_checkout_button(url: str):
+    """Gold 'Continue to secure checkout' button that navigates the SAME tab to
+    Stripe. Uses the proven component-iframe pattern: window.open(url,'_top') is
+    the one call the sandbox permits to drive the parent window (plain
+    <a target=_top> and window.top.location are blocked). Renders inside a
+    components.v1.html iframe."""
+    _safe = (url or "").replace("\\", "\\\\").replace('"', '\\"')
+    _cv1_js.html(
+        f'''<div style="font-family:Syne,sans-serif;">
+        <button id="qntm-checkout-btn" style="width:100%;box-sizing:border-box;
+            padding:16px;border:none;border-radius:8px;cursor:pointer;
+            background:linear-gradient(135deg,#d4a843,#b8922e);
+            color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;font-size:16px;">
+          Continue to secure checkout →
+        </button>
+        <div style="text-align:center;font-size:11px;color:#64748b;margin-top:8px;">
+          Opens Stripe's secure checkout in this tab.
+        </div></div>
+        <script>
+          document.getElementById("qntm-checkout-btn").addEventListener("click",function(){{
+            window.open("{_safe}","_top");
+          }});
+        </script>''',
+        height=90,
+    )
+
+
 # ── DISCLAIMER ────────────────────────────────────────────────────────────────
 DISCLAIMER = """<div style="display:flex;align-items:center;gap:8px;padding:6px 0;margin-bottom:8px;">
 <span style="font-size:11px;color:#334155;">ℹ</span>
@@ -7614,10 +7642,7 @@ def page_account():
                                 # button (hides the st.button so it can't render in
                                 # its post-click white state).
                                 if st.session_state.get("_checkout_url"):
-                                    st.link_button("Continue to secure checkout →",
-                                                   st.session_state["_checkout_url"],
-                                                   use_container_width=True, type="primary")
-                                    st.caption("Opens Stripe's secure checkout in a new tab.")
+                                    _render_checkout_button(st.session_state["_checkout_url"])
                                 elif st.session_state.get("_checkout_err"):
                                     st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
                                 else:
@@ -8577,10 +8602,7 @@ def page_upgrade():
             # Once a checkout URL exists, show ONLY the link button (hides the
             # st.button so it can't render in its post-click white state).
             if st.session_state.get("_checkout_url"):
-                st.link_button("Continue to secure checkout →",
-                               st.session_state["_checkout_url"],
-                               use_container_width=True, type="primary")
-                st.caption("Opens Stripe's secure checkout in a new tab.")
+                _render_checkout_button(st.session_state["_checkout_url"])
             elif st.session_state.get("_checkout_err"):
                 st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
             elif not _sb_pay.billing_configured():
