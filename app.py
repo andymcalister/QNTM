@@ -942,7 +942,7 @@ if st.session_state.get("tz_offset_hours") is None or not st.session_state.get("
             var tzname = Intl.DateTimeFormat().resolvedOptions().timeZone;
             url.searchParams.set('_tz', offset.toString());
             url.searchParams.set('_tzname', tzname);
-            window.parent.location.replace(url.toString());
+            window.parent.history.replaceState(null, '', url.toString());
         } catch(e) {
             // Cross-origin restriction or other — try writing to top instead
             try {
@@ -952,7 +952,7 @@ if st.session_state.get("tz_offset_hours") is None or not st.session_state.get("
                 var tzname = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 url2.searchParams.set('_tz', offset.toString());
                 url2.searchParams.set('_tzname', tzname);
-                window.top.location.replace(url2.toString());
+                window.top.history.replaceState(null, '', url2.toString());
             } catch(e2) {}
         }
     })();
