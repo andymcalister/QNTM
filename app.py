@@ -10,9 +10,25 @@ from datetime import datetime, date
 import sys, os, contextlib
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Resolve the Q favicon robustly across Render/local working dirs; load as a PIL
+# image (the most reliable page_icon input). Fall back to ⚡ only if truly absent.
+_page_icon = "⚡"
+try:
+    from PIL import Image as _PILImage
+    for _cand in (
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "qntm_icon.png"),
+        os.path.join(os.getcwd(), "qntm_icon.png"),
+        "qntm_icon.png",
+    ):
+        if os.path.exists(_cand):
+            _page_icon = _PILImage.open(_cand)
+            break
+except Exception:
+    _page_icon = "⚡"
+
 st.set_page_config(
     page_title="QNTM — Conviction Factor Model",
-    page_icon="⚡",
+    page_icon=_page_icon,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -623,6 +639,16 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
   /* Card rows — ensure single line, large tap target */
   .qcard-wrap label { min-height: 48px !important; padding: 10px 12px !important; }
   .qcard-wrap { margin-bottom: 6px !important; }
+
+  /* Top-10 HIGH/LOW conviction grid — stack to one column on phones so the
+     expanded card gets full width instead of being clipped in a half column */
+  .qntm-conv-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
+  .qntm-conv-grid > div { margin-bottom: 10px; }
+
+  /* Expanded-card internals: collapse to 2-up on phones. These main-document
+     cards don't receive CARD_IFRAME_TAIL's copy of this rule, so mirror it. */
+  .qcard-pillars { grid-template-columns: repeat(2,1fr) !important; }
+  .qcard-4box    { grid-template-columns: repeat(2,1fr) !important; }
 
   /* Hide company name in collapsed card on very small screens */
   .qcard-name-mobile { display: none !important; }
@@ -4640,30 +4666,35 @@ def page_screener():
 
     # ── TAB 1: TOP 10 — scan mode ───────────────────────────────────────────
     with scr_tab1:
-        t1c1, t1c2 = st.columns(2)
-        for col, label, color, ranked in [
-            (t1c1, "▲ HIGH CONVICTION", "#00ff87", buys_ranked[:10]),
-            (t1c2, "▼ LOW CONVICTION",  "#ef4444", sells_ranked[:10]),
-        ]:
-            with col:
-                st.markdown(
-                    f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{color};'
-                    f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
-                    f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>',
-                    unsafe_allow_html=True)
-                _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
-                _col_html = ""
-                for i, r in enumerate(ranked):
-                    ci     = get_company_info(r["ticker"])
-                    is_gem = r["ticker"] in gem_tickers
-                    # Ensure action matches list — signal_log BUY/SELL may not match adj
-                    if color == "#ef4444" and r.get("adj_action",r.get("action")) != "SELL":
-                        r = dict(r); r["adj_action"] = "SELL"
-                    elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
-                        r = dict(r); r["adj_action"] = "BUY"
-                    _col_html += build_card_html(r, nav="screener", is_gem=is_gem,
-                                                 company_info=ci, in_list=_wl_now)
-                render_cards_batch(_col_html)
+        # Responsive CSS grid (not st.columns, which won't stack on mobile and
+        # clips the expanded card on narrow screens). 2 cols on desktop, 1 col
+        # on phones via the .qntm-conv-grid media query in the main-doc <style>.
+        _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+
+        def _conv_col(label, color, ranked):
+            out = (f'<div style="font-family:DM Mono,monospace;font-size:10px;color:{color};'
+                   f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
+                   f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>')
+            for r in ranked:
+                ci     = get_company_info(r["ticker"])
+                is_gem = r["ticker"] in gem_tickers
+                # Ensure action matches list — signal_log BUY/SELL may not match adj
+                if color == "#ef4444" and r.get("adj_action",r.get("action")) != "SELL":
+                    r = dict(r); r["adj_action"] = "SELL"
+                elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
+                    r = dict(r); r["adj_action"] = "BUY"
+                out += build_card_html(r, nav="screener", is_gem=is_gem,
+                                       company_info=ci, in_list=_wl_now)
+            return out
+
+        _high_html = _conv_col("▲ HIGH CONVICTION", "#00ff87", buys_ranked[:10])
+        _low_html  = _conv_col("▼ LOW CONVICTION",  "#ef4444", sells_ranked[:10])
+        st.markdown(
+            '<div class="qntm-conv-grid" style="display:grid;'
+            'grid-template-columns:1fr 1fr;gap:16px;align-items:start;">'
+            f'<div>{_high_html}</div><div>{_low_html}</div>'
+            '</div>',
+            unsafe_allow_html=True)
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
