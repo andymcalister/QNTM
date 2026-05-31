@@ -8788,6 +8788,31 @@ def main():
                         upgrade_plan(uid(), "free")
                         if st.session_state.get("user"):
                             st.session_state.user["plan"] = "free"
+            elif (not _sub_id) and _sbp2.billing_configured() and not _bs.get("billing_active"):
+                # Self-heal: no stored subscription, but the user may have one in
+                # Stripe (e.g. a checkout that failed to finalize). Look up by email.
+                _em2 = (st.session_state.user or {}).get("email")
+                if _em2:
+                    _fr = _sbp2.finalize_checkout(uid(), _em2)
+                    if _fr.get("ok") and _sbp2.status_grants_access(_fr.get("status", "")):
+                        _ssb2(uid(),
+                              customer_id=_fr.get("customer_id"),
+                              subscription_id=_fr.get("subscription_id"),
+                              billing_active=True,
+                              status=_fr.get("status"))
+                        try:
+                            _nb2 = (st.session_state.user or {}).get("notifications") or {}
+                            if isinstance(_nb2, dict):
+                                _nb2["trial_end"] = _fr.get("trial_end")
+                                _nb2["current_period_end"] = _fr.get("current_period_end")
+                                from db import update_preferences as _upd2
+                                _upd2(uid(), {"notifications": _nb2})
+                                st.session_state.user["notifications"] = _nb2
+                        except Exception:
+                            pass
+                        upgrade_plan(uid(), "pro")
+                        if st.session_state.get("user"):
+                            st.session_state.user["plan"] = "pro"
         except Exception:
             pass
 
