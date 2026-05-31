@@ -7187,6 +7187,10 @@ def page_alerts():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_account():
     _pin_nav("account")
+    if st.session_state.get("_checkout_page") != "account":
+        st.session_state["_checkout_page"] = "account"
+        st.session_state.pop("_checkout_url", None)
+        st.session_state.pop("_checkout_err", None)
     from db import disable_mfa, upgrade_plan, plan_limit
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
@@ -7606,47 +7610,42 @@ def page_account():
                         if _f_consent:
                             import stripe_billing as _sb_f
                             if _sb_f.billing_configured():
-                                if st.button("Start $29/mo subscription", key="founder_start_paid",
-                                             use_container_width=True):
-                                    import arl as _arl_f2
-                                    _ipf = None
-                                    try:
-                                        _ipf = st.context.headers.get("X-Forwarded-For")
-                                    except Exception:
-                                        _ipf = None
-                                    _arl_f2.log_consent(uid(), plan="pro_supporter", ip_address=_ipf)
-                                    from db import get_stripe_billing as _gsbf
-                                    _exf = _gsbf(uid()).get("stripe_customer_id")
-                                    _basef = "https://qntmmvp.streamlit.app"
-                                    try:
-                                        _basef = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
-                                    except Exception:
-                                        pass
-                                    _emf = (st.session_state.user or {}).get("email", "")
-                                    _urlf = _sb_f.create_checkout_url(uid(), _emf, _basef, _exf)
-                                    if _urlf:
-                                        st.session_state["_checkout_url"] = _urlf
-                                        st.session_state["_awaiting_checkout"] = 3
-                                        st.session_state["_stripe_polled"] = False
-                                    else:
-                                        st.session_state["_checkout_url"] = None
-                                        st.session_state["_checkout_err"] = _sb_f.last_error()
-                                # Render the checkout link OUTSIDE the button block so it
-                                # persists across reruns (st.button is True for one rerun only).
+                                # Once a checkout URL exists, show ONLY the link
+                                # button (hides the st.button so it can't render in
+                                # its post-click white state).
                                 if st.session_state.get("_checkout_url"):
-                                    st.markdown(
-                                        f'<a href="{st.session_state["_checkout_url"]}" target="_top" '
-                                        f'style="display:block;width:100%;box-sizing:border-box;'
-                                        f'text-align:center;padding:14px;margin-top:6px;'
-                                        f'background:linear-gradient(135deg,#d4a843,#b8922e);'
-                                        f'color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;'
-                                        f'font-size:15px;border-radius:8px;text-decoration:none;">'
-                                        f'Continue to secure checkout →</a>'
-                                        f'<div style="text-align:center;font-size:11px;color:#475569;'
-                                        f'margin-top:6px;">Opens Stripe\u2019s secure checkout in this tab.</div>',
-                                        unsafe_allow_html=True)
+                                    st.link_button("Continue to secure checkout →",
+                                                   st.session_state["_checkout_url"],
+                                                   use_container_width=True, type="primary")
+                                    st.caption("Opens Stripe's secure checkout in a new tab.")
                                 elif st.session_state.get("_checkout_err"):
                                     st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
+                                else:
+                                    if st.button("Start $29/mo subscription", key="founder_start_paid",
+                                                 use_container_width=True):
+                                        import arl as _arl_f2
+                                        _ipf = None
+                                        try:
+                                            _ipf = st.context.headers.get("X-Forwarded-For")
+                                        except Exception:
+                                            _ipf = None
+                                        _arl_f2.log_consent(uid(), plan="pro_supporter", ip_address=_ipf)
+                                        from db import get_stripe_billing as _gsbf
+                                        _exf = _gsbf(uid()).get("stripe_customer_id")
+                                        _basef = "https://qntmmvp.streamlit.app"
+                                        try:
+                                            _basef = "https://" + (st.context.headers.get("Host") or "qntmmvp.streamlit.app")
+                                        except Exception:
+                                            pass
+                                        _emf = (st.session_state.user or {}).get("email", "")
+                                        _urlf = _sb_f.create_checkout_url(uid(), _emf, _basef, _exf)
+                                        if _urlf:
+                                            st.session_state["_checkout_url"] = _urlf
+                                            st.session_state["_awaiting_checkout"] = 3
+                                            st.session_state["_stripe_polled"] = False
+                                        else:
+                                            st.session_state["_checkout_err"] = _sb_f.last_error()
+                                        st.rerun()
                             else:
                                 st.info("Paid subscriptions aren\u2019t enabled yet. Check back soon.")
                 else:
@@ -8503,6 +8502,12 @@ def page_platform():
 def page_upgrade():
     """Upgrade to Pro page — handles upgrade flow, Stripe when ready."""
     _pin_nav("upgrade")
+    # Clear any stale checkout URL/error from a previous visit, once per page entry
+    # (guarded so we don't wipe a URL created during this visit's reruns).
+    if st.session_state.get("_checkout_page") != "upgrade":
+        st.session_state["_checkout_page"] = "upgrade"
+        st.session_state.pop("_checkout_url", None)
+        st.session_state.pop("_checkout_err", None)
     feature    = st.session_state.get("upgrade_feature", "Pro")
     return_nav = st.session_state.get("upgrade_return_nav", "screener")
 
@@ -8568,19 +8573,37 @@ def page_upgrade():
         with _cb_col:
             _arl_consent = st.checkbox(_arl.CHECKBOX_TEXT, value=False, key="arl_consent_cb")
         if _arl_consent:
-            # 1C/1D — log consent artifact + acknowledgment email, then proceed.
-            if st.button("Start free trial", key="arl_start_trial", use_container_width=True):
-                _ip = None
-                try:
-                    _ip = st.context.headers.get("X-Forwarded-For")  # best-effort
-                except Exception:
+            import stripe_billing as _sb_pay
+            # Once a checkout URL exists, show ONLY the link button (hides the
+            # st.button so it can't render in its post-click white state).
+            if st.session_state.get("_checkout_url"):
+                st.link_button("Continue to secure checkout →",
+                               st.session_state["_checkout_url"],
+                               use_container_width=True, type="primary")
+                st.caption("Opens Stripe's secure checkout in a new tab.")
+            elif st.session_state.get("_checkout_err"):
+                st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
+            elif not _sb_pay.billing_configured():
+                # No Stripe configured — direct upgrade (dev/test only)
+                if st.button("Start free trial", key="arl_start_trial", use_container_width=True):
+                    _arl.log_consent(_uid_val, plan="pro")
+                    _email = (st.session_state.user or {}).get("email")
+                    if _email:
+                        _arl.send_acknowledgment(_uid_val, _email)
+                    ok = upgrade_plan(uid(), "pro")
+                    if ok and st.session_state.get("user"):
+                        st.session_state.user["plan"] = "pro"
+                    st.session_state.nav  = return_nav
+                    st.session_state.page = "platform"
+                    st.rerun()
+            else:
+                if st.button("Start free trial", key="arl_start_trial", use_container_width=True):
                     _ip = None
-                _arl.log_consent(_uid_val, plan="pro", ip_address=_ip)
-                # If Stripe is configured, redirect to hosted Checkout (7-day
-                # trial, card collected but not charged). Otherwise fall back to
-                # the direct upgrade (test/dev without Stripe keys).
-                import stripe_billing as _sb_pay
-                if _sb_pay.billing_configured():
+                    try:
+                        _ip = st.context.headers.get("X-Forwarded-For")
+                    except Exception:
+                        _ip = None
+                    _arl.log_consent(_uid_val, plan="pro", ip_address=_ip)
                     from db import get_stripe_billing as _gsb
                     _existing = _gsb(_uid_val).get("stripe_customer_id")
                     _base = "https://qntmmvp.streamlit.app"
@@ -8595,36 +8618,8 @@ def page_upgrade():
                         st.session_state["_awaiting_checkout"] = 3
                         st.session_state["_stripe_polled"] = False
                     else:
-                        st.session_state["_checkout_url"] = None
                         st.session_state["_checkout_err"] = _sb_pay.last_error()
-                else:
-                    # No Stripe configured — direct upgrade (dev/test only)
-                    _email = (st.session_state.user or {}).get("email")
-                    if _email:
-                        _arl.send_acknowledgment(_uid_val, _email)
-                    ok = upgrade_plan(uid(), "pro")
-                    if ok and st.session_state.get("user"):
-                        st.session_state.user["plan"] = "pro"
-                    st.session_state.nav  = return_nav
-                    st.session_state.page = "platform"
                     st.rerun()
-            # Persistent checkout link — outside the button block so it survives
-            # reruns (st.button is True for only one rerun). target=_top navigates
-            # the browser tab, not the Streamlit iframe (which Stripe blocks).
-            if st.session_state.get("_checkout_url"):
-                st.markdown(
-                    f'<a href="{st.session_state["_checkout_url"]}" target="_top" '
-                    f'style="display:block;width:100%;box-sizing:border-box;'
-                    f'text-align:center;padding:16px;margin-top:6px;'
-                    f'background:linear-gradient(135deg,#d4a843,#b8922e);'
-                    f'color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;'
-                    f'font-size:16px;border-radius:8px;text-decoration:none;">'
-                    f'Continue to secure checkout →</a>'
-                    f'<div style="text-align:center;font-size:11px;color:#475569;'
-                    f'margin-top:6px;">Opens Stripe\u2019s secure checkout in this tab.</div>',
-                    unsafe_allow_html=True)
-            elif st.session_state.get("_checkout_err"):
-                st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
         else:
             st.markdown(
                 '<div style="max-width:480px;margin:8px auto 0;padding:0 16px;'
