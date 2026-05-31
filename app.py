@@ -8707,6 +8707,23 @@ def page_upgrade():
 
 
 def main():
+    # ── DEBUG readout (gated on ?debug=1) — remove before launch ──────────────
+    if st.query_params.get("debug") == "1":
+        st.session_state["_dbg"] = True
+    if st.session_state.get("_dbg"):
+        _qp = dict(st.query_params)
+        _u = _qp.get("uid", "")
+        st.warning(
+            "DEBUG  "
+            f"logged_in={st.session_state.get('logged_in')}  "
+            f"page={st.session_state.get('page')}  "
+            f"nav={st.session_state.get('nav')}  "
+            f"signed_out={st.session_state.get('signed_out')}  "
+            f"user={'set' if st.session_state.get('user') else 'NONE'}  "
+            f"uid_in_url={'YES(' + _u[:10] + ')' if _u else 'NO'}  "
+            f"url_params={sorted(_qp.keys())}"
+        )
+
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
