@@ -7479,20 +7479,6 @@ def page_account():
                     else:
                         st.error("Could not undo cancellation — contact billing@qntm.app")
             else:
-                # One-time themed welcome banner after starting a trial
-                # (replaces the unthemeable white st.toast popup).
-                if st.session_state.pop("_trial_just_started", False):
-                    st.markdown("""
-                    <div style="background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.35);
-                         border-radius:8px;padding:16px 20px;margin-bottom:14px;">
-                      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;
-                           color:#d4a843;margin-bottom:4px;">Your 7-day free trial has started 🎉</div>
-                      <div style="font-size:13px;color:#94a3b8;line-height:1.6;">
-                        You won't be charged during the trial. Cancel anytime below.
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
                 # Active subscription panel
                 st.markdown(f"""
                 <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);
@@ -8400,6 +8386,21 @@ def page_platform():
     # Persist nav in URL so WebSocket reconnects (mobile blur) can restore it
     _cur_nav = st.session_state.get("nav", "screener")
     st.query_params["_n"] = _cur_nav
+    # One-time trial-started confirmation — shows on whatever page Stripe returns
+    # the user to (screener for the main upgrade flow, account for the supporter
+    # flow). Themed banner instead of the unthemeable white toast.
+    if st.session_state.pop("_trial_just_started", False):
+        st.markdown("""
+        <div style="background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.35);
+             border-radius:8px;padding:16px 20px;margin:8px 0 18px;">
+          <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;
+               color:#d4a843;margin-bottom:4px;">Your 7-day free trial has started 🎉</div>
+          <div style="font-size:13px;color:#94a3b8;line-height:1.6;">
+            You're now on QNTM Pro. You won't be charged during the trial —
+            manage or cancel anytime in Account → Plan &amp; Billing.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
     nav_map.get(_cur_nav, page_screener)()
 
     # ── One-at-a-time card collapse script ──────────────────────────────────
