@@ -1,5 +1,5 @@
 # QNTM Platform — Handoff Summary
-*Updated: May 30, 2026*
+*Updated: May 30, 2026 (late — Stripe sandbox lifecycle working)*
 
 ## What It Is
 QNTM is a quantitative conviction factor model platform for retail investors. Dark institutional aesthetic, dark theme.
@@ -145,14 +145,39 @@ Every `def page_X()` starts with `_pin_nav("X")` — prevents text input reruns 
 
 **`arl.py` module** holds all compliance copy/logic: consent logging, notice logging (`notices_sent`), email templates (acknowledgment, annual reminder, price change, material change, cancellation confirmation), stubbed `_send_email`, and `run_annual_reminders()` cron (`python arl.py annual_reminders`). Bump `TERMS_VERSION`/`CONTENT_VERSION` when copy changes.
 
-## When wiring Stripe (NEXT SESSION)
-1. Create Stripe account (needs LLC + EIN — **form LLC first**).
-2. Add `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID_PRO` + webhook secret to Streamlit secrets (dev + prod).
-3. Replace `upgrade_plan()` call in the router (and/or the `page_upgrade` button) with a Stripe Checkout redirect for the 7-day-trial → $29/mo subscription.
-4. **Flip `_paid_trial_mode = True`** — this turns on the full ARL checkout (notice + consent + log + ack email). Stripe + ARL go live together.
-5. Set `billing_active=True` on paid users (in the `users.notifications` JSON or wherever billing state lands) so the one-click cancel + annual reminders target them.
-6. Wire `arl._send_email` to a real provider (SendGrid key) — currently stubbed (logs intent, returns False, `notices_sent.delivered=False`).
-7. **Fintech-attorney review of ARL copy + consent/cancel UI + trading policy + all disclosures is the real gate before taking paying users.** Do not flip `STRIPE_LIVE` until counsel signs off.
+## Stripe Billing — BUILT & WORKING IN SANDBOX (May 30)
+Full 7-day-trial → $29/mo subscription lifecycle works end-to-end in Stripe **sandbox**: checkout, trial, paid/Founder distinction, trial countdown, cancel, self-healing sync. Module: `stripe_billing.py`. Integration style: **Stripe Checkout (hosted redirect)** — NOT Payment Element (iframe conflicts with Streamlit). State sync: **polling** (no webhook server — Streamlit can't receive POSTs).
+
+**Secrets (dev has them; prod does NOT yet):**
+```toml
+STRIPE_SECRET_KEY = "sk_test_..."          # sandbox secret key
+STRIPE_PRICE_ID_PRO = "price_1TcumNPiKYrkolEYwFb8u3qE"   # sandbox $29/mo recurring price
+```
+Both MUST be from the SAME Stripe environment (sandbox key + sandbox price). Mismatch → "No such price" / "Invalid API Key". The 7-day trial is applied in CODE (`trial_period_days:7` in `create_checkout_url`), NOT on the dashboard price — there's no trial option on the price, that's expected.
+
+**`stripe_billing.py` functions:** `create_checkout_url`, `finalize_checkout(user_id, email)` (email-first lookup, version-safe), `poll_subscription_status`, `cancel_subscription` (cancel_at_period_end=True), `reactivate_subscription`, `status_grants_access`, `last_error()`. All use the `_g()` getattr helper — **Stripe objects don't reliably support `.get()` across SDK versions; use `_g(obj, attr)` not `obj.get(attr)`**.
+
+**db.py:** `set_stripe_billing` / `get_stripe_billing` store stripe_customer_id / stripe_subscription_id / billing_active / stripe_status / trial_end / current_period_end in the `users.notifications` JSON blob (no migration).
+
+**Flow:** free user → upgrade page → ARL notice + consent checkbox → "Start free trial" button → `create_checkout_url` → `st.link_button` to Stripe → pay (test card `4242 4242 4242 4242`) → return `?checkout=success` → `finalize_checkout` sets billing_active + flips to Pro + fires ack email. Founder-supporter path is the same but from `page_account`, logs consent as plan `pro_supporter`.
+
+**`_paid_trial_mode` auto-enables when `billing_configured()` is true** (keys present), so the ARL checkout activates automatically once Stripe secrets are set.
+
+**Self-heal poll:** once-per-session, syncs plan from live Stripe status. Gated behind `_awaiting_checkout` counter (set to 3 on Start-trial click) so it does NOT fire a Stripe email lookup for every free user on every load (that bug stalled the page). Decrements per load.
+
+### CHECKOUT BUTTON — known state & the unfinished bit
+- Currently uses **`st.link_button`** → opens Stripe in a **NEW TAB**. This WORKS. Accepted for now.
+- The white-button-after-click and new-tab are cosmetic/UX nits left unfixed by choice (May 30, after a long debugging loop).
+- **Same-tab is solvable** but was deferred: the proven pattern is the card buttons' `window.open(url,'_top')` inside a `components.v1.html` iframe (see ~line 1704; plain `<a target=_top>` and `window.top.location` are BLOCKED by the sandbox, `window.open(_top)` is permitted). A `_render_checkout_button()` helper using this exists in git history. When revisiting: push it, then **verify deploy is current (`git log origin/dev`) and FULL REBOOT before judging** — stale deploys caused most of the May 30 confusion, not the code.
+
+## What's left before LIVE payments
+1. **Bank account** (Mercury) → needs Articles of Organization approval (filed, pending state). Stripe payout needs it. Sandbox needs nothing, so dev testing is unblocked.
+2. **Swap sandbox keys → live keys** (`sk_live_...`) + recreate product/price in live mode. Sandbox data doesn't carry over.
+3. **Stripe account activation** (needs bank).
+4. **Wire `arl._send_email` to SendGrid** — currently stubbed (logs intent, `notices_sent.delivered=False`).
+5. **Fintech-attorney review** of ARL copy + consent/cancel UI + Founder-supporter path + trading policy + disclosures — THE GATE before paying users. Do not go live until counsel signs off.
+6. **Add Stripe webhooks** eventually (replaces polling lag) — optional, polling is fine for launch.
+7. Add `STRIPE_*` + `SUPABASE_SERVICE_KEY` secrets to PROD when going live.
 
 ---
 
@@ -203,6 +228,7 @@ page_platform()       # Container: nav + 60s scan timer + nav_map routing
 - `resolve_ticker(query)` — company name → ticker (KNOWN dict + yfinance fallback)
 - `_get_supabase()` from `data_refresh` — uses SERVICE_KEY (not anon)
 - `arl.py` — ARL compliance module (consent/notice logging, email templates, stubbed sender, annual-reminder cron)
+- `stripe_billing.py` — Stripe Checkout/trial/cancel/poll module (see Stripe Billing section). Use `_g()` not `.get()` on Stripe objects.
 
 ---
 
@@ -219,25 +245,54 @@ ENVIRONMENT = "dev"   # dev deployment only; prod omits or sets "prod"
 ---
 
 ## Pre-Launch Checklist
-- [ ] **Form QNTM LLC** (needed before Stripe account, bank account; docs already reference the entity)
-- [ ] Fintech lawyer review — IAA 1940 publisher's exclusion, ARL copy + consent/cancel UI, conflicts disclosure, trading policy, all disclaimers, CA DFPI
-- [ ] Stripe integration — `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID_PRO` + webhook; flip `_paid_trial_mode` + `billing_active`
-- [ ] Wire `arl._send_email` to SendGrid (currently stubbed)
-- [ ] Rotate Supabase keys
-- [ ] Wire `publish_signal_batch()` into `run_refresh` (atomic publishing)
-- [ ] Verify intraday cron on prod
+- [x] **QNTM LLC** — Articles of Organization FILED (pending state approval). EIN + business email obtained.
+- [x] Stripe integration built & working in SANDBOX (Checkout + 7-day trial + cancel + Founder-supporter)
 - [x] Prod in sync with dev (May 30)
 - [x] Signal vocabulary normalized to HIGH/MODERATE/LOW (code + DB)
-- [x] ARL machinery built (gated on `_paid_trial_mode`)
+- [x] ARL machinery built (auto-on when Stripe configured)
+- [ ] **Bank account (Mercury)** — blocked on Articles approval; needed for Stripe payout
+- [ ] **Swap Stripe sandbox → live keys** + recreate product in live mode (needs bank + account activation)
+- [ ] **Fintech lawyer review** — IAA 1940 publisher's exclusion, ARL copy + consent/cancel UI, Founder-supporter path, conflicts disclosure, trading policy, disclaimers, CA DFPI. THE GATE before paying users.
+- [ ] Wire `arl._send_email` to SendGrid (currently stubbed)
+- [ ] Add `STRIPE_*` + `SUPABASE_SERVICE_KEY` to PROD secrets when going live
+- [ ] Rotate Supabase keys
+- [ ] **Upgrade Supabase to Pro for backups** (currently FREE = no backups — risk before paying users)
+- [ ] Wire `publish_signal_batch()` into `run_refresh` (atomic publishing)
+- [ ] Verify intraday cron on prod
+- [ ] (optional) Stripe webhooks to replace polling lag; same-tab checkout button
 
 ## Next Session
-**Stripe is the immediate focus** (user is "all set for Stripe" as of May 30). Sequence agreed: **LLC → Stripe account + bank → launch hardening (key rotation, service key, migrations on prod) → wire Stripe billing + flip `_paid_trial_mode` → wire SendGrid email.** Attorney review runs in parallel and gates paying users.
+Stripe sandbox lifecycle is DONE. Remaining path to revenue: **Articles approve → Mercury bank → Stripe live activation → swap to live keys → attorney sign-off → go live.** Attorney review is the real gate and can run in parallel with the bank wait. Quick wins available now: test-account cleanup discipline (`+test` aliases), Supabase Pro backups, SendGrid wiring.
 
 Other backlog: see **BACKLOG.md**.
 
 ---
 
 ## Session History
+
+### May 30, 2026 (evening — Stripe billing)
+Built the full payments layer. Major themes: Stripe Checkout + trial, Founder-supporter path, lots of Streamlit-sandbox navigation debugging.
+
+**Completed:**
+- `stripe_billing.py` — Checkout (hosted), 7-day trial, polling-based sync, cancel/reactivate, `last_error()`. Version-safe `_g()` accessor (Stripe objects don't reliably support `.get()`).
+- `db.py` — `set_stripe_billing`/`get_stripe_billing` (notifications JSON, no migration).
+- Upgrade page: ARL notice + consent checkbox + Start-trial → Checkout. `_paid_trial_mode` auto-on when Stripe configured.
+- Checkout return handler (`?checkout=success`) → finalize → set Pro + billing_active + trial_end + ack email. Once-per-session poll syncs status; self-heal gated behind `_awaiting_checkout` counter (un-gated version stalled every free user's page load with a Stripe call).
+- Trial countdown on account page ("PRO · FREE TRIAL — X days left, first charge [date]"). Founder vs paid distinguished by `billing_active`.
+- One-click Cancel wired to Stripe (`cancel_at_period_end=True`) + confirmation email.
+- **Founder-supporter path** (`page_account`): Founding Members can optionally start the $29/mo sub to support QNTM. One-way: cancel later → regular Free, not free Founding. Reuses ARL machinery, logs consent as `pro_supporter`.
+- Trial-started themed banner (replaced unthemeable white `st.toast`), shows on any return page.
+- `stripe` added to requirements.txt (was missing — would crash deploy).
+- Verified in sandbox: upgrade → trial → paid distinction → countdown → cancel, all working. Test card `4242 4242 4242 4242`.
+
+**Lessons / scars (READ before touching checkout nav):**
+- Streamlit sandbox blocks `<a target=_top>` and `window.top.location`; only `window.open(url,'_top')` inside a `components.v1.html` iframe drives the parent. `st.link_button` works but opens a NEW TAB. `target=_self` navigates the iframe → Stripe refuses (X-Frame-Options) → hang.
+- `st.button` is True for ONE rerun; render follow-up UI from session_state outside the button block, or it vanishes.
+- **Most of the wasted time was STALE DEPLOYS** masking whether a fix landed. After any push: `git log origin/dev`, then FULL REBOOT (Manage app → ⋮ → Reboot), then judge. Don't trust a refresh.
+- Checkout currently = `st.link_button` (new tab). Same-tab `_render_checkout_button()` (window.open _top component) is in git history, deferred.
+- Use `git add -A` not `git add app.py` — multi-file changes (db.py, stripe_billing.py) get stranded otherwise. This bit us repeatedly.
+
+**Also:** survived a user-deletion scare (deleted an empty test account, not the buddy — confirmed via child-row counts). Supabase is on FREE plan = NO BACKUPS — upgrade to Pro before launch. Reset-for-retest SQL: set plan=free + strip stripe_* keys from notifications JSON, cancel the Stripe sub immediately, use fresh incognito session (or a `+test` email alias for a clean account).
 
 ### May 30, 2026 (full day)
 Major themes: watchlist/card UX overhaul, two compliance builds (atomic publishing + signal vocab + ARL), prod deploy.
