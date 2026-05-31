@@ -1,11 +1,22 @@
 name: QNTM Nightly Data Refresh
-
 on:
   schedule:
-    # 2:00 AM UTC daily (6 PM PT / 9 PM ET — after US market close + settlement)
+    # 2:00 AM UTC daily (after US market close + settlement) — full universe re-score
     - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
+      intraday:
+        description: "Run lightweight intraday price-only refresh"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      macro:
+        description: "Run lightweight live macro re-scan + overlay re-apply"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
       force:
         description: "Bypass freshness check (force full refresh)"
         required: false
@@ -16,37 +27,41 @@ on:
         description: "Comma-separated tickers to refresh (blank = full universe)"
         required: false
         default: ""
-
 jobs:
   refresh:
     name: Refresh Universe & Score
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 30       # full 834-ticker pass ~4 min; intraday ~90s; macro ~10s; 30 min ceiling
     env:
       SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       ENCRYPTION_KEY:       ${{ secrets.ENCRYPTION_KEY }}
-      ENVIRONMENT:          dev
-
+      # Mode is driven by the workflow_dispatch inputs (set by the cron-job.org jobs).
+      # The 2 AM schedule run leaves both 'false' = full refresh.
+      INTRADAY_RUN:         ${{ github.event.inputs.intraday == 'true' && 'true' || 'false' }}
+      MACRO_RUN:            ${{ github.event.inputs.macro == 'true' && 'true' || 'false' }}
     steps:
-      - name: Checkout dev branch
+      - name: Checkout main branch
         uses: actions/checkout@v4
         with:
-          ref: dev
-
+          ref: main
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Run nightly refresh
+      - name: Run refresh
+        id: refresh
         run: |
           ARGS=""
+          if [ "$MACRO_RUN" = "true" ]; then
+            ARGS="$ARGS --macro"
+          fi
+          if [ "$INTRADAY_RUN" = "true" ]; then
+            ARGS="$ARGS --intraday"
+          fi
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             ARGS="$ARGS --force"
           fi
@@ -54,38 +69,36 @@ jobs:
             TICKER_LIST=$(echo "${{ github.event.inputs.tickers }}" | tr ',' ' ')
             ARGS="$ARGS --tickers $TICKER_LIST"
           fi
-
-          echo "Running: python data_refresh.py $ARGS"
+          echo "Running: python data_refresh.py $ARGS (MACRO_RUN=$MACRO_RUN INTRADAY_RUN=$INTRADAY_RUN)"
           python data_refresh.py $ARGS | tee refresh_output.json
-
+          python3 -c "import json; r=json.load(open('refresh_output.json')); print('success='+str(r.get('success','false')).lower())" >> $GITHUB_OUTPUT 2>/dev/null || echo "success=false" >> $GITHUB_OUTPUT
       - name: Log refresh summary
         if: always()
         run: |
           echo "──────────────────────────────────────"
-          echo "QNTM Nightly Refresh — Summary"
+          echo "QNTM Refresh — Summary"
           echo "──────────────────────────────────────"
-          cat refresh_output.json 2>/dev/null || echo "(no output file)"
-
-      - name: Check refresh result
+          cat refresh_output.json 2>/dev/null || echo "(no output)"
+          echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Fail job on refresh error
         if: always()
         run: |
-          python3 - <<'EOF'
+          python3 -c "
           import json, sys
           try:
-              with open('refresh_output.json') as f:
-                  content = f.read()
-              # Find the JSON block (last {...} in output)
-              start = content.rfind('{')
-              end   = content.rfind('}') + 1
-              r = json.loads(content[start:end])
-              if r.get('skipped'):
-                  print('Cache was fresh — refresh skipped.')
-              elif r.get('success'):
-                  print(f"Success: {r.get('live_count',0)}/{r.get('total',0)} tickers | {r.get('duration_s',0)}s | regime={r.get('macro_regime','unknown')}")
-              else:
-                  print(f"Refresh failed: {r.get('error','unknown')}")
+              raw = open('refresh_output.json').read().strip()
+              start = raw.find('{')
+              end   = raw.rfind('}') + 1
+              r = json.loads(raw[start:end]) if start >= 0 else {}
+              if not r.get('success') and not r.get('skipped'):
+                  print('Refresh failed: ' + r.get('error', 'unknown'))
                   sys.exit(1)
+              elif r.get('skipped'):
+                  print('Cache was fresh — refresh skipped.')
+              else:
+                  print('Success: {}/{} live tickers in {}s | regime={}'.format(
+                      r.get('live_count',0), r.get('total',0),
+                      r.get('duration_s',0), r.get('macro_regime', r.get('regime','unknown'))))
           except Exception as e:
-              print(f'Could not parse output: {e}')
-              sys.exit(1)
-          EOF
+              print('Could not parse output: ' + str(e))
+          "
