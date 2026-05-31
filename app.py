@@ -7625,10 +7625,17 @@ def page_account():
                                     _emf = (st.session_state.user or {}).get("email", "")
                                     _urlf = _sb_f.create_checkout_url(uid(), _emf, _basef, _exf)
                                     if _urlf:
-                                        st.success("Your secure checkout is ready.")
-                                        st.link_button("Continue to secure checkout →", _urlf,
-                                                       use_container_width=True, type="primary")
-                                        st.caption("Opens Stripe's secure checkout page.")
+                                        st.markdown(
+                                            f'<a href="{_urlf}" target="_self" style="display:block;'
+                                            f'width:100%;box-sizing:border-box;text-align:center;'
+                                            f'padding:14px;margin-top:6px;'
+                                            f'background:linear-gradient(135deg,#d4a843,#b8922e);'
+                                            f'color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;'
+                                            f'font-size:15px;border-radius:8px;text-decoration:none;">'
+                                            f'Continue to secure checkout →</a>'
+                                            f'<div style="text-align:center;font-size:11px;color:#475569;'
+                                            f'margin-top:6px;">Opens Stripe\u2019s secure checkout in this tab.</div>',
+                                            unsafe_allow_html=True)
                                     else:
                                         st.error(f"Could not start checkout: {_sb_f.last_error()}  ·  Contact hello@qntm.app")
                             else:
@@ -8572,10 +8579,17 @@ def page_upgrade():
                     _url = _sb_pay.create_checkout_url(_uid_val, _email, _base, _existing)
                     if _url:
                         # ack email fires after checkout completes (on return), not here
-                        st.success("Your secure checkout is ready.")
-                        st.link_button("Continue to secure checkout →", _url,
-                                       use_container_width=True, type="primary")
-                        st.caption("Opens Stripe's secure checkout page.")
+                        st.markdown(
+                            f'<a href="{_url}" target="_self" style="display:block;'
+                            f'width:100%;box-sizing:border-box;text-align:center;'
+                            f'padding:16px;margin-top:6px;'
+                            f'background:linear-gradient(135deg,#d4a843,#b8922e);'
+                            f'color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;'
+                            f'font-size:16px;border-radius:8px;text-decoration:none;">'
+                            f'Continue to secure checkout →</a>'
+                            f'<div style="text-align:center;font-size:11px;color:#475569;'
+                            f'margin-top:6px;">Opens Stripe\u2019s secure checkout in this tab.</div>',
+                            unsafe_allow_html=True)
                     else:
                         st.error(f"Could not start checkout: {_sb_pay.last_error()}  ·  Contact hello@qntm.app")
                 else:
