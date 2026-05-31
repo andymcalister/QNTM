@@ -977,7 +977,7 @@ def _inject_localstorage_reader():
             if (!url.searchParams.get('uid')) {
                 url.searchParams.set('uid', raw);
                 url.searchParams.set('plan', 'restore');
-                window.open(url.toString(), '_top');
+                window.parent.location.replace(url.toString());
             }
         } catch(e) {}
     })();
@@ -994,36 +994,6 @@ def _write_localstorage_token(uid: str, plan: str):
     try {{
         localStorage.setItem('qntm_auth', {_json.dumps(token)});
     }} catch(e) {{}}
-    </script>
-    """, height=0)
-
-
-def _redirect_with_session(user_id: str, plan: str, nav: str = "screener"):
-    """Persist the auth token AND navigate to a ?uid=... URL in ONE browser op,
-    using window.open(url,'_top') — the only parent-navigation primitive that
-    works inside the Streamlit components sandbox (window.top.location and
-    <a target=_top> are blocked; same lesson as the checkout flow).
-
-    This replaces st.rerun() on login. On mobile, st.rerun() + a query-param
-    write did NOT survive the WebSocket reconnect that fires when the soft
-    keyboard dismisses after the button tap, so the session was wiped and login
-    bounced back to the landing page. Landing the browser directly on ?uid=...
-    lets the restore block rehydrate cleanly on the fresh load."""
-    import streamlit.components.v1 as _cv1
-    token = _sign_token(user_id, plan, days=30)
-    _cv1.html(f"""
-    <script>
-    (function() {{
-        try {{ localStorage.setItem('qntm_auth', {_json.dumps(token)}); }} catch(e) {{}}
-        try {{
-            var u = new URL(window.parent.location.href);
-            u.searchParams.set('uid',  {_json.dumps(token)});
-            u.searchParams.set('plan', {_json.dumps(plan)});
-            u.searchParams.set('_n',   {_json.dumps(nav)});
-            u.searchParams.delete('nav');
-            window.open(u.toString(), '_top');
-        }} catch(e) {{}}
-    }})();
     </script>
     """, height=0)
 
@@ -1062,9 +1032,6 @@ if not st.session_state.logged_in:
                     _VALID = {"screener","gems","backtest","portfolio","simulator","watchlist",
                               "model_portfolio","alerts","account","methodology"}
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
-                    # Persist the 30-day remember-me token now that we've restored from
-                    # the URL (page_platform writes it; this render has no immediate rerun).
-                    st.session_state["_pending_ls_token"] = (verified_uid, user.get("plan", "free"))
                     _restore_ok = True
                 else:
                     # DB returned nothing — build minimal session from query params
@@ -3845,23 +3812,14 @@ def page_auth():
                             # Only prompt MFA if never offered before
                             if not user.get("mfa_offered"):
                                 st.session_state.force_mfa_setup = True
-                            # Mobile-safe navigation: render a real <a> link in the page
-                            # body and let the USER tap it. A top-level link tap commits the
-                            # ?uid=... URL atomically with the gesture, so it can't lose the
-                            # race against the keyboard-dismiss WebSocket reconnect the way
-                            # st.rerun() / window.open did. Fresh load -> restore reads ?uid=.
-                            _ent = f"?uid={user['id']}&plan={user.get('plan','free')}&_n=screener"
-                            if st.query_params.get("debug") == "1":
-                                _ent += "&debug=1"
-                            st.markdown(
-                                f'<a href="{_ent}" target="_self" style="display:block;'
-                                'text-align:center;margin-top:16px;padding:15px 0;'
-                                'background:#d4a843;color:#0a0b14;font-family:Syne,sans-serif;'
-                                'font-weight:800;font-size:16px;letter-spacing:.04em;'
-                                'border-radius:8px;text-decoration:none;">Enter QNTM →</a>',
-                                unsafe_allow_html=True,
-                            )
-                            st.stop()
+                            # Always persist — signed 30-day token
+                            _signed = _sign_token(user["id"], user.get("plan","free"))
+                            st.query_params["uid"]  = _signed
+                            st.query_params["plan"] = user.get("plan","free")
+                            _write_localstorage_token(user["id"], user.get("plan","free"))
+                            st.session_state.nav = "screener"
+
+                            go("platform")
                     else:
                         st.error(res.get("error", "Invalid email or password"))
 
@@ -4006,19 +3964,14 @@ def page_mfa():
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
-                    # Mobile-safe navigation via a tappable link (see sign-in note)
-                    _ent = f"?uid={user['id']}&plan={user.get('plan','free')}&_n=screener"
-                    if st.query_params.get("debug") == "1":
-                        _ent += "&debug=1"
-                    st.markdown(
-                        f'<a href="{_ent}" target="_self" style="display:block;'
-                        'text-align:center;margin-top:16px;padding:15px 0;'
-                        'background:#d4a843;color:#0a0b14;font-family:Syne,sans-serif;'
-                        'font-weight:800;font-size:16px;letter-spacing:.04em;'
-                        'border-radius:8px;text-decoration:none;">Enter QNTM →</a>',
-                        unsafe_allow_html=True,
-                    )
-                    st.stop()
+                    # Always persist — signed 30-day token
+                    _signed = _sign_token(user["id"], user.get("plan","free"))
+                    st.query_params["uid"]  = _signed
+                    st.query_params["plan"] = user.get("plan","free")
+                    _write_localstorage_token(user["id"], user.get("plan","free"))
+                    st.session_state.nav = "screener"
+
+                    go("platform")
                 else:
                     st.error("Invalid code — check your app and try again")
 
@@ -8386,15 +8339,6 @@ def page_methodology():
 
 
 def page_platform():
-    # Write the deferred 30-day localStorage token here. The login handlers set
-    # _pending_ls_token instead of writing directly, because they call go() ->
-    # st.rerun() immediately, which tore down the component before its script
-    # ran. This render has no immediate rerun, so the token actually persists —
-    # which is what lets mobile restore the session after a WebSocket reconnect.
-    _pending_tok = st.session_state.pop("_pending_ls_token", None)
-    if _pending_tok:
-        _write_localstorage_token(_pending_tok[0], _pending_tok[1])
-
     # ── Accordion behavior for cards (one open at a time) ──────────────────────
     # Cards render as <details name="qntm-cards">; modern browsers make same-named
     # details mutually exclusive natively. This JS is a fallback for browsers that
@@ -8728,23 +8672,6 @@ def page_upgrade():
 
 
 def main():
-    # ── DEBUG readout (gated on ?debug=1) — remove before launch ──────────────
-    if st.query_params.get("debug") == "1":
-        st.session_state["_dbg"] = True
-    if st.session_state.get("_dbg"):
-        _qp = dict(st.query_params)
-        _u = _qp.get("uid", "")
-        st.warning(
-            "DEBUG  "
-            f"logged_in={st.session_state.get('logged_in')}  "
-            f"page={st.session_state.get('page')}  "
-            f"nav={st.session_state.get('nav')}  "
-            f"signed_out={st.session_state.get('signed_out')}  "
-            f"user={'set' if st.session_state.get('user') else 'NONE'}  "
-            f"uid_in_url={'YES(' + _u[:10] + ')' if _u else 'NO'}  "
-            f"url_params={sorted(_qp.keys())}"
-        )
-
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
