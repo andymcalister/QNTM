@@ -7642,7 +7642,10 @@ def page_account():
                                 # button (hides the st.button so it can't render in
                                 # its post-click white state).
                                 if st.session_state.get("_checkout_url"):
-                                    _render_checkout_button(st.session_state["_checkout_url"])
+                                    st.link_button("Continue to secure checkout →",
+                                                   st.session_state["_checkout_url"],
+                                                   use_container_width=True, type="primary")
+                                    st.caption("Opens Stripe's secure checkout in a new tab.")
                                 elif st.session_state.get("_checkout_err"):
                                     st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
                                 else:
@@ -8602,7 +8605,10 @@ def page_upgrade():
             # Once a checkout URL exists, show ONLY the link button (hides the
             # st.button so it can't render in its post-click white state).
             if st.session_state.get("_checkout_url"):
-                _render_checkout_button(st.session_state["_checkout_url"])
+                st.link_button("Continue to secure checkout →",
+                               st.session_state["_checkout_url"],
+                               use_container_width=True, type="primary")
+                st.caption("Opens Stripe's secure checkout in a new tab.")
             elif st.session_state.get("_checkout_err"):
                 st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
             elif not _sb_pay.billing_configured():
