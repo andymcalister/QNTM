@@ -1062,6 +1062,9 @@ if not st.session_state.logged_in:
                     _VALID = {"screener","gems","backtest","portfolio","simulator","watchlist",
                               "model_portfolio","alerts","account","methodology"}
                     st.session_state.nav = _dest if _dest in _VALID else "screener"
+                    # Persist the 30-day remember-me token now that we've restored from
+                    # the URL (page_platform writes it; this render has no immediate rerun).
+                    st.session_state["_pending_ls_token"] = (verified_uid, user.get("plan", "free"))
                     _restore_ok = True
                 else:
                     # DB returned nothing — build minimal session from query params
@@ -3842,13 +3845,22 @@ def page_auth():
                             # Only prompt MFA if never offered before
                             if not user.get("mfa_offered"):
                                 st.session_state.force_mfa_setup = True
-                            st.session_state.nav = "screener"
-                            # Navigate via JS redirect, NOT st.rerun(). Writes the
-                            # token and lands the browser on ?uid=... in one op via
-                            # window.open(_top). st.rerun()+query-param writes did not
-                            # survive the mobile WebSocket reconnect (keyboard dismiss),
-                            # so login bounced to landing. Restore reads ?uid= on load.
-                            _redirect_with_session(user["id"], user.get("plan","free"), "screener")
+                            # Mobile-safe navigation: render a real <a> link in the page
+                            # body and let the USER tap it. A top-level link tap commits the
+                            # ?uid=... URL atomically with the gesture, so it can't lose the
+                            # race against the keyboard-dismiss WebSocket reconnect the way
+                            # st.rerun() / window.open did. Fresh load -> restore reads ?uid=.
+                            _ent = f"?uid={user['id']}&plan={user.get('plan','free')}&_n=screener"
+                            if st.query_params.get("debug") == "1":
+                                _ent += "&debug=1"
+                            st.markdown(
+                                f'<a href="{_ent}" target="_self" style="display:block;'
+                                'text-align:center;margin-top:16px;padding:15px 0;'
+                                'background:#d4a843;color:#0a0b14;font-family:Syne,sans-serif;'
+                                'font-weight:800;font-size:16px;letter-spacing:.04em;'
+                                'border-radius:8px;text-decoration:none;">Enter QNTM →</a>',
+                                unsafe_allow_html=True,
+                            )
                             st.stop()
                     else:
                         st.error(res.get("error", "Invalid email or password"))
@@ -3994,9 +4006,18 @@ def page_mfa():
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
-                    st.session_state.nav = "screener"
-                    # Navigate via JS redirect, NOT st.rerun() (see sign-in note)
-                    _redirect_with_session(user["id"], user.get("plan","free"), "screener")
+                    # Mobile-safe navigation via a tappable link (see sign-in note)
+                    _ent = f"?uid={user['id']}&plan={user.get('plan','free')}&_n=screener"
+                    if st.query_params.get("debug") == "1":
+                        _ent += "&debug=1"
+                    st.markdown(
+                        f'<a href="{_ent}" target="_self" style="display:block;'
+                        'text-align:center;margin-top:16px;padding:15px 0;'
+                        'background:#d4a843;color:#0a0b14;font-family:Syne,sans-serif;'
+                        'font-weight:800;font-size:16px;letter-spacing:.04em;'
+                        'border-radius:8px;text-decoration:none;">Enter QNTM →</a>',
+                        unsafe_allow_html=True,
+                    )
                     st.stop()
                 else:
                     st.error("Invalid code — check your app and try again")
