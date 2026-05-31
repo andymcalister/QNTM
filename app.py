@@ -2430,7 +2430,7 @@ We will share data with law enforcement if legally required, and may disclose da
 - **Anonymous, aggregated usage statistics:** kept indefinitely
 
 ### Your Rights
-Email privacy@qntm.app to:
+Email privacy@qntm.live to:
 - See what data we hold about you
 - Correct inaccurate data
 - Delete your account and personal data
@@ -2441,10 +2441,10 @@ We will respond within 30 days.
 California residents have additional rights under the California Consumer Privacy Act (CCPA), including the right to know what personal information we collect, the right to delete it, and the right to non-discrimination for exercising these rights. We do not sell personal information as defined by CCPA.
 
 ### Children
-QNTM is not directed to anyone under 18. We do not knowingly collect data from anyone under 18. If you believe a child has provided us data, contact privacy@qntm.app and we will delete it.
+QNTM is not directed to anyone under 18. We do not knowingly collect data from anyone under 18. If you believe a child has provided us data, contact privacy@qntm.live and we will delete it.
 
 ### Contact
-privacy@qntm.app
+privacy@qntm.live
 """
 
 TERMS_OF_SERVICE = """
@@ -2471,7 +2471,7 @@ You must be 18 or older. By using QNTM you confirm this. You are responsible for
 - Use accurate information when signing up
 - Keep your password and 2FA credentials secure
 - You are responsible for all activity on your account
-- Report unauthorized access immediately to security@qntm.app
+- Report unauthorized access immediately to security@qntm.live
 
 ### 6. Subscriptions
 
@@ -2545,13 +2545,13 @@ To the maximum extent permitted by law, our total liability to you for any claim
 
 ### 10. Disputes
 
-**Informal resolution.** We would prefer to resolve issues directly. Email legal@qntm.app first. If we cannot resolve it within 30 days, then arbitration applies.
+**Informal resolution.** We would prefer to resolve issues directly. Email legal@qntm.live first. If we cannot resolve it within 30 days, then arbitration applies.
 
 **Arbitration.** Any dispute that we cannot resolve informally will be resolved by binding individual arbitration administered by JAMS under its Streamlined Arbitration Rules and Procedures. The arbitration will take place in Orange County, California, or by video conference at your option. Judgment on the arbitration award may be entered in any court of competent jurisdiction.
 
 **Class action waiver.** You and QNTM agree to resolve disputes only on an individual basis. Class actions, collective actions, and representative actions are waived to the extent permitted by law.
 
-**Right to opt out of arbitration.** You can opt out of this arbitration agreement (including the class action waiver) by sending written notice to legal@qntm.app within 30 days of first creating your QNTM account. Opting out does not affect any other part of these Terms. If you opt out, disputes will be resolved in the state or federal courts located in Orange County, California, and both parties consent to personal jurisdiction and venue there.
+**Right to opt out of arbitration.** You can opt out of this arbitration agreement (including the class action waiver) by sending written notice to legal@qntm.live within 30 days of first creating your QNTM account. Opting out does not affect any other part of these Terms. If you opt out, disputes will be resolved in the state or federal courts located in Orange County, California, and both parties consent to personal jurisdiction and venue there.
 
 **Governing law.** These Terms are governed by the laws of the State of California, without regard to conflict-of-laws principles. The Federal Arbitration Act governs the interpretation and enforcement of the arbitration provision.
 
@@ -2559,11 +2559,11 @@ To the maximum extent permitted by law, our total liability to you for any claim
 We will give you 14 days' email notice before material changes take effect. The notice will explain how to cancel: Account Settings → Subscription → Cancel. Continued use after the effective date means you accept the updated Terms. If you do not agree, you can cancel your subscription and delete your account.
 
 ### 12. Contact
-- General: hello@qntm.app
-- Legal: legal@qntm.app
-- Security: security@qntm.app
-- Billing: billing@qntm.app
-- Privacy: privacy@qntm.app
+- General: hello@qntm.live
+- Legal: legal@qntm.live
+- Security: security@qntm.live
+- Billing: billing@qntm.live
+- Privacy: privacy@qntm.live
 """
 
 BILLING_POLICY = """
@@ -2617,7 +2617,7 @@ We may issue a refund at our discretion in cases of duplicate charges, billing e
 - See Terms §6 for full Founding Member terms.
 
 ### Billing Disputes
-Email billing@qntm.app within 60 days of a charge. Include your account email and the date of the charge. We will respond within 5 business days. If you dispute a charge directly with your card issuer (chargeback) before contacting us, your account may be suspended pending resolution.
+Email billing@qntm.live within 60 days of a charge. Include your account email and the date of the charge. We will respond within 5 business days. If you dispute a charge directly with your card issuer (chargeback) before contacting us, your account may be suspended pending resolution.
 """
 
 DISCLAIMER_FULL = """
@@ -2681,10 +2681,10 @@ We do not use advertising cookies. We do not track you across other websites. We
 When you visit the upgrade or checkout flow, Stripe sets its own cookies to process payment and prevent fraud. See stripe.com/cookies.
 
 ### Managing Cookies
-Required cookies cannot be turned off — the platform will not function without them. To remove all QNTM cookies, clear your browser storage for qntm.app. This will log you out.
+Required cookies cannot be turned off — the platform will not function without them. To remove all QNTM cookies, clear your browser storage for qntm.live. This will log you out.
 
 ### Contact
-privacy@qntm.app
+privacy@qntm.live
 """
 
 
@@ -7472,7 +7472,7 @@ def page_account():
                     st.success("✓ Founding Member activated! Navigate to Hidden Gems via the menu.")
                     st.balloons()
                 else:
-                    st.warning("Could not write to DB — contact hello@qntm.app")
+                    st.warning("Could not write to DB — contact hello@qntm.live")
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif plan in ("pro","institutional"):
@@ -7509,7 +7509,7 @@ def page_account():
                         st.success("Cancellation undone — your subscription continues.")
                         st.rerun()
                     else:
-                        st.error("Could not undo cancellation — contact billing@qntm.app")
+                        st.error("Could not undo cancellation — contact billing@qntm.live")
             else:
                 # Active subscription panel
                 st.markdown(f"""
@@ -7647,7 +7647,7 @@ def page_account():
                                                    use_container_width=True, type="primary")
                                     st.caption("Opens Stripe's secure checkout in a new tab.")
                                 elif st.session_state.get("_checkout_err"):
-                                    st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
+                                    st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.live")
                                 else:
                                     if st.button("Start $29/mo subscription", key="founder_start_paid",
                                                  use_container_width=True):
@@ -7727,9 +7727,9 @@ def page_account():
                             )
                             st.rerun()
                         else:
-                            st.error(f"Could not cancel: {_cancel_err}  ·  contact billing@qntm.app")
+                            st.error(f"Could not cancel: {_cancel_err}  ·  contact billing@qntm.live")
                 st.caption(
-                    "Billing questions: billing@qntm.app · "
+                    "Billing questions: billing@qntm.live · "
                     "[Billing & Refund Policy](?legal=billing)"
                 )
 
@@ -8610,7 +8610,7 @@ def page_upgrade():
                                use_container_width=True, type="primary")
                 st.caption("Opens Stripe's secure checkout in a new tab.")
             elif st.session_state.get("_checkout_err"):
-                st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.app")
+                st.error(f"Could not start checkout: {st.session_state['_checkout_err']}  ·  Contact hello@qntm.live")
             elif not _sb_pay.billing_configured():
                 # No Stripe configured — direct upgrade (dev/test only)
                 if st.button("Start free trial", key="arl_start_trial", use_container_width=True):

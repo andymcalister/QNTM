@@ -26,7 +26,7 @@ CONTENT_VERSION = "2026-05-30"
 
 RENEWAL_PRICE = "$29.00/month"
 TRIAL_TERMS   = "7-day free trial"
-SUPPORT_EMAIL = "hello@qntm.app"
+SUPPORT_EMAIL = "hello@qntm.live"
 
 
 def _sb():

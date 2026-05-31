@@ -1,6 +1,6 @@
 # QNTM Platform — Policy Documents
 **Draft for Attorney Review — May 27, 2026**
-**Platform: qntm.app**
+**Platform: qntm.live**
 **Entity: QNTM LLC (California, formation pending)**
 
 > All effective dates below are placeholders. They will be set at publication. Do not publish without legal sign-off.
@@ -34,7 +34,7 @@ You must be 18 or older. By using QNTM you confirm this. You're responsible for 
 - Use accurate information when signing up
 - Keep your password and 2FA credentials secure
 - You're responsible for all activity on your account
-- Report unauthorized access immediately to security@qntm.app
+- Report unauthorized access immediately to security@qntm.live
 
 ## 6. Subscriptions
 
@@ -121,7 +121,7 @@ To the maximum extent permitted by law, our total liability to you for any claim
 
 ### Informal resolution
 
-We'd prefer to resolve issues directly. Email legal@qntm.app first. If we can't resolve it within 30 days, then arbitration applies.
+We'd prefer to resolve issues directly. Email legal@qntm.live first. If we can't resolve it within 30 days, then arbitration applies.
 
 ### Arbitration
 
@@ -133,7 +133,7 @@ You and QNTM agree to resolve disputes only on an individual basis. Class action
 
 ### Right to opt out of arbitration
 
-You can opt out of this arbitration agreement (including the class action waiver) by sending written notice to legal@qntm.app within 30 days of first creating your QNTM account. Opting out does not affect any other part of these Terms. If you opt out, disputes will be resolved in the state or federal courts located in Orange County, California, and both parties consent to personal jurisdiction and venue there.
+You can opt out of this arbitration agreement (including the class action waiver) by sending written notice to legal@qntm.live within 30 days of first creating your QNTM account. Opting out does not affect any other part of these Terms. If you opt out, disputes will be resolved in the state or federal courts located in Orange County, California, and both parties consent to personal jurisdiction and venue there.
 
 ### Governing law
 
@@ -145,11 +145,11 @@ We'll give you 14 days' email notice before material changes take effect. The no
 
 ## 12. Contact
 
-- General: hello@qntm.app
-- Legal: legal@qntm.app
-- Security: security@qntm.app
-- Billing: billing@qntm.app
-- Privacy: privacy@qntm.app
+- General: hello@qntm.live
+- Legal: legal@qntm.live
+- Security: security@qntm.live
+- Billing: billing@qntm.live
+- Privacy: privacy@qntm.live
 
 ---
 
@@ -210,7 +210,7 @@ We'll share data with law enforcement if legally required, and may disclose data
 
 ## Your Rights
 
-Email privacy@qntm.app to:
+Email privacy@qntm.live to:
 - See what data we hold about you
 - Correct inaccurate data
 - Delete your account and personal data
@@ -222,11 +222,11 @@ California residents have additional rights under the California Consumer Privac
 
 ## Children
 
-QNTM is not directed to anyone under 18. We don't knowingly collect data from anyone under 18. If you believe a child has provided us data, contact privacy@qntm.app and we will delete it.
+QNTM is not directed to anyone under 18. We don't knowingly collect data from anyone under 18. If you believe a child has provided us data, contact privacy@qntm.live and we will delete it.
 
 ## Contact
 
-privacy@qntm.app
+privacy@qntm.live
 
 ---
 
@@ -289,7 +289,7 @@ We may issue a refund at our discretion in cases of duplicate charges, billing e
 
 ## Billing Disputes
 
-Email billing@qntm.app within 60 days of a charge. Include your account email and the date of the charge. We'll respond within 5 business days. If you dispute a charge directly with your card issuer (chargeback) before contacting us, your account may be suspended pending resolution.
+Email billing@qntm.live within 60 days of a charge. Include your account email and the date of the charge. We'll respond within 5 business days. If you dispute a charge directly with your card issuer (chargeback) before contacting us, your account may be suspended pending resolution.
 
 ---
 
@@ -352,16 +352,16 @@ When you visit the upgrade or checkout flow, Stripe sets its own cookies to proc
 
 ## Managing Cookies
 
-Required cookies cannot be turned off — the platform will not function without them. To remove all QNTM cookies, clear your browser storage for qntm.app. This will log you out.
+Required cookies cannot be turned off — the platform will not function without them. To remove all QNTM cookies, clear your browser storage for qntm.live. This will log you out.
 
 ## Contact
 
-privacy@qntm.app
+privacy@qntm.live
 
 ---
 
 *These are draft documents for attorney review. Do not publish without legal sign-off.*
-*Last updated: May 27, 2026*
+*Last updated: May 30, 2026*
 
 ---
 
@@ -381,7 +381,7 @@ The following items were intentionally left for your judgment. They are flagged 
 
 6. **Founding Member program.** Cleared the conflict between non-transferability (Terms §6) and account deletion (Privacy Policy). Deletion now explicitly forfeits the benefit. Confirm this matches commercial intent.
 
-7. **Email domain.** Standardized on `@qntm.app` to match the application's current footer and in-app legal pages. If the legal entity will use `qntm.live` for any reason, the codebase needs to change rather than the draft.
+7. **Email domain.** The platform domain is `qntm.live`. All contact addresses, in-app legal pages, and the application footer use `@qntm.live`. (Earlier drafts used `@qntm.app`; this was changed because the operating entity controls `qntm.live`, not `qntm.app`. The codebase and these policies are now aligned to `qntm.live`.)
 
 8. **Children / COPPA.** Added a short section to the Privacy Policy. Confirm this is adequate given the platform's age gate (18+) is in the Terms.
 
