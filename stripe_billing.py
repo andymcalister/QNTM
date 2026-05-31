@@ -56,6 +56,17 @@ def billing_configured() -> bool:
 _last_error = None  # last failure reason, for surfacing in the UI during testing
 
 
+def _g(obj, attr):
+    """Version-safe field access for Stripe objects (attr first, then item)."""
+    try:
+        v = getattr(obj, attr, None)
+        if v is None and hasattr(obj, "get"):
+            v = obj.get(attr)
+        return v
+    except Exception:
+        return None
+
+
 def last_error() -> str:
     return _last_error or ""
 
@@ -101,23 +112,14 @@ def create_checkout_url(user_id: str, user_email: str, base_url: str,
 
 
 def _sub_state(sub, cust_id):
-    """Extract subscription fields via attribute access (Stripe objects support
-    both attr and item access, but attr is safest across SDK versions)."""
-    def g(obj, attr):
-        try:
-            v = getattr(obj, attr, None)
-            if v is None and hasattr(obj, "get"):
-                v = obj.get(attr)
-            return v
-        except Exception:
-            return None
+    """Extract subscription fields via version-safe access."""
     return {
         "ok": True,
-        "status": g(sub, "status"),
-        "customer_id": cust_id or g(sub, "customer"),
-        "subscription_id": g(sub, "id"),
-        "trial_end": g(sub, "trial_end"),
-        "current_period_end": g(sub, "current_period_end"),
+        "status": _g(sub, "status"),
+        "customer_id": cust_id or _g(sub, "customer"),
+        "subscription_id": _g(sub, "id"),
+        "trial_end": _g(sub, "trial_end"),
+        "current_period_end": _g(sub, "current_period_end"),
     }
 
 
@@ -183,10 +185,10 @@ def poll_subscription_status(subscription_id: str) -> dict:
         sub = stripe.Subscription.retrieve(subscription_id)
         return {
             "ok": True,
-            "status": sub.get("status"),
-            "current_period_end": sub.get("current_period_end"),
-            "cancel_at_period_end": sub.get("cancel_at_period_end", False),
-            "trial_end": sub.get("trial_end"),
+            "status": _g(sub, "status"),
+            "current_period_end": _g(sub, "current_period_end"),
+            "cancel_at_period_end": _g(sub, "cancel_at_period_end") or False,
+            "trial_end": _g(sub, "trial_end"),
         }
     except Exception as e:
         log.error(f"poll_subscription_status failed: {e}")
@@ -204,31 +206,42 @@ def cancel_subscription(subscription_id: str) -> dict:
     trial, this stops the next renewal while access continues to period end —
     matching the ARL cancellation copy.
 
-    Returns {ok, current_period_end, status}.
+    Returns {ok, current_period_end, status} or {ok:False, error}.
     """
+    global _last_error
+    _last_error = None
     stripe = _client()
-    if not stripe or not subscription_id:
-        return {"ok": False}
+    if not stripe:
+        _last_error = "stripe client unavailable"
+        return {"ok": False, "error": _last_error}
+    if not subscription_id:
+        _last_error = "no subscription id on file"
+        return {"ok": False, "error": _last_error}
     try:
         sub = stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
         return {
             "ok": True,
-            "current_period_end": sub.get("current_period_end"),
-            "status": sub.get("status"),
+            "current_period_end": _g(sub, "current_period_end"),
+            "status": _g(sub, "status"),
         }
     except Exception as e:
+        _last_error = str(e)
         log.error(f"cancel_subscription failed: {e}")
-        return {"ok": False}
+        return {"ok": False, "error": _last_error}
 
 
 def reactivate_subscription(subscription_id: str) -> dict:
     """Undo a scheduled cancellation (clear cancel_at_period_end)."""
+    global _last_error
+    _last_error = None
     stripe = _client()
     if not stripe or not subscription_id:
-        return {"ok": False}
+        _last_error = "stripe unavailable or no subscription id"
+        return {"ok": False, "error": _last_error}
     try:
         sub = stripe.Subscription.modify(subscription_id, cancel_at_period_end=False)
-        return {"ok": True, "status": sub.get("status")}
+        return {"ok": True, "status": _g(sub, "status")}
     except Exception as e:
+        _last_error = str(e)
         log.error(f"reactivate_subscription failed: {e}")
-        return {"ok": False}
+        return {"ok": False, "error": _last_error}

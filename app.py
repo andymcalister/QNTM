@@ -7661,6 +7661,7 @@ def page_account():
                         # end there (during trial = no charge ever; after trial =
                         # stops next renewal, access to period end).
                         _stripe_ok = True
+                        _cancel_err = ""
                         try:
                             import stripe_billing as _sbc
                             from db import get_stripe_billing as _gsbc
@@ -7669,8 +7670,11 @@ def page_account():
                             if _subc and _sbc.billing_configured():
                                 _cres = _sbc.cancel_subscription(_subc)
                                 _stripe_ok = _cres.get("ok", False)
-                        except Exception:
+                                if not _stripe_ok:
+                                    _cancel_err = _cres.get("error", _sbc.last_error())
+                        except Exception as _ce:
                             _stripe_ok = True  # don't block local cancel on stripe error
+                            _cancel_err = str(_ce)
                         if schedule_cancellation(uid(), _proposed_end) and _stripe_ok:
                             # 2D — confirmation email (stubbed send + logged).
                             try:
@@ -7687,7 +7691,7 @@ def page_account():
                             )
                             st.rerun()
                         else:
-                            st.error("Could not cancel — contact billing@qntm.app")
+                            st.error(f"Could not cancel: {_cancel_err}  ·  contact billing@qntm.app")
                 st.caption(
                     "Billing questions: billing@qntm.app · "
                     "[Billing & Refund Policy](?legal=billing)"
