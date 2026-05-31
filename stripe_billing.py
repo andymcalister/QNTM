@@ -100,35 +100,65 @@ def create_checkout_url(user_id: str, user_email: str, base_url: str,
         return None
 
 
-def finalize_checkout(user_id: str) -> dict:
-    """Called on return from Checkout (?checkout=success). Looks up the most
-    recent subscription for this user and returns its state. Because we don't
-    have webhooks, we poll: find the customer's subscription, read status.
+def finalize_checkout(user_id: str, user_email: str = None) -> dict:
+    """Called on return from Checkout (?checkout=success). Finds the user's
+    subscription and returns its state. No webhooks, so we look it up directly.
 
-    Returns {ok, status, customer_id, subscription_id, trial_end} or {ok:False}.
+    Tries, in order: (1) recent checkout session matching client_reference_id
+    or customer email, (2) newest subscription on the matching customer.
+    Returns {ok, status, customer_id, subscription_id, trial_end, current_period_end}
+    or {ok:False, error}.
     """
+    global _last_error
+    _last_error = None
     stripe = _client()
     if not stripe:
-        return {"ok": False}
+        _last_error = "stripe client unavailable"
+        return {"ok": False, "error": _last_error}
     try:
-        # Find the checkout session by client_reference_id (most recent).
-        sessions = stripe.checkout.Session.list(limit=10)
-        for s in sessions.auto_paging_iter():
-            if s.get("client_reference_id") == user_id and s.get("subscription"):
-                sub_id = s["subscription"]
-                cust_id = s.get("customer")
-                sub = stripe.Subscription.retrieve(sub_id)
-                return {
-                    "ok": True,
-                    "status": sub.get("status"),            # 'trialing' during trial
-                    "customer_id": cust_id,
-                    "subscription_id": sub_id,
-                    "trial_end": sub.get("trial_end"),
-                }
-        return {"ok": False}
+        sessions = stripe.checkout.Session.list(limit=20)
+        match = None
+        for s in sessions.data:
+            if s.get("subscription") and (
+                s.get("client_reference_id") == user_id
+                or (user_email and s.get("customer_email") == user_email)
+                or (user_email and (s.get("customer_details") or {}).get("email") == user_email)
+            ):
+                match = s
+                break
+        if match:
+            sub_id = match["subscription"]
+            cust_id = match.get("customer")
+            sub = stripe.Subscription.retrieve(sub_id)
+            return {
+                "ok": True,
+                "status": sub.get("status"),
+                "customer_id": cust_id,
+                "subscription_id": sub_id,
+                "trial_end": sub.get("trial_end"),
+                "current_period_end": sub.get("current_period_end"),
+            }
+        if user_email:
+            custs = stripe.Customer.list(email=user_email, limit=1)
+            if custs.data:
+                cust_id = custs.data[0]["id"]
+                subs = stripe.Subscription.list(customer=cust_id, limit=1, status="all")
+                if subs.data:
+                    sub = subs.data[0]
+                    return {
+                        "ok": True,
+                        "status": sub.get("status"),
+                        "customer_id": cust_id,
+                        "subscription_id": sub.get("id"),
+                        "trial_end": sub.get("trial_end"),
+                        "current_period_end": sub.get("current_period_end"),
+                    }
+        _last_error = "no matching checkout session or subscription found yet"
+        return {"ok": False, "error": _last_error}
     except Exception as e:
+        _last_error = str(e)
         log.error(f"finalize_checkout failed: {e}")
-        return {"ok": False}
+        return {"ok": False, "error": _last_error}
 
 
 # ── POLLING (no webhooks) ─────────────────────────────────────────────────────

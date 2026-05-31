@@ -7489,13 +7489,41 @@ def page_account():
 
                 # Billing summary panel
                 _next_bill = _notif.get("current_period_end") if isinstance(_notif, dict) else None
+                _stripe_status = _notif.get("stripe_status") if isinstance(_notif, dict) else None
+                _trial_end = _notif.get("trial_end") if isinstance(_notif, dict) else None
+
+                # Trial countdown (status == trialing): compute days remaining.
+                _trial_note = None
+                if _stripe_status == "trialing" and _trial_end:
+                    try:
+                        from datetime import datetime as _dtt, timezone as _tz
+                        _te = _dtt.fromtimestamp(int(_trial_end), tz=_tz.utc)
+                        _now = _dtt.now(_tz.utc)
+                        _days_left = max(0, (_te - _now).days)
+                        _te_str = _te.strftime("%b %-d, %Y")
+                        _trial_note = (f"Free trial — {_days_left} day"
+                                       f"{'s' if _days_left != 1 else ''} left. "
+                                       f"First charge of $29.00 on {_te_str} unless you cancel before then.")
+                    except Exception:
+                        _trial_note = "Free trial active."
+
                 _next_bill_display = _next_bill if _next_bill else "—"
-                _billing_label = "FOUNDING MEMBER" if _is_founding else "PRO · $29/month"
-                _billing_note = (
-                    "Free forever as a Founding Member. No billing scheduled."
-                    if _is_founding
-                    else f"Next charge: {_next_bill_display}"
-                )
+                # Convert epoch period-end to a date string if needed.
+                if isinstance(_next_bill, (int, float)) or (isinstance(_next_bill, str) and _next_bill.isdigit()):
+                    try:
+                        from datetime import datetime as _dtb, timezone as _tzb
+                        _next_bill_display = _dtb.fromtimestamp(int(_next_bill), tz=_tzb.utc).strftime("%b %-d, %Y")
+                    except Exception:
+                        pass
+
+                _billing_label = "FOUNDING MEMBER" if _is_founding else (
+                    "PRO · FREE TRIAL" if _stripe_status == "trialing" else "PRO · $29/month")
+                if _is_founding:
+                    _billing_note = "Free forever as a Founding Member. No billing scheduled."
+                elif _trial_note:
+                    _billing_note = _trial_note
+                else:
+                    _billing_note = f"Next charge: {_next_bill_display}"
                 st.markdown(f"""
                 <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
                      border-radius:8px;padding:18px 22px;margin-bottom:16px;">
@@ -8697,7 +8725,8 @@ def main():
                 import stripe_billing as _sbp
                 from db import set_stripe_billing as _ssb, get_stripe_billing as _gsb2
                 import arl as _arl_ck
-                res = _sbp.finalize_checkout(uid())
+                _ck_email = (st.session_state.user or {}).get("email")
+                res = _sbp.finalize_checkout(uid(), _ck_email)
                 if res.get("ok"):
                     _grants = _sbp.status_grants_access(res.get("status", ""))
                     _ssb(uid(),
@@ -8705,17 +8734,32 @@ def main():
                          subscription_id=res.get("subscription_id"),
                          billing_active=_grants,
                          status=res.get("status"))
+                    # store trial_end / period_end for the countdown display
+                    try:
+                        _nb = (st.session_state.user or {}).get("notifications") or {}
+                        if isinstance(_nb, dict):
+                            _nb["trial_end"] = res.get("trial_end")
+                            _nb["current_period_end"] = res.get("current_period_end")
+                            from db import update_preferences as _upd
+                            _upd(uid(), {"notifications": _nb})
+                            st.session_state.user["notifications"] = _nb
+                    except Exception:
+                        pass
                     if _grants:
                         upgrade_plan(uid(), "pro")
                         if st.session_state.get("user"):
                             st.session_state.user["plan"] = "pro"
-                        # ARL acknowledgment email now that the trial truly started
                         _em = (st.session_state.user or {}).get("email")
                         if _em:
                             _arl_ck.send_acknowledgment(uid(), _em)
                         st.toast("Your 7-day free trial has started.")
-            except Exception:
-                pass
+                else:
+                    st.warning(
+                        "Your payment went through, but we couldn't confirm your "
+                        "subscription instantly. It'll sync within a minute — refresh "
+                        f"the page shortly. ({res.get('error','')})")
+            except Exception as _cke:
+                st.warning(f"Checkout return issue: {_cke}")
         st.query_params.pop("checkout", None)
         st.query_params.pop("plan", None)
 
