@@ -1048,11 +1048,18 @@ def run_macro_refresh(tickers: list = None) -> dict:
         return {"success": True, "mode": "macro", "regime": macro.get("regime"),
                 "source": macro.get("source"), "updated": 0, "duration_s": duration}
 
-    # 4. Attach sector (required for the sector overlay) from cached fundamentals
-    fund = load_cached_fundamentals(max_age_hours=48)
+    # 4. Attach sector (required for the sector overlay). Sector is NOT stored
+    #    in signal_log or in the fundamentals cache — the canonical source is the
+    #    universe_data.SECTORS map, exactly what score_stock() uses to label each
+    #    score and what apply_macro_overlay() looks up against SECTOR_EVENT_MAP.
+    #    Without this, every row is "Unknown" and the sector overlay resolves to
+    #    0.0 for the entire universe (MACRO +0.0 on every stock).
+    try:
+        from universe_data import SECTORS as _SECTORS
+    except Exception:
+        _SECTORS = {}
     for r in rows:
-        f = fund.get(r["ticker"], {})
-        r["sector"]    = f.get("sector", "Unknown")
+        r["sector"]    = _SECTORS.get(r["ticker"], "Unknown")
         r["composite"] = float(r.get("composite") or 50)
         r["momentum"]  = float(r.get("momentum")  or 50)
 
