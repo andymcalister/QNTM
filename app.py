@@ -5785,11 +5785,24 @@ def _track_record_data(sb):
                 sect[s] = sect.get(s, 0) + 1
         sector_counts = sorted(sect.items(), key=lambda x: x[1], reverse=True)
 
+        # Per-holding % return series for the chart overlay — each active name's
+        # cumulative % return from the chart's first session, indexed to 0%.
+        active_tickers = {p["ticker"] for p in positions if p.get("is_active")}
+        stock_series = {}
+        for tk in sorted(active_tickers):
+            if tk in close.columns:
+                col = close[tk].dropna()
+                if len(col) >= 2:
+                    b = float(col.iloc[0])
+                    if b > 0:
+                        stock_series[tk] = [(d.date().isoformat(), (float(v) / b - 1) * 100)
+                                            for d, v in col.items() if v == v]
+
         return {
             "inception": inception, "model_series": model_series, "spy_series": spy_series,
             "model_ret": model_ret, "spy_ret": spy_ret, "day_model": day_model, "day_spy": day_spy,
             "model_value": m_last, "spy_value": s_last, "exits": exits, "basis": basis,
-            "sector_counts": sector_counts,
+            "sector_counts": sector_counts, "stock_series": stock_series,
             "n_active": sum(1 for p in positions if p.get("is_active")),
             "n_exited": len(exits), "n_sessions": len(dates),
         }
@@ -5942,18 +5955,74 @@ def page_backtest():
     </div>
     """, unsafe_allow_html=True)
 
-    chart = _tr_line_chart_svg(tr["model_series"], tr["spy_series"])
-    if chart:
-        st.markdown(f"""
-        <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
-          <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:11px;">
-            <span style="color:#d4a843;">\u2014 QNTM Model</span>
-            <span style="color:#64748b;">\u2014 SPY</span>
-            <span style="color:#475569;margin-left:auto;">$100K since {tr['inception']}</span>
-          </div>
-          {chart}
-        </div>
-        """, unsafe_allow_html=True)
+    # Interactive % -return chart: every active holding as a faint background
+    # line, with the model (gold) and SPY (slate) bold on top. Hover (desktop)
+    # or tap (mobile) any line to read that name's return and its spread vs SPY.
+    # Falls back to the static SVG if Plotly isn't available in the environment.
+    _chart_done = False
+    try:
+        import plotly.graph_objects as go
+        BASE = float(tr.get("basis") or 100000.0)
+        spy_by_date = {d: (v / BASE - 1) * 100 for d, v in tr["spy_series"]}
+        fig = go.Figure()
+        # faint per-stock lines
+        for tk, series in (tr.get("stock_series") or {}).items():
+            xs = [d for d, _ in series]
+            ys = [p for _, p in series]
+            cd = [p - spy_by_date.get(d, 0.0) for d, p in series]
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, customdata=cd, mode="lines", name=tk,
+                line=dict(color="rgba(148,163,184,0.16)", width=1),
+                hovertemplate=f"<b>{tk}</b>  %{{y:.1f}}%  ·  vs SPY %{{customdata:+.1f}}pp<extra></extra>",
+                showlegend=False))
+        # SPY (slate, bold)
+        sp = [(d, (v / BASE - 1) * 100) for d, v in tr["spy_series"]]
+        fig.add_trace(go.Scatter(
+            x=[d for d, _ in sp], y=[p for _, p in sp], mode="lines", name="SPY",
+            line=dict(color="#7c8aa0", width=2.5),
+            hovertemplate="<b>SPY</b>  %{y:.1f}%<extra></extra>"))
+        # Model (gold, bold)
+        mp = [(d, (v / BASE - 1) * 100) for d, v in tr["model_series"]]
+        fig.add_trace(go.Scatter(
+            x=[d for d, _ in mp], y=[p for _, p in mp], mode="lines", name="QNTM Model",
+            line=dict(color="#d4a843", width=3),
+            hovertemplate="<b>QNTM Model</b>  %{y:.1f}%<extra></extra>"))
+        fig.update_layout(
+            height=400, margin=dict(l=8, r=8, t=8, b=8),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="DM Mono, monospace", size=11, color="#94a3b8"),
+            hovermode="closest", showlegend=False,
+            xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)",
+                       zeroline=False, color="#475569"),
+            yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)",
+                       zeroline=True, zerolinecolor="rgba(255,255,255,0.18)",
+                       ticksuffix="%", color="#475569"))
+        st.markdown(
+            '<div style="display:flex;gap:16px;align-items:center;margin-bottom:6px;font-family:DM Mono,monospace;font-size:11px;">'
+            '<span style="color:#d4a843;">\u2014 QNTM Model</span>'
+            '<span style="color:#7c8aa0;">\u2014 SPY</span>'
+            '<span style="color:#475569;">\u2014 holdings</span>'
+            f'<span style="color:#475569;margin-left:auto;">% return · since {tr["inception"]}</span></div>',
+            unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.caption("Hover a line (tap on mobile) to see a holding's return and its spread vs SPY.")
+        _chart_done = True
+    except Exception:
+        _chart_done = False
+
+    if not _chart_done:
+        chart = _tr_line_chart_svg(tr["model_series"], tr["spy_series"])
+        if chart:
+            st.markdown(f"""
+            <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
+              <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:11px;">
+                <span style="color:#d4a843;">\u2014 QNTM Model</span>
+                <span style="color:#64748b;">\u2014 SPY</span>
+                <span style="color:#475569;margin-left:auto;">$100K since {tr['inception']}</span>
+              </div>
+              {chart}
+            </div>
+            """, unsafe_allow_html=True)
 
     # Sector concentration
     if tr["sector_counts"]:
