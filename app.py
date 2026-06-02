@@ -2390,12 +2390,15 @@ def is_valid_universe_ticker(tk) -> bool:
 
 
 def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
-    """Return {ticker: {chg_pct, chg_dollar, price, prev_close, market_closed}}
+    """Return {ticker: {chg_pct, chg_dollar, price, prev_close, settled, last_bar_date}}
     for `tickers`. Cached in st.session_state[cache_key] by sorted ticker set so
-    a navigation away and back doesn't re-hit yfinance. Used by the watchlist /
-    portfolio / model-portfolio pages to render the at-a-glance "TODAY +x.x%"
-    on the collapsed card. Returns {} on any failure — callers degrade to no
-    day-change strip rather than crashing."""
+    a navigation away and back doesn't re-hit yfinance.
+
+    The change is ALWAYS the most recent session's move vs the prior session's
+    close — live and running while the market is open, frozen at the closing
+    value once it closes, and the last completed session on weekends/holidays.
+    `settled` is True when the latest bar is a finished session (not live today),
+    so callers can label it "at close" vs intraday. Returns {} on any failure."""
     if not tickers:
         return {}
     cache = st.session_state.setdefault(cache_key, {})
@@ -2420,31 +2423,32 @@ def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
             last_bar_date = str(hist.index[-1])[:10]
         except Exception:
             last_bar_date = ""
-        is_today = (last_bar_date == today_str)
+        # The latest bar is "live" only when it's today's session; otherwise the
+        # number we show is a settled close (today after close, or last session).
+        settled = (last_bar_date != today_str)
         close = hist["Close"]
+
+        def _entry(cur, prev):
+            return {
+                "price": cur, "prev_close": prev,
+                "chg_pct":    ((cur - prev) / prev * 100) if prev else None,
+                "chg_dollar": (cur - prev),
+                "settled": settled,
+                "market_closed": settled,  # retained for back-compat
+                "last_bar_date": last_bar_date,
+            }
+
         if hasattr(close, "columns"):
             for tk in set(tickers):
                 if tk in close.columns:
                     vals = close[tk].dropna()
                     if len(vals) >= 2:
-                        cur, prev = float(vals.iloc[-1]), float(vals.iloc[-2])
-                        out[tk] = {
-                            "price": cur, "prev_close": prev,
-                            "chg_pct":    ((cur - prev) / prev * 100) if is_today else None,
-                            "chg_dollar": (cur - prev) if is_today else None,
-                            "market_closed": not is_today,
-                        }
+                        out[tk] = _entry(float(vals.iloc[-1]), float(vals.iloc[-2]))
         else:
             vals = close.dropna()
             if len(vals) >= 2 and len(set(tickers)) == 1:
-                cur, prev = float(vals.iloc[-1]), float(vals.iloc[-2])
                 tk = list(set(tickers))[0]
-                out[tk] = {
-                    "price": cur, "prev_close": prev,
-                    "chg_pct":    ((cur - prev) / prev * 100) if is_today else None,
-                    "chg_dollar": (cur - prev) if is_today else None,
-                    "market_closed": not is_today,
-                }
+                out[tk] = _entry(float(vals.iloc[-1]), float(vals.iloc[-2]))
     except Exception:
         pass
     cache[key] = out
@@ -2466,15 +2470,16 @@ def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> 
             bits.append(f'<span style="color:#64748b;">ENT&nbsp;{mm}/{dd}</span>')
         except Exception:
             pass
-    # Today's change
+    # Day change — most recent session's move vs the prior close. Shown live
+    # while the market is open ("today") and frozen at the close ("at close")
+    # afterward / on weekends, rather than blanking out.
     dc = day_change_entry or {}
-    if dc.get("market_closed"):
-        bits.append('<span style="color:#475569;">MKT&nbsp;CLOSED</span>')
-    elif dc.get("chg_pct") is not None:
+    if dc.get("chg_pct") is not None:
         pct = float(dc["chg_pct"])
         col = "#00ff87" if pct > 0 else ("#ef4444" if pct < 0 else "#94a3b8")
         sign = "+" if pct >= 0 else ""
-        bits.append(f'<span style="color:{col};">{sign}{pct:.2f}%&nbsp;today</span>')
+        lbl = "at&nbsp;close" if dc.get("settled") else "today"
+        bits.append(f'<span style="color:{col};">{sign}{pct:.2f}%&nbsp;{lbl}</span>')
     if not bits:
         return ""
     sep = '<span style="color:#1e293b;">·</span>'
@@ -5342,14 +5347,14 @@ def page_watchlist():
                 hist = yf.download(wl_tickers, period="5d", auto_adjust=True,
                                    progress=False, threads=True)
                 if not hist.empty:
-                    # Is the most recent bar actually from today? If the latest
-                    # trading session isn't today (weekend / holiday), there is
-                    # no "today's change" to show — the last bar is a prior close.
+                    # Latest session is "live" only when it's today; otherwise
+                    # the move we show is a settled close (today after close, or
+                    # the last completed session on a weekend/holiday).
                     try:
                         _last_bar_date = str(hist.index[-1])[:10]
                     except Exception:
                         _last_bar_date = ""
-                    _is_today = (_last_bar_date == _today_str)
+                    _settled = (_last_bar_date != _today_str)
                     close = hist["Close"]
                     if hasattr(close, "columns"):
                         for tk in wl_tickers:
@@ -5361,10 +5366,10 @@ def page_watchlist():
                                     day_change[tk] = {
                                         "price":      cur,
                                         "prev_close": prev,
-                                        # Only a live "today" move when markets traded today.
-                                        "chg_pct":    ((cur - prev) / prev * 100) if _is_today else None,
-                                        "chg_dollar": (cur - prev) if _is_today else None,
-                                        "market_closed": not _is_today,
+                                        "chg_pct":    ((cur - prev) / prev * 100) if prev else None,
+                                        "chg_dollar": (cur - prev),
+                                        "settled": _settled,
+                                        "market_closed": _settled,  # back-compat
                                     }
                     else:
                         vals = close.dropna()
@@ -5374,9 +5379,10 @@ def page_watchlist():
                             day_change[wl_tickers[0]] = {
                                 "price":      cur,
                                 "prev_close": prev,
-                                "chg_pct":    ((cur - prev) / prev * 100) if _is_today else None,
-                                "chg_dollar": (cur - prev) if _is_today else None,
-                                "market_closed": not _is_today,
+                                "chg_pct":    ((cur - prev) / prev * 100) if prev else None,
+                                "chg_dollar": (cur - prev),
+                                "settled": _settled,
+                                "market_closed": _settled,  # back-compat
                             }
                 _dc_cache[_cache_key] = day_change
             except Exception:
@@ -5511,19 +5517,17 @@ def page_watchlist():
             f'{_since_inner}</div>'
         )
 
-        # TODAY
+        # TODAY — close-to-close move; live intraday, frozen at the close.
         _today_inner = '<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#475569;">—</div>'
-        if _dc.get("market_closed"):
-            _today_inner = ('<div style="font-family:DM Mono,monospace;font-size:11px;'
-                            'font-weight:700;color:#475569;">CLOSED</div>')
         try:
             if _dc.get("chg_pct") is not None:
                 _tc_pct = float(_dc["chg_pct"]); _tc_d = float(_dc.get("chg_dollar", 0))
                 _tcc = "#00ff87" if _tc_pct > 0 else ("#ef4444" if _tc_pct < 0 else "#94a3b8")
                 _tsign = "+" if _tc_pct >= 0 else ""
+                _tsub = f'{_tsign}${_tc_d:,.2f}' + (' · at close' if _dc.get("settled") else '')
                 _today_inner = (
                     f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_tcc};">{_tsign}{_tc_pct:.2f}%</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">{_tsign}${_tc_d:,.2f}</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:9px;color:#334155;">{_tsub}</div>'
                 )
         except Exception:
             pass
@@ -8265,38 +8269,35 @@ def page_model_portfolio():
     vs_pnl_sign = "+" if vs_spy_pnl >= 0 else ""
 
     # Portfolio-level day change vs yesterday's close — value-weighted across
-    # positions using the same intraday source the per-card strips use (cached
-    # by ticker set, so the per-card fetch later is a cache hit). Shows how the
-    # whole book moved today rather than only cumulative since-entry return.
+    # positions using the same source the per-card strips use (cached by ticker
+    # set, so the per-card fetch later is a cache hit). This is the book's move
+    # vs the prior session's close — live through the day, frozen at the close.
     _mp_day_change = _fetch_day_change_map(
         [h["ticker"] for h in holdings], cache_key="_mp_daychange_cache")
     _day_today = _day_prev = 0.0
-    _day_traded = False
-    _day_market_closed = False
+    _day_have = False
+    _day_settled = False
     for _h in holdings:
         _dc = _mp_day_change.get(_h["ticker"]) or {}
         _ep = _h.get("entry_price")
         if not _ep or _ep <= 0:
             continue
         _sh = _h.get("pos_size", 2000) / _ep
-        if _dc.get("market_closed"):
-            _day_market_closed = True
         if _dc.get("price") and _dc.get("prev_close"):
             _day_today += _sh * float(_dc["price"])
             _day_prev  += _sh * float(_dc["prev_close"])
-            if _dc.get("chg_pct") is not None:
-                _day_traded = True
-    if _day_traded and _day_prev > 0:
+            _day_have = True
+            if _dc.get("settled"):
+                _day_settled = True
+    if _day_have and _day_prev > 0:
         _day_dollar = _day_today - _day_prev
         _day_pct    = _day_dollar / _day_prev * 100
         _day_color  = "#00ff87" if _day_pct > 0 else ("#ef4444" if _day_pct < 0 else "#94a3b8")
         _day_s      = "+" if _day_pct >= 0 else ""
         _day_val    = f"{_day_s}{_day_pct:.2f}%"
-        _day_sub    = f"{_day_s}${_day_dollar:,.0f}"
-    elif _day_market_closed:
-        _day_color, _day_val, _day_sub = "#64748b", "CLOSED", "market closed"
+        _day_sub    = f"{_day_s}${_day_dollar:,.0f}" + (" · at close" if _day_settled else "")
     else:
-        _day_color, _day_val, _day_sub = "#64748b", "—", "no intraday data"
+        _day_color, _day_val, _day_sub = "#64748b", "—", "no data"
 
     st.markdown(f"""
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:20px;">
