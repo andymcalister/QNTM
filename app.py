@@ -4393,6 +4393,39 @@ def platform_nav():
 
     st.markdown(nav_html, unsafe_allow_html=True)
 
+    # ── Dark navigation curtain ───────────────────────────────────────────────
+    # Internal nav is via <a href="?qnav=..."> which triggers a full page reload.
+    # Browsers show a white gap during that reload before the dark theme paints.
+    # This drops a branded dark overlay the instant a nav link is clicked, so the
+    # browser holds a dark frame (not white) through the reload. Runs inline in
+    # the main document via qntm_html, so `document` is the top window.
+    qntm_html(
+        "<script>(function(){"
+        "try{var doc=window.parent.document;}catch(e){return;}"
+        "if(!doc||doc.getElementById('qntm-curtain'))return;"
+        "var c=doc.createElement('div');c.id='qntm-curtain';"
+        "c.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0a0b14;"
+        "display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;';"
+        "c.innerHTML='<div style=\\\"width:48px;height:48px;border-radius:50%;"
+        "border:3px solid rgba(52,211,153,.18);border-top-color:#34d399;"
+        "animation:qntmspin .8s linear infinite;\\\"></div>"
+        "<div style=\\\"font-family:Syne,sans-serif;font-size:24px;font-weight:800;"
+        "letter-spacing:.2em;color:#e2e8f0;\\\">Q<span style=\\\"color:#34d399;\\\">NTM</span></div>"
+        "<div style=\\\"font-family:DM Mono,monospace;font-size:11px;letter-spacing:.18em;"
+        "color:#94a3b8;text-transform:uppercase;\\\">Loading</div>';"
+        "doc.body.appendChild(c);"
+        "if(!doc.getElementById('qntm-curtain-kf')){var s=doc.createElement('style');"
+        "s.id='qntm-curtain-kf';s.textContent='@keyframes qntmspin{to{transform:rotate(360deg)}}';"
+        "doc.head.appendChild(s);}"
+        "doc.addEventListener('click',function(e){"
+        "var a=e.target.closest&&e.target.closest('a[href*=\\\"qnav\\\"],a[href*=\\\"legal=\\\"],a[href*=\\\"nav=\\\"]');"
+        "if(a){var h=a.getAttribute('href')||'';if(h&&h.charAt(0)!=='#'){c.style.display='flex';}}"
+        "},true);"
+        "window.addEventListener('pageshow',function(){c.style.display='none';});"
+        "})();</script>",
+        height=0,
+    )
+
 
 def page_screener():
     _pin_nav("screener")
