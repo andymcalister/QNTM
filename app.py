@@ -1345,6 +1345,50 @@ def enrich_with_signal_log(results: list) -> list:
     return results
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def _run_full_scan_cached():
+    """Process-level cache of the expensive universe scan. Unlike
+    st.session_state (which a full-page reload wipes by starting a new
+    session), this survives across reloads/sessions — so navigating between
+    screens no longer re-scores all 834 tickers from scratch every time."""
+    return run_full_scan(use_live_prices=False)
+
+
+def _cached_full_scan():
+    """Deep-copied view of the cached scan so callers can freely mutate it
+    (sector fill, macro overlay) without corrupting the shared cache."""
+    import copy
+    return copy.deepcopy(_run_full_scan_cached())
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_live_prices(tickers: tuple):
+    """Process-level cache of the top-tickers intraday price pull so it isn't
+    re-fetched from yfinance on every navigation."""
+    out = {}
+    if not tickers:
+        return out
+    try:
+        import yfinance as yf
+        _pd = yf.download(list(tickers), period="1d", interval="1m",
+                          progress=False, auto_adjust=True, threads=True)
+        if not _pd.empty:
+            _close = _pd["Close"] if "Close" in _pd else _pd
+            for _tk in tickers:
+                try:
+                    if hasattr(_close, "columns") and _tk in _close.columns:
+                        _px = float(_close[_tk].dropna().iloc[-1])
+                    else:
+                        _px = float(_close.dropna().iloc[-1])
+                    if _px > 0:
+                        out[_tk] = _px
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return out
+
+
 def scan_health_check():
     """
     Shows last successful nightly scan time pulled from signal_log.
@@ -4635,7 +4679,7 @@ def page_screener():
         except Exception:
             pass
         with st.spinner(stale_msg):
-            raw   = run_full_scan(use_live_prices=False)
+            raw   = _cached_full_scan()
             macro = _live_macro()
             for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
@@ -4673,34 +4717,18 @@ def page_screener():
     # Cached per session so it only fires once per load, not on every rerun
     if not st.session_state.get("_live_prices_fetched"):
         try:
-            import yfinance as yf
-            # Sort results to get top buys + sells
             _top_tks = (
                 [r["ticker"] for r in sorted(results, key=lambda x: float(x.get("adj_composite",0) or 0), reverse=True)[:15]] +
                 [r["ticker"] for r in sorted(results, key=lambda x: float(x.get("adj_composite",50) or 50))[:10]]
             )
             _top_tks = list(dict.fromkeys(_top_tks))[:25]  # dedupe, cap at 25
-            _price_data = yf.download(_top_tks, period="1d", interval="1m",
-                                      progress=False, auto_adjust=True, threads=True)
-            if not _price_data.empty:
-                _close = _price_data["Close"] if "Close" in _price_data else _price_data
-                _live_px = {}
-                for _tk in _top_tks:
-                    try:
-                        if hasattr(_close, 'columns') and _tk in _close.columns:
-                            _px = float(_close[_tk].dropna().iloc[-1])
-                        else:
-                            _px = float(_close.dropna().iloc[-1])
-                        if _px > 0:
-                            _live_px[_tk] = _px
-                    except Exception:
-                        pass
-                # Inject live prices into results
-                _price_map = {r["ticker"]: r for r in results}
-                for _tk, _px in _live_px.items():
-                    if _tk in _price_map:
-                        _price_map[_tk]["price"] = _px
-                st.session_state._live_prices_fetched = True
+            _live_px = _cached_live_prices(tuple(_top_tks))
+            # Inject live prices into results
+            _price_map = {r["ticker"]: r for r in results}
+            for _tk, _px in _live_px.items():
+                if _tk in _price_map:
+                    _price_map[_tk]["price"] = _px
+            st.session_state._live_prices_fetched = True
         except Exception:
             pass
     gem_tickers = {g["ticker"] for g in gems}
@@ -5602,7 +5630,7 @@ def page_gems():
             from model_engine import fetch_macro_overlay, apply_macro_overlay
             from model_engine import SECTORS as _GEM_SECTORS
             _gems_prog.progress(15, text="Running factor model...")
-            _raw = run_full_scan(use_live_prices=False)
+            _raw = _cached_full_scan()
             _gems_prog.progress(60, text="Applying macro overlay...")
             _mac = _live_macro()
             for _r in _raw:
@@ -6127,7 +6155,7 @@ def page_portfolio():
     # ── Ensure scan results ────────────────────────────────────────────────────
     if st.session_state.scan_results is None:
         with st.spinner("Loading model signals..."):
-            raw   = run_full_scan(use_live_prices=False)
+            raw   = _cached_full_scan()
             macro = _live_macro()
             for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
@@ -9006,6 +9034,9 @@ def main():
     if st.query_params.get("rescan") == "1" and st.session_state.get("logged_in"):
         st.query_params.pop("rescan", None)
         st.session_state.scan_results = None
+        st.session_state._live_prices_fetched = False
+        _run_full_scan_cached.clear()
+        _cached_live_prices.clear()
 
     # ── Simulator rescan via URL action ──────────────────────────────────────
     if st.query_params.get("sim_rescan") == "1" and st.session_state.get("logged_in"):
@@ -9013,7 +9044,8 @@ def main():
         try:
             from model_engine import fetch_macro_overlay, apply_macro_overlay, run_full_scan
             from model_engine import SECTORS as _SIM_SECTORS
-            _raw = run_full_scan(use_live_prices=False)
+            _run_full_scan_cached.clear()
+            _raw = _cached_full_scan()
             _mac = _live_macro()
             for _r in _raw:
                 if not _r.get("sector") or _r.get("sector") == "Unknown":
