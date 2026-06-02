@@ -4197,7 +4197,7 @@ def platform_nav():
         ("gems",            "💎", "Hidden Gems"),
         ("portfolio",       "💼", "Portfolio"),
         ("simulator",       "🧮", "Simulator"),
-        ("model_portfolio", "🏆", "Portfolio & Track Record"),
+        ("model_portfolio", "🏆", "Track Record"),
         ("alerts",          "🔔", "Alerts"),
         ("account",         "⚙️", "Account"),
         ("methodology",     "📖", "How It Works"),
@@ -4249,7 +4249,7 @@ def platform_nav():
         ) if (key == "alerts" and n_count > 0) else ""
 
         grid_html += (
-            f'<a href="{href}" target="_self" style="position:relative;{btn_style}">'
+            f'<a href="{href}" target="_self" style="position:relative;min-width:0;overflow:hidden;{btn_style}">'
             f'<span style="{em_style}">{em}</span>'
             f'<span style="{lbl_style}">{label}</span>'
             f'{badge}</a>'
