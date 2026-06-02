@@ -2868,7 +2868,7 @@ The model applies the same rules to every security in its universe, regardless o
 The Model Portfolio shown in QNTM is a hypothetical illustration of how the model's signals would translate into a position book. It uses equal-weighted notional sizing, ignores slippage, taxes, brokerage commissions, and dividend treatment. It is not a real portfolio, no securities are held on your behalf, and no trades are executed. It is provided for transparency about the model's behavior, not as a recommendation.
 
 ### Past Performance
-Our 5-year backtest covers Q2 2020 through Q1 2025. It uses historical data with the same model rules applied throughout — no changes between periods. It does not account for all real-world costs, taxes, or execution constraints. Survivorship bias is disclosed in our methodology page and quantified in the adjusted return figures. Past model performance is not a guarantee of future results.
+QNTM does not currently publish a historical backtest. The only performance we show is the live Model Portfolio, which runs in real time on the model's rules-based signals from its inception date forward. It is a hypothetical illustration (see Model Portfolio above) and does not account for all real-world costs, taxes, or execution constraints. A live track record is short by nature, and past model performance is not a guarantee of future results.
 
 ### You Can Lose Money
 All equity investments carry the risk of loss, including loss of your entire investment.
@@ -3001,7 +3001,6 @@ def _cookie_banner():
 # ══════════════════════════════════════════════════════════════════════════════
 # PUBLIC MODEL PORTFOLIO PAGE — no auth required, shareable link
 def page_landing():
-    bt = BACKTEST_DATA
 
     # Returning user with no uid in URL — try localStorage to restore session
     if not st.session_state.logged_in and not st.session_state.get("signed_out") and "uid" not in st.query_params:
@@ -3232,7 +3231,6 @@ body { background-color: #0a0b14 !important; }
     """, unsafe_allow_html=True)
 
     # ── HERO — two-column layout ──────────────────────────────────────────────
-    bt = BACKTEST_DATA
 
     # Fetch macro regime for right-side intelligence panel
     try:
@@ -3295,11 +3293,6 @@ body { background-color: #0a0b14 !important; }
     if not _signal_rows:
         _signal_rows = '<div style="font-size:12px;color:#334155;padding:12px 0;">Signals loading...</div>'
 
-    # Build compact trust stats row
-    _mr = f"+{bt['model_total_ret']:.0f}%"
-    _sh = f"{bt['sharpe']:.2f}"
-    _wr = f"{bt['win_rate']:.0f}%"
-    _dd = f"{bt['max_dd_model']:.1f}%"
 
     # Dynamic founding spots count
     _spots_remaining = 50
@@ -3401,16 +3394,16 @@ body { background-color: #0a0b14 !important; }
         '<div><div style="font-family:DM Mono,monospace;font-size:9px;color:#00ff87;letter-spacing:.1em;">HIDDEN GEMS</div>'
         '<div style="font-size:11px;color:#64748b;">Low-coverage stocks with high conviction scores</div></div>'
         '</div>'
-        # Compact stats strip at bottom of panel
+        # Compact stats strip at bottom of panel — factual, no performance claims
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05);">'
-        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">5-YR RETURN</div>'
-        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">{_mr}</div></div>'
-        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">SHARPE</div>'
-        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">{_sh}</div></div>'
-        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">WIN RATE</div>'
-        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#00ff87;">{_wr}</div></div>'
-        + f'<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">MAX DD</div>'
-        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">{_dd}</div></div>'
+        + '<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">UNIVERSE</div>'
+        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">~834</div></div>'
+        + '<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">FACTORS</div>'
+        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">5</div></div>'
+        + '<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">REFRESH</div>'
+        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#00ff87;">Daily</div></div>'
+        + '<div><div style="font-size:9px;color:#475569;letter-spacing:.08em;">SIGNALS</div>'
+        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">Live</div></div>'
         + '</div>'
 
         + '</div>'  # end right panel
@@ -3535,103 +3528,37 @@ body { background-color: #0a0b14 !important; }
     st.markdown("""
     <div class="land-divider"></div>
     <div class="land-section">
-      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; PERFORMANCE</div>
+      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; WHY QNTM</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
            color:#fff;margin-bottom:10px;line-height:1.1;">
-        5 years. 6 regimes.<br><span style="color:#d4a843;">Proven in every market.</span>
+        A live model.<br><span style="color:#d4a843;">Transparent by design.</span>
       </h2>
-      <p style="color:#64748b;margin-bottom:24px;font-size:13px;">Real data. Same rules every year. No tuning between regimes.</p>
+      <p style="color:#64748b;margin-bottom:24px;font-size:13px;">
+        Every score is computed daily and shown with the reasoning behind it &mdash; no black box, and no
+        cherry-picked history. The track record we show is the live Model Portfolio, reported as it happens.
+      </p>
     </div>
-    """, unsafe_allow_html=True)
-
-    # Big 4 stats — 2x2 HTML grid
-    st.markdown(f"""
     <div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL 5-YR TOTAL</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
-          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">${bt['model_final_100k']:,} from $100K</div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">~834 stocks</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:6px;">S&amp;P 500 + Russell 1000, rescored every day</div>
         </div>
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SPY SAME PERIOD</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#64748b;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
-          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">${bt['spy_final_100k']:,} from $100K</div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#00ff87;line-height:1;">5-factor model</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:6px;">Momentum, Quality, Volume, Value, Sentiment</div>
         </div>
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MODEL CAGR</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,28px);font-weight:800;color:#d4a843;line-height:1;">+{bt['model_cagr']:.1f}%</div>
-          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">Plain-English</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:6px;">A written rationale behind every conviction score</div>
         </div>
-        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;overflow:hidden;">
-          <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">5-YR ADVANTAGE</div>
-          <div style="font-family:Syne,sans-serif;font-size:clamp(13px,3vw,22px);font-weight:800;color:#1D9E75;line-height:1;">+${bt['model_advantage_usd']:,}</div>
-          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">on $100,000 invested</div>
+        <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#00ff87;line-height:1;">Live portfolio</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:6px;">Rules-based entries &amp; exits, tracked in real time</div>
         </div>
       </div>
     </div>
-    <div style="width:100%;box-sizing:border-box;padding:0 16px;font-size:13px;color:#94a3b8;margin-bottom:14px;">Same rules every year — no tuning between regimes:</div>
     """, unsafe_allow_html=True)
-
-    # Regime + risk metrics via HTML grids
-    regime_cards = ""
-    for p in bt["periods"]:
-        bc  = "rgba(29,158,117,.35)" if p["beat"] else "rgba(226,75,74,.25)"
-        ic  = "#1D9E75" if p["beat"] else "#E24B4A"
-        mc  = "#1D9E75" if p["model_ret"] >= 0 else "#E24B4A"
-        sc  = "#4ade80" if p["spy_ret"]  >= 0 else "#E24B4A"
-        chk = "&#10003;" if p["beat"] else "&#10007;"
-        regime_cards += (
-            f'<div style="background:#0e0f1a;border:1px solid {bc};border-radius:8px;padding:12px 10px;min-width:0;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;margin-bottom:3px;">{p["key"]}</div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:6px;line-height:1.3;">{p["label"]}</div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{ic};">{chk}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{mc};margin-top:4px;">QNTM {p["model_ret"]:+.1f}%</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{sc};margin-top:2px;">SPY {p["spy_ret"]:+.1f}%</div>'
-            f'</div>'
-        )
-    st.markdown(
-        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">{regime_cards}</div></div>',
-        unsafe_allow_html=True)
-
-    spy_dd = bt.get("max_dd_spy", -25.4)
-    risk_items = [
-        ("SHARPE",     f"{bt['sharpe']:.2f}",                     "&gt;1.0 excellent"),
-        ("SORTINO",    f"{bt['sortino']:.2f}",                    "&gt;1.5 strong"),
-        ("INFO RATIO", f"{bt.get('information_ratio',1.25):.2f}", "&gt;0.5 signal"),
-        ("MAX DD",     f"{bt['max_dd_model']:.1f}%",              f"SPY {spy_dd:.1f}%"),
-        ("WIN RATE",   f"{bt['win_rate']:.1f}%",                  f"{bt['n_quarters']} quarters"),
-        ("CAGR ALPHA", f"+{bt['cagr_alpha']:.1f}pp",              "/yr vs index"),
-    ]
-    risk_html = "".join([
-        f'<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);'
-        f'border-radius:6px;padding:12px;text-align:center;min-width:0;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">{l}</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#d4a843;">{v}</div>'
-        f'<div style="font-size:13px;color:#94a3b8;margin-top:4px;">{s}</div></div>'
-        for l,v,s in risk_items
-    ])
-    st.markdown(
-        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:16px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">{risk_html}</div></div>',
-        unsafe_allow_html=True)
-
-    # ── VS COMPETITORS BAR ────────────────────────────────────────────────────
-    vs_data = [
-        ("QNTM Model",        447000, "#d4a843"),
-        ("Typical Quant Fund",310000, "#475569"),
-        ("SPY (Index)",        231000, "#334155"),
-        ("Retail Avg",         162000, "#1e293b"),
-    ]
-    max_val = 447000
-    bars = ""
-    for name, val, color in vs_data:
-        pct = val / max_val * 100
-        bars += (
-            f'<div style="margin-bottom:10px;">'            f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'            f'<span style="font-size:12px;color:#94a3b8;">{name}</span>'            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#cbd5e1;">${val:,}</span>'            f'</div>'            f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:8px;">'            f'<div style="width:{pct:.0f}%;height:100%;background:{color};border-radius:3px;"></div>'            f'</div></div>'
-        )
-    st.markdown(
-        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:8px;">'        f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:20px 18px;">'        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.08em;margin-bottom:16px;">$100,000 INVESTED — 5 YEAR OUTCOME</div>'        f'{bars}'        f'<div style="font-size:11px;color:#475569;margin-top:12px;border-top:1px solid rgba(255,255,255,.05);padding-top:10px;">Q2 2020 – Q1 2025. Typical quant fund estimated at 1.25× SPY return. Retail avg estimated at 0.7× SPY. Past performance does not guarantee future results.</div>'        f'</div></div>',
-        unsafe_allow_html=True)
 
         # ── THE MODEL ─────────────────────────────────────────────────────────────
     st.markdown("""
@@ -3713,7 +3640,7 @@ body { background-color: #0a0b14 !important; }
         ("Quant factor model",      [1, 0, "p", "p", "p", 1]),
         ("Live macro overlay",      [1, 0, 0, 0, 0, 1]),
         ("5-pillar conviction score",[1, 0, 0, "p", "p", 1]),
-        ("Walk-forward backtest",   [1, 0, 0, 0, 0, 1]),
+        ("Plain-English rationale", [1, 0, 0, 0, 0, 0]),
         ("Hidden gem detection",    [1, 0, 0, 0, 0, 0]),
         ("Portfolio simulator",     [1, 0, 0, "p", 0, 1]),
         ("Live model portfolio",    [1, 1, 0, 0, 0, 0]),
@@ -3784,7 +3711,6 @@ body { background-color: #0a0b14 !important; }
         tc  = "#e2e4f0" if highlight else "#64748b"
         return f'<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;font-size:13px;"><span style="color:{dc};flex-shrink:0;">{dot}</span><span style="color:{tc};">{text}</span></div>'
 
-    bt_ret_str = f"{bt['model_total_ret']:.0f}"
 
     def card_style(highlight=False):
         if highlight:
@@ -3803,8 +3729,8 @@ body { background-color: #0a0b14 !important; }
           {feat_row("Live macro regime overlay")}
           {feat_row("Top 10 daily picks")}
           {feat_row("Portfolio tracking (10 positions)")}
-          {feat_row("Backtest track record (read only)")}
-          {feat_row("Walk-forward validated model")}
+          {feat_row("Live model portfolio (read only)")}
+          {feat_row("Transparent 5-factor model")}
         </div>
       </div>"""
 
@@ -4063,7 +3989,7 @@ def page_auth():
                 <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#e2e4f0;">$0</div>
                 <div style="font-size:13px;color:#94a3b8;margin-top:4px;">forever</div>
                 <div style="font-size:13px;color:#94a3b8;margin-top:8px;line-height:1.6;">
-                  Screener · HIGH/MODERATE/LOW conviction signals<br>Up to 10 portfolio positions<br>5-yr backtest data
+                  Screener · HIGH/MODERATE/LOW conviction signals<br>Up to 10 portfolio positions<br>Live model portfolio
                 </div>
               </div>
               <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.4);
@@ -4268,7 +4194,7 @@ def platform_nav():
         ("screener",        "📊", "Screener"),
         ("watchlist",       "★",  "Watchlist"),
         ("gems",            "💎", "Hidden Gems"),
-        ("backtest",        "📈", "Backtest"),
+        ("backtest",        "📈", "Track Record"),
         ("portfolio",       "💼", "Portfolio"),
         ("simulator",       "🧮", "Simulator"),
         ("model_portfolio", "🏆", "Model Port."),
@@ -4845,7 +4771,6 @@ def page_screener():
                     f'</div></div>',
                     unsafe_allow_html=True)
 
-    bt = BACKTEST_DATA
 
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
@@ -5727,431 +5652,53 @@ def page_gems():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_backtest():
     _pin_nav("backtest")
-    bt = BACKTEST_DATA
     page_summary(
-        "📈", "Backtest Performance",
-        f"5-year walk-forward · 6 regimes · +{bt['model_total_ret']:.0f}% vs SPY +{bt['spy_total_ret']:.0f}%"
+        "\U0001F4C8", "Methodology & Track Record",
+        "How the model works, and how we report performance \u2014 honestly."
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    # Hero numbers
-    # Hero stats — 2x2 HTML grid works on all screen sizes
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:24px 0;">
-      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-           border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR TOTAL RETURN</div>
-        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">+{bt['model_total_ret']:.1f}%</div>
-        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">${'100K'} → ${bt['model_final_100k']:,}</div>
-      </div>
-      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-           border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">SPY SAME PERIOD</div>
-        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#fbbf24;line-height:1;">+{bt['spy_total_ret']:.1f}%</div>
-        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">${'100K'} → ${bt['spy_final_100k']:,}</div>
-      </div>
-      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-           border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">MODEL CAGR</div>
-        <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#00ff87;line-height:1;">+{bt['model_cagr']:.1f}%</div>
-        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">vs SPY +{bt['spy_cagr']:.1f}% CAGR</div>
-      </div>
-      <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-           border-left:2px solid #00ff87;border-radius:6px;padding:16px;">
-        <div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.1em;margin-bottom:8px;">5-YR ADVANTAGE</div>
-        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#00ff87;line-height:1;">+${bt['model_advantage_usd']:,}</div>
-        <div style="font-size:14px;color:#94a3b8;margin-top:6px;">on $100,000 invested</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Risk metrics — 3x2 HTML grid
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
-      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SHARPE</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['sharpe']:.2f}</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">&gt;1.0 excellent</div>
-      </div>
-      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">SORTINO</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['sortino']:.2f}</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">&gt;1.5 strong</div>
-      </div>
-      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">INFO RATIO</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt.get('information_ratio',1.25):.2f}</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">&gt;0.5 signal</div>
-      </div>
-      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">MAX DD</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['max_dd_model']:.1f}%</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">SPY {bt.get('max_dd_spy',-25.4):.1f}%</div>
-      </div>
-      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">WIN RATE</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">{bt['win_rate']:.1f}%</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">{bt['n_quarters']} quarters</div>
-      </div>
-      <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.12);border-radius:6px;padding:12px;text-align:center;">
-        <div style="font-family:DM Mono,monospace;font-size:14px;color:#94a3b8;letter-spacing:.08em;margin-bottom:6px;">CAGR ALPHA</div>
-        <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#00ff87;">+{bt['cagr_alpha']:.1f}pp</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">/yr vs index</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Growth chart — compute from real quarterly returns for accuracy
-    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin-bottom:8px;">GROWTH OF $100,000 — Q2 2020 TO Q1 2025</div>', unsafe_allow_html=True)
-
-    # Build growth curves from quarterly returns (most accurate)
-    qr = bt.get("macro_quarterly_returns", {})
-    quarters_ordered = [
-        "2020-Q2","2020-Q3","2020-Q4",
-        "2021-Q1","2021-Q2","2021-Q3","2021-Q4",
-        "2022-Q1","2022-Q2","2022-Q3","2022-Q4",
-        "2023-Q1","2023-Q2","2023-Q3","2023-Q4",
-        "2024-Q1","2024-Q2","2024-Q3","2024-Q4",
-        "2025-Q1",
-    ]
-    labels   = ["Start"] + quarters_ordered
-    qntm_pts = [100000]
-    spy_pts  = [100000]
-    v_q, v_s = 100000.0, 100000.0
-    for q in quarters_ordered:
-        if q in qr:
-            v_q = round(v_q * (1 + qr[q]["blended"]), 0)
-            v_s = round(v_s * (1 + qr[q]["spy"]), 0)
-        qntm_pts.append(int(v_q))
-        spy_pts.append(int(v_s))
-    chart_html = f"""<!DOCTYPE html><html>
-<head><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script></head>
-<body style="margin:0;background:#0a0b14;padding:0;">
-<div style="position:relative;height:380px;width:100%;">
-<canvas id="gc"></canvas>
-</div>
-<script>
-const labels = {labels};
-const qntm   = {qntm_pts};
-const spy    = {spy_pts};
-new Chart(document.getElementById('gc'), {{
-  type: 'line',
-  data: {{
-    labels: labels,
-    datasets: [
-      {{
-        label: 'QNTM Model',
-        data: qntm,
-        borderColor: '#d4a843',
-        backgroundColor: 'rgba(212,168,67,0.06)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#d4a843',
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        fill: true,
-        tension: 0.3,
-      }},
-      {{
-        label: 'S&P 500 (SPY)',
-        data: spy,
-        borderColor: 'rgba(100,116,139,0.9)',
-        backgroundColor: 'rgba(100,116,139,0.03)',
-        borderWidth: 1.5,
-        pointBackgroundColor: '#64748b',
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        fill: true,
-        tension: 0.3,
-        borderDash: [5,4],
-      }},
-    ]
-  }},
-  options: {{
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {{
-      legend: {{ display: false }},
-      tooltip: {{
-        backgroundColor: '#0d1117',
-        borderColor: 'rgba(212,168,67,0.3)',
-        borderWidth: 1,
-        titleColor: '#d4a843',
-        bodyColor: '#94a3b8',
-        padding: 12,
-        callbacks: {{
-          label: ctx => ' $' + ctx.parsed.y.toLocaleString(),
-        }}
-      }}
-    }},
-    scales: {{
-      x: {{
-        grid: {{ color: 'rgba(255,255,255,0.03)' }},
-        ticks: {{
-          color: '#334155',
-          font: {{ family: 'DM Mono, monospace', size: 10 }},
-          maxTicksLimit: 10,
-          maxRotation: 45,
-        }},
-        border: {{ color: 'rgba(255,255,255,0.05)' }},
-      }},
-      y: {{
-        grid: {{ color: 'rgba(255,255,255,0.03)' }},
-        ticks: {{
-          color: '#334155',
-          font: {{ family: 'DM Mono, monospace', size: 10 }},
-          callback: v => '$' + (v/1000).toFixed(0) + 'K',
-        }},
-        border: {{ color: 'rgba(255,255,255,0.05)' }},
-      }}
-    }}
-  }}
-}});
-const c = document.createElement('div');
-c.style = 'display:flex;gap:20px;padding:8px 0 0 8px;';
-c.innerHTML = `
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">
-    <span style="width:18px;height:2.5px;background:#d4a843;display:inline-block;border-radius:2px;"></span>
-    QNTM Model
-  </span>
-  <span style="display:flex;align-items:center;gap:6px;font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">
-    <span style="width:18px;height:1.5px;background:#64748b;display:inline-block;border-radius:2px;opacity:0.7;"></span>
-    S&P 500 (SPY)
-  </span>`;
-document.body.prepend(c);
-</script>
-</body></html>"""
-    qntm_html(chart_html, height=480, iframe=True)
-
-    # ── Macro Overlay Attribution Section ─────────────────────────────────────
-    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;
-         letter-spacing:.1em;margin:20px 0 12px;">
-      ⚡ WALK-FORWARD BACKTEST — REGIME-SCALED MACRO OVERLAY (Q2 2020 – Q1 2025)
-    </div>
     <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-         border-radius:6px;padding:14px 18px;margin-bottom:14px;font-size:14px;color:#94a3b8;line-height:1.7;">
-      Methodology: genuine point-in-time walk-forward simulation. Real yfinance price histories fetched
-      as-of each quarter-start date. Scores recomputed every quarter from available data — no static
-      fundamentals applied retroactively. 10bps transaction cost per trade. 124 large-cap tickers.
-      Minimum 15 positions enforced. Macro weight scales by regime: 35% RISK_OFF · 15% RISK_ON · 10% NEUTRAL.
-      Survivorship bias disclosed (200bps/yr haircut applied to adjusted figures).
+         border-left:3px solid #00ff87;border-radius:0 8px 8px 0;padding:18px 22px;margin:20px 0;">
+      <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">
+        How we report performance</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.85;">
+        QNTM's Model Portfolio runs <strong style="color:#cbd5e1;">live</strong> on the same rules-based logic the
+        model applies every day &mdash; entries on high-conviction signals, exits when conviction drops below
+        threshold, equal-weighted positions, a 30% sector cap, and no discretionary overrides. Its performance is
+        tracked in real time and reported exactly as it happens.<br><br>
+        We are deliberately <strong style="color:#cbd5e1;">not</strong> publishing a historical 5-year backtest.
+        A backtest is only credible if every score is computed from data that was actually available at the time
+        &mdash; point-in-time fundamentals, the universe as it existed then, and macro conditions as they were
+        known. Anything less bakes in hindsight. We're building that the right way rather than showing numbers
+        that look impressive but wouldn't withstand scrutiny. Until it's done and independently sanity-checked,
+        the track record we show is the one that's real: the live Model Portfolio.
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
-    mac_stats = [
-        ("75/25 Blended Return",f"+{bt['macro_cumulative_return']:.1f}%",f"${bt['macro_final_100k']:,} from $100K","#d4a843"),
-        ("Pure Quant Return",f"+{bt['pure_quant_cumulative']:.1f}%","No macro overlay","#94a3b8"),
-        ("Blended vs SPY",f"+{bt['blended_vs_spy_pp']:.0f}pp","Cumulative outperformance","#1D9E75"),
-        ("Macro: Drawdown Saved",f"-{bt['macro_drawdown_improvement_pp']:.1f}pp","vs pure quant max DD","#1D9E75"),
-    ]
-    mac_html = "".join([
-        f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-        f'border-top:2px solid {color};border-radius:6px;padding:16px;text-align:center;min-width:0;overflow:hidden;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#64748b;letter-spacing:.08em;margin-bottom:10px;">{label}</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:clamp(18px,4vw,26px);font-weight:800;color:{color};line-height:1;">{val}</div>'
-        f'<div style="font-size:13px;color:#94a3b8;margin-top:8px;">{sub}</div>'
-        f'</div>'
-        for label,val,sub,color in mac_stats
-    ])
-    st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">{mac_html}</div>',
-        unsafe_allow_html=True)
-
-    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
-
-    # Honest comparison table
-    st.markdown("""
-    <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;
-         letter-spacing:.1em;margin:8px 0 8px;">SIDE-BY-SIDE: BLENDED vs PURE QUANT vs SPY</div>
-    """, unsafe_allow_html=True)
-
-    comparison = [
-        ("75/25 Blended","#d4a843",
-         bt['macro_cumulative_return'], bt['macro_annualized_return'],
-         bt['macro_sharpe'], bt['macro_sortino'], bt['macro_max_drawdown'],
-         bt['macro_win_rate'], bt.get('information_ratio', 1.25),
-         bt.get('macro_cumulative_return_adj')),
-        ("Pure Quant (no macro)","#94a3b8",
-         bt['pure_quant_cumulative'], bt['pure_quant_annualized'],
-         bt['pure_quant_sharpe'], None, bt['pure_quant_max_drawdown'], None, None, None),
-        ("SPY Benchmark","#475569",
-         bt['benchmark_cumulative'], bt['benchmark_annualized'],
-         bt['benchmark_sharpe'], None, bt['benchmark_max_drawdown'], None, None, None),
-    ]
-    comp_html = ""
-    for name,color,cum,ann,sharpe,sortino,mdd,wr,ir,adj in comparison:
-        sortino_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Sortino</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{sortino:.2f}</span></div>' if sortino else ""
-        wr_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Win Rate</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{wr:.1f}%</span></div>' if wr else ""
-        ir_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Info Ratio</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{ir:.2f}</span></div>' if ir else ""
-        adj_row = f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Adj. Return*</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">+{adj:.1f}%</span></div>' if adj else ""
-        comp_html += (
-            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
-            f'border-left:3px solid {color};border-radius:6px;padding:12px;min-width:0;overflow:hidden;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{color};letter-spacing:.06em;margin-bottom:10px;">{name}</div>'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Cumulative</span><span style="font-family:DM Mono,monospace;font-size:13px;color:{color};">+{cum:.1f}%</span></div>'
-            f'{adj_row}'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Annualized</span><span style="font-family:DM Mono,monospace;font-size:13px;color:{color};">+{ann:.1f}%</span></div>'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="font-size:13px;color:#94a3b8;">Sharpe</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;">{sharpe:.2f}</span></div>'
-            f'{sortino_row}{ir_row}{wr_row}'
-            f'<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="font-size:13px;color:#94a3b8;">Max Drawdown</span><span style="font-family:DM Mono,monospace;font-size:13px;color:#ef4444;">-{mdd:.1f}%</span></div>'
-            f'</div>'
-        )
-    st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">{comp_html}</div>',
-        unsafe_allow_html=True)
-
-    # Regime breakdown
-    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;
-         letter-spacing:.1em;margin-bottom:8px;">MACRO REGIME BREAKDOWN (avg quarterly return)</div>
-    """, unsafe_allow_html=True)
-
-    regime_summary = bt.get("macro_regime_summary", {})
-    regime_display = [
-        ("RISK-ON (10 qtrs)",   "RISK_ON",  "#1D9E75"),
-        ("NEUTRAL (7 qtrs)",    "NEUTRAL",  "#d4a843"),
-        ("RISK-OFF (4 qtrs)",   "RISK_OFF", "#ef4444"),
-    ]
-    for label, key, color in regime_display:
-        rd = regime_summary.get(key, {})
-        b_pct  = rd.get("blended_avg_pct", 0)
-        q_pct  = rd.get("quant_avg_pct", 0)
-        s_pct  = rd.get("spy_avg_pct", 0)
-        b_alpha = rd.get("blended_alpha_bps", 0)
-        b_col  = "#1D9E75" if b_pct >= 0 else "#ef4444"
-        a_col  = "#1D9E75" if b_alpha >= 0 else "#ef4444"
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
-             background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.06);
-             border-left:3px solid {color};border-radius:4px;margin-bottom:6px;">
-          <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;width:150px;flex-shrink:0;">
-            {label}
-          </div>
-          <div style="display:flex;gap:24px;flex-wrap:wrap;flex:1;">
-            <div>
-              <div style="font-size:13px;color:#94a3b8;letter-spacing:.08em;margin-bottom:4px;">BLENDED AVG</div>
-              <div style="font-family:'DM Mono',monospace;font-size:17px;font-weight:500;color:{b_col};">{b_pct:+.2f}%</div>
-            </div>
-            <div>
-              <div style="font-size:12px;color:#64748b;letter-spacing:.08em;margin-bottom:2px;">PURE QUANT</div>
-              <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:#94a3b8;">{q_pct:+.2f}%</div>
-            </div>
-            <div>
-              <div style="font-size:13px;color:#94a3b8;letter-spacing:.07em;margin-bottom:4px;">SPY AVG</div>
-              <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:#94a3b8;">{s_pct:+.2f}%</div>
-            </div>
-            <div>
-              <div style="font-size:13px;color:#94a3b8;letter-spacing:.04em;margin-bottom:4px;">BlendED vs SPY</div>
-              <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:{a_col};">{b_alpha:+.0f} bps</div>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+    _mp_url = (f"?qnav=model_portfolio&uid={uid()}"
+               f"&plan={st.query_params.get('plan','free')}&ck=1&_n=model_portfolio")
+    st.markdown(_cta_gold("\u2192 View the live Model Portfolio", _mp_url), unsafe_allow_html=True)
 
     st.markdown("""
-    <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);
-         border-radius:6px;padding:14px 18px;margin-top:12px;font-size:12px;color:#64748b;line-height:1.8;">
-      <strong style="color:#d4a843;">What the regime-scaled macro overlay actually does:</strong>
-      The blended portfolio applies 35% macro weight in RISK_OFF, 15% in RISK_ON, and 10% in NEUTRAL —
-      scaling conviction by regime clarity. Pure quant returned +230.8% but with a -19.9% max drawdown.
-      The macro overlay boosted that to +346.6% cumulative (+215.6pp vs SPY) while cutting max drawdown
-      to just -6.5% — a 13.4pp improvement. In RISK_OFF regimes (2022 rate shock, 2025 tariff shock),
-      the blended portfolio averaged +1.5% per quarter while SPY averaged -7.9% — 936bps of protection.
-      <strong style="color:#94a3b8;">Methodology: walk-forward, real prices, 10bps transaction costs, 124 tickers, disclosed biases.</strong>
+    <div style="margin-top:28px;">
+      <div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:12px;">
+        \u26A1 WHAT THE MODEL DOES</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.85;">
+        QNTM scores ~834 S&amp;P 500 and Russell 1000 stocks daily on a five-pillar composite &mdash;
+        Momentum (30%), Quality (25%), Volume (20%), Value (15%), and Sentiment (10%) &mdash; blended 75/25 with a
+        regime-aware macro overlay computed from live market conditions. Every score comes with a plain-English
+        rationale, and conviction tiers (High / Moderate / Low) are cross-sectional rankings, not buy/sell calls.
+        The same scores drive the live Model Portfolio's rules-based entries and exits. For the full breakdown of
+        each pillar and what the model does <em>not</em> do, see <strong style="color:#cbd5e1;">How It Works</strong>.
+      </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # Regime grid
-    st.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:#94a3b8;letter-spacing:.1em;margin:24px 0 12px;">REGIME SCORECARD</div>', unsafe_allow_html=True)
-    r_cols = st.columns(6)
-    for col, p in zip(r_cols, bt["periods"]):
-        beat  = p["beat"]
-        col_c = "rgba(0,255,135,.15)" if beat else "rgba(239,68,68,.1)"
-        brd   = "rgba(0,255,135,.3)"  if beat else "rgba(239,68,68,.25)"
-        icon  = "✓" if beat else "✗"
-        ic    = "#00ff87" if beat else "#ef4444"
-        mc    = "#00ff87" if p["model_ret"]>=0 else "#ef4444"
-        sc    = "#4ade80" if p["spy_ret"]>=0 else "#ef4444"
-        with col:
-            st.markdown(f"""
-            <div style="background:{col_c};border:1px solid {brd};border-radius:6px;padding:14px 12px;">
-              <div style="font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8;margin-bottom:4px;">{p['key']}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">{p['label']}</div>
-              <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:{ic};">{icon}</div>
-              <div style="margin-top:8px;">
-                <div style="font-family:'DM Mono',monospace;font-size:13px;color:{mc};font-weight:500;">QNTM {p['model_ret']:+.1f}%</div>
-                <div style="font-family:'DM Mono',monospace;font-size:13px;color:{sc};margin-top:2px;">SPY {p['spy_ret']:+.1f}%</div>
-                <div style="font-size:13px;color:#94a3b8;margin-top:6px;">{p['char']}</div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # Holdings table — styled HTML matching platform theme
-    st.markdown(
-        '<div style="font-family:DM Mono,monospace;font-size:13px;color:#94a3b8;'
-        'letter-spacing:.1em;margin:32px 0 12px;">12-MONTH CONVICTION PORTFOLIO — ACTUAL POSITIONS &amp; RETURNS</div>',
-        unsafe_allow_html=True)
-
-    # Table header — wrapped for mobile horizontal scroll
-    st.markdown(
-        '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-        '<div style="min-width:520px;">'
-        '<div style="display:grid;grid-template-columns:80px 100px 100px 1fr 110px 90px;'
-        'gap:8px;padding:10px 16px;background:#050a0f;border-radius:6px 6px 0 0;'
-        'border:1px solid rgba(255,255,255,.07);">'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">TICKER</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">CONVICTION</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">SCORE</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">HOLD PERIOD</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">12M RETURN</div>'
-        '<div style="font-size:13px;color:#64748b;letter-spacing:.1em;">RESULT</div>'
-        '</div>',
-        unsafe_allow_html=True)
-
-    for h in bt["holdings_12m"]:
-        ret    = h["return_pct"]
-        act    = h["action"]
-        # Display conviction labels — schema still uses BUY/SELL/HOLD internally
-        act_label = "HIGH" if act == "BUY" else ("LOW" if act == "SELL" else "MODERATE")
-        act_c  = "#00ff87" if act=="BUY" else "#ef4444"
-        ret_c  = "#00ff87" if ret > 0 else "#ef4444"
-        arrow  = "▲" if act=="BUY" else "▼"
-        win    = ret > 0
-        result_c = "#00ff87" if win else "#ef4444"
-        result   = "✓ WIN" if win else "✗ LOSS"
-        row_bg   = "rgba(0,255,135,.02)" if win else "rgba(239,68,68,.02)"
-        st.markdown(
-            f'<div style="display:grid;grid-template-columns:80px 100px 100px 1fr 110px 90px;'
-            f'gap:8px;padding:9px 16px;background:{row_bg};'
-            f'border-left:1px solid rgba(255,255,255,.05);border-right:1px solid rgba(255,255,255,.05);'
-            f'border-bottom:1px solid rgba(255,255,255,.05);align-items:center;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;">{h["ticker"]}</div>'
-            f'<div><span style="font-size:13px;font-weight:700;color:{act_c};'
-            f'background:{act_c}18;border:1px solid {act_c}44;padding:2px 8px;border-radius:3px;">'
-            f'{arrow} {act_label}</span></div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{act_c};font-weight:600;">{h["signal"]}</div>'
-            f'<div style="font-size:13px;color:#94a3b8;">{h["held"]}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:{ret_c};">{ret:+.1f}%</div>'
-            f'<div style="font-size:13px;font-weight:700;color:{result_c};">{result}</div>'
-            f'</div>',
-            unsafe_allow_html=True)
-
-    st.markdown('<div style="padding:8px 16px;background:#050a0f;border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">Stocks avoided: ' +
-                ", ".join([f'{a["ticker"]} ({a["return_pct"]:+.1f}%)' for a in bt["avoided"][:5]]) +
-                ' — exited or never entered on signal</div></div></div>',
-                unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PORTFOLIO PAGE
-# ══════════════════════════════════════════════════════════════════════════════
-
 def _make_excel(rows: list, headers: list, sheet_name: str = "Export") -> bytes:
     """Generate an in-memory Excel file from a list of dicts. Returns bytes."""
     from openpyxl import Workbook
@@ -7642,7 +7189,7 @@ def page_account():
           <div style="font-size:13px;color:#94a3b8;margin-top:6px;">
             {"Unlimited holdings · Hidden Gems · Signal alerts · Email notifications"
              if plan in ('pro','institutional')
-             else "10 holdings · Market screener · HIGH/MODERATE/LOW conviction signals · 5-yr backtest"}
+             else "10 holdings · Market screener · HIGH/MODERATE/LOW conviction signals · Live model portfolio"}
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -7660,11 +7207,11 @@ def page_account():
                      color:#e2e4f0;line-height:1;margin-bottom:4px;">$0</div>
                 <div style="font-size:13px;color:#94a3b8;margin-bottom:18px;">forever</div>
                 <div style="font-size:13px;color:#94a3b8;line-height:2;">
-                  ✓ Full market screener (61 stocks)<br>
+                  ✓ Full market screener (834 stocks)<br>
                   ✓ HIGH / MODERATE / LOW conviction signals<br>
                   ✓ 5-pillar factor breakdown<br>
                   ✓ Up to 10 portfolio positions<br>
-                  ✓ 5-year backtest data<br>
+                  ✓ Live model portfolio (read-only)<br>
                   ✗ Hidden Gems<br>
                   ✗ Signal alerts<br>
                   ✗ Notifications
@@ -8565,13 +8112,14 @@ def page_methodology():
          "• At least one fundamental reason: revenue acceleration, earnings beats, low short interest, insider buying\n\n"
          "Gems are identified fresh each scan — the list changes as fundamentals and scores shift."),
 
-        ("Backtest Methodology", "#d4a843",
-         f"Walk-forward backtest across Q2 2020 – Q1 2025 (20 quarters, 6 distinct market regimes). "
-         f"Same rules every year — no parameter tuning between regimes. "
-         f"124 tickers per quarter, 10bps transaction costs assumed. No look-ahead bias.\n\n"
-         f"Results: +{_bt['model_total_ret']:.0f}% cumulative vs SPY +{_bt['spy_total_ret']:.0f}% · "
-         f"Sharpe {_bt['sharpe']:.2f} · Win Rate {_bt['win_rate']:.0f}% · Max Drawdown {_bt['max_dd_model']:.1f}%\n"
-         f"Past model performance does not guarantee future results."),
+        ("Performance & Track Record", "#d4a843",
+         "QNTM does not currently publish a historical backtest. A backtest is only credible when every score "
+         "is computed from data that was actually available at the time — point-in-time fundamentals, the "
+         "universe as it existed then, and macro conditions as they were known. We're building that properly "
+         "rather than publishing numbers that can't withstand scrutiny.\n\n"
+         "The track record we show is the live Model Portfolio: rules-based entries and exits on the model's "
+         "signals, tracked in real time from inception forward. A live record is short by nature. "
+         "Past model performance does not guarantee future results."),
 
         ("Scores & Alerts", "#d4a843",
          "• Nightly refresh — full universe rescored each night via automated cron\n"
