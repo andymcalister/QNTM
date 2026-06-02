@@ -4226,9 +4226,10 @@ def platform_nav():
                 'box-shadow:0 0 12px rgba(0,255,135,.1);'
             )
             em_style  = 'font-size:20px;line-height:1;'
-            lbl_style = ('font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                         'letter-spacing:.03em;text-transform:uppercase;color:#00ff87;'
-                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%;text-align:center;')
+            lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
+                         'letter-spacing:.02em;text-transform:uppercase;color:#00ff87;'
+                         'line-height:1.2;text-align:center;white-space:normal;word-break:break-word;'
+                         'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;')
         else:
             btn_style = (
                 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
@@ -4238,9 +4239,10 @@ def platform_nav():
                 'transition:all .18s ease;'
             )
             em_style  = 'font-size:22px;line-height:1;'
-            lbl_style = ('font-family:Syne,sans-serif;font-size:11px;font-weight:700;'
-                         'letter-spacing:.03em;text-transform:uppercase;color:#b3bed0;'
-                         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%;text-align:center;')
+            lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
+                         'letter-spacing:.02em;text-transform:uppercase;color:#b3bed0;'
+                         'line-height:1.2;text-align:center;white-space:normal;word-break:break-word;'
+                         'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;')
 
         badge = (
             f'<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;'
