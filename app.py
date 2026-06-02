@@ -3726,7 +3726,7 @@ body { background-color: #0a0b14 !important; }
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:13px;color:#b3bed0;margin-bottom:14px;margin-top:3px;">forever · no card needed</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row("834-stock screener")}
+          {feat_row("Screener — top 50 of 834")}
           {feat_row("HIGH / MOD / LOW conviction signals")}
           {feat_row("5-pillar score breakdown")}
           {feat_row("Live macro regime overlay")}
@@ -3745,6 +3745,7 @@ body { background-color: #0a0b14 !important; }
         <div style="font-size:13px;color:#b3bed0;margin-bottom:14px;margin-top:3px;">first 50 users get it free</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Free", True)}
+          {feat_row("Full 834-stock screener", True)}
           {feat_row("Unlimited portfolio positions", True)}
           {feat_row("Hidden Gems detection", True)}
           {feat_row("Portfolio Simulator (risk profiles)", True)}
@@ -7565,7 +7566,7 @@ def page_account():
                      color:#e2e4f0;line-height:1;margin-bottom:4px;">$0</div>
                 <div style="font-size:13px;color:#b3bed0;margin-bottom:18px;">forever</div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
-                  ✓ Full market screener (834 stocks)<br>
+                  ✓ Screener — top 50 of 834<br>
                   ✓ HIGH / MODERATE / LOW conviction signals<br>
                   ✓ 5-pillar factor breakdown<br>
                   ✓ Up to 10 portfolio positions<br>
@@ -7590,6 +7591,7 @@ def page_account():
                 </div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
                   ✓ Everything in Free<br>
+                  ✓ Full 834-stock screener<br>
                   ✓ Unlimited portfolio positions<br>
                   ✓ 💎 Hidden Gem alerts<br>
                   ✓ Real-time signal notifications<br>
