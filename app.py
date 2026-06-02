@@ -3627,7 +3627,7 @@ body { background-color: #0a0b14 !important; }
            color:#fff;margin-bottom:10px;line-height:1.1;">
         Institutional tools.<br><span style="color:#d4a843;">Retail price.</span>
       </h2>
-      <p style="color:#b3bed0;margin-bottom:32px;">Everything Bloomberg does for quant signals — at 1% of the cost.</p>
+      <p style="color:#b3bed0;margin-bottom:32px;">Institutional-grade quant signals &mdash; at roughly 1% of a Bloomberg terminal.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -3637,18 +3637,18 @@ body { background-color: #0a0b14 !important; }
         return '<span style="color:#f59e0b;font-size:13px;">partial</span>'
 
     matrix_rows = [
-        ("Price / month",          ["$29","$199","$299","$249","$49","$2,700+"]),
-        ("Quant factor model",      [1, 0, "p", "p", "p", 1]),
-        ("Live macro overlay",      [1, 0, 0, 0, 0, 1]),
-        ("5-pillar conviction score",[1, 0, 0, "p", "p", 1]),
-        ("Plain-English rationale", [1, 0, 0, 0, 0, 0]),
-        ("Hidden gem detection",    [1, 0, 0, 0, 0, 0]),
-        ("Portfolio simulator",     [1, 0, 0, "p", 0, 1]),
-        ("Live model portfolio",    [1, 1, 0, 0, 0, 0]),
-        ("15-min intraday refresh", [1, 0, 0, 0, "p", 1]),
-        ("834-stock universe",      [1, "p", 1, 1, 1, 1]),
-        ("Free tier available",     [1, 0, 0, 0, "p", 0]),
-        ("Mobile native",           [1, 1, 1, "p", 1, 0]),
+        ("Price / mo*",                  ["$29","$17","$25","$21","$30","$2,665"]),
+        ("Quant factor model",           [1, 0, 1, "p", "p", 1]),
+        ("Live macro regime overlay",    [1, 0, 0, 0, 0, 1]),
+        ("Multi-factor conviction score",[1, 0, 1, "p", "p", 1]),
+        ("Plain-English signal rationale",[1, 0, "p", "p", "p", 0]),
+        ("Hidden-gem detection",         [1, "p", 0, 0, 0, 0]),
+        ("Portfolio simulator",          [1, 0, 0, "p", "p", 1]),
+        ("Live model portfolio",         [1, "p", "p", 0, 0, 0]),
+        ("Daily signal refresh",         [1, 0, 1, "p", "p", 1]),
+        ("Full-universe screener",       [1, 0, 1, 1, 1, 1]),
+        ("Free tier",                    [1, 0, "p", "p", "p", 0]),
+        ("Mobile optimized",             [1, 1, 1, 1, 1, "p"]),
     ]
 
     cols_h = ["", "QNTM", "Motley Fool", "Seeking Alpha", "Morningstar", "TipRanks", "Bloomberg"]
@@ -3687,8 +3687,10 @@ body { background-color: #0a0b14 !important; }
         f'<thead><tr>{header_html}</tr></thead>'
         f'<tbody>{rows_html}</tbody>'
         f'</table>'
-        f'<div style="font-size:13px;color:#8896ac;margin-top:8px;padding:0 2px;">'
-        f'Competitor features and pricing based on publicly available information May 2026. Partial = limited implementation.</div>'
+        f'<div style="font-size:13px;color:#8896ac;margin-top:8px;padding:0 2px;line-height:1.6;">'
+        f'*Monthly equivalent &mdash; most plans bill annually: Motley Fool $199/yr, Seeking Alpha $299/yr, '
+        f'Morningstar $249/yr, TipRanks $360/yr (Premium); Bloomberg \u2248$31,980/yr per terminal. '
+        f'Features &amp; pricing verified June 2026 from public sources. Partial = limited or higher-tier only.</div>'
         f'</div>'
     )
     st.markdown(matrix_html, unsafe_allow_html=True)
