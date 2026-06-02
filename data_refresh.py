@@ -332,6 +332,43 @@ def _write_macro_state(macro: dict) -> bool:
         return False
 
 
+# Minimum populated rows required to consider a signal_date a "real" batch.
+# 500 is well below a healthy nightly run (~830) but well above what a partial
+# intraday/macro write would produce on its own. Tune up if the universe grows
+# materially.
+COMPLETE_BATCH_MIN_ROWS = 500
+
+
+def _today_batch_is_complete(sb, signal_date: str, min_rows: int = COMPLETE_BATCH_MIN_ROWS) -> bool:
+    """
+    True iff signal_log has at least `min_rows` rows for `signal_date` with a
+    non-NULL `composite`. Used by the intraday and macro passes to enforce the
+    invariant that ONLY the full nightly run may create a new signal_date — both
+    sub-passes must refuse to write to signal_log until the base batch exists.
+
+    Without this, either sub-pass can fire after the UTC clock rolls past
+    midnight but before the 2 AM UTC nightly, and PostgREST's upsert will INSERT
+    new rows for today with only its own columns populated (pillars NULL,
+    composite NULL). The app reads "latest signal_date" and shows every name at
+    QUANT 50.0 — the bug we hit on 2026-06-02.
+    """
+    if not sb:
+        return False
+    try:
+        # head=True returns count without payload; .not_.is_(col, "null") filters NULLs.
+        resp = (sb.table(SIGNAL_TABLE)
+                .select("ticker", count="exact", head=True)
+                .eq("signal_date", signal_date)
+                .not_.is_("composite", "null")
+                .execute())
+        n = int(getattr(resp, "count", 0) or 0)
+        return n >= min_rows
+    except Exception as e:
+        log.warning(f"_today_batch_is_complete check failed: {e}")
+        # Fail safe: if we can't verify the batch is complete, refuse to write.
+        return False
+
+
 def _load_macro_state() -> dict:
     """Read the latest persisted macro overlay. Returns {} if unavailable/empty."""
     sb = _get_supabase()
@@ -906,6 +943,17 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     updated = 0
     failed  = 0
 
+    # Invariant: only run_refresh may create new signal_dates. If today's batch
+    # hasn't been populated yet (UTC has rolled past midnight but the 2 AM full
+    # run hasn't fired or has failed), DO NOT upsert — the on_conflict path
+    # would INSERT new rows for today with only `price` filled and pillars NULL,
+    # which the app would then show as the latest batch.
+    if not _today_batch_is_complete(sb, today):
+        log.warning(f"Intraday refresh: no complete signal_log batch for {today} yet — "
+                    "skipping signal_log writes. Will resume once the nightly populates the batch.")
+        return {"success": True, "mode": "intraday", "updated": 0,
+                "skipped_reason": "no_base_batch_for_today"}
+
     # Fetch current prices in batches of 200
     chunk_size = 200
     for i in range(0, len(tickers), chunk_size):
@@ -1030,6 +1078,19 @@ def run_macro_refresh(tickers: list = None) -> dict:
     # 1-2. Live scan + persist (do this even if there are no scores yet to adjust)
     macro = fetch_macro_overlay(use_live_feeds=True)
     _write_macro_state(macro)
+
+    # Invariant: only run_refresh may create new signal_dates. If today's batch
+    # isn't populated yet, refuse to write to signal_log — otherwise the upsert
+    # would INSERT or update rows on top of NULL pillars/composite, producing the
+    # all-50 "every stock identical" display bug. macro_state is already saved
+    # above, so the banner/regime stays live.
+    if not _today_batch_is_complete(sb, today):
+        duration = round(time.time() - start, 1)
+        log.warning(f"Macro refresh: no complete signal_log batch for {today} yet — "
+                    "macro_state saved; signal_log writes skipped.")
+        return {"success": True, "mode": "macro", "regime": macro.get("regime"),
+                "source": macro.get("source"), "updated": 0,
+                "skipped_reason": "no_base_batch_for_today", "duration_s": duration}
 
     # 3. Load today's scores
     try:
