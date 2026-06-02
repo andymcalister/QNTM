@@ -62,7 +62,7 @@ import os
 if os.getenv("ENVIRONMENT") == "dev":
     st.markdown("""
     <div style="background:#7c3aed;color:#fff;text-align:center;padding:6px 0;
-         font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;
+         font-family:'DM Mono',monospace;font-size:13px;letter-spacing:.1em;
          position:sticky;top:0;z-index:9999;">
       ⚠ DEV ENVIRONMENT — changes here do not affect production
     </div>
@@ -101,14 +101,14 @@ def _verify_token(token: str):
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
 /* ── Per-card action buttons (Add/Remove) — mobile text fit ── */
 @media(max-width:640px){
   a[href*="wl_action"], a[href*="port_action"], a[href*="sim_add"], a[href*="sim_remove"]{
-    font-size:12px !important; letter-spacing:.02em !important; padding:8px 4px !important;
+    font-size:13px !important; letter-spacing:.02em !important; padding:8px 4px !important;
   }
 }
 
@@ -122,7 +122,7 @@ button[data-testid="stPopoverButton"],
   color: #d4a843 !important;
   font-family: 'Syne', sans-serif !important;
   font-weight: 700 !important;
-  font-size: 12px !important;
+  font-size:13px !important;
   letter-spacing: .06em !important;
   border-radius: 6px !important;
 }
@@ -157,7 +157,7 @@ html, body, [class*="css"],
 [data-testid="stAppViewBlockContainer"],
 section[data-testid="stMain"] > div,
 .main, .stApp {
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
   background: #0a0b14 !important;
   color: #e2e8f0 !important;
   overflow-x: hidden !important;
@@ -193,7 +193,7 @@ section[data-testid="stMain"] > div,
 
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-track{background:#0a0b14;}
-::-webkit-scrollbar-thumb{background:rgba(0,255,135,.35);border-radius:2px;}
+::-webkit-scrollbar-thumb{background:rgba(52,211,153,.35);border-radius:2px;}
 
 /* ── Mobile responsive: watchlist + model portfolio ── */
 @media (max-width: 520px) {
@@ -232,7 +232,7 @@ details[open] {
 /* One-at-a-time: when any details is open, siblings get slightly dimmed */
 details:not([open]) { opacity: .92; }
 details:hover:not([open]) { opacity: 1; }
-@keyframes borderAnim{0%,100%{border-color:rgba(0,255,135,.15)}50%{border-color:rgba(0,255,135,.3)}}
+@keyframes borderAnim{0%,100%{border-color:rgba(52,211,153,.15)}50%{border-color:rgba(52,211,153,.3)}}
 @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* Typography */
@@ -245,13 +245,13 @@ details:hover:not([open]) { opacity: 1; }
   100% { background-position:  200% center; }
 }
 .stButton > button {
-  background: rgba(0,255,135,.06) !important;
-  color: #00ff87 !important;
-  border: 1px solid rgba(0,255,135,.22) !important;
+  background: rgba(52,211,153,.06) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(52,211,153,.22) !important;
   border-radius: 6px !important;
   font-family: 'Syne', sans-serif !important;
   font-weight: 700 !important;
-  font-size: 12px !important;
+  font-size:13px !important;
   letter-spacing: .06em !important;
   padding: 10px 12px !important;
   text-transform: uppercase !important;
@@ -271,15 +271,15 @@ details:hover:not([open]) { opacity: 1; }
   inset: 0 !important;
   background: linear-gradient(105deg,
     transparent 40%,
-    rgba(0,255,135,.10) 50%,
+    rgba(52,211,153,.10) 50%,
     transparent 60%) !important;
   background-size: 200% 100% !important;
   opacity: 0 !important;
   transition: opacity .2s !important;
 }
 .stButton > button:hover {
-  border-color: rgba(0,255,135,.5) !important;
-  background: rgba(0,255,135,.1) !important;
+  border-color: rgba(52,211,153,.5) !important;
+  background: rgba(52,211,153,.1) !important;
   box-shadow: none !important;
   transform: translateY(-1px) !important;
 }
@@ -289,13 +289,13 @@ details:hover:not([open]) { opacity: 1; }
 /* Ghost button variant */
 div[data-ghost="1"] .stButton > button {
   background: transparent !important;
-  color: rgba(0,255,135,.7) !important;
-  border: 1px solid rgba(0,255,135,.2) !important;
+  color: rgba(52,211,153,.7) !important;
+  border: 1px solid rgba(52,211,153,.2) !important;
   box-shadow: none !important;
 }
 div[data-ghost="1"] .stButton > button:hover {
-  background: rgba(0,255,135,.05) !important;
-  border-color: rgba(0,255,135,.4) !important;
+  background: rgba(52,211,153,.05) !important;
+  border-color: rgba(52,211,153,.4) !important;
   box-shadow: none !important;
   transform: none !important;
 }
@@ -312,16 +312,16 @@ div[data-ghost="1"] .stButton > button:hover {
   border: 1px solid rgba(255,255,255,.18) !important;
   border-radius: 4px !important;
   color: #e2e8f0 !important;
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
   font-size: 14px !important;
-  caret-color: #00ff87 !important;
+  caret-color: #34d399 !important;
 }
 .stTextInput input:focus,
 .stNumberInput input:focus,
 [data-baseweb="input"]:focus-within input,
 [data-baseweb="base-input"]:focus-within input {
-  border-color: rgba(0,255,135,.5) !important;
-  box-shadow: 0 0 0 2px rgba(0,255,135,.1) !important;
+  border-color: rgba(52,211,153,.5) !important;
+  box-shadow: 0 0 0 2px rgba(52,211,153,.1) !important;
   outline: none !important;
   color: #ffffff !important;
 }
@@ -339,10 +339,10 @@ label,
 .stDateInput label,
 [data-testid="stWidgetLabel"] {
   color: #9fabc0 !important;
-  font-size:12px !important;
+  font-size:13px !important;
   letter-spacing: .1em !important;
   text-transform: uppercase !important;
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
 }
 /* Force dark on baseweb input container */
 [data-baseweb="input"],
@@ -372,7 +372,7 @@ div[data-baseweb="select"] span,
   background: rgba(255,255,255,.05) !important;
   border: 1px solid rgba(255,255,255,.12) !important;
   color: #e2e8f0 !important;
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
 }
 
 /* Tabs */
@@ -381,11 +381,11 @@ div[data-baseweb="select"] span,
   border:1px solid rgba(255,255,255,.07);padding:3px;gap:2px;
 }
 .stTabs [data-baseweb="tab"]{
-  color:#b3bed0;font-family:'Syne',sans-serif;font-size:12px;
+  color:#b3bed0;font-family:'Syne',sans-serif;font-size:13px;
   letter-spacing:.08em;text-transform:uppercase;border-radius:2px;padding:8px 18px;
 }
 .stTabs [aria-selected="true"]{
-  color:#00ff87!important;background:rgba(0,255,135,.08)!important;
+  color:#34d399!important;background:rgba(52,211,153,.08)!important;
 }
 .stTabs [data-baseweb="tab-border"]{display:none!important;}
 
@@ -446,7 +446,7 @@ div[data-baseweb="select"] span,
 }
 .qntm-tip .tip-box .tip-weight {
     font-family: 'DM Mono', monospace;
-    font-size:12px;
+    font-size:13px;
     color: #b3bed0;
     margin-top: 6px;
 }
@@ -540,15 +540,15 @@ label, .stTextInput label, .stNumberInput label,
   font-size: 14px !important;
 }
 .stTabs [aria-selected="true"] {
-  color: #00ff87 !important;
-  background: rgba(0,255,135,.08) !important;
+  color: #34d399 !important;
+  background: rgba(52,211,153,.08) !important;
 }
 div[data-baseweb="select"] span,
 [data-baseweb="select"] [data-baseweb="select-single-value"] {
   color: #e2e8f0 !important;
   font-size: 15px !important;
 }
-[data-testid="stMetricValue"] { color: #00ff87 !important; font-size: 28px !important; }
+[data-testid="stMetricValue"] { color: #34d399 !important; font-size: 28px !important; }
 [data-testid="stMetricLabel"] { color: #b3bed0 !important; font-size: 13px !important; }
 .stRadio label, .stRadio label p,
 .stRadio [data-testid="stMarkdownContainer"] p {
@@ -559,7 +559,7 @@ div[data-baseweb="select"] span,
   letter-spacing: .06em !important;
 }
 [aria-checked="true"] label, [aria-checked="true"] label p {
-  color: #00ff87 !important;
+  color: #34d399 !important;
 }
 
 /* Forms */
@@ -600,12 +600,12 @@ div[data-testid="stSelectbox"] > div > div {
     border-radius: 6px !important;
     color: #b3bed0 !important;
     font-family: DM Mono, monospace !important;
-    font-size: 12px !important;
+    font-size:13px !important;
     min-height: 36px !important;
 }
 div[data-testid="stSelectbox"] label {
     font-family: DM Mono, monospace !important;
-    font-size:12px !important;
+    font-size:13px !important;
     color: #8896ac !important;
     letter-spacing: .08em !important;
     text-transform: uppercase !important;
@@ -647,12 +647,12 @@ div[data-testid="stTextInput"] input {
     font-family: Outfit, sans-serif !important;
 }
 div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
-    border: 1px solid rgba(0,255,135,.3) !important;
+    border: 1px solid rgba(52,211,153,.3) !important;
 }
 /* st.spinner — reduce Streamlit feel */
 [data-testid="stSpinner"] > div {
     color: #8896ac !important;
-    font-size: 12px !important;
+    font-size:13px !important;
 }
 
 /* ── MOBILE RESPONSIVE ── */
@@ -679,7 +679,7 @@ div[data-testid="stTextInput"][data-key="screener_search_raw"] input {
 
   /* Tabs — scrollable on mobile */
   .stTabs [data-baseweb='tab-list'] { overflow-x: auto !important; flex-wrap: nowrap !important; }
-  .stTabs [data-baseweb='tab'] { white-space: nowrap !important; padding: 8px 12px !important; font-size:12px !important; }
+  .stTabs [data-baseweb='tab'] { white-space: nowrap !important; padding: 8px 12px !important; font-size:13px !important; }
 
   /* Expander — larger tap target */
   [data-testid='stExpander'] summary { min-height: 44px !important; }
@@ -780,8 +780,8 @@ div[data-baseweb="select"] > div {
 
 /* Level 3 — timestamps, scan dates, metadata — consistently muted */
 .qntm-meta, .qntm-ts {
-  color: #64748b !important;
-  font-size:12px !important;
+  color: #94a3b8 !important;
+  font-size:13px !important;
 }
 
 /* Reduce competing card borders — unified subtle treatment */
@@ -829,7 +829,7 @@ div[data-baseweb="select"] > div {
   box-shadow:none !important;
 }
 .qntm-sug-wrap .stButton > button:hover {
-  background:rgba(0,255,135,.07) !important;
+  background:rgba(52,211,153,.07) !important;
   border-color:rgba(255,255,255,.05) !important;
   color:#e2e8f0 !important;
   transform:none !important;
@@ -1132,7 +1132,7 @@ def _back_btn(href: str, label: str = "← Back") -> str:
         f'padding:7px 10px;border-radius:6px;'
         f'border:1px solid rgba(255,255,255,.12);'
         f'background:rgba(255,255,255,.03);'
-        f'font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+        f'font-family:Syne,sans-serif;font-size:13px;font-weight:700;'
         f'letter-spacing:.04em;white-space:nowrap;'
         f'color:#b3bed0;text-decoration:none;">'
         f'← Back</a>'
@@ -1221,14 +1221,14 @@ def data_freshness_banner():
             dt_str = None
 
         label  = f"Last refresh · {dt_str}" if dt_str else ("Data fresh" if fresh else "Stale data")
-        color  = "#64748b" if fresh else "#9fabc0"
+        color  = "#94a3b8" if fresh else "#9fabc0"
         bg     = "rgba(255,255,255,.03)" if fresh else "rgba(245,158,11,.05)"
         border = "rgba(255,255,255,.08)"  if fresh else "rgba(245,158,11,.15)"
         suffix = "" if fresh else " · Rescan for live scores"
         st.markdown(
             f'<div style="display:inline-flex;align-items:center;gap:6px;'
             f'background:{bg};border:1px solid {border};'
-            f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
+            f'border-radius:20px;padding:5px 14px;font-size:13px;color:{color};'
             f'font-family:DM Mono,monospace;margin-bottom:6px;">'
             f'<span style="width:5px;height:5px;border-radius:50%;background:{color};display:inline-block;opacity:.6;"></span>'
             f'{label}{suffix}</div>',
@@ -1360,10 +1360,10 @@ def scan_health_check():
         if not result.data:
             st.markdown(
                 '<div style="display:inline-flex;align-items:center;gap:6px;'
-                'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);'
-                'border-radius:20px;padding:5px 14px;font-size:12px;color:#ef4444;'
+                'background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);'
+                'border-radius:20px;padding:5px 14px;font-size:13px;color:#f87171;'
                 'font-family:DM Mono,monospace;margin-bottom:8px;">'
-                '<span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span>'
+                '<span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block;"></span>'
                 'No scan data found — run seed_track_record.py</div>',
                 unsafe_allow_html=True)
             return
@@ -1377,15 +1377,15 @@ def scan_health_check():
         now = datetime.now()
         age_h = (now - last_dt).total_seconds() / 3600
         if age_h < 26:
-            color, bg, dot, label = "#00ff87", "rgba(0,255,135,.08)", "#00ff87", f"Nightly scan OK · {last_date_str[:10]}"
+            color, bg, dot, label = "#34d399", "rgba(52,211,153,.08)", "#34d399", f"Nightly scan OK · {last_date_str[:10]}"
         elif age_h < 50:
             color, bg, dot, label = "#f59e0b", "rgba(245,158,11,.08)", "#f59e0b", f"Last scan {last_date_str[:10]} · check GitHub Actions"
         else:
-            color, bg, dot, label = "#ef4444", "rgba(239,68,68,.08)", "#ef4444", f"Scan stale · last run {last_date_str[:10]} · check GitHub Actions"
+            color, bg, dot, label = "#f87171", "rgba(248,113,113,.08)", "#f87171", f"Scan stale · last run {last_date_str[:10]} · check GitHub Actions"
         st.markdown(
             f'<div style="display:inline-flex;align-items:center;gap:6px;'
             f'background:{bg};border:1px solid {color}40;'
-            f'border-radius:20px;padding:5px 14px;font-size:12px;color:{color};'
+            f'border-radius:20px;padding:5px 14px;font-size:13px;color:{color};'
             f'font-family:DM Mono,monospace;margin-bottom:8px;">'
             f'<span style="width:7px;height:7px;border-radius:50%;background:{dot};display:inline-block;"></span>'
             f'{label}</div>',
@@ -1400,7 +1400,7 @@ def page_summary(icon: str, title: str, subtitle: str, pills: list = None):
     st.markdown(
         f'<div style="padding:10px 32px 6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">{icon} {title}</span>'
-        + (f'<div style="font-size:12px;color:#64748b;margin-top:2px;">{subtitle}</div>' if subtitle else '')
+        + (f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">{subtitle}</div>' if subtitle else '')
         + f'</div>',
         unsafe_allow_html=True
     )
@@ -1410,8 +1410,8 @@ def nav(section):
     st.rerun()
 
 def signal_color(sig):
-    return {"STRONG ALIGN":"#00ff87","HIGH ALIGN":"#4ade80","MODERATE":"#fbbf24",
-            "LOW ALIGN":"#f97316","WEAK/NEG":"#ef4444"}.get(sig,"#9fabc0")
+    return {"STRONG ALIGN":"#34d399","HIGH ALIGN":"#4ade80","MODERATE":"#fbbf24",
+            "LOW ALIGN":"#f97316","WEAK/NEG":"#f87171"}.get(sig,"#9fabc0")
 
 # ── PILLAR TOOLTIPS ──────────────────────────────────────────────────────────
 PILLAR_TIPS = {
@@ -1515,7 +1515,7 @@ def get_company_info(ticker: str) -> dict:
     )
 
 def score_bar_html(val, width=80):
-    col = "#00ff87" if val>=65 else "#fbbf24" if val>=50 else "#ef4444"
+    col = "#34d399" if val>=65 else "#fbbf24" if val>=50 else "#f87171"
     return f'<div style="width:{width}px;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;"><div style="width:{val}%;height:100%;background:{col};border-radius:2px;"></div></div>'
 
 def _live_macro() -> dict:
@@ -1556,7 +1556,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         "RISK_ON":          ("#1D9E75","rgba(29,158,117,.08)","rgba(29,158,117,.25)","●","Macro overlay amplifying high-conviction signals"),
         "MILDLY BULLISH":   ("#4ade80","rgba(74,222,128,.06)","rgba(74,222,128,.2)","◕","Mildly bullish environment — quant signals favoured"),
         "NEUTRAL":          ("#d4a843","rgba(212,168,67,.07)","rgba(212,168,67,.2)","◐","Macro overlay at baseline — minimal sector adjustment"),
-        "RISK_OFF":         ("#ef4444","rgba(239,68,68,.07)","rgba(239,68,68,.2)","●","Macro dampening active — high-beta exposure reduced"),
+        "RISK_OFF":         ("#f87171","rgba(248,113,113,.07)","rgba(248,113,113,.2)","●","Macro dampening active — high-beta exposure reduced"),
         "HIGH VOLATILITY":  ("#f97316","rgba(249,115,22,.07)","rgba(249,115,22,.2)","⚡","High volatility — macro overlay at maximum dampening"),
     }.get(regime, ("#d4a843","rgba(212,168,67,.07)","rgba(212,168,67,.2)","◐","Macro overlay at baseline"))
 
@@ -1592,12 +1592,12 @@ def macro_regime_banner_html(macro: dict) -> str:
     # VIX / oil indicators
     indicators_html = ""
     if vix is not None:
-        vix_col = "#ef4444" if vix >= 30 else "#fbbf24" if vix >= 20 else "#1D9E75"
+        vix_col = "#f87171" if vix >= 30 else "#fbbf24" if vix >= 20 else "#1D9E75"
         indicators_html += (f'<div style="text-align:center;">'
                            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{vix_col};">{vix:.1f}</div>'
                            f'<div style="font-size:13px;color:#b3bed0;">VIX</div></div>')
     if oil is not None:
-        oil_col = "#ef4444" if oil >= 90 else "#fbbf24" if oil >= 75 else "#1D9E75"
+        oil_col = "#f87171" if oil >= 90 else "#fbbf24" if oil >= 75 else "#1D9E75"
         indicators_html += (f'<div style="text-align:center;">'
                            f'<div style="font-family:DM Mono,monospace;font-size:16px;font-weight:500;color:{oil_col};">${oil:.0f}</div>'
                            f'<div style="font-size:13px;color:#b3bed0;">WTI Crude</div></div>')
@@ -1649,7 +1649,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         + (
             f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
-            f'color:{"#ef4444" if vix_level>=30 else "#fbbf24" if vix_level>=20 else "#1D9E75"};">{vix_level:.1f}</div>'
+            f'color:{"#f87171" if vix_level>=30 else "#fbbf24" if vix_level>=20 else "#1D9E75"};">{vix_level:.1f}</div>'
             f'<div style="font-size:14px;color:#b3bed0;margin-top:3px;letter-spacing:.04em;">VIX</div>'
             f'<span class="tip-box" style="left:auto;right:0;transform:none;">'
             f'<div class="tip-title">VIX — Fear Index</div>'
@@ -1661,7 +1661,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         + (
             f'<div class="qntm-tip" style="text-align:center;cursor:help;">'
             f'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;'
-            f'color:{"#ef4444" if oil_price>=90 else "#fbbf24" if oil_price>=75 else "#1D9E75"};">${oil_price:.0f}</div>'
+            f'color:{"#f87171" if oil_price>=90 else "#fbbf24" if oil_price>=75 else "#1D9E75"};">${oil_price:.0f}</div>'
             f'<div style="font-size:14px;color:#b3bed0;margin-top:3px;letter-spacing:.04em;">WTI Crude</div>'
             f'<span class="tip-box" style="left:auto;right:0;transform:none;">'
             f'<div class="tip-title">WTI Crude Oil Price</div>'
@@ -1704,16 +1704,16 @@ def _build_why_html(r: dict) -> str:
     if drivers_text:
         why_parts.append(f'<span style="color:#b3bed0;">{"; ".join(drivers_text[:2]).capitalize()}.</span>')
     if watches_text:
-        why_parts.append(f'<span style="color:#ef4444;">Watch: {watches_text[0]}.</span>')
+        why_parts.append(f'<span style="color:#f87171;">Watch: {watches_text[0]}.</span>')
     if abs(delta) >= 2:
         macro_txt = "Macro regime is adding a tailwind." if delta > 0 else "Macro regime is dampening the score."
-        why_parts.append(f'<span style="color:{"#00ff87" if delta>0 else "#f97316"};">{macro_txt}</span>')
+        why_parts.append(f'<span style="color:{"#34d399" if delta>0 else "#f97316"};">{macro_txt}</span>')
     if not why_parts:
         return ""
     return (
-        f'<div style="font-size:12px;line-height:1.6;padding:8px 10px;margin-top:8px;'
+        f'<div style="font-size:13px;line-height:1.6;padding:8px 10px;margin-top:8px;'
         f'background:rgba(255,255,255,.02);border-radius:4px;border-left:2px solid rgba(255,255,255,.08);">'
-        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;letter-spacing:.08em;">WHY THIS SCORE · </span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;letter-spacing:.08em;">WHY THIS SCORE · </span>'
         + " ".join(why_parts) +
         f'</div>'
     )
@@ -1728,7 +1728,7 @@ CARD_IFRAME_TAIL = """
 <style>
 @media(max-width:640px){
   .qcard-pillars{grid-template-columns:repeat(2,1fr)!important;}
-  .qntm-action-link{font-size:12px!important;letter-spacing:.02em!important;padding:8px 4px!important;}
+  .qntm-action-link{font-size:13px!important;letter-spacing:.02em!important;padding:8px 4px!important;}
   .qcard-4box{grid-template-columns:repeat(2,1fr)!important;}
 }
 body{margin:0;padding-bottom:8px;}
@@ -1808,7 +1808,7 @@ def _debug_line(r: dict) -> str:
     return (
         f'<div style="margin-top:8px;padding:6px 10px;background:rgba(212,168,67,.06);'
         f'border:1px dashed rgba(212,168,67,.3);border-radius:4px;'
-        f'font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+        f'font-family:DM Mono,monospace;font-size:13px;color:#d4a843;'
         f'letter-spacing:.04em;line-height:1.5;">'
         f'DEBUG · ticker={r.get("ticker","?")} · '
         f'adj_composite={r.get("adj_composite","?")} · '
@@ -1830,18 +1830,18 @@ def _card_action_button(tk: str, mode: str, nav: str, in_set: set,
     if mode == "portfolio":
         # Portfolio holdings: remove only (adding happens via the Add-holding form).
         url = remove_url or (_qp + f"&port_action=remove&port_ticker={tk}")
-        bg, bd, col, lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Portfolio"
+        bg, bd, col, lbl = "rgba(248,113,113,.07)", "rgba(248,113,113,.28)", "#f87171", f"✕ Remove {tk} from Portfolio"
     elif mode == "simulator":
         if tk in in_set:
             url = _qp + f"&sim_remove={tk}"
-            bg, bd, col, lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Simulation"
+            bg, bd, col, lbl = "rgba(248,113,113,.07)", "rgba(248,113,113,.28)", "#f87171", f"✕ Remove {tk} from Simulation"
         else:
             url = _qp + f"&sim_add={tk}"
             bg, bd, col, lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Simulation"
     else:  # watchlist
         if tk in in_set:
             url = remove_url or (_qp + f"&wl_action=remove&wl_ticker={tk}")
-            bg, bd, col, lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.28)", "#ef4444", f"✕ Remove {tk} from Watchlist"
+            bg, bd, col, lbl = "rgba(248,113,113,.07)", "rgba(248,113,113,.28)", "#f87171", f"✕ Remove {tk} from Watchlist"
         else:
             url = _qp + f"&wl_action=add&wl_ticker={tk}"
             bg, bd, col, lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.3)", "#d4a843", f"☆ Add {tk} to Watchlist"
@@ -1850,7 +1850,7 @@ def _card_action_button(tk: str, mode: str, nav: str, in_set: set,
         f'style="display:block;width:100%;text-align:center;'
         f'padding:9px 7px;margin:12px 0 2px;box-sizing:border-box;background:{bg};'
         f'border:1px solid {bd};border-radius:6px;font-family:Syne,sans-serif;'
-        f'font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;'
+        f'font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;'
         f'color:{col};text-decoration:none;cursor:pointer;line-height:1.3;'
         f'word-break:break-word;">{lbl}</a>'
     )
@@ -1917,18 +1917,18 @@ def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set 
     for tk in tickers:
         if tk in in_list:
             _url = _qp + f"&wl_action=remove&wl_ticker={tk}"
-            _bg, _bd, _col, _lbl = "rgba(239,68,68,.07)", "rgba(239,68,68,.25)", "#ef4444", f"✕ {tk}"
+            _bg, _bd, _col, _lbl = "rgba(248,113,113,.07)", "rgba(248,113,113,.25)", "#f87171", f"✕ {tk}"
         else:
             _url = _qp + f"&wl_action=add&wl_ticker={tk}"
             _bg, _bd, _col, _lbl = "rgba(212,168,67,.08)", "rgba(212,168,67,.28)", "#d4a843", f"☆ {tk}"
         _chips += (
             f'<a href="{_url}" target="_self" style="text-decoration:none;display:inline-block;'
             f'margin:3px;padding:6px 12px;background:{_bg};border:1px solid {_bd};'
-            f'border-radius:6px;font-family:DM Mono,monospace;font-size:12px;font-weight:600;'
+            f'border-radius:6px;font-family:DM Mono,monospace;font-size:13px;font-weight:600;'
             f'color:{_col};white-space:nowrap;">{_lbl}</a>'
         )
     st.markdown(
-        '<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;'
+        '<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
         'letter-spacing:.12em;margin:14px 0 6px;">WATCHLIST · TAP TO ADD / REMOVE</div>'
         f'<div style="display:flex;flex-wrap:wrap;">{_chips}</div>',
         unsafe_allow_html=True,
@@ -1972,16 +1972,16 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         _pct_rank = 50
 
     act_colors = {
-        "BUY":  ("#00ff87", "rgba(0,255,135,.08)", "rgba(0,255,135,.22)"),
+        "BUY":  ("#34d399", "rgba(52,211,153,.08)", "rgba(52,211,153,.22)"),
         "HOLD": ("#fbbf24", "rgba(251,191,36,.06)", "rgba(251,191,36,.2)"),
-        "SELL": ("#ef4444", "rgba(239,68,68,.08)",  "rgba(239,68,68,.2)"),
+        "SELL": ("#f87171", "rgba(248,113,113,.08)",  "rgba(248,113,113,.2)"),
     }
     act_c, act_bg, act_brd = act_colors.get(act, ("#9fabc0","rgba(100,116,139,.1)","rgba(100,116,139,.3)"))
 
     action_label = "High Conviction" if act=="BUY" else ("Low Conviction" if act=="SELL" else "Moderate")
     action_arrow = "▲" if act=="BUY" else ("▼" if act=="SELL" else "→")
     gem_badge    = " 💎" if is_gem else ""
-    delta_c      = "#00ff87" if delta >= 0 else "#ef4444"
+    delta_c      = "#34d399" if delta >= 0 else "#f87171"
     delta_str    = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
 
     ci_name      = (company_info or {}).get("name", "")
@@ -2001,14 +2001,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     PILLAR_FULL_NAMES = {"MOM":"Momentum","QUAL":"Quality","VOL":"Volume","VAL":"Value","SENT":"Sentiment"}
     pillar_bars = ""
     for pname, pval in pillars:
-        pc   = "#00ff87" if pval>=65 else "#fbbf24" if pval>=50 else "#ef4444"
+        pc   = "#34d399" if pval>=65 else "#fbbf24" if pval>=50 else "#f87171"
         full = PILLAR_FULL_NAMES.get(pname, pname)
         tip  = PILLAR_TIPS.get(full, {})
         tip_weight = tip.get("weight","")
         pillar_bars += (
             f'<div style="flex:1;min-width:72px;">'
             f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
-            f'<span style="font-size:12px;color:#9fabc0;">{full}</span>'
+            f'<span style="font-size:13px;color:#9fabc0;">{full}</span>'
             f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{pc};font-weight:700;">{pval:.0f}</span>'
             f'</div>'
             f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:4px;overflow:hidden;">'
@@ -2026,13 +2026,13 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     price_html = ""
     if r.get("price"):
         price_html = (
-            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">'
             f'${r["price"]:,.2f}</span>'
-            + (f' <span style="font-size:12px;color:#64748b;">· {r["signal_date"]}</span>'
+            + (f' <span style="font-size:13px;color:#94a3b8;">· {r["signal_date"]}</span>'
                if r.get("signal_date") else "")
         )
     elif r.get("signal_date"):
-        price_html = f'<span style="font-size:12px;color:#64748b;">{r["signal_date"]}</span>'
+        price_html = f'<span style="font-size:13px;color:#94a3b8;">{r["signal_date"]}</span>'
 
     # ── Watchlist button DISABLED in-iframe ────────────────────────────────────
     # Links inside st.components.v1.html iframes cannot drive the parent session
@@ -2046,24 +2046,24 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'border-top:1px solid rgba(255,255,255,.05);">'
         + (f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;'
            f'padding:10px 0 12px;">{price_html}'
-           f'<span style="font-size:12px;color:#8896ac;">{r.get("sector","")[:20]}</span>'
-           f'<span style="font-size:12px;color:#8896ac;">{driver}</span>'
+           f'<span style="font-size:13px;color:#8896ac;">{r.get("sector","")[:20]}</span>'
+           f'<span style="font-size:13px;color:#8896ac;">{driver}</span>'
            f'</div>' if (price_html or r.get("sector")) else "")
         + f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;"'
           f'class="qcard-pillars">{pillar_bars}</div>'
         + f'<div class="qcard-4box" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;'
         f'padding-top:10px;border-top:1px solid rgba(255,255,255,.04);">'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
-        f'<div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">QUANT</div>'
+        f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">QUANT</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#b3bed0;">{quant:.1f}</div></div>'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
-        f'<div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">MACRO</div>'
+        f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">MACRO</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:{delta_c};">{delta_str}</div></div>'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
-        f'<div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">BLEND</div>'
+        f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">BLEND</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#d4a843;">75/25</div></div>'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
-        f'<div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">RANK</div>'
+        f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">RANK</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#b3bed0;">'
         f'{_pct_rank:.0f}th</div></div>'
         f'</div>'
@@ -2091,17 +2091,17 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
             f'<div style="display:flex;align-items:center;gap:6px;">'
             f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
             f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
-            + (f'<span style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;'
+            + (f'<span style="font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;'
                f'white-space:nowrap;">{name_display}</span>' if name_display else "")
             + f'</div>'
-            f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;'
             f'color:{act_c};letter-spacing:.06em;margin-top:1px;">{action_arrow} {action_label}</div>'
             + (_summary_meta or "")
             + f'</div>'
             f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
             f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">{score:.0f}</span>'
             f'<span style="font-size:14px;color:{act_c};">{action_arrow}</span>'
-            f'<span style="font-size:13px;color:#64748b;">›</span>'
+            f'<span style="font-size:13px;color:#94a3b8;">›</span>'
             f'</div>'
             f'</summary>'
         )
@@ -2127,10 +2127,10 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="display:flex;align-items:center;gap:6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
         f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
-        + (f'<span style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;'
+        + (f'<span style="font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;'
            f'white-space:nowrap;">{name_display}</span>' if name_display else "")
         + f'</div>'
-        f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;'
+        f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;'
         f'color:{act_c};letter-spacing:.06em;margin-top:1px;">'
         f'{action_arrow} {action_label}</div>'
         f'</div>'
@@ -2138,7 +2138,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">'
         f'{score:.0f}</span>'
         f'<span style="font-size:14px;color:{act_c};">{action_arrow}</span>'
-        f'<span style="font-size:13px;color:#64748b;transition:transform .2s;">›</span>'
+        f'<span style="font-size:13px;color:#94a3b8;transition:transform .2s;">›</span>'
         f'</div>'
         f'</div>'
         + detail_html
@@ -2175,7 +2175,7 @@ def signal_history_chart(ticker: str, current_score: float) -> str:
 
         if len(scores) < 3:
             return (
-                '<div style="font-size:12px;color:#64748b;padding:8px 0 4px;">'
+                '<div style="font-size:13px;color:#94a3b8;padding:8px 0 4px;">'
                 '⏳ Building score history — check back after a few nightly refreshes.</div>'
             )
 
@@ -2201,9 +2201,9 @@ def signal_history_chart(ticker: str, current_score: float) -> str:
         last5_avg  = sum(scores[-5:]) / 5
         trend_delta = last5_avg - first5_avg
         if trend_delta >= 3:
-            trend_label, trend_color, trend_arrow = "Improving", "#00ff87", "↑"
+            trend_label, trend_color, trend_arrow = "Improving", "#34d399", "↑"
         elif trend_delta <= -3:
-            trend_label, trend_color, trend_arrow = "Deteriorating", "#ef4444", "↓"
+            trend_label, trend_color, trend_arrow = "Deteriorating", "#f87171", "↓"
         else:
             trend_label, trend_color, trend_arrow = "Stable", "#fbbf24", "→"
 
@@ -2220,16 +2220,16 @@ def signal_history_chart(ticker: str, current_score: float) -> str:
             f'xmlns="http://www.w3.org/2000/svg" style="width:100%;height:32px;">'
             # High conviction zone (>=60) — subtle green tint
             f'<rect x="0" y="0" width="{W}" height="{hi_y:.1f}" '
-            f'fill="rgba(0,255,135,.04)"/>'
+            f'fill="rgba(52,211,153,.04)"/>'
             # Low conviction zone (<45) — subtle red tint
             f'<rect x="0" y="{mid_y:.1f}" width="{W}" height="{H - mid_y:.1f}" '
-            f'fill="rgba(239,68,68,.04)"/>'
+            f'fill="rgba(248,113,113,.04)"/>'
             # 60 threshold line
             f'<line x1="0" y1="{hi_y:.1f}" x2="{W}" y2="{hi_y:.1f}" '
-            f'stroke="rgba(0,255,135,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>'
+            f'stroke="rgba(52,211,153,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>'
             # 45 threshold line
             f'<line x1="0" y1="{lo_y:.1f}" x2="{W}" y2="{lo_y:.1f}" '
-            f'stroke="rgba(239,68,68,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>'
+            f'stroke="rgba(248,113,113,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>'
             # Sparkline
             f'<polyline points="{pts}" fill="none" stroke="{trend_color}" '
             f'stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
@@ -2244,10 +2244,10 @@ def signal_history_chart(ticker: str, current_score: float) -> str:
             f'background:rgba(255,255,255,.02);border-radius:6px;'
             f'border:1px solid rgba(255,255,255,.06);">'
             f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;letter-spacing:.08em;">CONVICTION TREND</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;letter-spacing:.08em;">CONVICTION TREND</div>'
             f'<div style="display:flex;align-items:center;gap:8px;">'
-            f'<span style="font-size:12px;color:{trend_color};font-weight:700;">{trend_arrow} {trend_label}</span>'
-            f'<span style="font-size:12px;color:#64748b;">{days_label}</span>'
+            f'<span style="font-size:13px;color:{trend_color};font-weight:700;">{trend_arrow} {trend_label}</span>'
+            f'<span style="font-size:13px;color:#94a3b8;">{days_label}</span>'
             f'</div></div>'
             + svg +
             f'</div>'
@@ -2477,7 +2477,7 @@ def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> 
     dc = day_change_entry or {}
     if dc.get("chg_pct") is not None:
         pct = float(dc["chg_pct"])
-        col = "#00ff87" if pct > 0 else ("#ef4444" if pct < 0 else "#b3bed0")
+        col = "#34d399" if pct > 0 else ("#f87171" if pct < 0 else "#b3bed0")
         sign = "+" if pct >= 0 else ""
         lbl = "at&nbsp;close" if dc.get("settled") else "today"
         bits.append(f'<span style="color:{col};">{sign}{pct:.2f}%&nbsp;{lbl}</span>')
@@ -2486,7 +2486,7 @@ def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> 
     sep = '<span style="color:#1e293b;">·</span>'
     return (
         '<div style="display:flex;align-items:center;gap:6px;'
-        'font-family:DM Mono,monospace;font-size:12px;letter-spacing:.04em;'
+        'font-family:DM Mono,monospace;font-size:13px;letter-spacing:.04em;'
         'margin-top:3px;">'
         + sep.join(bits)
         + '</div>'
@@ -2565,7 +2565,7 @@ def _render_checkout_button(url: str):
             color:#0a0b14;font-family:Syne,sans-serif;font-weight:800;font-size:16px;">
           Continue to secure checkout →
         </button>
-        <div style="text-align:center;font-size:12px;color:#9fabc0;margin-top:8px;">
+        <div style="text-align:center;font-size:13px;color:#9fabc0;margin-top:8px;">
           Opens Stripe's secure checkout in this tab.
         </div></div>
         <script>
@@ -2579,8 +2579,8 @@ def _render_checkout_button(url: str):
 
 # ── DISCLAIMER ────────────────────────────────────────────────────────────────
 DISCLAIMER = """<div style="display:flex;align-items:center;gap:8px;padding:6px 0;margin-bottom:8px;">
-<span style="font-size:12px;color:#64748b;">ℹ</span>
-<span style="font-size:12px;color:#64748b;">Quantitative research tool — not investment advice.
+<span style="font-size:13px;color:#94a3b8;">ℹ</span>
+<span style="font-size:13px;color:#94a3b8;">Quantitative research tool — not investment advice.
 <a href="?legal=disclaimer" target="_self" style="color:#8896ac;text-decoration:underline;">Learn more</a></span>
 </div>"""
 
@@ -2941,7 +2941,7 @@ def page_legal(doc_key: str = "privacy"):
         background:rgba(255,255,255,.03) !important;
         border:1px solid rgba(255,255,255,.12) !important;
         border-radius:6px !important; color:#b3bed0 !important;
-        font-family:Syne,sans-serif !important; font-size:12px !important;
+        font-family:Syne,sans-serif !important; font-size:13px !important;
         font-weight:700 !important; letter-spacing:.04em !important;
         padding:7px 10px !important; white-space:nowrap !important;
         text-transform:uppercase !important; width:auto !important;
@@ -2986,7 +2986,7 @@ def _cookie_banner():
         'padding:12px 24px;}'
         '</style>'
         '<div id="qntm-cookie-banner">'
-        '<div style="font-size:12px;color:#8896ac;line-height:1.5;max-width:900px;">'
+        '<div style="font-size:13px;color:#8896ac;line-height:1.5;max-width:900px;">'
         'QNTM uses essential cookies for login and session management and anonymous analytics to improve the platform. '
         'By using QNTM you agree to our '
         '<a href="?legal=privacy" style="color:#9fabc0;text-decoration:underline;">Privacy Policy</a> and '
@@ -3010,7 +3010,7 @@ def page_landing():
     # ── Global landing CSS — overrides Streamlit defaults completely ─────────────
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
     /* ── Prevent white flash on page transitions ── */
 html { background-color: #0a0b14 !important; }
@@ -3026,7 +3026,7 @@ body { background-color: #0a0b14 !important; }
     [data-testid="stMainBlockContainer"] {
         background-color: #0a0b14 !important;
         color: #e2e4f0 !important;
-        font-family: 'Outfit', sans-serif !important;
+        font-family: 'Inter', sans-serif !important;
         overflow-x: hidden !important;
         max-width: 100% !important;
     }
@@ -3091,7 +3091,7 @@ body { background-color: #0a0b14 !important; }
         border-radius: 6px !important;
         font-family: 'Syne', sans-serif !important;
         font-weight: 800 !important;
-        font-size:12px !important;
+        font-size:13px !important;
         letter-spacing: .18em !important;
         padding: 13px 28px !important;
         text-transform: uppercase !important;
@@ -3143,7 +3143,7 @@ body { background-color: #0a0b14 !important; }
         border-radius: 6px !important;
         font-family: 'Syne', sans-serif !important;
         font-weight: 700 !important;
-        font-size:12px !important;
+        font-size:13px !important;
         letter-spacing: .18em !important;
         padding: 13px 28px !important;
         text-transform: uppercase !important;
@@ -3220,7 +3220,7 @@ body { background-color: #0a0b14 !important; }
     .qntm-nav-btn-ghost { color:#d4a843 !important; border:1px solid rgba(212,168,67,.4); background:rgba(212,168,67,.04); }
     .qntm-nav-btn-primary { color:#000 !important; background:#d4a843; }
     @media (max-width:600px) {
-        .qntm-nav-btns a { font-size:12px; padding:7px 12px; letter-spacing:.04em; }
+        .qntm-nav-btns a { font-size:13px; padding:7px 12px; letter-spacing:.04em; }
     }
     </style>
     <div style="display:flex;justify-content:flex-end;padding:0 16px;margin-top:-52px;position:relative;z-index:1000;height:52px;align-items:center;">
@@ -3245,9 +3245,9 @@ body { background-color: #0a0b14 !important; }
     elif _regime in ("RISK_OFF","HIGH VOLATILITY"): _regime_norm = "RISK_OFF"
     else:                                           _regime_norm = "NEUTRAL"
     _regime_label = {"RISK_ON":"Risk On","RISK_OFF":"Risk Off","NEUTRAL":"Neutral"}.get(_regime_norm,"Neutral")
-    _regime_c     = {"RISK_ON":"#00ff87","RISK_OFF":"#ef4444","NEUTRAL":"#fbbf24"}.get(_regime_norm,"#fbbf24")
-    _regime_bg    = {"RISK_ON":"rgba(0,255,135,.08)","RISK_OFF":"rgba(239,68,68,.08)","NEUTRAL":"rgba(251,191,36,.08)"}.get(_regime_norm,"rgba(251,191,36,.08)")
-    _regime_brd   = {"RISK_ON":"rgba(0,255,135,.25)","RISK_OFF":"rgba(239,68,68,.25)","NEUTRAL":"rgba(251,191,36,.25)"}.get(_regime_norm,"rgba(251,191,36,.25)")
+    _regime_c     = {"RISK_ON":"#34d399","RISK_OFF":"#f87171","NEUTRAL":"#fbbf24"}.get(_regime_norm,"#fbbf24")
+    _regime_bg    = {"RISK_ON":"rgba(52,211,153,.08)","RISK_OFF":"rgba(248,113,113,.08)","NEUTRAL":"rgba(251,191,36,.08)"}.get(_regime_norm,"rgba(251,191,36,.08)")
+    _regime_brd   = {"RISK_ON":"rgba(52,211,153,.25)","RISK_OFF":"rgba(248,113,113,.25)","NEUTRAL":"rgba(251,191,36,.25)"}.get(_regime_norm,"rgba(251,191,36,.25)")
     _regime_icon  = {"RISK_ON":"▲","RISK_OFF":"▼","NEUTRAL":"─"}.get(_regime_norm,"─")
     _vix          = _macro_now.get("vix", None)
     _vix_str      = f"{_vix:.1f}" if _vix else "—"
@@ -3288,11 +3288,11 @@ body { background-color: #0a0b14 !important; }
             '<div style="display:flex;justify-content:space-between;align-items:center;'
             'padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
             f'<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e2e8f0;">{_stk}</span>'
-            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#00ff87;font-weight:700;">{_ssc:.0f} ▲</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#34d399;font-weight:700;">{_ssc:.0f} ▲</span>'
             '</div>'
         )
     if not _signal_rows:
-        _signal_rows = '<div style="font-size:12px;color:#64748b;padding:12px 0;">Signals loading...</div>'
+        _signal_rows = '<div style="font-size:13px;color:#94a3b8;padding:12px 0;">Signals loading...</div>'
 
 
     # Dynamic founding spots count
@@ -3330,11 +3330,11 @@ body { background-color: #0a0b14 !important; }
         'border:1px solid rgba(212,168,67,.2);border-radius:100px;padding:5px 14px;">'
         '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
         'animation:land-pulse 2s infinite;flex-shrink:0;"></div>'
-        '<span style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;">'
+        '<span style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;">'
         'MODEL LIVE · UPDATED DAILY</span></div>'
-        '<div style="display:inline-flex;align-items:center;background:rgba(0,255,135,.05);'
-        'border:1px solid rgba(0,255,135,.15);border-radius:100px;padding:5px 14px;">'
-        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#00ff87;letter-spacing:.08em;">'
+        '<div style="display:inline-flex;align-items:center;background:rgba(52,211,153,.05);'
+        'border:1px solid rgba(52,211,153,.15);border-radius:100px;padding:5px 14px;">'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#34d399;letter-spacing:.08em;">'
         f'🎯 {_spots_remaining} FOUNDING SPOTS · FREE TODAY</span></div>'
         '</div>'
         '<h1 style="font-family:Syne,sans-serif;font-size:clamp(36px,4vw,60px);'
@@ -3352,7 +3352,7 @@ body { background-color: #0a0b14 !important; }
         _cta_gold("Join Free →", "?nav=register&plan=pro")
         + _cta_ghost("Sign In", "?nav=signin")
         + '</div>'  # end CTA grid
-        + '<div style="margin-top:10px;font-size:12px;color:#64748b;letter-spacing:.02em;">'
+        + '<div style="margin-top:10px;font-size:13px;color:#94a3b8;letter-spacing:.02em;">'
         + 'No credit card · cancel anytime · free tier always available'
         + '</div>'
         '</div>'    # end left col
@@ -3371,11 +3371,11 @@ body { background-color: #0a0b14 !important; }
         f'{_regime_icon} {_regime_label}</span>'
         f'<div style="text-align:right;">'
         f'<div style="font-family:DM Mono,monospace;font-size:16px;color:#d4a843;">75/25</div>'
-        f'<div style="font-size:12px;color:#8896ac;">quant/macro</div>'
+        f'<div style="font-size:13px;color:#8896ac;">quant/macro</div>'
         f'</div></div>'
         f'<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">'
-        f'<span style="font-size:12px;color:#9fabc0;">VIX {_vix_str}</span>'
-        f'<span style="font-size:12px;color:#9fabc0;">Event: {_evt_label}</span>'
+        f'<span style="font-size:13px;color:#9fabc0;">VIX {_vix_str}</span>'
+        f'<span style="font-size:13px;color:#9fabc0;">Event: {_evt_label}</span>'
         f'</div></div>'
 
         # Top signals label
@@ -3385,15 +3385,15 @@ body { background-color: #0a0b14 !important; }
         # High conviction count CTA
         + f'<a href="?nav=register&amp;plan=pro" target="_self" style="display:block;margin-top:10px;padding:7px 12px;'
         f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.2);border-radius:6px;'
-        f'font-family:DM Mono,monospace;font-size:12px;color:#d4a843;text-decoration:none;'
+        f'font-family:DM Mono,monospace;font-size:13px;color:#d4a843;text-decoration:none;'
         f'letter-spacing:.06em;text-align:center;">'
         f'VIEW ALL HIGH CONVICTION SIGNALS →</a>'
         # Hidden gems callout
-        + '<div style="margin-top:10px;padding:8px 12px;background:rgba(0,255,135,.04);'
-        'border:1px solid rgba(0,255,135,.12);border-radius:6px;display:flex;align-items:center;gap:8px;">'
+        + '<div style="margin-top:10px;padding:8px 12px;background:rgba(52,211,153,.04);'
+        'border:1px solid rgba(52,211,153,.12);border-radius:6px;display:flex;align-items:center;gap:8px;">'
         '<span style="font-size:14px;">💎</span>'
-        '<div><div style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.1em;">HIDDEN GEMS</div>'
-        '<div style="font-size:12px;color:#9fabc0;">Low-coverage stocks with high conviction scores</div></div>'
+        '<div><div style="font-family:DM Mono,monospace;font-size:11px;color:#34d399;letter-spacing:.1em;">HIDDEN GEMS</div>'
+        '<div style="font-size:13px;color:#9fabc0;">Low-coverage stocks with high conviction scores</div></div>'
         '</div>'
         # Compact stats strip at bottom of panel — factual, no performance claims
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05);">'
@@ -3402,7 +3402,7 @@ body { background-color: #0a0b14 !important; }
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">FACTORS</div>'
         + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">5</div></div>'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">REFRESH</div>'
-        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#00ff87;">Daily</div></div>'
+        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#34d399;">Daily</div></div>'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">SIGNALS</div>'
         + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">Live</div></div>'
         + '</div>'
@@ -3433,8 +3433,8 @@ body { background-color: #0a0b14 !important; }
     _today_items = []
     # Regime is primary — larger and brighter
     _today_items.insert(0, f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{_regime_c};">{_regime_icon} {_regime_label}</span>')
-    if _n_high:  _today_items.append(f'<span style="color:#9fabc0;"><b style="color:#00ff87;">{_n_high}</b> high</span>')
-    if _n_sell:  _today_items.append(f'<span style="color:#8896ac;"><b style="color:#ef4444;">{_n_sell}</b> low</span>')
+    if _n_high:  _today_items.append(f'<span style="color:#9fabc0;"><b style="color:#34d399;">{_n_high}</b> high</span>')
+    if _n_sell:  _today_items.append(f'<span style="color:#8896ac;"><b style="color:#f87171;">{_n_sell}</b> low</span>')
     # Gem count — read from platform_stats table (written by cron after every refresh)
     _n_gems = st.session_state.get("_gem_count", None)
     if _n_gems is None:
@@ -3454,15 +3454,15 @@ body { background-color: #0a0b14 !important; }
         except Exception:
             pass
     _gems_display = _n_gems if _n_gems is not None else "—"
-    _today_items.append(f'<span style="color:#00ff87;font-weight:600;">💎 {_gems_display} hidden gems</span>')
+    _today_items.append(f'<span style="color:#34d399;font-weight:600;">💎 {_gems_display} hidden gems</span>')
     _today_items.append(f'<span style="color:#9fabc0;">834 stocks scored</span>')
 
     st.markdown(
         '<div style="padding:14px clamp(20px,5vw,64px);max-width:1200px;margin:0 auto;'
         'border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04);'
         'display:flex;gap:20px;flex-wrap:wrap;align-items:center;">'
-        '<span style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;white-space:nowrap;">TODAY IN QNTM</span>'
-        + ' <span style="color:#64748b;">·</span> '.join(_today_items)
+        '<span style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;white-space:nowrap;">TODAY IN QNTM</span>'
+        + ' <span style="color:#94a3b8;">·</span> '.join(_today_items)
         + '</div>',
         unsafe_allow_html=True
     )
@@ -3486,11 +3486,11 @@ body { background-color: #0a0b14 !important; }
             pass
 
     _static_tape = [
-            ("NVDA","HIGH","#00ff87"),("META","HIGH","#00ff87"),
-            ("AVGO","HIGH","#00ff87"),("JPM","HIGH","#00ff87"),
-            ("NFLX","HIGH","#00ff87"),("COST","HIGH","#00ff87"),
-            ("GS","HIGH","#00ff87"),("WMT","HIGH","#00ff87"),
-            ("MA","HIGH","#00ff87"),("MSFT","HIGH","#00ff87"),
+            ("NVDA","HIGH","#34d399"),("META","HIGH","#34d399"),
+            ("AVGO","HIGH","#34d399"),("JPM","HIGH","#34d399"),
+            ("NFLX","HIGH","#34d399"),("COST","HIGH","#34d399"),
+            ("GS","HIGH","#34d399"),("WMT","HIGH","#34d399"),
+            ("MA","HIGH","#34d399"),("MSFT","HIGH","#34d399"),
             ("TSLA","MOD","#d4a843"),
             ("UNH","LOW","#E24B4A"),("NKE","LOW","#E24B4A"),
             ("PFE","LOW","#E24B4A"),("SNAP","LOW","#E24B4A"),
@@ -3501,7 +3501,7 @@ body { background-color: #0a0b14 !important; }
         sells = sorted([s for s in tape_scores if s.get("signal","") in ("SELL","LOW")],
                        key=lambda x: float(x.get("adj_composite",100) or 100))[:5]
         tape_items = (
-            [(s["ticker"],"HIGH","#00ff87") for s in buys] +
+            [(s["ticker"],"HIGH","#34d399") for s in buys] +
             [(s["ticker"],"LOW","#E24B4A")  for s in sells]
         )
         if not tape_items:
@@ -3514,10 +3514,10 @@ body { background-color: #0a0b14 !important; }
 
     tape_html = " &middot; ".join(tape_span(*i).rstrip(" &middot; ") for i in tape_items)
     # Duplicate for seamless scroll — string concat avoids f-string single-quote conflicts
-    _sp = "font-family:DM Mono,monospace;font-size:12px;padding:0 24px;"
+    _sp = "font-family:DM Mono,monospace;font-size:13px;padding:0 24px;"
     tape_block = (
-        '<div style="overflow:hidden;max-width:100vw;background:rgba(0,255,135,.04);'
-        'border-top:1px solid rgba(0,255,135,.12);border-bottom:1px solid rgba(0,255,135,.12);'
+        '<div style="overflow:hidden;max-width:100vw;background:rgba(52,211,153,.04);'
+        'border-top:1px solid rgba(52,211,153,.12);border-bottom:1px solid rgba(52,211,153,.12);'
         'padding:13px 0;margin-top:8px;">'
         '<div style="display:inline-flex;animation:land-ticker 45s linear infinite;white-space:nowrap;will-change:transform;">'
         '<span style="' + _sp + '">' + tape_html + '</span>'
@@ -3546,7 +3546,7 @@ body { background-color: #0a0b14 !important; }
           <div style="font-size:13px;color:#b3bed0;margin-top:6px;">S&amp;P 500 + Russell 1000, rescored every day</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#00ff87;line-height:1;">5-factor model</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#34d399;line-height:1;">5-factor model</div>
           <div style="font-size:13px;color:#b3bed0;margin-top:6px;">Momentum, Quality, Volume, Value, Sentiment</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
@@ -3554,7 +3554,7 @@ body { background-color: #0a0b14 !important; }
           <div style="font-size:13px;color:#b3bed0;margin-top:6px;">A written rationale behind every conviction score</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#00ff87;line-height:1;">Live portfolio</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#34d399;line-height:1;">Live portfolio</div>
           <div style="font-size:13px;color:#b3bed0;margin-top:6px;">Rules-based entries &amp; exits, tracked in real time</div>
         </div>
       </div>
@@ -3581,7 +3581,7 @@ body { background-color: #0a0b14 !important; }
     for name, weight, desc, color in [
         ("Momentum",  "30%", "Price trend, RSI, MACD, MA crossovers, 52-week proximity",      "#d4a843"),
         ("Quality",   "25%", "ROE, profit margin, revenue growth, EPS beat rate, FCF yield",   "#1D9E75"),
-        ("Volume",    "20%", "Relative volume, OBV, Chaikin Money Flow, accumulation/dist.",   "#00ff87"),
+        ("Volume",    "20%", "Relative volume, OBV, Chaikin Money Flow, accumulation/dist.",   "#34d399"),
         ("Value",     "15%", "Forward P/E, PEG ratio, EV/EBITDA, Price-to-Sales, FCF yield",  "#f59e0b"),
         ("Sentiment", "10%", "Short interest, insider buy ratio, institutional ownership",      "#f97316"),
     ]:
@@ -3608,7 +3608,7 @@ body { background-color: #0a0b14 !important; }
     ]:
         signals_html += (
             f'<div style="background:#0e0f1a;border:1px solid {brd};border-radius:8px;padding:22px;">'
-            f'<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:700;color:{color};letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
+            f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:{color};letter-spacing:.1em;margin-bottom:8px;">{label}</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:500;color:{color};margin-bottom:10px;">{score}</div>'
             f'<div style="font-size:15px;color:#cbd5e1;line-height:1.8;">{desc}</div>'
             f'</div>'
@@ -3634,7 +3634,7 @@ body { background-color: #0a0b14 !important; }
     def chk(v):
         if v == 1:  return '<span style="color:#1D9E75;font-size:15px;">&#10003;</span>'
         if v == 0:  return '<span style="color:#E24B4A;font-size:15px;">&#10007;</span>'
-        return '<span style="color:#f59e0b;font-size:12px;">partial</span>'
+        return '<span style="color:#f59e0b;font-size:13px;">partial</span>'
 
     matrix_rows = [
         ("Price / month",          ["$29","$199","$299","$249","$49","$2,700+"]),
@@ -3655,7 +3655,7 @@ body { background-color: #0a0b14 !important; }
     col_w  = ["35%", "11%", "11%", "11%", "11%", "11%", "10%"]
 
     header_html = "".join([
-        f'<th style="width:{col_w[i]};padding:8px 6px;font-family:DM Mono,monospace;font-size:12px;'
+        f'<th style="width:{col_w[i]};padding:8px 6px;font-family:DM Mono,monospace;font-size:13px;'
         f'color:{"#d4a843" if c=="QNTM" else "#9fabc0"};letter-spacing:.06em;'
         f'text-align:{"left" if i==0 else "center"};border-bottom:1px solid rgba(255,255,255,.08);">'
         f'{c}</th>'
@@ -3666,11 +3666,11 @@ body { background-color: #0a0b14 !important; }
     for ri, (label, vals) in enumerate(matrix_rows):
         bg = "rgba(212,168,67,.04)" if ri % 2 == 0 else "transparent"
         row = f'<tr style="background:{bg};">'
-        row += f'<td style="padding:8px 6px;font-size:12px;color:#b3bed0;">{label}</td>'
+        row += f'<td style="padding:8px 6px;font-size:13px;color:#b3bed0;">{label}</td>'
         for ci, v in enumerate(vals):
             is_qntm = ci == 0
             if isinstance(v, str) and v.startswith("$"):
-                cell = f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{"#d4a843" if is_qntm else "#8896ac"};">{v}</span>'
+                cell = f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{"#d4a843" if is_qntm else "#8896ac"};">{v}</span>'
             elif v == "p":
                 cell = chk("p")
             else:
@@ -3687,7 +3687,7 @@ body { background-color: #0a0b14 !important; }
         f'<thead><tr>{header_html}</tr></thead>'
         f'<tbody>{rows_html}</tbody>'
         f'</table>'
-        f'<div style="font-size:12px;color:#8896ac;margin-top:8px;padding:0 2px;">'
+        f'<div style="font-size:13px;color:#8896ac;margin-top:8px;padding:0 2px;">'
         f'Competitor features and pricing based on publicly available information May 2026. Partial = limited implementation.</div>'
         f'</div>'
     )
@@ -3765,7 +3765,7 @@ body { background-color: #0a0b14 !important; }
         + _cta_ghost("Start Free →", "?nav=register")
         + _cta_gold("Join Free — Founding Member →", "?nav=register&plan=pro")
         + '</div>'
-        + '<div style="text-align:center;margin-top:10px;font-size:12px;color:#d4a843;">'
+        + '<div style="text-align:center;margin-top:10px;font-size:13px;color:#d4a843;">'
         '⚡ Founding member pricing — <span style="text-decoration:line-through;color:#8896ac;">$29/mo</span>'
         ' free while spots last &nbsp;·&nbsp; <span style="color:#e2e8f0;">Limited availability</span>'
         '</div></div>',
@@ -3800,7 +3800,7 @@ body { background-color: #0a0b14 !important; }
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:13px;color:#9fabc0;letter-spacing:.12em;margin-bottom:12px;">CONTACT</div>
             <div style="font-size:13px;color:#b3bed0;line-height:2.2;">
-              <span style="color:#64748b;font-size:12px;font-family:DM Mono,monospace;letter-spacing:.06em;">COMING SOON</span>
+              <span style="color:#94a3b8;font-size:13px;font-family:DM Mono,monospace;letter-spacing:.06em;">COMING SOON</span>
             </div>
           </div>
         </div>
@@ -3808,7 +3808,7 @@ body { background-color: #0a0b14 !important; }
       <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.15);
            border-radius:8px;padding:18px 22px;margin-bottom:28px;max-width:1200px;margin-left:auto;margin-right:auto;">
         <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.12em;margin-bottom:8px;">IMPORTANT DISCLAIMER</div>
-        <div style="font-size:12px;color:#9fabc0;line-height:1.8;">
+        <div style="font-size:13px;color:#9fabc0;line-height:1.8;">
           QNTM is a <strong style="color:#b3bed0;">quantitative research and factor analysis tool</strong>
           for informational and educational purposes only. It does <strong style="color:#b3bed0;">not</strong>
           constitute investment advice, a recommendation to buy or sell any security, or a guarantee of
@@ -3834,7 +3834,7 @@ def page_auth():
     # Full-page background gradient
     st.markdown("""
     <div style="position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% -10%,
-         rgba(0,255,135,.06) 0%,transparent 65%);pointer-events:none;z-index:0;"></div>
+         rgba(52,211,153,.06) 0%,transparent 65%);pointer-events:none;z-index:0;"></div>
     <style>
     /* Auth tab buttons — full width, equal size, active state highlighted */
     div[data-testid="column"] .stButton > button {
@@ -3843,7 +3843,7 @@ def page_auth():
         border-bottom: 2px solid rgba(255,255,255,.08) !important;
         background: transparent !important;
         color: #9fabc0 !important;
-        font-size: 12px !important;
+        font-size:13px !important;
         font-weight: 700 !important;
         letter-spacing: .04em !important;
         text-transform: uppercase !important;
@@ -3855,8 +3855,8 @@ def page_auth():
         padding: 0 8px !important;
     }
     div[data-testid="column"] .stButton > button:hover {
-        background: rgba(0,255,135,.05) !important;
-        border-bottom-color: rgba(0,255,135,.4) !important;
+        background: rgba(52,211,153,.05) !important;
+        border-bottom-color: rgba(52,211,153,.4) !important;
         color: #b3bed0 !important;
         transform: none !important;
     }
@@ -3874,7 +3874,7 @@ def page_auth():
         border-radius:6px !important;
         color:#b3bed0 !important;
         font-family:Syne,sans-serif !important;
-        font-size:12px !important;
+        font-size:13px !important;
         font-weight:700 !important;
         letter-spacing:.04em !important;
         padding:7px 10px !important;
@@ -3904,7 +3904,7 @@ def page_auth():
         st.markdown("""
         <div style="text-align:center;padding:24px 0 20px;">
           <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;
-               letter-spacing:.15em;color:#e2e4f0;">Q<span style="color:#00ff87;">NTM</span></div>
+               letter-spacing:.15em;color:#e2e4f0;">Q<span style="color:#34d399;">NTM</span></div>
           <div style="font-size:13px;color:#9fabc0;letter-spacing:.2em;margin-top:6px;">
             CONVICTION FACTOR MODEL
           </div>
@@ -3971,7 +3971,7 @@ def page_auth():
             st.markdown("""
             <div style="text-align:center;margin-top:20px;">
               <span style="font-size:14px;color:#b3bed0;">
-                No account? Hit <strong style="color:#00ff87;">Join Free</strong> above.
+                No account? Hit <strong style="color:#34d399;">Join Free</strong> above.
               </span>
             </div>
             """, unsafe_allow_html=True)
@@ -3985,7 +3985,7 @@ def page_auth():
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">
               <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);
                    border-radius:6px;padding:14px;text-align:center;">
-                <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+                <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
                      color:#b3bed0;letter-spacing:.08em;margin-bottom:4px;">FREE</div>
                 <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#e2e4f0;">$0</div>
                 <div style="font-size:13px;color:#b3bed0;margin-top:4px;">forever</div>
@@ -3995,7 +3995,7 @@ def page_auth():
               </div>
               <div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.4);
                    border-radius:6px;padding:14px;text-align:center;">
-                <div style="background:#d4a843;color:#000;font-size:12px;font-weight:700;
+                <div style="background:#d4a843;color:#000;font-size:13px;font-weight:700;
                      letter-spacing:.1em;padding:2px 8px;border-radius:2px;display:inline-block;
                      margin-bottom:4px;">FOUNDING MEMBER</div>
                 <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#d4a843;">$0</div>
@@ -4044,8 +4044,8 @@ def page_auth():
                             msg = "✓ Account created. Sign in above to continue."
                             tag = ""
                         st.markdown(f"""
-                        <div style="background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.25);
-                             border-radius:6px;padding:14px 16px;font-size:13px;color:#00ff87;margin-top:8px;">
+                        <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);
+                             border-radius:6px;padding:14px 16px;font-size:13px;color:#34d399;margin-top:8px;">
                           {msg}
                           {'<div style="font-size:13px;color:#d4a843;margin-top:4px;">' + tag + ' — unlimited holdings, hidden gems &amp; alerts are live.</div>' if tag else ''}
                         </div>
@@ -4063,7 +4063,7 @@ def page_auth():
     r3c1, r3c2 = st.columns(2)
     link_style = (
         "display:block;text-align:center;font-family:'DM Mono',monospace;"
-        "font-size:12px;letter-spacing:.07em;color:#9fabc0;text-decoration:none;"
+        "font-size:13px;letter-spacing:.07em;color:#9fabc0;text-decoration:none;"
         "border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:8px 4px;"
     )
     with r1c1:
@@ -4092,7 +4092,7 @@ def page_mfa():
         st.markdown("""
         <div style="text-align:center;padding:80px 0 40px;">
           <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;">
-            Q<span style="color:#00ff87;">NTM</span>
+            Q<span style="color:#34d399;">NTM</span>
           </div>
           <div style="margin-top:16px;font-size:36px;">🔐</div>
           <h2 style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-top:12px;">Two-Factor Auth</h2>
@@ -4221,13 +4221,13 @@ def platform_nav():
             btn_style = (
                 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
                 'gap:6px;padding:14px 8px;text-decoration:none;border-radius:8px;'
-                'background:linear-gradient(135deg,rgba(0,255,135,.14),rgba(0,255,135,.04));'
-                'border:1px solid rgba(0,255,135,.5);'
-                'box-shadow:0 0 12px rgba(0,255,135,.1);'
+                'background:linear-gradient(135deg,rgba(52,211,153,.14),rgba(52,211,153,.04));'
+                'border:1px solid rgba(52,211,153,.5);'
+                'box-shadow:0 0 12px rgba(52,211,153,.1);'
             )
             em_style  = 'font-size:20px;line-height:1;'
             lbl_style = ('font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
-                         'letter-spacing:.02em;text-transform:uppercase;color:#00ff87;'
+                         'letter-spacing:.02em;text-transform:uppercase;color:#34d399;'
                          'line-height:1.2;text-align:center;white-space:normal;word-break:break-word;'
                          'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;')
         else:
@@ -4265,7 +4265,7 @@ def platform_nav():
         f'background:linear-gradient(135deg,rgba(239,68,68,.08),rgba(239,68,68,.02));'
         f'border:1px solid rgba(239,68,68,.2);">'
         f'<span style="font-size:20px;line-height:1;opacity:.7;">🚪</span>'
-        f'<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:600;'
+        f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:600;'
         f'letter-spacing:.05em;text-transform:uppercase;color:#ef4444;">Sign Out</span>'
         f'</a>'
     )
@@ -4275,7 +4275,7 @@ def platform_nav():
     notif_dot = (
         f'<a href="{_notif_url}" target="_self" style="'
         f'background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;'
-        f'display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;'
+        f'display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;'
         f'text-decoration:none;cursor:pointer;">'
         f'{n_count}</a>'
     ) if n_count > 0 else ""
@@ -4305,17 +4305,17 @@ def platform_nav():
         'transition:border-color .2s,background .2s;user-select:none;'
         'min-width:170px;justify-content:space-between;}'
         '#qntm-toggle:checked ~ div label.qntm-menu-trigger{'
-        'border-color:rgba(0,255,135,.4);background:rgba(0,255,135,.06);}'
+        'border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.06);}'
         '.qntm-chevron{width:14px;height:14px;opacity:.5;transition:transform .2s;flex-shrink:0;}'
         '#qntm-toggle:checked ~ div label.qntm-menu-trigger .qntm-chevron{'
         'transform:rotate(180deg);}'
-        'a[href*="qnav"]:hover{background:linear-gradient(135deg,rgba(0,255,135,.1),rgba(0,255,135,.03))!important;'
-        'border-color:rgba(0,255,135,.35)!important;}'
+        'a[href*="qnav"]:hover{background:linear-gradient(135deg,rgba(52,211,153,.1),rgba(52,211,153,.03))!important;'
+        'border-color:rgba(52,211,153,.35)!important;}'
         '</style>'
         '<input type="checkbox" id="qntm-toggle">'
         f'<div id="qntm-dd">'
         '<div style="padding:12px 16px 8px;border-bottom:1px solid rgba(255,255,255,.06);">'
-        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;letter-spacing:.14em;">MENU</span>'
+        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;letter-spacing:.14em;">MENU</span>'
         '</div>'
         + grid_html +
         '</div>'
@@ -4324,7 +4324,7 @@ def platform_nav():
         'border-bottom:1px solid rgba(255,255,255,.07);'
         'padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;">'
         '<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;'
-        'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#00ff87;">NTM</span></span>'
+        'letter-spacing:.15em;color:#e2e8f0;">Q<span style="color:#34d399;">NTM</span></span>'
         '<label for="qntm-toggle" class="qntm-menu-trigger">'
         '<span>☰  MENU</span>'
         '<svg class="qntm-chevron" viewBox="0 0 24 24" fill="none" stroke="#b3bed0" stroke-width="2.5">'
@@ -4334,9 +4334,9 @@ def platform_nav():
         + notif_dot
         + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
         f'border:1px solid {plan_color}44;border-radius:4px;padding:3px 9px;'
-        f'font-size:12px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
+        f'font-size:13px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
         f'{plan.upper()}</span>'
-        f'<span style="font-size:12px;color:#9fabc0;font-family:DM Mono,monospace;">{display_name}</span>'
+        f'<span style="font-size:13px;color:#9fabc0;font-family:DM Mono,monospace;">{display_name}</span>'
         '</div></div>'
     )
 
@@ -4370,7 +4370,7 @@ def page_screener():
     st.markdown(
         f'<div style="padding:10px 32px 4px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">📊 Market Screener</span>'
-        f'<div style="font-size:12px;color:#64748b;margin-top:2px;">834 stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">834 stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -4414,17 +4414,17 @@ def page_screener():
     <style>
     div[data-testid="stTextInput"][data-key="screener_search"] input {
         background: rgba(255,255,255,.04) !important;
-        border: 1px solid rgba(0,255,135,.3) !important;
+        border: 1px solid rgba(52,211,153,.3) !important;
         border-radius: 8px !important; color: #e2e8f0 !important;
         font-size: 15px !important; padding: 13px 20px !important;
         height: 50px !important; transition: border-color .2s, box-shadow .2s !important;
     }
     div[data-testid="stTextInput"][data-key="screener_search"] input:focus {
-        border-color: rgba(0,255,135,.6) !important;
-        box-shadow: 0 0 0 3px rgba(0,255,135,.08) !important; outline: none !important;
+        border-color: rgba(52,211,153,.6) !important;
+        box-shadow: 0 0 0 3px rgba(52,211,153,.08) !important; outline: none !important;
     }
     div[data-testid="stTextInput"][data-key="screener_search"] input::placeholder {
-        color: #64748b !important;
+        color: #94a3b8 !important;
     }
     /* Suggestion buttons */
     div[data-testid="stHorizontalBlock"] .stButton > button {
@@ -4437,8 +4437,8 @@ def page_screener():
         transition: background .15s !important;
     }
     div[data-testid="stHorizontalBlock"] .stButton > button:hover {
-        background: rgba(0,255,135,.07) !important;
-        border-color: rgba(0,255,135,.25) !important;
+        background: rgba(52,211,153,.07) !important;
+        border-color: rgba(52,211,153,.25) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -4494,7 +4494,7 @@ def page_screener():
         st.markdown(
             '<div class="qntm-sug-wrap" style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
             'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
-            '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
+            '<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;'
             'letter-spacing:.1em;padding:8px 14px 4px;">SUGGESTIONS</div>',
             unsafe_allow_html=True
         )
@@ -4519,7 +4519,7 @@ def page_screener():
         resolved_tk, resolved_name = resolve_ticker(search_ticker)
         display_query = f"{resolved_name} ({resolved_tk})" if resolved_name and resolved_name != resolved_tk else resolved_tk
 
-        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin:6px 0 6px;">SCORE FOR {display_query}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:6px 0 6px;">SCORE FOR {display_query}</div>', unsafe_allow_html=True)
         _sr_ok = None
         with st.spinner(f"Scoring {resolved_tk}..."):
             try:
@@ -4727,16 +4727,16 @@ def page_screener():
     st.markdown(
         f'<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;'
         f'padding:6px 0 10px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.04);">'
-        f'<span style="font-family:DM Mono,monospace;font-size:12px;">'
-        f'<span style="color:#00ff87;">HIGH {buys}</span>'
-        f'<span style="color:#64748b;"> · </span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;">'
+        f'<span style="color:#34d399;">HIGH {buys}</span>'
+        f'<span style="color:#94a3b8;"> · </span>'
         f'<span style="color:#8896ac;">MOD {holds}</span>'
-        f'<span style="color:#64748b;"> · </span>'
+        f'<span style="color:#94a3b8;"> · </span>'
         f'<span style="color:#8896ac;">LOW {sells}</span>'
-        f'<span style="color:#64748b;"> · </span>'
-        f'<span style="color:#00ff87;">💎 {_n_gems_strip}</span>'
-        f'<span style="color:#64748b;"> · </span>'
-        f'<span style="color:#64748b;">UNIV {len(results)}</span>'
+        f'<span style="color:#94a3b8;"> · </span>'
+        f'<span style="color:#34d399;">💎 {_n_gems_strip}</span>'
+        f'<span style="color:#94a3b8;"> · </span>'
+        f'<span style="color:#94a3b8;">UNIV {len(results)}</span>'
         f'</span></div>',
         unsafe_allow_html=True
     )
@@ -4759,17 +4759,17 @@ def page_screener():
                     f'border:1px solid rgba(255,255,255,.06);'
                     f'border-left:2px solid rgba(212,168,67,.5);'
                     f'border-radius:6px;">'
-                    f'<div style="font-family:Syne,sans-serif;font-size:12px;'
+                    f'<div style="font-family:Syne,sans-serif;font-size:13px;'
                     f'font-weight:700;color:#d4a843;letter-spacing:.08em;'
                     f'text-transform:uppercase;margin-bottom:8px;">{info["label"]}</div>'
-                    f'<div style="font-family:Inter,sans-serif;font-size:12px;'
+                    f'<div style="font-family:Inter,sans-serif;font-size:13px;'
                     f'color:#9fabc0;line-height:1.65;margin-bottom:10px;">{info["detail"]}</div>'
                     f'<div style="display:flex;gap:14px;flex-wrap:wrap;'
                     f'padding-top:8px;border-top:1px solid rgba(255,255,255,.04);">'
-                    f'<span style="font-family:DM Mono,monospace;font-size:12px;'
-                    f'color:#ef4444;letter-spacing:.04em;">▼ {info["impact"]}</span>'
-                    f'<span style="font-family:DM Mono,monospace;font-size:12px;'
-                    f'color:#00ff87;letter-spacing:.04em;">▲ {info["bullish"]}</span>'
+                    f'<span style="font-family:DM Mono,monospace;font-size:13px;'
+                    f'color:#f87171;letter-spacing:.04em;">▼ {info["impact"]}</span>'
+                    f'<span style="font-family:DM Mono,monospace;font-size:13px;'
+                    f'color:#34d399;letter-spacing:.04em;">▲ {info["bullish"]}</span>'
                     f'</div></div>',
                     unsafe_allow_html=True)
 
@@ -4799,16 +4799,16 @@ def page_screener():
             _scr_pm, _scr_sm = _mini_price_data(tuple(sorted(set(_scr_tks))), _scr_trail)
 
         def _conv_col(label, color, ranked):
-            out = (f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
+            out = (f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{color};'
                    f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
                    f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>')
             for r in ranked:
                 ci     = get_company_info(r["ticker"])
                 is_gem = r["ticker"] in gem_tickers
                 # Ensure action matches list — signal_log BUY/SELL may not match adj
-                if color == "#ef4444" and r.get("adj_action",r.get("action")) != "SELL":
+                if color == "#f87171" and r.get("adj_action",r.get("action")) != "SELL":
                     r = dict(r); r["adj_action"] = "SELL"
-                elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
+                elif color == "#34d399" and r.get("adj_action",r.get("action")) != "BUY":
                     r = dict(r); r["adj_action"] = "BUY"
                 r["_mini_chart_html"] = _build_mini_chart_html(
                     r["ticker"], _scr_trail, _scr_pm, _scr_sm, since_label="vs SPY · 20d")
@@ -4816,8 +4816,8 @@ def page_screener():
                                        company_info=ci, in_list=_wl_now)
             return out
 
-        _high_html = _conv_col("▲ HIGH CONVICTION", "#00ff87", buys_ranked[:10])
-        _low_html  = _conv_col("▼ LOW CONVICTION",  "#ef4444", sells_ranked[:10])
+        _high_html = _conv_col("▲ HIGH CONVICTION", "#34d399", buys_ranked[:10])
+        _low_html  = _conv_col("▼ LOW CONVICTION",  "#f87171", sells_ranked[:10])
         st.markdown(
             '<div class="qntm-conv-grid" style="display:grid;'
             'grid-template-columns:1fr 1fr;gap:16px;align-items:start;">'
@@ -4842,7 +4842,7 @@ def page_screener():
             f'<div style="display:flex;justify-content:flex-end;margin:6px 0 4px;">'
             f'<a href="{_rscan_url}" target="_self" style="'
             f'padding:6px 14px;border-radius:4px;border:1px solid rgba(255,255,255,.12);'
-            f'background:rgba(255,255,255,.03);font-family:Syne,sans-serif;font-size:12px;'
+            f'background:rgba(255,255,255,.03);font-family:Syne,sans-serif;font-size:13px;'
             f'font-weight:700;letter-spacing:.08em;color:#8896ac;text-decoration:none;'
             f'text-transform:uppercase;">↺ Rescan</a></div>',
             unsafe_allow_html=True
@@ -4903,7 +4903,7 @@ def page_screener():
                     st.rerun()
             with _pn2:
                 st.markdown(f'<div style="text-align:center;font-family:DM Mono,monospace;'
-                            f'font-size:12px;color:#8896ac;padding:8px 0;">'
+                            f'font-size:13px;color:#8896ac;padding:8px 0;">'
                             f'Page {_page+1} of {_total_pages}</div>', unsafe_allow_html=True)
             with _pn3:
                 if _page < _total_pages - 1 and st.button("Next →", key="fu_next", use_container_width=True):
@@ -4967,14 +4967,14 @@ def page_screener():
                 f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;">'
                 f'<div style="font-size:13px;color:#9fabc0;width:170px;flex-shrink:0;">{sec}</div>'
                 f'<div style="flex:1;display:flex;border-radius:4px;overflow:hidden;height:20px;">'
-                f'<div style="width:{bp:.0f}%;background:rgba(0,255,135,.6);"></div>'
+                f'<div style="width:{bp:.0f}%;background:rgba(52,211,153,.6);"></div>'
                 f'<div style="width:{hp:.0f}%;background:rgba(251,191,36,.4);"></div>'
-                f'<div style="width:{sp:.0f}%;background:rgba(239,68,68,.5);"></div>'
+                f'<div style="width:{sp:.0f}%;background:rgba(248,113,113,.5);"></div>'
                 f'</div>'
                 f'<div style="font-size:14px;color:#b3bed0;width:130px;flex-shrink:0;">'
-                f'<span style="color:#00ff87;">{b} HIGH</span> '
+                f'<span style="color:#34d399;">{b} HIGH</span> '
                 f'<span style="color:#fbbf24;">{h} MOD</span> '
-                f'<span style="color:#ef4444;">{s} LOW</span>'
+                f'<span style="color:#f87171;">{s} LOW</span>'
                 f'</div></div>',
                 unsafe_allow_html=True)
 
@@ -5031,7 +5031,7 @@ def page_watchlist():
         border: 1px solid rgba(255,255,255,.07) !important;
         color: #9fabc0 !important;
         font-family: 'Syne', sans-serif !important;
-        font-weight: 700 !important; font-size: 12px !important;
+        font-weight: 700 !important; font-size:13px !important;
         letter-spacing: .04em !important;
         border-radius: 8px !important; padding: 9px 16px !important;
         transition: all .18s ease !important;
@@ -5048,14 +5048,14 @@ def page_watchlist():
         border: 1px solid rgba(212,168,67,.55) !important;
         color: #f0c668 !important;
         font-family: 'Syne', sans-serif !important;
-        font-weight: 800 !important; font-size: 12px !important;
+        font-weight: 800 !important; font-size:13px !important;
         letter-spacing: .04em !important;
         border-radius: 8px !important; padding: 9px 16px !important;
         box-shadow: 0 0 0 1px rgba(212,168,67,.12), 0 2px 12px rgba(212,168,67,.15) !important;
     }
     </style>
     """, unsafe_allow_html=True)
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;'
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
                 'letter-spacing:.12em;margin-bottom:8px;">LISTS</div>', unsafe_allow_html=True)
     _tab_cols = st.columns(max(len(_all_lists), 1))
     for _i, w in enumerate(_all_lists):
@@ -5116,16 +5116,16 @@ def page_watchlist():
         background: linear-gradient(135deg,#d4a843,#b8922e) !important;
         color:#0a0b14 !important; border:none !important;
         font-family:Syne,sans-serif !important; font-weight:800 !important;
-        font-size:12px !important; letter-spacing:.06em !important;
+        font-size:13px !important; letter-spacing:.06em !important;
         border-radius:8px !important; text-transform:uppercase !important;
         box-shadow:0 2px 12px rgba(212,168,67,.2) !important;
     }
     .st-key-wl_native_rm button {
-        background:rgba(239,68,68,.08) !important;
-        border:1px solid rgba(239,68,68,.3) !important;
-        color:#ef4444 !important;
+        background:rgba(248,113,113,.08) !important;
+        border:1px solid rgba(248,113,113,.3) !important;
+        color:#f87171 !important;
         font-family:Syne,sans-serif !important; font-weight:700 !important;
-        font-size:12px !important; border-radius:8px !important;
+        font-size:13px !important; border-radius:8px !important;
         text-transform:uppercase !important; letter-spacing:.06em !important;
     }
     </style>
@@ -5173,7 +5173,7 @@ def page_watchlist():
             '<div style="font-size:32px;margin-bottom:12px;">★</div>'
             '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700;color:#9fabc0;margin-bottom:8px;">'
             'Your watchlist is empty</div>'
-            '<div style="font-size:13px;color:#64748b;line-height:1.6;">'
+            '<div style="font-size:13px;color:#94a3b8;line-height:1.6;">'
             'Search any stock on the Screener and hit <strong style="color:#b3bed0;">Add to Watchlist</strong> '
             'to track its conviction score here.</div>'
             '</div>',
@@ -5229,25 +5229,25 @@ def page_watchlist():
         cur_level   = _level(cur)
         entry_level = _level(entry_score)
         if cur_level != entry_level:
-            color = "#00ff87" if cur_level == "High" else ("#ef4444" if cur_level == "Low" else "#fbbf24")
+            color = "#34d399" if cur_level == "High" else ("#f87171" if cur_level == "Low" else "#fbbf24")
             arrow = "▲" if cur > entry_score else "▼"
             alerts.append(
                 f'<div style="display:flex;justify-content:space-between;align-items:center;'
                 f'padding:8px 12px;background:rgba(255,255,255,.02);border-radius:4px;margin-bottom:4px;">'
                 f'<div><span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{tk}</span>'
-                f' <span style="font-size:12px;color:#9fabc0;">conviction changed</span></div>'
+                f' <span style="font-size:13px;color:#9fabc0;">conviction changed</span></div>'
                 f'<span style="font-size:13px;font-weight:700;color:{color};">{arrow} {entry_level} → {cur_level}</span>'
                 f'</div>'
             )
         # Large score move (10+) without level change
         elif abs(delta) >= 10:
-            color = "#00ff87" if delta > 0 else "#ef4444"
+            color = "#34d399" if delta > 0 else "#f87171"
             sign  = "+" if delta > 0 else ""
             alerts.append(
                 f'<div style="display:flex;justify-content:space-between;align-items:center;'
                 f'padding:8px 12px;background:rgba(255,255,255,.02);border-radius:4px;margin-bottom:4px;">'
                 f'<div><span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{tk}</span>'
-                f' <span style="font-size:12px;color:#9fabc0;">score moved significantly</span></div>'
+                f' <span style="font-size:13px;color:#9fabc0;">score moved significantly</span></div>'
                 f'<span style="font-size:13px;font-weight:700;color:{color};">{sign}{delta:.0f} pts → {cur:.0f}</span>'
                 f'</div>'
             )
@@ -5256,7 +5256,7 @@ def page_watchlist():
         st.markdown(
             f'<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.2);'
             f'border-radius:8px;padding:12px 16px;margin-bottom:16px;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:8px;">🔔 CONVICTION UPDATES</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin-bottom:8px;">🔔 CONVICTION UPDATES</div>'
             + "".join(alerts) +
             f'</div>',
             unsafe_allow_html=True
@@ -5337,7 +5337,7 @@ def page_watchlist():
     scores_all = [float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) for w in watchlist]
     avg_score  = sum(scores_all) / len(scores_all) if scores_all else 0
     avg_label  = 'High' if avg_score >= 60 else ('Low' if avg_score < 45 else 'Moderate')
-    avg_color  = '#00ff87' if avg_score >= 60 else ('#ef4444' if avg_score < 45 else '#fbbf24')
+    avg_color  = '#34d399' if avg_score >= 60 else ('#f87171' if avg_score < 45 else '#fbbf24')
     # Count improving vs weakening from wl_trend
     n_improving = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2191')
     n_weakening = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2193')
@@ -5348,8 +5348,8 @@ def page_watchlist():
     top_sector = Counter(hi_sectors).most_common(1)[0][0] if hi_sectors else ''
     top_sector_html = f'<span style="color:#8896ac;">· {top_sector} leading</span>' if top_sector else ''
 
-    _impr_html = f'<span style="color:#00ff87;">↑ {n_improving} improving</span>' if n_improving else ''
-    _weak_html = f'<span style="color:#ef4444;">↓ {n_weakening} weakening</span>' if n_weakening else ''
+    _impr_html = f'<span style="color:#34d399;">↑ {n_improving} improving</span>' if n_improving else ''
+    _weak_html = f'<span style="color:#f87171;">↓ {n_weakening} weakening</span>' if n_weakening else ''
     _sep = '<span style="color:#1e293b;"> · </span>'
     _parts = [p for p in [_impr_html, _weak_html, top_sector_html] if p]
 
@@ -5375,9 +5375,9 @@ def page_watchlist():
                 if len(scores) >= 2:
                     delta = scores[0] - scores[1]
                     if delta >= 3:
-                        wl_trend[tk2] = ("↑", "#00ff87", f"+{delta:.0f}")
+                        wl_trend[tk2] = ("↑", "#34d399", f"+{delta:.0f}")
                     elif delta <= -3:
-                        wl_trend[tk2] = ("↓", "#ef4444", f"{delta:.0f}")
+                        wl_trend[tk2] = ("↓", "#f87171", f"{delta:.0f}")
                     else:
                         wl_trend[tk2] = ("→", "#fbbf24", f"{delta:+.0f}")
     except Exception:
@@ -5386,9 +5386,9 @@ def page_watchlist():
     st.markdown(
         f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
         f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
-        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;">{n} tracked</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">{n} tracked</span>'
         f'<span style="color:#1e293b;">·</span>'
-        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{avg_color};">avg {avg_score:.0f} {avg_label}</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{avg_color};">avg {avg_score:.0f} {avg_label}</span>'
         + (_sep + _sep.join(_parts) if _parts else '')
         + f'</div>',
         unsafe_allow_html=True
@@ -5458,11 +5458,11 @@ def page_watchlist():
                 _ep = float(_entry_px); _cp = float(_cur_px)
                 if _ep > 0:
                     _ret = (_cp - _ep) / _ep * 100
-                    _rc = "#00ff87" if _ret > 0 else ("#ef4444" if _ret < 0 else "#b3bed0")
+                    _rc = "#34d399" if _ret > 0 else ("#f87171" if _ret < 0 else "#b3bed0")
                     _sign = "+" if _ret >= 0 else ""
                     _since_inner = (
                         f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_sign}{_ret:.1f}%</div>'
-                        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;">${_ep:,.2f} → ${_cp:,.2f}</div>'
+                        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">${_ep:,.2f} → ${_cp:,.2f}</div>'
                     )
         except Exception:
             pass
@@ -5477,12 +5477,12 @@ def page_watchlist():
         try:
             if _dc.get("chg_pct") is not None:
                 _tc_pct = float(_dc["chg_pct"]); _tc_d = float(_dc.get("chg_dollar", 0))
-                _tcc = "#00ff87" if _tc_pct > 0 else ("#ef4444" if _tc_pct < 0 else "#b3bed0")
+                _tcc = "#34d399" if _tc_pct > 0 else ("#f87171" if _tc_pct < 0 else "#b3bed0")
                 _tsign = "+" if _tc_pct >= 0 else ""
                 _tsub = f'{_tsign}${_tc_d:,.2f}' + (' · at close' if _dc.get("settled") else '')
                 _today_inner = (
                     f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_tcc};">{_tsign}{_tc_pct:.2f}%</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;">{_tsub}</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{_tsub}</div>'
                 )
         except Exception:
             pass
@@ -5522,7 +5522,7 @@ def page_watchlist():
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
-        'border-radius:0 0 6px 6px;font-size:12px;color:#64748b;">'
+        'border-radius:0 0 6px 6px;font-size:13px;color:#94a3b8;">'
         'Scores updated daily via nightly refresh · Add stocks via Screener search</div>',
         unsafe_allow_html=True
     )
@@ -5560,19 +5560,19 @@ def page_gems():
 
     if not is_pro():
         st.markdown("""
-        <div style="margin:0 32px;background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.2);
+        <div style="margin:0 32px;background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.2);
              border-radius:8px;padding:28px 24px;text-align:center;">
           <div style="font-size:48px;margin-bottom:16px;">🔒</div>
           <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
-               color:#00ff87;margin-bottom:12px;">Founding Member Feature</div>
+               color:#34d399;margin-bottom:12px;">Founding Member Feature</div>
           <div style="color:#9fabc0;max-width:480px;margin:0 auto;line-height:1.7;margin-bottom:24px;">
             Hidden Gem detection is free for the first 50 founding members.
             These are mid-cap stocks with institutional-grade factor scores that
             fly under Wall Street's radar — the ones that show up before the crowd notices.
           </div>
-          <div style="background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.3);
+          <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.3);
                border-radius:6px;padding:16px 24px;display:inline-block;margin-bottom:24px;">
-            <div style="font-family:'DM Mono',monospace;font-size:12px;color:#00ff87;">
+            <div style="font-family:'DM Mono',monospace;font-size:13px;color:#34d399;">
               🎯 Preview: CELH — Revenue +62% YoY · Earnings +148% · Beat 4/4 quarters
             </div>
           </div>
@@ -5587,7 +5587,7 @@ def page_gems():
     # Use exactly same data pipeline as screener — guarantees matching gem count
     if st.session_state.scan_results is None:
         st.markdown(
-            '<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;'
+            '<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
             'letter-spacing:.08em;margin-bottom:8px;">LOADING UNIVERSE SCORES</div>',
             unsafe_allow_html=True)
         _gems_prog = st.progress(0, text="Fetching scores...")
@@ -5628,7 +5628,7 @@ def page_gems():
         except Exception:
             st.session_state.macro_data = {}
     regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
-    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316","RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
+    regime_colors = {"RISK_OFF":"#f87171","HIGH VOLATILITY":"#f97316","RISK_ON":"#34d399","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
     regime_color = regime_colors.get(regime, "#d4a843")
 
     if not gems:
@@ -5637,11 +5637,11 @@ def page_gems():
             '<div style="font-size:40px;margin-bottom:16px;">💎</div>'
             '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#8896ac;margin-bottom:8px;">'
             'No hidden gems today</div>'
-            '<div style="font-size:13px;color:#64748b;max-width:320px;margin:0 auto;line-height:1.7;">'
+            '<div style="font-size:13px;color:#94a3b8;max-width:320px;margin:0 auto;line-height:1.7;">'
             'The model detected no mid-cap stocks clearing the high-conviction threshold in the current macro regime. '
             'Check back after the next nightly scan or visit the Screener to explore all signals.'
             '</div>'
-            '<div style="margin-top:20px;font-family:DM Mono,monospace;font-size:12px;color:#1e293b;letter-spacing:.08em;">'
+            '<div style="margin-top:20px;font-family:DM Mono,monospace;font-size:13px;color:#1e293b;letter-spacing:.08em;">'
             f'THRESHOLD: {"67+" if regime in ("RISK_OFF","HIGH VOLATILITY") else "62+"} IN {regime} REGIME'
             '</div></div>',
             unsafe_allow_html=True)
@@ -6172,7 +6172,7 @@ def page_portfolio():
         _lo = sum(1 for x in _sc if x<45)
         _avg = sum(_sc)/len(_sc)
         _conv_label = "High" if _avg>=60 else ("Low" if _avg<45 else "Moderate")
-        _conv_color = "#00ff87" if _avg>=60 else ("#ef4444" if _avg<45 else "#fbbf24")
+        _conv_color = "#34d399" if _avg>=60 else ("#f87171" if _avg<45 else "#fbbf24")
         # Trend — compare to previous snapshot avg if available
         _trend_html = ""
         _prev_snap = get_signal_snapshot(uid()) or {}
@@ -6181,9 +6181,9 @@ def page_portfolio():
             _prev_avg = sum(_prev_sc)/len(_prev_sc) if _prev_sc else _avg
             _delta = _avg - _prev_avg
             if abs(_delta) >= 1:
-                _tc = "#00ff87" if _delta>0 else "#ef4444"
+                _tc = "#34d399" if _delta>0 else "#f87171"
                 _ta = "↑" if _delta>0 else "↓"
-                _trend_html = f'<span style="font-size:12px;color:{_tc};margin-left:8px;">{_ta} {abs(_delta):.1f} pts</span>'
+                _trend_html = f'<span style="font-size:13px;color:{_tc};margin-left:8px;">{_ta} {abs(_delta):.1f} pts</span>'
         # Key risks
         _risks = []
         if _lo > 0: _risks.append(f"{_lo} low conviction position{'s' if _lo>1 else ''}")
@@ -6203,8 +6203,8 @@ def page_portfolio():
         if _risks:
             _risk_html = (
                 '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05);">'
-                '<span style="font-size:12px;color:#8896ac;letter-spacing:.06em;">KEY RISKS · </span>'
-                + " · ".join(f'<span style="font-size:12px;color:#ef4444;">⚠ {r}</span>' for r in _risks)
+                '<span style="font-size:13px;color:#8896ac;letter-spacing:.06em;">KEY RISKS · </span>'
+                + " · ".join(f'<span style="font-size:13px;color:#f87171;">⚠ {r}</span>' for r in _risks)
                 + '</div>'
             )
         st.markdown(
@@ -6215,12 +6215,12 @@ def page_portfolio():
             f'<div>'
             f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};white-space:nowrap;">{_conv_label}</span>'
             f'{_trend_html}'
-            f'<div style="font-size:12px;color:#8896ac;margin-top:2px;">avg score {_avg:.0f} · {len(holdings)} positions</div>'
+            f'<div style="font-size:13px;color:#8896ac;margin-top:2px;">avg score {_avg:.0f} · {len(holdings)} positions</div>'
             f'</div>'
             f'<div style="display:flex;gap:12px;">'
-            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#00ff87;">{_hi}</div><div style="font-size:11px;color:#8896ac;">HIGH</div></div>'
+            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#34d399;">{_hi}</div><div style="font-size:11px;color:#8896ac;">HIGH</div></div>'
             f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#fbbf24;">{_mo}</div><div style="font-size:11px;color:#8896ac;">MOD</div></div>'
-            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#ef4444;">{_lo}</div><div style="font-size:11px;color:#8896ac;">LOW</div></div>'
+            f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#f87171;">{_lo}</div><div style="font-size:11px;color:#8896ac;">LOW</div></div>'
             f'</div></div>'
             + _risk_html
             + f'</div>',
@@ -6231,7 +6231,7 @@ def page_portfolio():
     # ── Plan capacity bar ──────────────────────────────────────────────────────
     if plan == "free" and n_holdings >= 6:
         pct = min(100, int(n_holdings / max_h * 100))
-        bar_c = "#ef4444" if n_holdings >= max_h else "#fbbf24" if n_holdings >= 8 else "#00ff87"
+        bar_c = "#f87171" if n_holdings >= max_h else "#fbbf24" if n_holdings >= 8 else "#34d399"
         st.markdown(f"""
         <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
              border-radius:6px;padding:12px 16px;margin-bottom:16px;
@@ -6239,7 +6239,7 @@ def page_portfolio():
           <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
               <span style="font-size:14px;color:#b3bed0;">Free plan — positions used</span>
-              <span style="font-family:'DM Mono',monospace;font-size:12px;color:{bar_c};">
+              <span style="font-family:'DM Mono',monospace;font-size:13px;color:{bar_c};">
                 {n_holdings} / {max_h}
               </span>
             </div>
@@ -6249,7 +6249,7 @@ def page_portfolio():
             </div>
           </div>
           <div style="font-size:13px;color:#9fabc0;flex-shrink:0;">
-            {'<span style="color:#ef4444;">At limit</span>' if n_holdings >= max_h else f'{max_h - n_holdings} remaining'}
+            {'<span style="color:#f87171;">At limit</span>' if n_holdings >= max_h else f'{max_h - n_holdings} remaining'}
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -6267,9 +6267,9 @@ def page_portfolio():
             for chg in signal_changes:
                 ct = chg.get("type","action_change")
                 if ct == "action_change" and chg["to"] == "SELL":
-                    _chg_items.append(f'<span style="color:#ef4444;">▼ {chg["ticker"]}</span>')
+                    _chg_items.append(f'<span style="color:#f87171;">▼ {chg["ticker"]}</span>')
                 elif ct == "action_change" and chg["to"] == "BUY":
-                    _chg_items.append(f'<span style="color:#00ff87;">▲ {chg["ticker"]}</span>')
+                    _chg_items.append(f'<span style="color:#34d399;">▲ {chg["ticker"]}</span>')
                 elif ct == "deterioration":
                     _chg_items.append(f'<span style="color:#fbbf24;">⚠ {chg["ticker"]}</span>')
             if _chg_items:
@@ -6298,8 +6298,8 @@ def page_portfolio():
     with st.expander("➕ Add Position", expanded=(n_holdings == 0)):
         if at_limit and plan == "free":
             st.markdown("""
-            <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);
-                 border-radius:6px;padding:14px;font-size:13px;color:#ef4444;">
+            <div style="background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);
+                 border-radius:6px;padding:14px;font-size:13px;color:#f87171;">
               Free plan limit reached (10 positions). Upgrade to Pro for unlimited holdings.
             </div>
             """, unsafe_allow_html=True)
@@ -6321,7 +6321,7 @@ def page_portfolio():
                     resolved_ticker, resolved_name = resolve_ticker(tk_query)
                 if resolved_ticker and resolved_name and resolved_name != resolved_ticker:
                     st.markdown(
-                        f'<div style="font-size:14px;color:#00ff87;margin-bottom:8px;">'
+                        f'<div style="font-size:14px;color:#34d399;margin-bottom:8px;">'
                         f'✓ {resolved_ticker} — {resolved_name}</div>',
                         unsafe_allow_html=True)
                 elif resolved_ticker:
@@ -6403,9 +6403,9 @@ def page_portfolio():
     port_na    = n_holdings - port_buys - port_holds - port_sells
 
     port_summary_data = [
-        ("▲ High Conviction",  port_buys,  "#00ff87"),
+        ("▲ High Conviction",  port_buys,  "#34d399"),
         ("─ Moderate",         port_holds, "#fbbf24"),
-        ("▼ Low Conviction",   port_sells, "#ef4444"),
+        ("▼ Low Conviction",   port_sells, "#f87171"),
         ("Outside Universe",   port_na,    "#8896ac"),
     ]
     ps_html = "".join([
@@ -6445,12 +6445,12 @@ def page_portfolio():
         period_btns = ""
         for _pk, _pl, _ in PERIOD_DATA:
             _active = _pk == _cur_period
-            _bg     = "background:#00ff87;color:#0a0b14;" if _active else "background:rgba(255,255,255,.04);color:#b3bed0;"
+            _bg     = "background:#34d399;color:#0a0b14;" if _active else "background:rgba(255,255,255,.04);color:#b3bed0;"
             _url    = f"?qnav=portfolio&uid={_uid_val}&plan={_plan_val}&ck=1&port_period={_pk}&_n=portfolio"
             period_btns += (
                 f'<a href="{_url}" target="_self" style="'
                 f'padding:7px 14px;border-radius:6px;font-family:DM Mono,monospace;'
-                f'font-size:12px;font-weight:700;letter-spacing:.06em;text-decoration:none;'
+                f'font-size:13px;font-weight:700;letter-spacing:.06em;text-decoration:none;'
                 f'border:1px solid rgba(255,255,255,.08);{_bg}">{_pl}</a>'
             )
         st.markdown(
@@ -6532,7 +6532,7 @@ def page_portfolio():
         ref_basis    = total_cost_basis if is_actual else total_start_val
         total_change = total_current - ref_basis
         chg_pct      = (total_change / ref_basis * 100) if ref_basis > 0 else 0
-        change_c     = "#00ff87" if total_change >= 0 else "#ef4444"
+        change_c     = "#34d399" if total_change >= 0 else "#f87171"
         arrow        = "▲" if total_change >= 0 else "▼"
         period_note  = "vs cost basis" if is_actual else f"{plbl} lookback (actual prices)"
 
@@ -6639,7 +6639,7 @@ def page_portfolio():
         if live_price and cost and shares:
             _pnl_d = (live_price - cost) * shares
             _pct_v = ((live_price - cost) / cost * 100) if cost else 0.0
-            _rc    = '#00ff87' if _pct_v >= 0 else '#ef4444'
+            _rc    = '#34d399' if _pct_v >= 0 else '#f87171'
             _sg    = '+' if _pct_v >= 0 else ''
             _pct_str = f'{_sg}{_pct_v:.2f}%'
             _pnl_str = f'{_sg}${abs(_pnl_d):,.0f}'
@@ -6650,16 +6650,16 @@ def page_portfolio():
             f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
             f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
             f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#b3bed0;">{_edate}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;margin-top:2px;">{_shares_str} sh</div></div>'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#b3bed0;">{_ep_str}</div></div>'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{_cp_str}</div></div>'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_edate}</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;margin-top:2px;">{_shares_str} sh</div></div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_ep_str}</div></div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">{_cp_str}</div></div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{_rc};">{_pnl_str}</div></div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{_rc};">{_pnl_str}</div></div>'
             f'</div>'
         )
         # Render the card (no iframe): P&L strip + Remove button inside the detail.
@@ -6818,15 +6818,15 @@ def page_simulator():
         "LOW":    ("🛡 Low Risk",    "Top 20 by quality + value. More defensive positioning."),
     }
     st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:10px;">RISK PROFILE</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:10px;">RISK PROFILE</div>', unsafe_allow_html=True)
 
     p_cols = st.columns(3)
     for col, (pk, (plbl, pdesc)) in zip(p_cols, PROFILES.items()):
         with col:
             active = st.session_state.sim_profile == pk
-            bg     = "rgba(212,168,67,.12)" if pk=="HIGH" else "rgba(0,255,135,.10)" if pk=="LOW" else "rgba(255,255,255,.06)"
-            border = "rgba(212,168,67,.6)"  if pk=="HIGH" else "rgba(0,255,135,.5)"  if pk=="LOW" else "rgba(148,163,184,.35)"
-            tc     = "#d4a843" if pk=="HIGH" else "#00ff87" if pk=="LOW" else "#b3bed0"
+            bg     = "rgba(212,168,67,.12)" if pk=="HIGH" else "rgba(52,211,153,.10)" if pk=="LOW" else "rgba(255,255,255,.06)"
+            border = "rgba(212,168,67,.6)"  if pk=="HIGH" else "rgba(52,211,153,.5)"  if pk=="LOW" else "rgba(148,163,184,.35)"
+            tc     = "#d4a843" if pk=="HIGH" else "#34d399" if pk=="LOW" else "#b3bed0"
             if active:
                 bg = bg.replace(",.12",",.2").replace(",.10",",.18").replace(",.06",",.12")
             _prof_url = f"?qnav=simulator&uid={_uid_val}&plan={_plan_val}&ck=1&_sp={pk}&_n=simulator"
@@ -6836,8 +6836,8 @@ def page_simulator():
                 f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
                 f'padding:10px 8px;text-align:center;margin-bottom:4px;">'
                 f'<div style="font-size:13px;font-weight:700;color:{tc};">{plbl}</div>'
-                f'<div style="font-size:12px;color:#9fabc0;margin-top:3px;line-height:1.3;">{pdesc[:55]}</div>'
-                f'<div style="font-size:12px;color:{tc};margin-top:6px;font-weight:700;">{_btn_label}</div>'
+                f'<div style="font-size:13px;color:#9fabc0;margin-top:3px;line-height:1.3;">{pdesc[:55]}</div>'
+                f'<div style="font-size:13px;color:{tc};margin-top:6px;font-weight:700;">{_btn_label}</div>'
                 f'</div></a>',
                 unsafe_allow_html=True)
 
@@ -6852,24 +6852,24 @@ def page_simulator():
         background:linear-gradient(135deg,#d4a843,#b8922e) !important;
         color:#000 !important; border:none !important;
         font-family:Syne,sans-serif !important; font-weight:800 !important;
-        font-size:12px !important; letter-spacing:.08em !important;
+        font-size:13px !important; letter-spacing:.08em !important;
         padding:10px !important; border-radius:6px !important;
         margin-top:4px !important;
     }
     /* Remove from sim button */
     div[data-testid='stButton'][data-key='sim_rm_sel'] > div > button,
     div[data-testid='stButton'][data-key^='sim_rm_'] > div > button {
-        background:rgba(239,68,68,.08) !important;
-        border:1px solid rgba(239,68,68,.3) !important;
-        color:#ef4444 !important;
+        background:rgba(248,113,113,.08) !important;
+        border:1px solid rgba(248,113,113,.3) !important;
+        color:#f87171 !important;
         font-family:Syne,sans-serif !important; font-weight:700 !important;
-        font-size:12px !important; padding:10px !important;
+        font-size:13px !important; padding:10px !important;
         border-radius:6px !important; margin-top:4px !important;
     }
     </style>
     """, unsafe_allow_html=True)
     st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:6px;">ADD POSITION</div>', unsafe_allow_html=True)
 
     # Search with live suggestions + Enter to select first match
     def _on_sim_search():
@@ -6907,7 +6907,7 @@ def page_simulator():
     if _sim_matches:
         _sug_html = ('<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
                     'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
-                    '<div style="font-family:DM Mono,monospace;font-size:11px;color:#64748b;'
+                    '<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;'
                     'letter-spacing:.1em;padding:7px 14px 3px;">SUGGESTIONS</div>')
         for _r in _sim_matches:
             _tk  = _r["ticker"]
@@ -6917,14 +6917,14 @@ def page_simulator():
                 _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
                              'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;opacity:.5;">'
                              f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#8896ac;min-width:52px;">{_tk}</span>'
-                             f'<span style="font-size:12px;color:#64748b;">score {_sc:.0f} · in simulation</span></a>')
+                             f'<span style="font-size:13px;color:#94a3b8;">score {_sc:.0f} · in simulation</span></a>')
             else:
                 _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
                              'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;cursor:pointer;'
                              f'" onclick="">'
                              f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'
-                             f'<span style="font-size:12px;color:#00ff87;">score {_sc:.0f}</span>'
-                             f'<span style="font-size:12px;color:#8896ac;margin-left:auto;">tap to select</span></a>')
+                             f'<span style="font-size:13px;color:#34d399;">score {_sc:.0f}</span>'
+                             f'<span style="font-size:13px;color:#8896ac;margin-left:auto;">tap to select</span></a>')
         _sug_html += '</div>'
         st.markdown(_sug_html, unsafe_allow_html=True)
 
@@ -6939,7 +6939,7 @@ def page_simulator():
                     st.session_state._sim_selected_tk = _tk
                     st.rerun()
     elif _sim_q:
-        st.markdown('<div style="font-size:12px;color:#64748b;padding:4px 0;">No matches in universe</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:13px;color:#94a3b8;padding:4px 0;">No matches in universe</div>', unsafe_allow_html=True)
 
     # Show selected ticker card with Add/Remove CTA
     _sim_sel_tk = st.session_state.get("_sim_selected_tk", "")
@@ -6999,7 +6999,7 @@ def page_simulator():
                        "sentiment": r.get("sentiment", 50)})
 
     weighted_score = sum(a["pct"] * a["score"] for a in alloc) / 100
-    sc_col = "#00ff87" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#ef4444"
+    sc_col = "#34d399" if weighted_score >= 70 else "#fbbf24" if weighted_score >= 55 else "#f87171"
 
     # Aggregate per-pillar averages — weighted by the SAME pct the score uses,
     # so flipping the equal/dollar toggle reweights pillars and score together.
@@ -7011,13 +7011,13 @@ def page_simulator():
     st.markdown(
         f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">'
         f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:4px;">INVESTED</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:4px;">INVESTED</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#d4a843;">${sim_amount:,.0f}</div></div>'
         f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:4px;">POSITIONS</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:4px;">POSITIONS</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#cbd5e1;">{n_sel}</div></div>'
         f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;text-align:center;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:4px;">AVG SCORE</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:4px;">AVG SCORE</div>'
         f'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:{sc_col};">{weighted_score:.1f}</div></div>'
         f'</div>', unsafe_allow_html=True)
 
@@ -7084,31 +7084,31 @@ def page_simulator():
             _over_cap.append((sec, pct))
         _bar_col = "#f59e0b" if _is_over else "#d4a843"
         _pct_col = "#f59e0b" if _is_over else "#cbd5e1"
-        _flag = ' <span style="font-size:12px;color:#f59e0b;">⚠ over 30%</span>' if _is_over else ''
+        _flag = ' <span style="font-size:13px;color:#f59e0b;">⚠ over 30%</span>' if _is_over else ''
         bars_html += (f'<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
-                      f'<span style="font-size:12px;color:#b3bed0;">{sec}{_flag}</span>'
-                      f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{_pct_col};">{pct:.1f}%</span></div>'
+                      f'<span style="font-size:13px;color:#b3bed0;">{sec}{_flag}</span>'
+                      f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_pct_col};">{pct:.1f}%</span></div>'
                       f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:5px;">'
                       f'<div style="width:{min(pct,100):.1f}%;height:100%;background:{_bar_col};border-radius:3px;"></div></div></div>')
     _cap_note = ''
     if _over_cap:
-        _cap_note = ('<div style="font-size:12px;color:#f59e0b;margin-top:4px;padding-top:8px;'
+        _cap_note = ('<div style="font-size:13px;color:#f59e0b;margin-top:4px;padding-top:8px;'
                      'border-top:1px solid rgba(245,158,11,.15);">Concentration flag — '
                      + ', '.join(f'{s} {p:.0f}%' for s, p in _over_cap)
                      + ' exceeds the 30% single-sector guideline.</div>')
     st.markdown(
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
         f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
-        f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:12px;">SECTOR EXPOSURE</div>'
         f'{bars_html}{_cap_note}</div>', unsafe_allow_html=True)
 
     # ── Aggregate pillar profile (weighted, recomputes with the toggle) ────────
     def _agg_bar(label, v):
-        c = "#00ff87" if v >= 60 else ("#f59e0b" if v >= 45 else "#ef4444")
+        c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
         return (f'<div style="margin-bottom:10px;">'
                 f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
-                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#b3bed0;letter-spacing:.06em;">{label}</span>'
-                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{c};">{v:.1f}</span></div>'
+                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;letter-spacing:.06em;">{label}</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{c};">{v:.1f}</span></div>'
                 f'<div style="background:rgba(255,255,255,.06);border-radius:3px;height:6px;">'
                 f'<div style="width:{min(max(v,2),100):.1f}%;height:100%;background:{c};border-radius:3px;"></div></div></div>')
     _pillar_bars = (
@@ -7122,43 +7122,43 @@ def page_simulator():
         f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
         f'border-radius:8px;padding:16px 20px;margin-bottom:16px;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
-        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;">PORTFOLIO FACTOR PROFILE</span>'
-        f'<span style="font-size:12px;color:#8896ac;">{"equal-weighted" if equal_weight else "dollar-weighted"}</span></div>'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;">PORTFOLIO FACTOR PROFILE</span>'
+        f'<span style="font-size:13px;color:#8896ac;">{"equal-weighted" if equal_weight else "dollar-weighted"}</span></div>'
         f'{_pillar_bars}</div>', unsafe_allow_html=True)
 
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:8px;">POSITIONS</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:8px;">POSITIONS</div>', unsafe_allow_html=True)
 
     def pill_bar(v):
-        c = "#00ff87" if v >= 60 else ("#f59e0b" if v >= 45 else "#ef4444")
+        c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
         return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
                 f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>')
 
     for a in sorted(alloc, key=lambda x: x["score"], reverse=True):
-        sc_color  = "#00ff87" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#ef4444"
+        sc_color  = "#34d399" if a["score"] >= 70 else "#fbbf24" if a["score"] >= 55 else "#f87171"
         price_str = f'${a["price"]:,.2f}' if a["price"] else "—"
         shares_str = f'{a["shares"]:,.3f}' if a["shares"] else "—"
         with st.expander(f'{a["ticker"]}  ·  ${a["allocation"]:,.0f} ({a["pct"]:.1f}%)  ·  score {a["score"]:.0f}', expanded=False):
             st.markdown(
                 f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
                 f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
-                f'<div style="font-size:12px;color:#9fabc0;margin-bottom:3px;">PRICE</div>'
+                f'<div style="font-size:13px;color:#9fabc0;margin-bottom:3px;">PRICE</div>'
                 f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#cbd5e1;">{price_str}</div></div>'
                 f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
-                f'<div style="font-size:12px;color:#9fabc0;margin-bottom:3px;">SHARES</div>'
+                f'<div style="font-size:13px;color:#9fabc0;margin-bottom:3px;">SHARES</div>'
                 f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#b3bed0;">{shares_str}</div></div>'
                 f'<div style="background:rgba(255,255,255,.04);border-radius:6px;padding:10px;text-align:center;">'
-                f'<div style="font-size:12px;color:#9fabc0;margin-bottom:3px;">CONVICTION</div>'
+                f'<div style="font-size:13px;color:#9fabc0;margin-bottom:3px;">CONVICTION</div>'
                 f'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:{sc_color};">{a["score"]:.0f}</div></div>'
                 f'</div>', unsafe_allow_html=True)
             st.markdown(
                 f'<div style="margin-bottom:10px;">'
-                f'<div style="font-size:12px;color:#9fabc0;margin-bottom:1px;">MOM {a["momentum"]:.0f}</div>{pill_bar(a["momentum"])}'
-                f'<div style="font-size:12px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">QUAL {a["quality"]:.0f}</div>{pill_bar(a["quality"])}'
-                f'<div style="font-size:12px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">VOL {a["volume"]:.0f}</div>{pill_bar(a["volume"])}'
-                f'<div style="font-size:12px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">VAL {a["value"]:.0f}</div>{pill_bar(a["value"])}'
-                f'<div style="font-size:12px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">SENT {a["sentiment"]:.0f}</div>{pill_bar(a["sentiment"])}'
+                f'<div style="font-size:13px;color:#9fabc0;margin-bottom:1px;">MOM {a["momentum"]:.0f}</div>{pill_bar(a["momentum"])}'
+                f'<div style="font-size:13px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">QUAL {a["quality"]:.0f}</div>{pill_bar(a["quality"])}'
+                f'<div style="font-size:13px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">VOL {a["volume"]:.0f}</div>{pill_bar(a["volume"])}'
+                f'<div style="font-size:13px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">VAL {a["value"]:.0f}</div>{pill_bar(a["value"])}'
+                f'<div style="font-size:13px;color:#9fabc0;margin-top:4px;margin-bottom:1px;">SENT {a["sentiment"]:.0f}</div>{pill_bar(a["sentiment"])}'
                 f'</div>', unsafe_allow_html=True)
-            st.markdown(f'<div style="font-size:12px;color:#8896ac;margin-bottom:8px;">{a["sector"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size:13px;color:#8896ac;margin-bottom:8px;">{a["sector"]}</div>', unsafe_allow_html=True)
             if not equal_weight:
                 raw_pct = st.session_state.sim_weights.get(a["ticker"], round(100.0 / n_sel, 1))
                 new_pct = st.slider(f"Weight % for {a['ticker']}", min_value=0.5, max_value=50.0,
@@ -7178,7 +7178,7 @@ def page_simulator():
                 st.rerun()
 
     st.markdown(
-        f'<div style="font-size:12px;color:#8896ac;padding-top:12px;margin-top:8px;'
+        f'<div style="font-size:13px;color:#8896ac;padding-top:12px;margin-top:8px;'
         f'border-top:1px solid rgba(255,255,255,.05);">'
         f'{"Equal weight" if equal_weight else "Custom weight (normalised)"} · ${sim_amount:,.0f} across {n_sel} positions · '
         f'Shares at last scan price · Hypothetical — not investment advice.</div>',
@@ -7264,7 +7264,7 @@ def page_alerts():
         st.markdown(f"""
         <div style="padding:8px 0;font-size:13px;color:#b3bed0;">
           {len(notifs)} notifications
-          {'· <span style="color:#00ff87;">' + str(unread) + ' unread</span>' if unread else ''}
+          {'· <span style="color:#34d399;">' + str(unread) + ' unread</span>' if unread else ''}
         </div>
         """, unsafe_allow_html=True)
     with ac2:
@@ -7293,10 +7293,10 @@ def page_alerts():
         """, unsafe_allow_html=True)
     else:
         icon_map = {
-            "buy_signal":  ("▲", "#00ff87"),
-            "sell_signal": ("▼", "#ef4444"),
+            "buy_signal":  ("▲", "#34d399"),
+            "sell_signal": ("▼", "#f87171"),
             "hold_alert":  ("─", "#fbbf24"),
-            "hidden_gem":  ("💎", "#00ff87"),
+            "hidden_gem":  ("💎", "#34d399"),
             "macro_alert": ("⚡", "#d4a843"),
             "system":      ("ℹ", "#8896ac"),
         }
@@ -7421,12 +7421,12 @@ def page_account():
 
         if mfa_on:
             st.markdown("""
-            <div style="background:rgba(0,255,135,.06);border:1px solid rgba(0,255,135,.25);
+            <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);
                  border-radius:8px;padding:18px 20px;margin-bottom:20px;
                  display:flex;align-items:center;gap:12px;">
-              <span style="font-size:20px;color:#00ff87;">✓</span>
+              <span style="font-size:20px;color:#34d399;">✓</span>
               <div>
-                <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#00ff87;">
+                <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#34d399;">
                   Two-factor authentication is enabled
                 </div>
                 <div style="font-size:14px;color:#b3bed0;margin-top:2px;">
@@ -7444,10 +7444,10 @@ def page_account():
                     st.error("Failed to disable MFA")
         else:
             st.markdown("""
-            <div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);
+            <div style="background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.2);
                  border-radius:8px;padding:18px 20px;margin-bottom:20px;">
               <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
-                   color:#ef4444;margin-bottom:4px;">⚠ Two-factor authentication is off</div>
+                   color:#f87171;margin-bottom:4px;">⚠ Two-factor authentication is off</div>
               <div style="font-size:14px;color:#b3bed0;">
                 We strongly recommend enabling MFA to protect your account.
                 Use Google Authenticator, Authy, or any TOTP app.
@@ -7521,7 +7521,7 @@ def page_account():
              border-radius:8px;padding:18px 20px;">
           <div style="font-family:'DM Mono',monospace;font-size:13px;color:#b3bed0;
                letter-spacing:.12em;margin-bottom:10px;">DATA SECURITY</div>
-          <div style="font-size:12px;color:#9fabc0;line-height:1.8;">
+          <div style="font-size:13px;color:#9fabc0;line-height:1.8;">
             Your email and personal data are stored encrypted using AES-256-GCM
             (Fernet). Passwords are hashed with bcrypt (cost 12) and never stored
             in plaintext. TOTP secrets are encrypted before storage. No sensitive
@@ -7656,7 +7656,7 @@ def page_account():
             else:
                 # Active subscription panel
                 st.markdown(f"""
-                <div style="background:rgba(0,255,135,.04);border:1px solid rgba(0,255,135,.15);
+                <div style="background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.15);
                      border-radius:8px;padding:16px 20px;font-size:13px;color:#4ade80;margin-bottom:18px;">
                   ✓ You have full Pro access. All features are enabled.
                 </div>
@@ -7704,17 +7704,17 @@ def page_account():
                      border-radius:8px;padding:18px 22px;margin-bottom:16px;">
                   <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap;">
                     <div>
-                      <div style="font-family:'DM Mono',monospace;font-size:12px;color:#9fabc0;
+                      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#9fabc0;
                            letter-spacing:.12em;margin-bottom:4px;">SUBSCRIPTION</div>
                       <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;
                            color:#d4a843;">{_billing_label}</div>
-                      <div style="font-size:12px;color:#b3bed0;margin-top:4px;">{_billing_note}</div>
+                      <div style="font-size:13px;color:#b3bed0;margin-top:4px;">{_billing_note}</div>
                     </div>
                     <div style="text-align:right;">
-                      <div style="font-family:'DM Mono',monospace;font-size:12px;color:#9fabc0;
+                      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#9fabc0;
                            letter-spacing:.12em;margin-bottom:4px;">STATUS</div>
                       <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
-                           color:#00ff87;">ACTIVE</div>
+                           color:#34d399;">ACTIVE</div>
                     </div>
                   </div>
                 </div>
@@ -7827,7 +7827,7 @@ def page_account():
                     st.markdown(
                         '<div style="font-size:13px;color:#b3bed0;line-height:1.7;margin-bottom:6px;">'
                         '<strong style="color:#e2e8f0;">Cancel your subscription</strong></div>'
-                        '<div style="font-size:12px;color:#9fabc0;line-height:1.7;margin-bottom:12px;">'
+                        '<div style="font-size:13px;color:#9fabc0;line-height:1.7;margin-bottom:12px;">'
                         'Clicking Cancel stops your next charge immediately. You keep Pro access '
                         f'until the end of your current paid period (<strong style="color:#b3bed0;">{_proposed_end}</strong>), '
                         'then your account converts to Free. Your data is preserved.'
@@ -7998,7 +7998,7 @@ def page_model_portfolio():
         )[:20]
 
         if buys:
-            st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;'
+            st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;'
                         'letter-spacing:.1em;margin-bottom:12px;">TONIGHT\'S ENTRIES (PREVIEW)</div>',
                         unsafe_allow_html=True)
             for i, r in enumerate(buys):
@@ -8009,9 +8009,9 @@ def page_model_portfolio():
                     f'gap:4px;padding:8px 12px;background:{bg};'
                     f'border:1px solid rgba(255,255,255,.04);border-radius:4px;margin-bottom:2px;">'
                     f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;">{r["ticker"]}</div>'
-                    f'<div style="font-size:12px;color:#9fabc0;">Entry today</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#b3bed0;">{price_str}</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00ff87;">{r.get("adj_composite", 0):.0f}</div>'
+                    f'<div style="font-size:13px;color:#9fabc0;">Entry today</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{price_str}</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#34d399;">{r.get("adj_composite", 0):.0f}</div>'
                     f'</div>', unsafe_allow_html=True)
         return
 
@@ -8124,7 +8124,7 @@ def page_model_portfolio():
     port_return     = (portfolio_value / BASE_CAPITAL - 1) * 100
     port_pnl        = portfolio_value - BASE_CAPITAL
     sign            = "+" if port_return >= 0 else ""
-    ret_color       = "#00ff87" if port_return >= 0 else "#ef4444"
+    ret_color       = "#34d399" if port_return >= 0 else "#f87171"
 
     # ── SPY benchmark — $100K invested at inception, marked to latest close.
     # Standard lump-at-inception benchmark, matching the Track Record page so
@@ -8171,11 +8171,11 @@ def page_model_portfolio():
         spy_return      = _pt["spy_ret"]
         spy_pnl         = BASE_CAPITAL * (spy_return / 100)
         sign            = "+" if port_return >= 0 else ""
-        ret_color       = "#00ff87" if port_return >= 0 else "#ef4444"
+        ret_color       = "#34d399" if port_return >= 0 else "#f87171"
 
     vs_spy_pct = port_return - spy_return
     vs_spy_pnl = port_pnl - spy_pnl
-    vs_color   = "#00ff87" if vs_spy_pct >= 0 else "#ef4444"
+    vs_color   = "#34d399" if vs_spy_pct >= 0 else "#f87171"
     vs_sign    = "+" if vs_spy_pct >= 0 else ""
 
 
@@ -8188,18 +8188,18 @@ def page_model_portfolio():
     st.markdown(
         '<div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);'
         'border-radius:8px;padding:16px 20px;margin-bottom:20px;">'
-        '<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+        '<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;'
         'letter-spacing:.1em;margin-bottom:8px;">⚡ INVESTMENT METHODOLOGY</div>'
         '<div style="font-size:13px;color:#b3bed0;line-height:1.7;">'
         f'Built from <strong style="color:#cbd5e1;">{_start_date}</strong> — '
         'highest conviction signals entered each day. '
-        'Entry threshold: <strong style="color:#00ff87;">≥ 67</strong> in HIGH VOLATILITY regime, '
-        '<strong style="color:#00ff87;">≥ 60</strong> in normal regimes. '
+        'Entry threshold: <strong style="color:#34d399;">≥ 67</strong> in HIGH VOLATILITY regime, '
+        '<strong style="color:#34d399;">≥ 60</strong> in normal regimes. '
         'Equal-weighted at <strong style="color:#cbd5e1;">$2,000 per position</strong> ($100K total). '
         '30% sector cap enforced at entry.'
         '<br><br>'
         '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions exit when conviction '
-        'drops below <strong style="color:#ef4444;">45</strong>. Capital redeploys into next '
+        'drops below <strong style="color:#f87171;">45</strong>. Capital redeploys into next '
         'highest conviction signal. No discretionary overrides.'
         '</div></div>',
         unsafe_allow_html=True
@@ -8207,7 +8207,7 @@ def page_model_portfolio():
 
     # ── Summary strip — CSS grid wraps to 2-3 cols on mobile ────────────────
     ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;text-align:center;"
-    ls = "font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:6px;"
+    ls = "font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:6px;"
 
     pnl_sign    = "+" if port_pnl >= 0 else ""
     vs_pnl_sign = "+" if vs_spy_pnl >= 0 else ""
@@ -8240,7 +8240,7 @@ def page_model_portfolio():
         # Track Record exactly; keep the $ figure from the active-book weighting.
         if _pt and _pt.get("day_model") is not None:
             _day_pct = _pt["day_model"]
-        _day_color  = "#00ff87" if _day_pct > 0 else ("#ef4444" if _day_pct < 0 else "#b3bed0")
+        _day_color  = "#34d399" if _day_pct > 0 else ("#f87171" if _day_pct < 0 else "#b3bed0")
         _day_s      = "+" if _day_pct >= 0 else ""
         _day_val    = f"{_day_s}{_day_pct:.2f}%"
         _day_sub    = f"{_day_s}${_day_dollar:,.0f}" + (" · at close" if _day_settled else "")
@@ -8253,7 +8253,7 @@ def page_model_portfolio():
         <div style="font-size:18px;font-weight:700;color:#d4a843;">${portfolio_value:,.0f}</div></div>
       <div style="{ss}"><div style="{ls}">TODAY</div>
         <div style="font-size:18px;font-weight:700;color:{_day_color};">{_day_val}</div>
-        <div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;margin-top:2px;">{_day_sub}</div></div>
+        <div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;margin-top:2px;">{_day_sub}</div></div>
       <div style="{ss}"><div style="{ls}">$ CHANGE</div>
         <div style="font-size:18px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>
       <div style="{ss}"><div style="{ls}">% RETURN</div>
@@ -8271,7 +8271,7 @@ def page_model_portfolio():
         if _eqchart:
             st.markdown(f"""
             <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
-              <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:12px;">
+              <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:13px;">
                 <span style="color:#d4a843;">\u2014 QNTM Model</span>
                 <span style="color:#7c8aa0;">\u2014 SPY</span>
                 <span style="color:#8896ac;margin-left:auto;">$100K since {_pt['inception']}</span>
@@ -8281,7 +8281,7 @@ def page_model_portfolio():
             """, unsafe_allow_html=True)
 
     # ── Holdings table ────────────────────────────────────────────────────────
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;'
                 'letter-spacing:.1em;margin-bottom:8px;">▲ ACTIVE POSITIONS</div>',
                 unsafe_allow_html=True)
 
@@ -8351,7 +8351,7 @@ def page_model_portfolio():
         _pct  = h.get('pnl_pct', 0)
         _pnl  = h.get('pnl', 0)
         _edate= str(h.get('entry_date',''))[:10]
-        _rc   = '#00ff87' if _pct >= 0 else '#ef4444'
+        _rc   = '#34d399' if _pct >= 0 else '#f87171'
         _sg   = '+' if _pct >= 0 else ''
         _ep_str = f'${_ep:,.2f}' if _ep else '—'
         _cp_str = f'${_cp:,.2f}' if _cp else '—'
@@ -8361,15 +8361,15 @@ def page_model_portfolio():
             f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
             f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
             f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#b3bed0;">{_edate}</div></div>'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#b3bed0;">{_ep_str}</div></div>'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;">{_cp_str}</div></div>'
-            f'<div><div style="font-size:12px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_edate}</div></div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_ep_str}</div></div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">{_cp_str}</div></div>'
+            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
             f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{_rc};">{_pnl_str}</div></div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{_rc};">{_pnl_str}</div></div>'
             f'</div>'
         )
         # Render card (no iframe): P&L strip + watchlist button inside detail.
@@ -8395,26 +8395,26 @@ def page_model_portfolio():
         for _name, _cnt in _pt["sector_counts"]:
             _pct = _cnt / _top * 100 if _top else 0
             _bars += (f'<div style="margin-bottom:8px;">'
-                      f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;">'
+                      f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:13px;">'
                       f'<span style="color:#b3bed0;">{_name}</span>'
                       f'<span style="font-family:DM Mono,monospace;color:#cbd5e1;">{_cnt}</span></div>'
                       f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:7px;">'
                       f'<div style="width:{_pct:.0f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
                       f'</div></div>')
         st.markdown(
-            '<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin:8px 0 10px;">\u25B2 SECTOR CONCENTRATION</div>'
+            '<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin:8px 0 10px;">\u25B2 SECTOR CONCENTRATION</div>'
             f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:20px;">{_bars}</div>',
             unsafe_allow_html=True)
 
     if _pt:
-        st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25BC CLOSED POSITIONS</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25BC CLOSED POSITIONS</div>', unsafe_allow_html=True)
         if _pt.get("exits"):
             _rows = ""
             for _e in _pt["exits"]:
-                _rc = "#00ff87" if _e["ret"] >= 0 else "#ef4444"
+                _rc = "#34d399" if _e["ret"] >= 0 else "#f87171"
                 _rows += (
                     f'<div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px;gap:8px;align-items:center;'
-                    f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;">'
+                    f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;">'
                     f'<span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{_e["ticker"]}</span>'
                     f'<span style="color:#9fabc0;">{_e["sector"]}</span>'
                     f'<span style="font-family:DM Mono,monospace;color:#8896ac;">{_e["entry_date"][5:]}\u2192{_e["exit_date"][5:]}</span>'
@@ -8439,7 +8439,7 @@ def page_model_portfolio():
     st.markdown('<div style="height:160px;"></div>', unsafe_allow_html=True)
 
     st.markdown(
-        '<div style="font-size:12px;color:#8896ac;padding:6px 8px;background:#050a0f;'
+        '<div style="font-size:13px;color:#8896ac;padding:6px 8px;background:#050a0f;'
         'border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;margin-bottom:8px;">'
         '$10K/position · Equal weighted · Auto-exit score < 45</div>',
         unsafe_allow_html=True)
@@ -8495,7 +8495,7 @@ def page_model_portfolio():
                           if e.get("exit_reason","") not in ("reseeded","")]
             if real_exits:
                 st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-                st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;'
+                st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;'
                             'letter-spacing:.1em;margin-bottom:12px;">RECENT EXITS</div>',
                             unsafe_allow_html=True)
                 for ex in real_exits:
@@ -8503,7 +8503,7 @@ def page_model_portfolio():
                     xp = ex.get("exit_price")
                     if ep and xp and ep > 0:
                         ret = (xp / ep - 1) * 100
-                        rc  = "#00ff87" if ret >= 0 else "#ef4444"
+                        rc  = "#34d399" if ret >= 0 else "#f87171"
                         sg  = "+" if ret >= 0 else ""
                         ret_str = f'{sg}{ret:.1f}%'
                     else:
@@ -8511,7 +8511,7 @@ def page_model_portfolio():
                         ret_str = "—"
                     st.markdown(
                         f'<div style="display:flex;gap:16px;padding:6px 12px;'
-                        f'border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;">'
+                        f'border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;">'
                         f'<span style="font-family:Syne,sans-serif;font-weight:800;color:#b3bed0;width:60px;">{ex["ticker"]}</span>'
                         f'<span style="color:#8896ac;">{ex.get("exit_date","")} · {ex.get("exit_reason","")}</span>'
                         f'<span style="font-family:DM Mono,monospace;color:{rc};margin-left:auto;">{ret_str}</span>'
@@ -8520,7 +8520,7 @@ def page_model_portfolio():
             pass
 
     st.markdown(
-        '<div style="font-size:12px;color:#8896ac;padding:16px 0;margin-top:16px;'
+        '<div style="font-size:13px;color:#8896ac;padding:16px 0;margin-top:16px;'
         'border-top:1px solid rgba(255,255,255,.05);">'
         '⚠ Model portfolio is hypothetical. $10K equal weight per position. '
         'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
@@ -8535,12 +8535,12 @@ def page_methodology():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     sections = [
-        ("The Universe", "#00ff87",
+        ("The Universe", "#34d399",
          "QNTM covers 834 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
          "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
          "most retail investors already hold or consider. Scores update nightly via automated refresh."),
 
-        ("The Factor Model", "#00ff87",
+        ("The Factor Model", "#34d399",
          "Each stock receives a composite score (0–100) built from five weighted pillars:\n\n"
          "• Momentum (30%) — price trend, RSI, MACD, 52-week proximity, rate of change\n"
          "• Quality (25%) — ROE, profit margin, revenue growth, EPS beat rate, FCF yield\n"
@@ -8549,7 +8549,7 @@ def page_methodology():
          "• Sentiment (10%) — short interest, insider buy ratio, institutional ownership\n\n"
          "Scores are cross-sectional — a score of 75 means the stock ranks stronger than 75% of the universe."),
 
-        ("Conviction Signals", "#00ff87",
+        ("Conviction Signals", "#34d399",
          "• High Conviction (score ≥ 60) — model sees strong multi-factor alignment. Top 40% of universe.\n"
          "• Moderate Conviction (45–59) — mixed factor signals, neither strong nor deteriorating.\n"
          "• Low Conviction (score < 45) — weakest factor profile in the universe. Elevated model risk.\n\n"
@@ -8567,7 +8567,7 @@ def page_methodology():
          "macro dampening reduces adj_composite scores to reflect elevated systemic risk. "
          "Regime updates every 15 minutes during your session."),
 
-        ("Hidden Gems", "#00ff87",
+        ("Hidden Gems", "#34d399",
          "Hidden Gems are mid-cap stocks scoring above conviction threshold that fly under Wall Street's radar. "
          "Detection criteria:\n\n"
          "• Not a mega-cap (excludes NVDA, AAPL, MSFT, etc.)\n"
@@ -8592,7 +8592,7 @@ def page_methodology():
          "• Macro regime — refreshed every 15 minutes from live VIX, WTI, and news feeds\n"
          "• Platform stats — gem count, high/low conviction counts updated after each refresh"),
 
-        ("What QNTM Does NOT Do", "#ef4444",
+        ("What QNTM Does NOT Do", "#f87171",
          "• QNTM does not provide personalized investment advice\n"
          "• QNTM does not account for your individual tax situation, risk tolerance, or financial goals\n"
          "• QNTM does not predict short-term price movements or guarantee future results\n"
@@ -8770,7 +8770,7 @@ def page_platform():
     st.markdown(
         '<div style="margin:32px 32px 8px;padding:12px 16px;"'
         'background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05);"'
-        'border-radius:6px;font-size:12px;color:#64748b;line-height:1.6;text-align:center;">'
+        'border-radius:6px;font-size:13px;color:#94a3b8;line-height:1.6;text-align:center;">'
         'QNTM provides quantitative signal analysis for informational and educational purposes only. '
         'Conviction scores are model outputs — not personalized investment advice. '
         'Past model performance does not guarantee future results. '
@@ -8781,7 +8781,7 @@ def page_platform():
 
     # ── Conflicts of interest footer (Part 2B — verbatim) ───────────────
     st.markdown(
-        '<div style="margin:0 32px 8px;padding:8px 16px;font-size:12px;color:#64748b;'
+        '<div style="margin:0 32px 8px;padding:8px 16px;font-size:13px;color:#94a3b8;'
         'line-height:1.6;text-align:center;">'
         'QNTM LLC holds no securities. Its principals may personally hold securities the model '
         'scores and trade only on published signals. '
@@ -8851,12 +8851,12 @@ def page_upgrade():
       </div>
       <div style="background:rgba(212,168,67,.06);border:1px solid rgba(212,168,67,.25);
            border-radius:10px;padding:20px;margin:20px 0;">
-        <div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;
+        <div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;
              letter-spacing:.1em;margin-bottom:6px;">FOUNDING MEMBER · FIRST 50 SPOTS</div>
         <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:#d4a843;line-height:1;">$0</div>
         <div style="font-size:13px;color:#9fabc0;margin-top:4px;">free now · $29/mo after launch</div>
       </div>
-      <div style="font-size:12px;color:#8896ac;margin-bottom:20px;line-height:1.6;">
+      <div style="font-size:13px;color:#8896ac;margin-bottom:20px;line-height:1.6;">
         Hidden Gems · Simulator · Alerts · Unlimited holdings · Full 834-stock universe
       </div>
     </div>
@@ -8940,7 +8940,7 @@ def page_upgrade():
                 '<div style="background:rgba(212,168,67,.15);border-radius:8px;'
                 'padding:12px;font-family:Syne,sans-serif;font-weight:800;color:#0a0b14;'
                 'background:linear-gradient(135deg,#d4a843,#b8922e);">Start free trial</div>'
-                '<div style="font-size:12px;color:#9fabc0;margin-top:8px;">'
+                '<div style="font-size:13px;color:#9fabc0;margin-top:8px;">'
                 'Check the box above to continue.</div></div>',
                 unsafe_allow_html=True,
             )
@@ -8949,7 +8949,7 @@ def page_upgrade():
         st.markdown(_cta_gold("✓ Claim Founding Member Access", _confirm_url), unsafe_allow_html=True)
 
     st.markdown("""
-    <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;line-height:1.6;">
+    <div style="text-align:center;margin-top:12px;font-size:13px;color:#94a3b8;line-height:1.6;">
       Quantitative research tool — not investment advice.<br>
       Past model performance does not guarantee future results.
     </div>
