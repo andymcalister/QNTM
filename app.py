@@ -5683,31 +5683,29 @@ def _track_record_data(sb):
         POS_SIZE = 2000.0
         inception = min(str(p["entry_date"])[:10] for p in positions)
 
-        # SPY history → canonical trading-day axis
-        spy_hist = yf.download("SPY", start=inception, progress=False, auto_adjust=True)
-        if spy_hist.empty:
+        # Daily close history for SPY + every held ticker in ONE yfinance pull.
+        # Same price source the Model Portfolio page uses, so the two pages
+        # reconcile (signal_log can lag a session behind when the batch gate is
+        # holding). Forward-filled across any gaps; SPY index is the date axis.
+        tickers = sorted({p["ticker"] for p in positions})
+        dl = yf.download(tickers + ["SPY"], start=inception,
+                         progress=False, auto_adjust=True)
+        if dl.empty:
             return None
-        spy_close = spy_hist["Close"]
-        if hasattr(spy_close, "columns"):
-            spy_close = spy_close.iloc[:, 0]
-        spy_close = spy_close.squeeze().dropna()
-        dates = [d.date().isoformat() for d in spy_close.index]
+        close = dl["Close"]
+        if not hasattr(close, "columns") or "SPY" not in close.columns:
+            return None
+        close = close.ffill()
+        spy_close = close["SPY"]
+        dates = [d.date().isoformat() for d in close.index]
         if len(dates) < 2:
             return None
 
-        # Daily prices per held ticker from signal_log
-        tickers = sorted({p["ticker"] for p in positions})
         price_map = {}
-        try:
-            pr = sb.table("signal_log").select("ticker,signal_date,price") \
-                .gte("signal_date", inception).in_("ticker", tickers).execute()
-            for r in (pr.data or []):
-                px = r.get("price")
-                if px is None:
-                    continue
-                price_map.setdefault(r["ticker"], {})[str(r["signal_date"])[:10]] = float(px)
-        except Exception:
-            pass
+        for tk in tickers:
+            if tk in close.columns:
+                price_map[tk] = {d.date().isoformat(): float(v)
+                                 for d, v in close[tk].items() if v == v}
 
         def price_on(tk, d, fallback):
             m = price_map.get(tk)
@@ -5791,28 +5789,55 @@ def _track_record_data(sb):
 
 
 def _tr_line_chart_svg(model_series, spy_series):
-    """Two-line SVG (gold = model, gray = SPY) of dollar book value over time."""
+    """Two-line SVG (gold = model, gray = SPY) of $ book value over time, with
+    value gridlines + $ labels, date ticks, a $100K reference, and end-point
+    value labels so the chart is readable at a glance."""
     if not model_series or len(model_series) < 2:
         return ""
-    W, H = 720, 260
-    PL, PR, PT, PB = 6, 6, 14, 18
+    dates  = [d for d, _ in model_series]
     m_vals = [v for _, v in model_series]
     s_vals = [v for _, v in spy_series]
+    W, H = 720, 280
+    PL, PR, PT, PB = 48, 66, 12, 26
     lo, hi = min(min(m_vals), min(s_vals)), max(max(m_vals), max(s_vals))
     if hi == lo:
         hi = lo + 1
+    pad = (hi - lo) * 0.08
+    lo -= pad; hi += pad
     n = len(m_vals)
     def X(i): return PL + (W - PL - PR) * (i / (n - 1))
     def Y(v): return PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo))
     def path(vals): return "M " + " L ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(vals))
-    ref = ""
+    def fmtk(v): return f"${v/1000:.1f}K"
+    p = []
+    # value gridlines + $ labels
+    for k in range(4):
+        tv = lo + (hi - lo) * k / 3.0
+        y = Y(tv)
+        p.append(f'<line x1="{PL}" y1="{y:.1f}" x2="{W-PR}" y2="{y:.1f}" stroke="rgba(255,255,255,.05)"/>')
+        p.append(f'<text x="{PL-6}" y="{y+3:.1f}" text-anchor="end" font-family="DM Mono,monospace" font-size="9" fill="#475569">{fmtk(tv)}</text>')
+    # $100K reference
     if lo <= 100000.0 <= hi:
         y0 = Y(100000.0)
-        ref = (f'<line x1="{PL}" y1="{y0:.1f}" x2="{W-PR}" y2="{y0:.1f}" '
-               f'stroke="rgba(255,255,255,.08)" stroke-dasharray="3,3"/>')
-    return (f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">{ref}'
-            f'<path d="{path(s_vals)}" fill="none" stroke="#64748b" stroke-width="1.5"/>'
-            f'<path d="{path(m_vals)}" fill="none" stroke="#d4a843" stroke-width="2.2"/></svg>')
+        p.append(f'<line x1="{PL}" y1="{y0:.1f}" x2="{W-PR}" y2="{y0:.1f}" stroke="rgba(255,255,255,.16)" stroke-dasharray="3,3"/>')
+    # date ticks (first / mid / last)
+    for i in (0, n // 2, n - 1):
+        anc = "start" if i == 0 else ("end" if i == n - 1 else "middle")
+        p.append(f'<text x="{X(i):.1f}" y="{H-6}" text-anchor="{anc}" font-family="DM Mono,monospace" font-size="9" fill="#475569">{dates[i][5:].replace("-","/")}</text>')
+    # lines
+    p.append(f'<path d="{path(s_vals)}" fill="none" stroke="#64748b" stroke-width="1.5"/>')
+    p.append(f'<path d="{path(m_vals)}" fill="none" stroke="#d4a843" stroke-width="2.2"/>')
+    # end-point dots + value labels (nudge apart if they'd collide)
+    my, sy = Y(m_vals[-1]), Y(s_vals[-1])
+    lm, ls = my, sy
+    if abs(lm - ls) < 11:
+        if lm <= ls: lm -= 6; ls += 6
+        else:        lm += 6; ls -= 6
+    p.append(f'<circle cx="{X(n-1):.1f}" cy="{sy:.1f}" r="2.5" fill="#64748b"/>')
+    p.append(f'<circle cx="{X(n-1):.1f}" cy="{my:.1f}" r="3" fill="#d4a843"/>')
+    p.append(f'<text x="{W-PR+5}" y="{ls+3:.1f}" font-family="DM Mono,monospace" font-size="9" fill="#94a3b8">{fmtk(s_vals[-1])}</text>')
+    p.append(f'<text x="{W-PR+5}" y="{lm+3:.1f}" font-family="DM Mono,monospace" font-size="10" font-weight="700" fill="#d4a843">{fmtk(m_vals[-1])}</text>')
+    return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">' + "".join(p) + '</svg>'
 
 
 def page_backtest():
@@ -7977,7 +8002,9 @@ def page_model_portfolio():
     sign        = "+" if port_return >= 0 else ""
     ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
 
-    # ── SPY benchmark — use cached value only, skip slow download ────────────
+    # ── SPY benchmark — $100K invested at inception, marked to latest close.
+    # Standard lump-at-inception benchmark, matching the Track Record page so
+    # the two pages report the same SPY comparison.
     spy_return = 0.0
     spy_pnl    = 0.0
     try:
@@ -7993,18 +8020,16 @@ def page_model_portfolio():
             spy_close = spy_hist["Close"]
             if hasattr(spy_close, "columns"): spy_close = spy_close.iloc[:,0]
             spy_close = spy_close.squeeze().dropna()
-            spy_now = float(spy_close.iloc[-1])
-            spy_rets = []
-            for pos in positions:
-                try:
-                    ed = _dt.fromisoformat(str(pos.get("entry_date",""))[:10])
-                    w  = spy_close[spy_close.index.date >= ed]
-                    if not w.empty:
-                        spy_rets.append((spy_now - float(w.iloc[0])) / float(w.iloc[0]) * 100)
-                except Exception:
-                    pass
-            if spy_rets:
-                spy_return = sum(spy_rets) / len(spy_rets)
+            try:
+                inception_mp = min(_dt.fromisoformat(str(p.get("entry_date",""))[:10])
+                                   for p in positions)
+                w = spy_close[spy_close.index.date >= inception_mp]
+            except Exception:
+                w = spy_close
+            if not w.empty:
+                spy_now  = float(spy_close.iloc[-1])
+                spy_base = float(w.iloc[0])
+                spy_return = (spy_now / spy_base - 1) * 100
                 spy_pnl    = total_invested * (spy_return / 100)
     except Exception:
         pass
