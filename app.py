@@ -2083,6 +2083,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         # short DM-Mono line like "ENT 05/30 · +2.4% today" so a user can scan
         # entry date and intraday move at a glance without expanding the card.
         _summary_meta = r.get("_summary_meta_html", "")
+        _mini_chart = r.get("_mini_chart_html", "")
         _summary = (
             f'<summary style="list-style:none;cursor:pointer;display:flex;'
             f'justify-content:space-between;align-items:center;padding:13px 18px;">'
@@ -2109,7 +2110,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
             f'style="margin-bottom:6px;background:rgba(255,255,255,.02);'
             f'border:1px solid rgba(255,255,255,.06);border-left:3px solid {act_c};'
             f'border-radius:8px;overflow:hidden;">'
-            + _summary + _body + '</details>'
+            + _summary + _body + _mini_chart + '</details>'
         )
 
     # ── div with data-cid for JS binding ─────────────────────────────────────
@@ -4194,10 +4195,9 @@ def platform_nav():
         ("screener",        "📊", "Screener"),
         ("watchlist",       "★",  "Watchlist"),
         ("gems",            "💎", "Hidden Gems"),
-        ("backtest",        "📈", "Track Record"),
         ("portfolio",       "💼", "Portfolio"),
         ("simulator",       "🧮", "Simulator"),
-        ("model_portfolio", "🏆", "Model Port."),
+        ("model_portfolio", "🏆", "Portfolio & Track Record"),
         ("alerts",          "🔔", "Alerts"),
         ("account",         "⚙️", "Account"),
         ("methodology",     "📖", "How It Works"),
@@ -5785,16 +5785,84 @@ def _track_record_data(sb):
                 sect[s] = sect.get(s, 0) + 1
         sector_counts = sorted(sect.items(), key=lambda x: x[1], reverse=True)
 
+        # Daily close paths for per-stock mini charts (stock vs SPY since entry).
+        spy_map = {d: float(v) for d, v in zip(dates, spy_close.values) if v == v}
+
         return {
             "inception": inception, "model_series": model_series, "spy_series": spy_series,
             "model_ret": model_ret, "spy_ret": spy_ret, "day_model": day_model, "day_spy": day_spy,
             "model_value": m_last, "spy_value": s_last, "exits": exits, "basis": basis,
-            "sector_counts": sector_counts,
+            "sector_counts": sector_counts, "price_map": price_map, "spy_map": spy_map,
             "n_active": sum(1 for p in positions if p.get("is_active")),
             "n_exited": len(exits), "n_sessions": len(dates),
         }
     except Exception:
         return None
+
+
+def _mini_vs_spy_svg(stock_pairs, spy_pairs):
+    """Tiny sparkline for an expanded position card: the holding's % return
+    (gold) vs SPY (slate) over the same window, normalized to 0% at the start.
+    Inputs are [(date, price), ...]. Returns '' if there isn't enough data."""
+    if not stock_pairs or len(stock_pairs) < 2 or not spy_pairs or len(spy_pairs) < 2:
+        return ""
+    def norm(pairs):
+        base = pairs[0][1]
+        if not base:
+            return None
+        return [(d, (v / base - 1) * 100) for d, v in pairs]
+    s, k = norm(stock_pairs), norm(spy_pairs)
+    if not s or not k:
+        return ""
+    W, H, P = 260, 58, 5
+    allv = [v for _, v in s] + [v for _, v in k]
+    lo, hi = min(allv), max(allv)
+    if hi == lo:
+        hi = lo + 1
+    pad = (hi - lo) * 0.14
+    lo -= pad; hi += pad
+    def X(i, n): return P + (W - 2 * P) * (i / (n - 1))
+    def Y(v): return P + (H - 2 * P) * (1 - (v - lo) / (hi - lo))
+    def path(arr): return "M " + " L ".join(f"{X(i, len(arr)):.1f},{Y(v):.1f}" for i, (_, v) in enumerate(arr))
+    zero = ""
+    if lo <= 0 <= hi:
+        y0 = Y(0)
+        zero = (f'<line x1="{P}" y1="{y0:.1f}" x2="{W-P}" y2="{y0:.1f}" '
+                f'stroke="rgba(255,255,255,.10)" stroke-dasharray="2,3"/>')
+    return (f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;max-width:300px;">{zero}'
+            f'<path d="{path(k)}" fill="none" stroke="#7c8aa0" stroke-width="1.4" stroke-linejoin="round"/>'
+            f'<path d="{path(s)}" fill="none" stroke="#d4a843" stroke-width="2" stroke-linejoin="round"/></svg>')
+
+
+def _build_mini_chart_html(ticker, entry_date, price_map, spy_map):
+    """Wrap _mini_vs_spy_svg with a label for injection into an expanded card.
+    Slices each series from the position's entry date so the comparison covers
+    the holding period. Returns '' on insufficient data."""
+    try:
+        pm = (price_map or {}).get(ticker) or {}
+        sm = spy_map or {}
+        e = str(entry_date)[:10]
+        sdates = sorted(d for d in pm if d >= e)
+        if len(sdates) < 2:
+            return ""
+        stock_pairs = [(d, pm[d]) for d in sdates]
+        spy_pairs   = [(d, sm[d]) for d in sdates if d in sm]
+        svg = _mini_vs_spy_svg(stock_pairs, spy_pairs)
+        if not svg:
+            return ""
+        s_ret = (stock_pairs[-1][1] / stock_pairs[0][1] - 1) * 100 if stock_pairs[0][1] else 0
+        k_ret = (spy_pairs[-1][1] / spy_pairs[0][1] - 1) * 100 if spy_pairs and spy_pairs[0][1] else 0
+        ss = "+" if s_ret >= 0 else ""; ks = "+" if k_ret >= 0 else ""
+        return (
+            '<div style="padding:10px 18px 14px;border-top:1px solid rgba(255,255,255,.05);">'
+            '<div style="display:flex;gap:14px;align-items:center;font-family:DM Mono,monospace;font-size:11px;margin-bottom:6px;">'
+            f'<span style="color:#d4a843;">\u2014 {ticker} {ss}{s_ret:.1f}%</span>'
+            f'<span style="color:#7c8aa0;">\u2014 SPY {ks}{k_ret:.1f}%</span>'
+            '<span style="color:#8896ac;margin-left:auto;">since entry</span></div>'
+            f'{svg}</div>'
+        )
+    except Exception:
+        return ""
 
 
 def _tr_line_chart_svg(model_series, spy_series):
@@ -5887,130 +5955,10 @@ def _portfolio_truth(sb, ttl=300):
 
 
 def page_backtest():
-    _pin_nav("backtest")
-    from data_refresh import _get_supabase
-    page_summary("\U0001F4C8", "Track Record",
-                 "The live Model Portfolio vs SPY \u2014 real positions, marked daily.")
-    st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
-    st.markdown(DISCLAIMER, unsafe_allow_html=True)
+    # "Track Record" was merged into the combined Portfolio & Track Record
+    # page. Kept as an alias so existing ?qnav=backtest links still resolve.
+    return page_model_portfolio()
 
-    tr = _portfolio_truth(_get_supabase())
-    if not tr:
-        st.markdown("""
-        <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-             border-left:3px solid #00ff87;border-radius:0 8px 8px 0;padding:18px 22px;margin:20px 0;">
-          <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">
-            Track record is building</div>
-          <div style="font-size:13px;color:#b3bed0;line-height:1.8;">
-            The live Model Portfolio runs on the model's rules-based signals \u2014 entries on high conviction,
-            exits when conviction drops below threshold, equal-weighted with a 30% sector cap. Performance is
-            tracked here in real time as it accrues. We do not publish a historical backtest: a backtest is only
-            credible when every score is computed from point-in-time data, and we're building that properly
-            rather than showing numbers that can't withstand scrutiny.
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        return
-
-    ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;text-align:center;"
-    ls = "font-family:DM Mono,monospace;font-size:12px;color:#9fabc0;letter-spacing:.08em;margin-bottom:6px;"
-    mc = "#00ff87" if tr["model_ret"] >= 0 else "#ef4444"
-    sc = "#00ff87" if tr["spy_ret"]   >= 0 else "#ef4444"
-    vs = tr["model_ret"] - tr["spy_ret"]
-    vc = "#00ff87" if vs >= 0 else "#ef4444"
-    dc = "#00ff87" if tr["day_model"] >= 0 else ("#ef4444" if tr["day_model"] < 0 else "#b3bed0")
-    sg = lambda x: "+" if x >= 0 else ""
-    _base   = tr["basis"]
-    _mdollar = tr["model_value"] - _base                       # model $ P&L
-    _sdollar = tr["spy_value"]   - _base                       # SPY $ P&L
-    _vdollar = tr["model_value"] - tr["spy_value"]             # $ vs SPY
-    _msub = "font-family:DM Mono,monospace;font-size:12px;margin-top:2px;"
-
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:20px 0;">
-      <div style="{ss}"><div style="{ls}">MODEL VALUE</div>
-        <div style="font-size:18px;font-weight:700;color:#d4a843;">${tr['model_value']:,.0f}</div>
-        <div style="{_msub}color:#8896ac;">from ${_base/1000:.0f}K</div></div>
-      <div style="{ss}"><div style="{ls}">MODEL RETURN</div>
-        <div style="font-size:18px;font-weight:700;color:{mc};">{sg(tr['model_ret'])}{tr['model_ret']:.2f}%</div>
-        <div style="{_msub}color:{mc};">{sg(_mdollar)}${_mdollar:,.0f}</div></div>
-      <div style="{ss}"><div style="{ls}">SPY RETURN</div>
-        <div style="font-size:18px;font-weight:700;color:{sc};">{sg(tr['spy_ret'])}{tr['spy_ret']:.2f}%</div>
-        <div style="{_msub}color:{sc};">{sg(_sdollar)}${_sdollar:,.0f}</div></div>
-      <div style="{ss}"><div style="{ls}">VS SPY</div>
-        <div style="font-size:18px;font-weight:700;color:{vc};">{sg(vs)}{vs:.2f} pp</div>
-        <div style="{_msub}color:{vc};">{sg(_vdollar)}${_vdollar:,.0f}</div></div>
-      <div style="{ss}"><div style="{ls}">TODAY</div>
-        <div style="font-size:18px;font-weight:700;color:{dc};">{sg(tr['day_model'])}{tr['day_model']:.2f}%</div>
-        <div style="{_msub}color:#8896ac;">SPY {sg(tr['day_spy'])}{tr['day_spy']:.2f}%</div></div>
-      <div style="{ss}"><div style="{ls}">POSITIONS</div>
-        <div style="font-size:18px;font-weight:700;color:#e2e8f0;">{tr['n_active']}</div>
-        <div style="{_msub}color:#8896ac;">{tr['n_sessions']} sessions</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Clean model-vs-SPY equity curve (the per-holding overlay was too busy).
-    chart = _tr_line_chart_svg(tr["model_series"], tr["spy_series"])
-    if chart:
-        st.markdown(f"""
-        <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
-          <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:12px;">
-            <span style="color:#d4a843;">\u2014 QNTM Model</span>
-            <span style="color:#9fabc0;">\u2014 SPY</span>
-            <span style="color:#8896ac;margin-left:auto;">$100K since {tr['inception']}</span>
-          </div>
-          {chart}
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Sector concentration
-    if tr["sector_counts"]:
-        top = tr["sector_counts"][0][1]
-        bars = ""
-        for name, cnt in tr["sector_counts"]:
-            pct = cnt / top * 100 if top else 0
-            bars += (f'<div style="margin-bottom:8px;">'
-                     f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;">'
-                     f'<span style="color:#b3bed0;">{name}</span>'
-                     f'<span style="font-family:DM Mono,monospace;color:#cbd5e1;">{cnt}</span></div>'
-                     f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:7px;">'
-                     f'<div style="width:{pct:.0f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
-                     f'</div></div>')
-        st.markdown(
-            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25B2 SECTOR CONCENTRATION</div>'
-            f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:20px;">{bars}</div>',
-            unsafe_allow_html=True)
-
-    # Exits
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25BC CLOSED POSITIONS</div>', unsafe_allow_html=True)
-    if tr["exits"]:
-        rows_html = ""
-        for e in tr["exits"]:
-            rc = "#00ff87" if e["ret"] >= 0 else "#ef4444"
-            rows_html += (
-                f'<div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px;gap:8px;align-items:center;'
-                f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;">'
-                f'<span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{e["ticker"]}</span>'
-                f'<span style="color:#9fabc0;">{e["sector"]}</span>'
-                f'<span style="font-family:DM Mono,monospace;color:#8896ac;">{e["entry_date"][5:]}\u2192{e["exit_date"][5:]}</span>'
-                f'<span style="font-family:DM Mono,monospace;color:{rc};text-align:right;">{("+" if e["ret"]>=0 else "")}{e["ret"]:.1f}%</span>'
-                f'<span style="font-family:DM Mono,monospace;color:#8896ac;text-align:right;font-size:12px;">{e["reason"]}</span>'
-                f'</div>')
-        st.markdown(
-            f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 18px 12px;margin-bottom:20px;">{rows_html}</div>',
-            unsafe_allow_html=True)
-    else:
-        st.markdown('<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:20px;font-size:13px;color:#9fabc0;">No positions have exited yet.</div>', unsafe_allow_html=True)
-
-    st.markdown(
-        '<div style="font-size:12px;color:#8896ac;line-height:1.7;margin-bottom:8px;">'
-        f'Live since {tr["inception"]}. $100K notional, equal-weighted $2,000 per position, marked daily to '
-        'close prices; proceeds from exits held as cash until redeployed (cash drag included). SPY benchmark is '
-        '$100,000 invested at inception. Hypothetical illustration \u2014 ignores slippage, taxes, and commissions. '
-        'A live record is short by nature; past performance does not guarantee future results.</div>',
-        unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 def _make_excel(rows: list, headers: list, sheet_name: str = "Export") -> bytes:
     """Generate an in-memory Excel file from a list of dicts. Returns bytes."""
@@ -7874,8 +7822,8 @@ def page_model_portfolio():
     import datetime
 
     page_summary(
-        "🏆", "Model Portfolio",
-        "Live HIGH conviction positions · equal-weighted $2K · exits at Low Conviction · auto-reinvests"
+        "🏆", "Portfolio & Track Record",
+        "Live model portfolio vs SPY · equal-weighted $2K · true P&L · exits at Low Conviction"
     )
 
     sb = _get_supabase()
@@ -8222,6 +8170,21 @@ def page_model_portfolio():
     </div>
     """, unsafe_allow_html=True)
 
+    # ── Equity curve (model vs SPY) — folded in from the Track Record view ────
+    if _pt:
+        _eqchart = _tr_line_chart_svg(_pt["model_series"], _pt["spy_series"])
+        if _eqchart:
+            st.markdown(f"""
+            <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
+              <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:12px;">
+                <span style="color:#d4a843;">\u2014 QNTM Model</span>
+                <span style="color:#7c8aa0;">\u2014 SPY</span>
+                <span style="color:#8896ac;margin-left:auto;">$100K since {_pt['inception']}</span>
+              </div>
+              {_eqchart}
+            </div>
+            """, unsafe_allow_html=True)
+
     # ── Holdings table ────────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;'
                 'letter-spacing:.1em;margin-bottom:8px;">▲ ACTIVE POSITIONS</div>',
@@ -8319,6 +8282,9 @@ def page_model_portfolio():
             entry_date=h.get("entry_date"),
             day_change_entry=_mp_day_change.get(tk),
         )
+        sc["_mini_chart_html"] = _build_mini_chart_html(
+            tk, h.get("entry_date"),
+            (_pt or {}).get("price_map"), (_pt or {}).get("spy_map")) if _pt else ""
         st.markdown(
             factor_panel_html(sc, tk in port_gem_tickers, company_info=ci,
                               wl_btn=(_pnl_html + _mpbtn), as_details=True),
@@ -8326,6 +8292,52 @@ def page_model_portfolio():
         )
         _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
     _mp_prog.empty()
+
+    # ── Sector concentration + closed positions — folded in from Track Record ─
+    if _pt and _pt.get("sector_counts"):
+        _top = _pt["sector_counts"][0][1]
+        _bars = ""
+        for _name, _cnt in _pt["sector_counts"]:
+            _pct = _cnt / _top * 100 if _top else 0
+            _bars += (f'<div style="margin-bottom:8px;">'
+                      f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;">'
+                      f'<span style="color:#b3bed0;">{_name}</span>'
+                      f'<span style="font-family:DM Mono,monospace;color:#cbd5e1;">{_cnt}</span></div>'
+                      f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:7px;">'
+                      f'<div style="width:{_pct:.0f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
+                      f'</div></div>')
+        st.markdown(
+            '<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin:8px 0 10px;">\u25B2 SECTOR CONCENTRATION</div>'
+            f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:20px;">{_bars}</div>',
+            unsafe_allow_html=True)
+
+    if _pt:
+        st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25BC CLOSED POSITIONS</div>', unsafe_allow_html=True)
+        if _pt.get("exits"):
+            _rows = ""
+            for _e in _pt["exits"]:
+                _rc = "#00ff87" if _e["ret"] >= 0 else "#ef4444"
+                _rows += (
+                    f'<div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px;gap:8px;align-items:center;'
+                    f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;">'
+                    f'<span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{_e["ticker"]}</span>'
+                    f'<span style="color:#9fabc0;">{_e["sector"]}</span>'
+                    f'<span style="font-family:DM Mono,monospace;color:#8896ac;">{_e["entry_date"][5:]}\u2192{_e["exit_date"][5:]}</span>'
+                    f'<span style="font-family:DM Mono,monospace;color:{_rc};text-align:right;">{("+" if _e["ret"]>=0 else "")}{_e["ret"]:.1f}%</span>'
+                    f'<span style="font-family:DM Mono,monospace;color:#8896ac;text-align:right;font-size:11px;">{_e["reason"]}</span>'
+                    f'</div>')
+            st.markdown(
+                f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 18px 12px;margin-bottom:16px;">{_rows}</div>',
+                unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:16px;font-size:13px;color:#9fabc0;">No positions have exited yet.</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="font-size:11px;color:#8896ac;line-height:1.7;margin-bottom:8px;">'
+            f'Live since {_pt["inception"]}. $100K notional, equal-weighted $2,000 per position, marked daily to '
+            'close prices; realized P&amp;L from exits and unrealized P&amp;L on holdings are both included. SPY benchmark '
+            'is $100,000 invested at inception. Hypothetical illustration \u2014 ignores slippage, taxes, and commissions. '
+            'Past performance does not guarantee future results.</div>',
+            unsafe_allow_html=True)
 
     # Spacer below the iframe so when the last card expands and the iframe
     # grows, the parent page has scroll room to reveal the new content.
