@@ -5398,12 +5398,23 @@ def page_watchlist():
     _uid_wl  = (st.session_state.user or {}).get("id","")
     _pln_wl  = (st.session_state.user or {}).get("plan","free")
 
-    # Detect current hidden gems so the watchlist matches the screener.
+    # Detect current hidden gems with the SAME regime/data the screener uses.
+    # detect_hidden_gems sets its thresholds from the macro regime (much stricter
+    # in HIGH VOLATILITY); if macro_data is missing it falls back to the looser
+    # NEUTRAL thresholds and over-flags gems — that's why a name could show a 💎
+    # here while the screener had already dropped it. Load macro if absent.
     _wl_gems = set()
     try:
+        _wl_macro = st.session_state.get("macro_data")
+        if not _wl_macro:
+            try:
+                _wl_macro = _live_macro()
+                st.session_state.macro_data = _wl_macro
+            except Exception:
+                _wl_macro = {}
         _wl_gem_list = detect_hidden_gems(
-            list(score_map.values()),
-            macro_data=st.session_state.get("macro_data"),
+            st.session_state.get("scan_results") or list(score_map.values()),
+            macro_data=_wl_macro or {},
         )
         _wl_gems = {g["ticker"] for g in _wl_gem_list}
     except Exception:
