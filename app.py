@@ -187,6 +187,7 @@ section[data-testid="stMain"] > div,
 #MainMenu, footer, header,
 [data-testid="stHeader"],
 [data-testid="stToolbar"],
+[data-testid="stStatusWidget"],
 [data-testid="stDecoration"] { display: none !important; }
 [data-testid="stSidebar"]        { display: none !important; }
 [data-testid="collapsedControl"] { display: none !important; }
@@ -213,6 +214,8 @@ section[data-testid="stMain"] > div,
 @keyframes glow{0%,100%{box-shadow:none}50%{box-shadow:none}}
 @keyframes scanLine{0%{top:-2px;opacity:.3}100%{top:100%;opacity:0}}
 @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes qntmspin{to{transform:rotate(360deg)}}
+@keyframes qntmload{to{opacity:1}}
 
 /* ── Collapsed card (details/summary) ── */
 details summary { list-style: none; }
@@ -3454,7 +3457,8 @@ body { background-color: #0a0b14 !important; }
         except Exception:
             pass
     _gems_display = _n_gems if _n_gems is not None else "—"
-    _today_items.append(f'<span style="color:#34d399;font-weight:600;">💎 {_gems_display} hidden gems</span>')
+    _gem_word = "gem" if _n_gems == 1 else "gems"
+    _today_items.append(f'<span style="color:#34d399;font-weight:600;">💎 {_gems_display} hidden {_gem_word}</span>')
     _today_items.append(f'<span style="color:#9fabc0;">834 stocks scored</span>')
 
     st.markdown(
@@ -5653,7 +5657,7 @@ def page_gems():
     st.markdown(f'<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <div style="font-size:13px;color:#b3bed0;">{len(gems)} hidden gems identified</div>
+      <div style="font-size:13px;color:#b3bed0;">{len(gems)} hidden {'gem' if len(gems)==1 else 'gems'} identified</div>
       <div style="font-size:13px;color:{regime_color};font-family:DM Mono,monospace;">
         Regime: {regime} · {"Threshold 67+" if regime in ("RISK_OFF","HIGH VOLATILITY") else "Threshold 60+" if regime in ("RISK_ON","MILDLY BULLISH") else "Threshold 62+"}
       </div>
@@ -7617,7 +7621,6 @@ def page_account():
                 _write_localstorage_token(uid(), "pro")
                 if ok:
                     st.success("✓ Founding Member activated! Navigate to Hidden Gems via the menu.")
-                    st.balloons()
                 else:
                     st.warning("Could not write to DB — contact hello@qntm.live")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -9262,14 +9265,31 @@ def main():
     elif st.session_state.page == "landing" and st.session_state.logged_in:
         st.session_state.page = "platform"
 
-    route = st.session_state.page
-    if   route == "landing":  page_landing()
-    elif route == "auth":     page_auth()
-    elif route == "mfa":      page_mfa()
-    elif route == "upgrade":  page_upgrade()
-    elif route == "model":    go("landing")
-    elif route == "platform": page_platform()
-    elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
-    else:                     page_landing()
+    _pl = st.empty()
+    _pl.markdown(
+        '<div style="position:fixed;top:0;left:0;width:100%;height:100%;'
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;'
+        'z-index:99999;background:rgba(6,7,15,.72);backdrop-filter:blur(2px);pointer-events:none;'
+        'opacity:0;animation:qntmload .25s ease .45s forwards;">'
+        '<div style="width:46px;height:46px;border-radius:50%;'
+        'border:3px solid rgba(52,211,153,.18);border-top-color:#34d399;'
+        'animation:qntmspin .8s linear infinite;"></div>'
+        '<div style="font-family:\'DM Mono\',monospace;font-size:12px;letter-spacing:.18em;'
+        'color:#34d399;text-transform:uppercase;">Loading</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    try:
+        route = st.session_state.page
+        if   route == "landing":  page_landing()
+        elif route == "auth":     page_auth()
+        elif route == "mfa":      page_mfa()
+        elif route == "upgrade":  page_upgrade()
+        elif route == "model":    go("landing")
+        elif route == "platform": page_platform()
+        elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
+        else:                     page_landing()
+    finally:
+        _pl.empty()
 
 main()
