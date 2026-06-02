@@ -5867,6 +5867,25 @@ def _tr_line_chart_svg(model_series, spy_series):
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">' + "".join(p) + '</svg>'
 
 
+def _portfolio_truth(sb, ttl=300):
+    """Single source of truth for portfolio totals, shared by the Model
+    Portfolio and Track Record pages so they report identical numbers. Caches
+    the computed ledger in session_state for `ttl` seconds (one yfinance pull
+    per window). Returns the _track_record_data dict, or None on failure."""
+    import time as _t
+    try:
+        age = _t.time() - st.session_state.get("_pt_at", 0)
+        if age > ttl or not st.session_state.get("_pt_cache"):
+            st.session_state._pt_cache = _track_record_data(sb)
+            st.session_state._pt_at    = _t.time()
+        return st.session_state._pt_cache
+    except Exception:
+        try:
+            return _track_record_data(sb)
+        except Exception:
+            return None
+
+
 def page_backtest():
     _pin_nav("backtest")
     from data_refresh import _get_supabase
@@ -5875,7 +5894,7 @@ def page_backtest():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    tr = _track_record_data(_get_supabase())
+    tr = _portfolio_truth(_get_supabase())
     if not tr:
         st.markdown("""
         <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
@@ -8087,6 +8106,21 @@ def page_model_portfolio():
     except Exception:
         pass
 
+    # ── Single source of truth — override the headline totals with the shared
+    # ledger so this page and the Track Record page report IDENTICAL portfolio
+    # value, return, and vs-SPY. (The position list below still uses this page's
+    # own per-ticker prices for the card detail; only the top-line totals are
+    # unified here.) Falls back to this page's own computation if unavailable.
+    _pt = _portfolio_truth(sb)
+    if _pt:
+        portfolio_value = _pt["model_value"]
+        port_return     = _pt["model_ret"]
+        port_pnl        = portfolio_value - BASE_CAPITAL
+        spy_return      = _pt["spy_ret"]
+        spy_pnl         = BASE_CAPITAL * (spy_return / 100)
+        sign            = "+" if port_return >= 0 else ""
+        ret_color       = "#00ff87" if port_return >= 0 else "#ef4444"
+
     vs_spy_pct = port_return - spy_return
     vs_spy_pnl = port_pnl - spy_pnl
     vs_color   = "#00ff87" if vs_spy_pct >= 0 else "#ef4444"
@@ -8150,6 +8184,10 @@ def page_model_portfolio():
     if _day_have and _day_prev > 0:
         _day_dollar = _day_today - _day_prev
         _day_pct    = _day_dollar / _day_prev * 100
+        # Use the shared ledger's day move for the headline % so it matches the
+        # Track Record exactly; keep the $ figure from the active-book weighting.
+        if _pt and _pt.get("day_model") is not None:
+            _day_pct = _pt["day_model"]
         _day_color  = "#00ff87" if _day_pct > 0 else ("#ef4444" if _day_pct < 0 else "#94a3b8")
         _day_s      = "+" if _day_pct >= 0 else ""
         _day_val    = f"{_day_s}{_day_pct:.2f}%"
