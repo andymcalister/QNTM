@@ -2077,6 +2077,12 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         # detail_html starts with '<div class="qcard-detail" style="display:none;...'
         # — strip the display:none so the <details> body shows when open.
         _body = detail_html.replace('display:none;', '', 1)
+        # Optional one-line meta strip rendered inside the collapsed summary
+        # (under the conviction label). Callers in list contexts — watchlist,
+        # portfolio, model portfolio — populate r["_summary_meta_html"] with a
+        # short DM-Mono line like "ENT 05/30 · +2.4% today" so a user can scan
+        # entry date and intraday move at a glance without expanding the card.
+        _summary_meta = r.get("_summary_meta_html", "")
         _summary = (
             f'<summary style="list-style:none;cursor:pointer;display:flex;'
             f'justify-content:space-between;align-items:center;padding:13px 18px;">'
@@ -2089,7 +2095,8 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
             + f'</div>'
             f'<div style="font-family:Syne,sans-serif;font-size:10px;font-weight:700;'
             f'color:{act_c};letter-spacing:.06em;margin-top:1px;">{action_arrow} {action_label}</div>'
-            f'</div>'
+            + (_summary_meta or "")
+            + f'</div>'
             f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">'
             f'<span style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:{act_c};">{score:.0f}</span>'
             f'<span style="font-size:14px;color:{act_c};">{action_arrow}</span>'
@@ -2359,14 +2366,139 @@ def get_watchlist(user_id: str) -> list:
         return []
 
 
+def is_valid_universe_ticker(tk) -> bool:
+    """True iff `tk` is a real ticker in the QNTM model universe. Use this at
+    every user-driven add path (watchlist, holdings, simulator, custom lists)
+    before persisting — otherwise arbitrary user-supplied strings get stored
+    against rows that later fail price lookups, signal joins, and exports.
+    Fails closed: if the universe import is unavailable for any reason, we
+    refuse the add rather than letting bad data through."""
+    if not tk or not isinstance(tk, str):
+        return False
+    tk_norm = tk.strip().upper()
+    if not tk_norm:
+        return False
+    # Tickers are alphanumerics + dot/dash (e.g. BRK.B, BF-B). Anything else
+    # is definitely garbage; reject before even importing the universe.
+    if not all(c.isalnum() or c in ".-" for c in tk_norm):
+        return False
+    try:
+        from universe_data import SECTORS as _UNI_SECTORS
+        return tk_norm in _UNI_SECTORS
+    except Exception:
+        return False
+
+
+def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
+    """Return {ticker: {chg_pct, chg_dollar, price, prev_close, market_closed}}
+    for `tickers`. Cached in st.session_state[cache_key] by sorted ticker set so
+    a navigation away and back doesn't re-hit yfinance. Used by the watchlist /
+    portfolio / model-portfolio pages to render the at-a-glance "TODAY +x.x%"
+    on the collapsed card. Returns {} on any failure — callers degrade to no
+    day-change strip rather than crashing."""
+    if not tickers:
+        return {}
+    cache = st.session_state.setdefault(cache_key, {})
+    key = ",".join(sorted(set(tickers)))
+    if key in cache:
+        return cache[key]
+    out = {}
+    try:
+        import yfinance as yf
+        from datetime import datetime as _dt
+        try:
+            from zoneinfo import ZoneInfo
+            today_str = _dt.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        except Exception:
+            today_str = _dt.now().strftime("%Y-%m-%d")
+        hist = yf.download(list(set(tickers)), period="5d", auto_adjust=True,
+                           progress=False, threads=True)
+        if hist.empty:
+            cache[key] = out
+            return out
+        try:
+            last_bar_date = str(hist.index[-1])[:10]
+        except Exception:
+            last_bar_date = ""
+        is_today = (last_bar_date == today_str)
+        close = hist["Close"]
+        if hasattr(close, "columns"):
+            for tk in set(tickers):
+                if tk in close.columns:
+                    vals = close[tk].dropna()
+                    if len(vals) >= 2:
+                        cur, prev = float(vals.iloc[-1]), float(vals.iloc[-2])
+                        out[tk] = {
+                            "price": cur, "prev_close": prev,
+                            "chg_pct":    ((cur - prev) / prev * 100) if is_today else None,
+                            "chg_dollar": (cur - prev) if is_today else None,
+                            "market_closed": not is_today,
+                        }
+        else:
+            vals = close.dropna()
+            if len(vals) >= 2 and len(set(tickers)) == 1:
+                cur, prev = float(vals.iloc[-1]), float(vals.iloc[-2])
+                tk = list(set(tickers))[0]
+                out[tk] = {
+                    "price": cur, "prev_close": prev,
+                    "chg_pct":    ((cur - prev) / prev * 100) if is_today else None,
+                    "chg_dollar": (cur - prev) if is_today else None,
+                    "market_closed": not is_today,
+                }
+    except Exception:
+        pass
+    cache[key] = out
+    return out
+
+
+def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> str:
+    """Compact one-line strip rendered inside the collapsed card summary, under
+    the conviction label. Shows "ENT MM/DD" (where applicable) and a coloured
+    "+x.xx% today" segment so a user can triage a watchlist / portfolio / model
+    portfolio without expanding each card. Returns '' if no data is renderable
+    (so callers can safely set _summary_meta_html unconditionally)."""
+    bits = []
+    # Entry date — accept date / datetime / iso string; render MM/DD only
+    if entry_date:
+        try:
+            ed = str(entry_date)[:10]
+            yy, mm, dd = ed.split("-")
+            bits.append(f'<span style="color:#64748b;">ENT&nbsp;{mm}/{dd}</span>')
+        except Exception:
+            pass
+    # Today's change
+    dc = day_change_entry or {}
+    if dc.get("market_closed"):
+        bits.append('<span style="color:#475569;">MKT&nbsp;CLOSED</span>')
+    elif dc.get("chg_pct") is not None:
+        pct = float(dc["chg_pct"])
+        col = "#00ff87" if pct > 0 else ("#ef4444" if pct < 0 else "#94a3b8")
+        sign = "+" if pct >= 0 else ""
+        bits.append(f'<span style="color:{col};">{sign}{pct:.2f}%&nbsp;today</span>')
+    if not bits:
+        return ""
+    sep = '<span style="color:#1e293b;">·</span>'
+    return (
+        '<div style="display:flex;align-items:center;gap:6px;'
+        'font-family:DM Mono,monospace;font-size:10px;letter-spacing:.04em;'
+        'margin-top:3px;">'
+        + sep.join(bits)
+        + '</div>'
+    )
+
+
 def add_to_watchlist(user_id: str, ticker: str, price_at_add: float = None) -> bool:
-    """Add ticker to the user's DEFAULT named list. Returns True on success."""
+    """Add ticker to the user's DEFAULT named list. Returns True on success.
+    Rejects tickers outside the model universe so the watchlist never holds
+    rows that can't be priced or scored."""
+    if not is_valid_universe_ticker(ticker):
+        return False
     try:
         from db import add_watchlist_item
         lid = _default_watchlist_id(user_id)
         if not lid:
             return False
-        return add_watchlist_item(user_id, lid, ticker, price_at_add)
+        return add_watchlist_item(user_id, lid, ticker.strip().upper(), price_at_add)
     except Exception:
         return False
 
@@ -3218,7 +3350,7 @@ body { background-color: #0a0b14 !important; }
     )
 
     hero_html += (
-        _cta_gold("Join Free →", "?nav=register")
+        _cta_gold("Join Free →", "?nav=register&plan=pro")
         + _cta_ghost("Sign In", "?nav=signin")
         + '</div>'  # end CTA grid
         + '<div style="margin-top:10px;font-size:11px;color:#334155;letter-spacing:.02em;">'
@@ -3252,7 +3384,7 @@ body { background-color: #0a0b14 !important; }
         + _signal_rows
 
         # High conviction count CTA
-        + f'<a href="?nav=register" target="_self" style="display:block;margin-top:10px;padding:7px 12px;'
+        + f'<a href="?nav=register&amp;plan=pro" target="_self" style="display:block;margin-top:10px;padding:7px 12px;'
         f'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.2);border-radius:6px;'
         f'font-family:DM Mono,monospace;font-size:10px;color:#d4a843;text-decoration:none;'
         f'letter-spacing:.06em;text-align:center;">'
@@ -3699,7 +3831,7 @@ body { background-color: #0a0b14 !important; }
         '<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;max-width:760px;margin-left:auto;margin-right:auto;">'
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
         + _cta_ghost("Start Free →", "?nav=register")
-        + _cta_gold("Join Free — Founding Member →", "?nav=register")
+        + _cta_gold("Join Free — Founding Member →", "?nav=register&plan=pro")
         + '</div>'
         + '<div style="text-align:center;margin-top:10px;font-size:12px;color:#d4a843;">'
         '⚡ Founding member pricing — <span style="text-decoration:line-through;color:#475569;">$29/mo</span>'
@@ -4872,7 +5004,7 @@ def page_screener():
             if st.session_state.get("logged_in"):
                 st.markdown(_cta_gold(f"Unlock Full Universe — {_total_filtered - FREE_LIMIT} more stocks", _upgrade_url("Full Universe", "screener")), unsafe_allow_html=True)
             else:
-                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", "?nav=register"), unsafe_allow_html=True)
+                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", "?upgrade_page=1&feature=Full+Universe+Access&return_nav=screener"), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -5065,17 +5197,20 @@ def page_watchlist():
         if st.button("☆ Add", key="wl_native_add", use_container_width=True):
             _tk_clean = (_new_tk or "").strip().upper()
             if _tk_clean:
-                # price baseline from scan or signal_log
-                _px = (score_map.get(_tk_clean) or {}).get("price")
-                if not _px:
-                    _px = get_price_on_date_latest(_tk_clean)
-                if add_watchlist_item(_wl_uid, _active_id, _tk_clean, _px):
-                    st.session_state.pop("_wl_daychange_cache", None)
-                    st.session_state.pop("wl_native_add_tk", None)
-                    st.toast(f"Added {_tk_clean}")
-                    st.rerun()
+                if not is_valid_universe_ticker(_tk_clean):
+                    st.toast(f"{_tk_clean} is not in the QNTM universe (834 tickers).")
                 else:
-                    st.toast(f"Could not add {_tk_clean}")
+                    # price baseline from scan or signal_log
+                    _px = (score_map.get(_tk_clean) or {}).get("price")
+                    if not _px:
+                        _px = get_price_on_date_latest(_tk_clean)
+                    if add_watchlist_item(_wl_uid, _active_id, _tk_clean, _px):
+                        st.session_state.pop("_wl_daychange_cache", None)
+                        st.session_state.pop("wl_native_add_tk", None)
+                        st.toast(f"Added {_tk_clean}")
+                        st.rerun()
+                    else:
+                        st.toast(f"Could not add {_tk_clean}")
     if watchlist:
         _rm_c, _rmbtn_c = st.columns([3, 1])
         with _rm_c:
@@ -5410,6 +5545,14 @@ def page_watchlist():
         _wl_rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
                       f"&plan={st.query_params.get('plan','free')}&ck=1&_n=watchlist"
                       f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
+        # Collapsed-card meta strip — surfaces "added on / today's %" at a glance
+        # without making the user expand. The added_at field is set when the
+        # watchlist item is created; day_change is the same dict already used by
+        # the expanded P&L strip above.
+        sc["_summary_meta_html"] = _build_summary_meta_html(
+            entry_date=w.get("added_at") or w.get("created_at"),
+            day_change_entry=day_change.get(tk),
+        )
         _cards_html += build_card_html(sc, nav="watchlist", is_gem=(tk in _wl_gems),
                                        company_info=ci, in_list=_wl_active_tickers,
                                        extra_detail=_since_html, remove_url=_wl_rm_url)
@@ -5477,7 +5620,7 @@ def page_gems():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Join Founding Members — Unlock Now", _upgrade_url("Hidden Gems", "gems")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Join Free — First 50 Spots", "?nav=register"), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Join Free — First 50 Spots", "?upgrade_page=1&feature=Hidden+Gems&return_nav=screener"), unsafe_allow_html=True)
         return
 
     # Use exactly same data pipeline as screener — guarantees matching gem count
@@ -6288,25 +6431,28 @@ def page_portfolio():
                     new_tk = resolved_ticker or tk_query.strip().upper()
                     if new_tk and new_sh > 0:
                         tk_clean = new_tk.upper().strip()
-                        ok = upsert_holding(uid(), tk_clean, new_sh, new_cost, new_date)
-                        if ok:
-                            st.success(f"Added {tk_clean}")
-                            # Fire notification if signal is active
-                            sc = score_map.get(tk_clean)
-                            if sc:
-                                act = sc.get("adj_action", sc.get("action", "HOLD"))
-                                comp = sc.get("adj_composite", sc.get("composite", 50))
-                                if act == "SELL":
-                                    st.warning(f"⚠ Note: Model currently shows LOW conviction on {tk_clean} (score {comp:.0f})")
-                                elif act == "BUY":
-                                    create_notification(uid(), tk_clean, "buy_signal",
-                                        f"HIGH conviction active: {tk_clean}",
-                                        f"Score {comp:.0f} — HIGH conviction")
-                            else:
-                                st.info(f"{tk_clean} is outside the model universe — no signal available")
-                            st.rerun()
+                        if not is_valid_universe_ticker(tk_clean):
+                            st.error(f"{tk_clean} is not in the QNTM universe (834 tickers). "
+                                     "Holdings must match a tracked ticker so the model can "
+                                     "score and price the position.")
                         else:
-                            st.error("Failed to add position — check ticker and try again")
+                            ok = upsert_holding(uid(), tk_clean, new_sh, new_cost, new_date)
+                            if ok:
+                                st.success(f"Added {tk_clean}")
+                                # Fire notification if signal is active
+                                sc = score_map.get(tk_clean)
+                                if sc:
+                                    act = sc.get("adj_action", sc.get("action", "HOLD"))
+                                    comp = sc.get("adj_composite", sc.get("composite", 50))
+                                    if act == "SELL":
+                                        st.warning(f"⚠ Note: Model currently shows LOW conviction on {tk_clean} (score {comp:.0f})")
+                                    elif act == "BUY":
+                                        create_notification(uid(), tk_clean, "buy_signal",
+                                            f"HIGH conviction active: {tk_clean}",
+                                            f"Score {comp:.0f} — HIGH conviction")
+                                st.rerun()
+                            else:
+                                st.error("Failed to add position — check ticker and try again")
                     else:
                         st.warning("Enter a ticker symbol and number of shares")
 
@@ -6538,6 +6684,12 @@ def page_portfolio():
         pass
 
     _port_html = ""
+    # Fetch today's price change once for all positions so the collapsed cards
+    # can show entry date + intraday % without expanding.
+    _port_day_change = _fetch_day_change_map(
+        [h["ticker"] for h in holdings],
+        cache_key="_port_daychange_cache",
+    )
     for h in holdings:
         tk     = h["ticker"]
         sc     = dict(score_map.get(tk, {}) or {})  # copy — don't mutate shared dict
@@ -6604,6 +6756,10 @@ def page_portfolio():
             f'</div>'
         )
         # Render the card (no iframe): P&L strip + Remove button inside the detail.
+        sc["_summary_meta_html"] = _build_summary_meta_html(
+            entry_date=entry,
+            day_change_entry=_port_day_change.get(tk),
+        )
         st.markdown(
             factor_panel_html(sc, tk in _port_gems, company_info=ci,
                               wl_btn=(_pnl_html + _pbtn), as_details=True),
@@ -6669,7 +6825,7 @@ def page_simulator():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Simulator — Upgrade to Pro", _upgrade_url("Portfolio Simulator", "simulator")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", "?nav=register"), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", "?upgrade_page=1&feature=Unlimited+Holdings&return_nav=portfolio"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -7187,7 +7343,7 @@ def page_alerts():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Alerts — Upgrade to Pro", _upgrade_url("Signal Alerts", "alerts")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", "?nav=register"), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", "?upgrade_page=1&feature=Signal+Alerts&return_nav=alerts"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -7337,8 +7493,11 @@ def page_account():
             st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
             if st.button("Save Profile", key="acc_save"):
                 if new_name.strip():
-                    from db import encrypt_field
-                    ok = update_preferences(uid(), {"full_name_enc": encrypt_field(new_name.strip())})
+                    # update_preferences handles encryption internally when the
+                    # key is "full_name" — passing "full_name_enc" with a pre-
+                    # encrypted value writes to a non-existent column and silently
+                    # fails. Pass the plain name and let the db helper encrypt.
+                    ok = update_preferences(uid(), {"full_name": new_name.strip()})
                     if ok:
                         st.session_state.user["full_name"] = new_name.strip()
                         st.success("Profile saved")
@@ -8105,10 +8264,47 @@ def page_model_portfolio():
     pnl_sign    = "+" if port_pnl >= 0 else ""
     vs_pnl_sign = "+" if vs_spy_pnl >= 0 else ""
 
+    # Portfolio-level day change vs yesterday's close — value-weighted across
+    # positions using the same intraday source the per-card strips use (cached
+    # by ticker set, so the per-card fetch later is a cache hit). Shows how the
+    # whole book moved today rather than only cumulative since-entry return.
+    _mp_day_change = _fetch_day_change_map(
+        [h["ticker"] for h in holdings], cache_key="_mp_daychange_cache")
+    _day_today = _day_prev = 0.0
+    _day_traded = False
+    _day_market_closed = False
+    for _h in holdings:
+        _dc = _mp_day_change.get(_h["ticker"]) or {}
+        _ep = _h.get("entry_price")
+        if not _ep or _ep <= 0:
+            continue
+        _sh = _h.get("pos_size", 2000) / _ep
+        if _dc.get("market_closed"):
+            _day_market_closed = True
+        if _dc.get("price") and _dc.get("prev_close"):
+            _day_today += _sh * float(_dc["price"])
+            _day_prev  += _sh * float(_dc["prev_close"])
+            if _dc.get("chg_pct") is not None:
+                _day_traded = True
+    if _day_traded and _day_prev > 0:
+        _day_dollar = _day_today - _day_prev
+        _day_pct    = _day_dollar / _day_prev * 100
+        _day_color  = "#00ff87" if _day_pct > 0 else ("#ef4444" if _day_pct < 0 else "#94a3b8")
+        _day_s      = "+" if _day_pct >= 0 else ""
+        _day_val    = f"{_day_s}{_day_pct:.2f}%"
+        _day_sub    = f"{_day_s}${_day_dollar:,.0f}"
+    elif _day_market_closed:
+        _day_color, _day_val, _day_sub = "#64748b", "CLOSED", "market closed"
+    else:
+        _day_color, _day_val, _day_sub = "#64748b", "—", "no intraday data"
+
     st.markdown(f"""
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:20px;">
       <div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>
         <div style="font-size:18px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>
+      <div style="{ss}"><div style="{ls}">TODAY</div>
+        <div style="font-size:18px;font-weight:700;color:{_day_color};">{_day_val}</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">{_day_sub}</div></div>
       <div style="{ss}"><div style="{ls}">$ CHANGE</div>
         <div style="font-size:18px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>
       <div style="{ss}"><div style="{ls}">% RETURN</div>
@@ -8151,6 +8347,13 @@ def page_model_portfolio():
     _mp_uid = (st.session_state.user or {}).get("id", "")
     _mp_pln = (st.session_state.user or {}).get("plan", "free")
     _mp_sorted = sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)
+    # Fetch today's price change once for all positions so the collapsed cards
+    # can show entry date + intraday % without expanding (cached in session
+    # by sorted ticker set; identical to the watchlist pattern).
+    _mp_day_change = _fetch_day_change_map(
+        [h["ticker"] for h in _mp_sorted],
+        cache_key="_mp_daychange_cache",
+    )
     for _mp_i, h in enumerate(_mp_sorted):
         tk    = h["ticker"]
         score = h["current_score"]
@@ -8206,6 +8409,10 @@ def page_model_portfolio():
             f'</div>'
         )
         # Render card (no iframe): P&L strip + watchlist button inside detail.
+        sc["_summary_meta_html"] = _build_summary_meta_html(
+            entry_date=h.get("entry_date"),
+            day_change_entry=_mp_day_change.get(tk),
+        )
         st.markdown(
             factor_panel_html(sc, tk in port_gem_tickers, company_info=ci,
                               wl_btn=(_pnl_html + _mpbtn), as_details=True),
@@ -8750,6 +8957,14 @@ def main():
     if st.query_params.get("nav") == "register":
         st.session_state.auth_tab = "register"
         st.session_state.page = "auth"
+        # Carry the "I want Pro" intent through to post-registration. The
+        # Founding/Pro CTAs append &plan=pro to the register URL; setting
+        # auto_upgrade=True here makes register_user() then call upgrade_plan()
+        # automatically, so the user lands inside the app as Pro instead of
+        # needing extra clicks to claim their Founding spot.
+        if st.query_params.get("plan") == "pro":
+            st.session_state.auto_upgrade = True
+            st.query_params.pop("plan", None)
         st.query_params.pop("nav", None)
     if st.query_params.get("nav") == "landing":
         st.session_state.page = "landing"
