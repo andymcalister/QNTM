@@ -5650,55 +5650,288 @@ def page_gems():
 # ══════════════════════════════════════════════════════════════════════════════
 # BACKTEST PAGE
 # ══════════════════════════════════════════════════════════════════════════════
+def _track_record_data(sb):
+    """Build the live Model Portfolio equity curve vs SPY from real data.
+
+    Ledger replay over SPY trading days: $100K notional, $2,000/position, daily
+    mark-to-market using signal_log closes (forward-filled across gaps); realized
+    proceeds from exits are held as cash until redeployed. SPY benchmark is $100K
+    invested at inception and marked daily. Returns a dict, or None on any
+    failure / no positions (caller shows the honest fallback)."""
+    if not sb:
+        return None
+    try:
+        import yfinance as yf
+        try:
+            from universe_data import SECTORS as _SEC
+        except Exception:
+            _SEC = {}
+
+        resp = sb.table("model_portfolio_positions").select("*") \
+            .order("entry_date", desc=False).execute()
+        rows = resp.data or []
+        if not rows:
+            return None
+        # Dedup exact (ticker, entry_date, exit_date); newest id wins
+        seen = {}
+        for p in rows:
+            k = (p["ticker"], str(p.get("entry_date") or "")[:10], str(p.get("exit_date") or "")[:10])
+            if k not in seen or (p.get("id") or 0) > (seen[k].get("id") or 0):
+                seen[k] = p
+        positions = list(seen.values())
+
+        POS_SIZE = 2000.0
+        inception = min(str(p["entry_date"])[:10] for p in positions)
+
+        # SPY history → canonical trading-day axis
+        spy_hist = yf.download("SPY", start=inception, progress=False, auto_adjust=True)
+        if spy_hist.empty:
+            return None
+        spy_close = spy_hist["Close"]
+        if hasattr(spy_close, "columns"):
+            spy_close = spy_close.iloc[:, 0]
+        spy_close = spy_close.squeeze().dropna()
+        dates = [d.date().isoformat() for d in spy_close.index]
+        if len(dates) < 2:
+            return None
+
+        # Daily prices per held ticker from signal_log
+        tickers = sorted({p["ticker"] for p in positions})
+        price_map = {}
+        try:
+            pr = sb.table("signal_log").select("ticker,signal_date,price") \
+                .gte("signal_date", inception).in_("ticker", tickers).execute()
+            for r in (pr.data or []):
+                px = r.get("price")
+                if px is None:
+                    continue
+                price_map.setdefault(r["ticker"], {})[str(r["signal_date"])[:10]] = float(px)
+        except Exception:
+            pass
+
+        def price_on(tk, d, fallback):
+            m = price_map.get(tk)
+            if not m:
+                return fallback
+            if d in m:
+                return m[d]
+            prior = [dt for dt in m if dt <= d]
+            return m[max(prior)] if prior else fallback
+
+        entries_by_date, exits_by_date = {}, {}
+        for p in positions:
+            entries_by_date.setdefault(str(p["entry_date"])[:10], []).append(p)
+            xd = str(p.get("exit_date") or "")[:10]
+            if len(xd) == 10:
+                exits_by_date.setdefault(xd, []).append(p)
+
+        cash = 100000.0
+        open_lots = {}
+        model_series = []
+        for d in dates:
+            for p in exits_by_date.get(d, []):
+                lot = open_lots.pop(p.get("id"), None)
+                if lot:
+                    xp = p.get("exit_price") or price_on(lot["ticker"], d, lot["entry_price"])
+                    cash += lot["shares"] * float(xp)
+            for p in entries_by_date.get(d, []):
+                ep = p.get("entry_price")
+                if not ep or float(ep) <= 0:
+                    continue
+                open_lots[p.get("id")] = {"ticker": p["ticker"],
+                                          "shares": POS_SIZE / float(ep),
+                                          "entry_price": float(ep)}
+                cash -= POS_SIZE
+            mtm = cash + sum(lot["shares"] * price_on(lot["ticker"], d, lot["entry_price"])
+                             for lot in open_lots.values())
+            model_series.append((d, mtm))
+
+        spy0 = float(spy_close.iloc[0])
+        spy_series = [(d, 100000.0 * float(v) / spy0)
+                      for d, v in zip(dates, spy_close.values)]
+
+        m_last, s_last = model_series[-1][1], spy_series[-1][1]
+        model_ret = (m_last / 100000.0 - 1) * 100
+        spy_ret   = (s_last / 100000.0 - 1) * 100
+        day_model = ((model_series[-1][1] / model_series[-2][1] - 1) * 100
+                     if model_series[-2][1] else 0.0)
+        day_spy   = ((spy_series[-1][1] / spy_series[-2][1] - 1) * 100
+                     if spy_series[-2][1] else 0.0)
+
+        exits = []
+        for p in positions:
+            xd = str(p.get("exit_date") or "")[:10]
+            if len(xd) == 10 and p.get("exit_price") and p.get("entry_price"):
+                try:
+                    ret = (float(p["exit_price"]) / float(p["entry_price"]) - 1) * 100
+                except Exception:
+                    ret = 0.0
+                exits.append({"ticker": p["ticker"], "sector": _SEC.get(p["ticker"], "\u2014"),
+                              "entry_date": str(p["entry_date"])[:10], "exit_date": xd,
+                              "ret": ret, "reason": p.get("exit_reason") or "\u2014"})
+        exits.sort(key=lambda x: x["exit_date"], reverse=True)
+
+        sect = {}
+        for p in positions:
+            if p.get("is_active"):
+                s = _SEC.get(p["ticker"], "Unknown")
+                sect[s] = sect.get(s, 0) + 1
+        sector_counts = sorted(sect.items(), key=lambda x: x[1], reverse=True)
+
+        return {
+            "inception": inception, "model_series": model_series, "spy_series": spy_series,
+            "model_ret": model_ret, "spy_ret": spy_ret, "day_model": day_model, "day_spy": day_spy,
+            "model_value": m_last, "spy_value": s_last, "exits": exits,
+            "sector_counts": sector_counts,
+            "n_active": sum(1 for p in positions if p.get("is_active")),
+            "n_exited": len(exits), "n_sessions": len(dates),
+        }
+    except Exception:
+        return None
+
+
+def _tr_line_chart_svg(model_series, spy_series):
+    """Two-line SVG (gold = model, gray = SPY) of dollar book value over time."""
+    if not model_series or len(model_series) < 2:
+        return ""
+    W, H = 720, 260
+    PL, PR, PT, PB = 6, 6, 14, 18
+    m_vals = [v for _, v in model_series]
+    s_vals = [v for _, v in spy_series]
+    lo, hi = min(min(m_vals), min(s_vals)), max(max(m_vals), max(s_vals))
+    if hi == lo:
+        hi = lo + 1
+    n = len(m_vals)
+    def X(i): return PL + (W - PL - PR) * (i / (n - 1))
+    def Y(v): return PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo))
+    def path(vals): return "M " + " L ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(vals))
+    ref = ""
+    if lo <= 100000.0 <= hi:
+        y0 = Y(100000.0)
+        ref = (f'<line x1="{PL}" y1="{y0:.1f}" x2="{W-PR}" y2="{y0:.1f}" '
+               f'stroke="rgba(255,255,255,.08)" stroke-dasharray="3,3"/>')
+    return (f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">{ref}'
+            f'<path d="{path(s_vals)}" fill="none" stroke="#64748b" stroke-width="1.5"/>'
+            f'<path d="{path(m_vals)}" fill="none" stroke="#d4a843" stroke-width="2.2"/></svg>')
+
+
 def page_backtest():
     _pin_nav("backtest")
-    page_summary(
-        "\U0001F4C8", "Methodology & Track Record",
-        "How the model works, and how we report performance \u2014 honestly."
-    )
+    from data_refresh import _get_supabase
+    page_summary("\U0001F4C8", "Track Record",
+                 "The live Model Portfolio vs SPY \u2014 real positions, marked daily.")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
-         border-left:3px solid #00ff87;border-radius:0 8px 8px 0;padding:18px 22px;margin:20px 0;">
-      <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">
-        How we report performance</div>
-      <div style="font-size:13px;color:#94a3b8;line-height:1.85;">
-        QNTM's Model Portfolio runs <strong style="color:#cbd5e1;">live</strong> on the same rules-based logic the
-        model applies every day &mdash; entries on high-conviction signals, exits when conviction drops below
-        threshold, equal-weighted positions, a 30% sector cap, and no discretionary overrides. Its performance is
-        tracked in real time and reported exactly as it happens.<br><br>
-        We are deliberately <strong style="color:#cbd5e1;">not</strong> publishing a historical 5-year backtest.
-        A backtest is only credible if every score is computed from data that was actually available at the time
-        &mdash; point-in-time fundamentals, the universe as it existed then, and macro conditions as they were
-        known. Anything less bakes in hindsight. We're building that the right way rather than showing numbers
-        that look impressive but wouldn't withstand scrutiny. Until it's done and independently sanity-checked,
-        the track record we show is the one that's real: the live Model Portfolio.
-      </div>
+    tr = _track_record_data(_get_supabase())
+    if not tr:
+        st.markdown("""
+        <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
+             border-left:3px solid #00ff87;border-radius:0 8px 8px 0;padding:18px 22px;margin:20px 0;">
+          <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">
+            Track record is building</div>
+          <div style="font-size:13px;color:#94a3b8;line-height:1.8;">
+            The live Model Portfolio runs on the model's rules-based signals \u2014 entries on high conviction,
+            exits when conviction drops below threshold, equal-weighted with a 30% sector cap. Performance is
+            tracked here in real time as it accrues. We do not publish a historical backtest: a backtest is only
+            credible when every score is computed from point-in-time data, and we're building that properly
+            rather than showing numbers that can't withstand scrutiny.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    ss = "background:#0d1117;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;text-align:center;"
+    ls = "font-family:DM Mono,monospace;font-size:10px;color:#64748b;letter-spacing:.08em;margin-bottom:6px;"
+    mc = "#00ff87" if tr["model_ret"] >= 0 else "#ef4444"
+    sc = "#00ff87" if tr["spy_ret"]   >= 0 else "#ef4444"
+    vs = tr["model_ret"] - tr["spy_ret"]
+    vc = "#00ff87" if vs >= 0 else "#ef4444"
+    dc = "#00ff87" if tr["day_model"] >= 0 else ("#ef4444" if tr["day_model"] < 0 else "#94a3b8")
+    sg = lambda x: "+" if x >= 0 else ""
+
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:20px 0;">
+      <div style="{ss}"><div style="{ls}">MODEL VALUE</div>
+        <div style="font-size:18px;font-weight:700;color:#d4a843;">${tr['model_value']:,.0f}</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">from $100K</div></div>
+      <div style="{ss}"><div style="{ls}">MODEL RETURN</div>
+        <div style="font-size:18px;font-weight:700;color:{mc};">{sg(tr['model_ret'])}{tr['model_ret']:.2f}%</div></div>
+      <div style="{ss}"><div style="{ls}">SPY RETURN</div>
+        <div style="font-size:18px;font-weight:700;color:{sc};">{sg(tr['spy_ret'])}{tr['spy_ret']:.2f}%</div></div>
+      <div style="{ss}"><div style="{ls}">VS SPY</div>
+        <div style="font-size:18px;font-weight:700;color:{vc};">{sg(vs)}{vs:.2f} pp</div></div>
+      <div style="{ss}"><div style="{ls}">TODAY</div>
+        <div style="font-size:18px;font-weight:700;color:{dc};">{sg(tr['day_model'])}{tr['day_model']:.2f}%</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">SPY {sg(tr['day_spy'])}{tr['day_spy']:.2f}%</div></div>
+      <div style="{ss}"><div style="{ls}">POSITIONS</div>
+        <div style="font-size:18px;font-weight:700;color:#e2e8f0;">{tr['n_active']}</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">{tr['n_sessions']} sessions</div></div>
     </div>
     """, unsafe_allow_html=True)
 
-    _mp_url = (f"?qnav=model_portfolio&uid={uid()}"
-               f"&plan={st.query_params.get('plan','free')}&ck=1&_n=model_portfolio")
-    st.markdown(_cta_gold("\u2192 View the live Model Portfolio", _mp_url), unsafe_allow_html=True)
+    chart = _tr_line_chart_svg(tr["model_series"], tr["spy_series"])
+    if chart:
+        st.markdown(f"""
+        <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
+          <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:11px;">
+            <span style="color:#d4a843;">\u2014 QNTM Model</span>
+            <span style="color:#64748b;">\u2014 SPY</span>
+            <span style="color:#475569;margin-left:auto;">$100K since {tr['inception']}</span>
+          </div>
+          {chart}
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="margin-top:28px;">
-      <div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:12px;">
-        \u26A1 WHAT THE MODEL DOES</div>
-      <div style="font-size:13px;color:#94a3b8;line-height:1.85;">
-        QNTM scores ~834 S&amp;P 500 and Russell 1000 stocks daily on a five-pillar composite &mdash;
-        Momentum (30%), Quality (25%), Volume (20%), Value (15%), and Sentiment (10%) &mdash; blended 75/25 with a
-        regime-aware macro overlay computed from live market conditions. Every score comes with a plain-English
-        rationale, and conviction tiers (High / Moderate / Low) are cross-sectional rankings, not buy/sell calls.
-        The same scores drive the live Model Portfolio's rules-based entries and exits. For the full breakdown of
-        each pillar and what the model does <em>not</em> do, see <strong style="color:#cbd5e1;">How It Works</strong>.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Sector concentration
+    if tr["sector_counts"]:
+        top = tr["sector_counts"][0][1]
+        bars = ""
+        for name, cnt in tr["sector_counts"]:
+            pct = cnt / top * 100 if top else 0
+            bars += (f'<div style="margin-bottom:8px;">'
+                     f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;">'
+                     f'<span style="color:#94a3b8;">{name}</span>'
+                     f'<span style="font-family:DM Mono,monospace;color:#cbd5e1;">{cnt}</span></div>'
+                     f'<div style="background:rgba(255,255,255,.05);border-radius:3px;height:7px;">'
+                     f'<div style="width:{pct:.0f}%;height:100%;background:#d4a843;border-radius:3px;"></div>'
+                     f'</div></div>')
+        st.markdown(
+            f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25B2 SECTOR CONCENTRATION</div>'
+            f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:20px;">{bars}</div>',
+            unsafe_allow_html=True)
 
+    # Exits
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:12px;color:#d4a843;letter-spacing:.1em;margin-bottom:10px;">\u25BC CLOSED POSITIONS</div>', unsafe_allow_html=True)
+    if tr["exits"]:
+        rows_html = ""
+        for e in tr["exits"]:
+            rc = "#00ff87" if e["ret"] >= 0 else "#ef4444"
+            rows_html += (
+                f'<div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px;gap:8px;align-items:center;'
+                f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;">'
+                f'<span style="font-family:Syne,sans-serif;font-weight:700;color:#e2e8f0;">{e["ticker"]}</span>'
+                f'<span style="color:#64748b;">{e["sector"]}</span>'
+                f'<span style="font-family:DM Mono,monospace;color:#475569;">{e["entry_date"][5:]}\u2192{e["exit_date"][5:]}</span>'
+                f'<span style="font-family:DM Mono,monospace;color:{rc};text-align:right;">{("+" if e["ret"]>=0 else "")}{e["ret"]:.1f}%</span>'
+                f'<span style="font-family:DM Mono,monospace;color:#475569;text-align:right;font-size:10px;">{e["reason"]}</span>'
+                f'</div>')
+        st.markdown(
+            f'<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 18px 12px;margin-bottom:20px;">{rows_html}</div>',
+            unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 18px;margin-bottom:20px;font-size:13px;color:#64748b;">No positions have exited yet.</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div style="font-size:11px;color:#475569;line-height:1.7;margin-bottom:8px;">'
+        f'Live since {tr["inception"]}. $100K notional, equal-weighted $2,000 per position, marked daily to '
+        'close prices; proceeds from exits held as cash until redeployed (cash drag included). SPY benchmark is '
+        '$100,000 invested at inception. Hypothetical illustration \u2014 ignores slippage, taxes, and commissions. '
+        'A live record is short by nature; past performance does not guarantee future results.</div>',
+        unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
 def _make_excel(rows: list, headers: list, sheet_name: str = "Export") -> bytes:
     """Generate an in-memory Excel file from a list of dicts. Returns bytes."""
     from openpyxl import Workbook
