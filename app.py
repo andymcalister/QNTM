@@ -5400,6 +5400,13 @@ def page_watchlist():
         pass
 
     _wl_active_tickers = {w["ticker"] for w in watchlist}
+    # Prefetch daily closes for all watchlist names since the earliest add date,
+    # so each expanded card can show a vs-SPY mini chart since it was added.
+    _wl_dates = [str(w.get("added_at") or w.get("created_at") or "")[:10] for w in watchlist]
+    _wl_dates = [d for d in _wl_dates if d]
+    _wl_pm, _wl_sm = ({}, {})
+    if _wl_dates:
+        _wl_pm, _wl_sm = _mini_price_data(tuple(sorted(_wl_active_tickers)), min(_wl_dates))
     _cards_html = ""
     for w in watchlist:
         tk  = w["ticker"]
@@ -5484,6 +5491,8 @@ def page_watchlist():
             entry_date=w.get("added_at") or w.get("created_at"),
             day_change_entry=day_change.get(tk),
         )
+        sc["_mini_chart_html"] = _build_mini_chart_html(
+            tk, w.get("added_at") or w.get("created_at"), _wl_pm, _wl_sm, since_label="since added")
         _cards_html += build_card_html(sc, nav="watchlist", is_gem=(tk in _wl_gems),
                                        company_info=ci, in_list=_wl_active_tickers,
                                        extra_detail=_since_html, remove_url=_wl_rm_url)
@@ -5630,6 +5639,27 @@ def page_gems():
     # Load current watchlist to know which gems are already added
     wl_tickers = {w["ticker"] for w in get_watchlist(uid())}
 
+    # When each current gem was first flagged is_hidden_gem in signal_log — used
+    # as the start date for a vs-SPY mini chart in the expanded card.
+    _gem_first = {}
+    _gem_tks = [g.get("ticker", "") for g in gems if g.get("ticker")]
+    try:
+        from data_refresh import _get_supabase as _gs
+        _sbg = _gs()
+        if _sbg and _gem_tks:
+            _gr = (_sbg.table("signal_log").select("ticker,signal_date")
+                   .in_("ticker", _gem_tks).eq("is_hidden_gem", True)
+                   .order("signal_date", desc=False).execute())
+            for _row in (_gr.data or []):
+                _t = _row.get("ticker"); _d = str(_row.get("signal_date") or "")[:10]
+                if _t and _d and _t not in _gem_first:   # asc order → earliest wins
+                    _gem_first[_t] = _d
+    except Exception:
+        pass
+    _gem_pm, _gem_sm = ({}, {})
+    if _gem_first:
+        _gem_pm, _gem_sm = _mini_price_data(tuple(sorted(_gem_first)), min(_gem_first.values()))
+
     # Gems use same collapsed card pattern — batched into one markdown render
     _gems_html = ""
     for g in gems:
@@ -5642,6 +5672,9 @@ def page_gems():
             if not g.get("sector") or g.get("sector") == "Unknown":
                 g["sector"] = SECTORS.get(tk, "")
             ci = get_company_info(tk)
+            if _gem_first.get(tk):
+                g["_mini_chart_html"] = _build_mini_chart_html(
+                    tk, _gem_first[tk], _gem_pm, _gem_sm, since_label="since flagged")
             _gems_html += build_card_html(g, nav="gems", is_gem=True,
                                           company_info=ci, in_list=wl_tickers)
         except Exception:
@@ -5836,7 +5869,35 @@ def _mini_vs_spy_svg(stock_pairs, spy_pairs):
             f'<path d="{path(s)}" fill="none" stroke="#d4a843" stroke-width="2" stroke-linejoin="round"/></svg>')
 
 
-def _build_mini_chart_html(ticker, entry_date, price_map, spy_map):
+@st.cache_data(ttl=1800, show_spinner=False)
+def _mini_price_data(tickers_tuple: tuple, start: str):
+    """Batch-download daily closes for an arbitrary set of tickers + SPY since
+    `start`, for per-stock vs-SPY mini charts outside the model portfolio
+    (watchlist, hidden gems). Returns (price_map, spy_map). Cached per arg set."""
+    try:
+        import yfinance as yf
+        import pandas as pd
+        syms = sorted({t for t in tickers_tuple if t} | {"SPY"})
+        if len(syms) < 2 or not start:
+            return {}, {}
+        raw = yf.download(syms, start=start, auto_adjust=True, progress=False)
+        if raw is None or len(raw) == 0:
+            return {}, {}
+        close = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) and "Close" in raw.columns.get_level_values(0) else raw
+        if isinstance(close, pd.Series):
+            close = close.to_frame(name=syms[0])
+        price_map = {}
+        for tk in syms:
+            if tk in close.columns:
+                col = close[tk].dropna()
+                if len(col):
+                    price_map[tk] = {d.date().isoformat(): float(v) for d, v in col.items() if v == v}
+        return price_map, price_map.get("SPY", {})
+    except Exception:
+        return {}, {}
+
+
+def _build_mini_chart_html(ticker, entry_date, price_map, spy_map, since_label="since entry"):
     """Wrap _mini_vs_spy_svg with a label for injection into an expanded card.
     Slices each series from the position's entry date so the comparison covers
     the holding period. Returns '' on insufficient data."""
@@ -5860,7 +5921,7 @@ def _build_mini_chart_html(ticker, entry_date, price_map, spy_map):
             '<div style="display:flex;gap:14px;align-items:center;font-family:DM Mono,monospace;font-size:11px;margin-bottom:6px;">'
             f'<span style="color:#d4a843;">\u2014 {ticker} {ss}{s_ret:.1f}%</span>'
             f'<span style="color:#7c8aa0;">\u2014 SPY {ks}{k_ret:.1f}%</span>'
-            '<span style="color:#8896ac;margin-left:auto;">since entry</span></div>'
+            '<span style="color:#8896ac;margin-left:auto;">' + since_label + '</span></div>'
             f'{svg}</div>'
         )
     except Exception:
