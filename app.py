@@ -2869,7 +2869,7 @@ The model applies the same rules to every security in its universe, regardless o
 The Model Portfolio shown in QNTM is a hypothetical illustration of how the model's signals would translate into a position book. It uses equal-weighted notional sizing, ignores slippage, taxes, brokerage commissions, and dividend treatment. It is not a real portfolio, no securities are held on your behalf, and no trades are executed. It is provided for transparency about the model's behavior, not as a recommendation.
 
 ### Past Performance
-QNTM does not currently publish a historical backtest. The only performance we show is the live Model Portfolio, which runs in real time on the model's rules-based signals from its inception date forward. It is a hypothetical illustration (see Model Portfolio above) and does not account for all real-world costs, taxes, or execution constraints. A live track record is short by nature, and past model performance is not a guarantee of future results.
+QNTM does not currently publish a historical backtest. The only performance we show is the live Model Portfolio, which is marked daily on the model's rules-based signals from its inception date forward. It is a hypothetical illustration (see Model Portfolio above) and does not account for all real-world costs, taxes, or execution constraints. A live track record is short by nature, and past model performance is not a guarantee of future results.
 
 ### You Can Lose Money
 All equity investments carry the risk of loss, including loss of your entire investment.
@@ -3555,7 +3555,7 @@ body { background-color: #0a0b14 !important; }
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
           <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#34d399;line-height:1;">Live portfolio</div>
-          <div style="font-size:13px;color:#b3bed0;margin-top:6px;">Rules-based entries &amp; exits, tracked in real time</div>
+          <div style="font-size:13px;color:#b3bed0;margin-top:6px;">Rules-based entries &amp; exits, marked daily vs SPY</div>
         </div>
       </div>
     </div>
@@ -8586,12 +8586,12 @@ def page_methodology():
          "universe as it existed then, and macro conditions as they were known. We're building that properly "
          "rather than publishing numbers that can't withstand scrutiny.\n\n"
          "The track record we show is the live Model Portfolio: rules-based entries and exits on the model's "
-         "signals, tracked in real time from inception forward. A live record is short by nature. "
+         "signals, tracked daily from inception forward. A live record is short by nature. "
          "Past model performance does not guarantee future results."),
 
         ("Scores & Alerts", "#d4a843",
          "• Nightly refresh — full universe rescored each night via automated cron\n"
-         "• Intraday refresh — prices updated multiple times daily\n"
+         "• Daily signals — conviction scores are close-to-close; the macro overlay is the only intraday-moving input\n"
          "• Signal alerts — Pro users receive notifications when watchlist stocks change conviction tier\n"
          "• Macro regime — refreshed every 15 minutes from live VIX, WTI, and news feeds\n"
          "• Platform stats — gem count, high/low conviction counts updated after each refresh"),
