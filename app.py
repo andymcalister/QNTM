@@ -1945,7 +1945,15 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     act    = r.get("adj_action", r.get("action","HOLD"))
     score  = r.get("adj_composite", r.get("composite", 50))
     quant  = r.get("composite", 50)
-    delta  = r.get("score_delta", 0)
+    # MACRO box = macro overlay impact. signal_log rows don't carry `score_delta`,
+    # so fall back to adj_composite - composite (the same values shown as
+    # score/quant) instead of defaulting to 0 and always reading "+0.0".
+    delta  = r.get("score_delta")
+    if delta is None:
+        try:
+            delta = float(score or 50) - float(quant or 50)
+        except Exception:
+            delta = 0
 
     # Percentile rank: use the stored value if present, else derive on the fly
     # from the full-universe distribution in session (watchlist/portfolio rows
@@ -5504,6 +5512,21 @@ def page_gems():
 
     _macro_gems = st.session_state.get("macro_data") or {}
     gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
+
+    # Resolve the macro regime up front so BOTH the empty-state branch and the
+    # normal render path can reference it. Previously `regime` was only assigned
+    # below the empty-state block; because Python scopes it as a function-local
+    # for the whole function, the empty-state reference raised UnboundLocalError
+    # whenever `gems` came back empty.
+    if not st.session_state.get("macro_data"):
+        try:
+            st.session_state.macro_data = _live_macro()
+        except Exception:
+            st.session_state.macro_data = {}
+    regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
+    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316","RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
+    regime_color = regime_colors.get(regime, "#d4a843")
+
     if not gems:
         st.markdown(
             '<div style="padding:48px 32px;text-align:center;">'
@@ -5519,17 +5542,6 @@ def page_gems():
             '</div></div>',
             unsafe_allow_html=True)
         return
-
-    # Ensure macro data is loaded — fetch if not cached from screener
-    if not st.session_state.get("macro_data"):
-        try:
-            from model_engine import fetch_macro_overlay
-            st.session_state.macro_data = _live_macro()
-        except Exception:
-            st.session_state.macro_data = {}
-    regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
-    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316","RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
-    regime_color = regime_colors.get(regime, "#d4a843")
 
     st.markdown(f'<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(f"""
