@@ -1,37 +1,40 @@
 # QNTM Platform — Handoff Summary
-*Updated: May 30, 2026 (late — Stripe sandbox lifecycle working)*
+*Updated: May 31, 2026 (late — live intraday macro engine shipped; prod migrated to Render at qntm.live)*
 
 ## What It Is
 QNTM is a quantitative conviction factor model platform for retail investors. Dark institutional aesthetic, dark theme.
 
 **Deployments:**
-- Prod: `qntmmvp.streamlit.app` (main branch) ← **now in sync with dev as of this session**
-- Dev: `qntm-dev.streamlit.app` (dev branch) ← **active dev target**
+- **Prod: `qntm.live`** (apex) — hosted on **Render** (service `qntm-opbn.onrender.com`, Starter plan ~$7/mo always-on), tracks `main`, **auto-deploys on push** via `render.yaml` (blueprint). `www.qntm.live` also configured. SSL auto-provisioned by Render. Secrets live in a Render **Secret File** mounted at `.streamlit/secrets.toml` (the `startCommand` copies it from `/etc/secrets/secrets.toml`).
+- **Dev: `qntm-dev.streamlit.app`** (dev branch) — still on Streamlit Cloud, active dev target.
 - **GitHub:** `andymcalister/QNTM`
+- **Domain note:** the project moved off `qntm.app` → **`qntm.live`** this session (all refs swept). Old prod Streamlit app `qntmmvp.streamlit.app` is now SUPERSEDED by Render — decommission it once qntm.live is stable a few days (kills the auto-rebuild-to-new-Streamlit risk).
 
-**Standard push (dev):**
+**Standard push (dev — Streamlit Cloud):**
 ```bash
 git push origin main:dev
-# then force rebuild:
 git commit --allow-empty -m "chore: force rebuild" && git push origin main:dev
-# then reboot app (Manage app → ⋮ → Reboot) + hard-refresh
+# then reboot dev app (Manage app → ⋮ → Reboot) + hard-refresh
 ```
 
-**Push to prod:**
+**Push to prod (Render — NO reboot needed):**
 ```bash
 git push origin main
-git commit --allow-empty -m "chore: force rebuild" && git push origin main
-# reboot prod + hard-refresh
+# Render auto-deploys main within ~1-2 min. No force-rebuild, no manual reboot.
 ```
 Note: local commits are made on `main`; `main:dev` pushes that branch to the `dev` remote. Prod and dev share the same Supabase project, so run migrations once.
+
+**FILE-LOCATION GOTCHA (cost hours on May 31):** GitHub Actions workflows are ONLY read from `.github/workflows/`. A `nightly_refresh.yml` dropped in the repo root does nothing. When updating the workflow, the file MUST land at `.github/workflows/nightly_refresh.yml` — verify with `grep -c "macro:" .github/workflows/nightly_refresh.yml` (must be ≥1) BEFORE committing. Also: always eyeball `git diff --stat` before committing — an `app.py` change in the tens of lines is normal; thousands of lines means the wrong (ancient) file got copied in.
 
 ---
 
 ## Tech Stack
-- **Frontend:** Streamlit (Python), custom HTML/CSS
-- **Database:** Supabase (PostgreSQL) at `zqrudkoqhsjsltpefgcl.supabase.co`
+- **Frontend:** Streamlit (Python) **>=1.56** (bumped this session off the deprecated `st.components.v1.html`), custom HTML/CSS
+- **Hosting:** prod on **Render** (web service, blueprint via `render.yaml`); dev on Streamlit Cloud
+- **Database:** Supabase (PostgreSQL, **Pro plan** — daily backups, no auto-pause) at `zqrudkoqhsjsltpefgcl.supabase.co`
 - **Auth:** bcrypt + TOTP MFA, HMAC-SHA256 JWT tokens, 30-day localStorage remember-me
-- **Intraday cron:** cron-job.org → GitHub `workflow_dispatch` every 30 min market hours (PAT expires May 2027)
+- **`qntm_html()` wrapper** (defined in app.py after `set_page_config`): version-safe replacement for `st.components.v1.html`. On Streamlit ≥1.56 it routes JS-only payloads (height=0) to inline `st.html(..., unsafe_allow_javascript=True)` and the one self-contained backtest chart (height>0, `iframe=True`) to `st.iframe`; falls back to `components.html` on <1.56. All 8 prior call sites migrated. Reason for inline-not-iframe: `st.iframe` rejects height=0, and inline run lets `window.parent`/`parent.document` resolve to the top window.
+- **Refresh jobs:** three modes — nightly full, intraday price, live macro (see **Refresh Architecture** below). Triggered by GitHub `schedule` + cron-job.org `workflow_dispatch`. GitHub PAT in the cron-job.org Authorization header (expires May 2027).
 
 ---
 
@@ -39,8 +42,30 @@ Note: local commits are made on `main`; `main:dev` pushes that branch to the `de
 - **Universe:** 834 tickers (S&P 500 + Russell 1000)
 - **5 Pillars:** Momentum 30%, Quality 25%, Volume 20%, Value 15%, Sentiment 10%
 - **Signals:** HIGH ≥60, MODERATE 45–59, LOW <45. **The `signal` column in signal_log now stores HIGH/MODERATE/LOW** (normalized this session from 8 legacy vocabularies — BUY/HOLD/SELL/STRONG ALIGN/HIGH ALIGN/LOW ALIGN/WEAK/NEG). `signal_legacy` column holds the originals for rollback. `model_engine` writes HIGH/MODERATE/LOW going forward. The internal `adj_action` enum (BUY/SELL/HOLD) is STILL used in code for portfolio/promotion logic but is NEVER displayed — always converted to conviction labels. No buy/hold/sell instructional language anywhere user-facing.
-- **Macro overlay:** 75/25 quant/macro blend
+- **Macro overlay:** regime-scaled quant/macro blend. Macro weight by regime: RISK_OFF/HIGH VOLATILITY 25–35%, RISK_ON/MILDLY BULLISH 15%, NEUTRAL 10% (in `apply_macro_overlay`). `adj_composite` = quant composite reweighted by sector overlay.
 - **Backtest:** +347% adj vs SPY +131% · Sharpe 1.72 · Max DD 6.5% · 85% win rate
+
+---
+
+## Refresh Architecture — THREE modes (shipped May 31)
+
+One workflow (`.github/workflows/nightly_refresh.yml`), one script (`data_refresh.py`), three modes selected by env/flag. The entrypoint routes: `MACRO_RUN`/`--macro` → `run_macro_refresh`; else `INTRADAY_RUN`/`--intraday` → `run_intraday_refresh`; else → `run_refresh` (full).
+
+| Mode | Function | What it does | Trigger | Writes |
+|---|---|---|---|---|
+| **Full** | `run_refresh` | Re-fetch all 834 tickers' fundamentals+prices, full re-score, live macro scan, write everything. Skips if `cache_is_fresh()` (≈20h) unless `--force`. | GitHub `schedule: 0 2 * * *` (2 AM UTC) | all signal_log cols + macro_state |
+| **Intraday** | `run_intraday_refresh` | Price + momentum only (~834 yfinance, ~90s). No fundamentals, no live macro scan (reads persisted `macro_state`). | cron-job.org, every 30 min **Mon–Fri market hours** (ET), body `{"ref":"main","inputs":{"intraday":"true"}}` | price/composite/momentum |
+| **Macro** | `run_macro_refresh` | Lightweight live macro re-scan (RSS + VIX + WTI, ~6 calls, ~10–30s). Re-applies sector overlay to today's existing scores. NO ticker re-fetch. | cron-job.org, every 30 min **all week, extended hours** (~4 AM–9 PM PT), body `{"ref":"main","inputs":{"macro":"true"}}` | adj_composite/signal/macro_overlay + macro_state |
+
+**Why macro is its own mode (the May 31 ask):** intraday was price-only, so a daytime macro/geopolitical event (e.g. Iran headline) couldn't move scores until the next nightly run. `run_macro_refresh` fixes that — it re-scans news/macro and re-applies the overlay every 30 min.
+
+**Collision-safe:** the macro pass writes ONLY `adj_composite`, `signal`, `macro_overlay`; the price pass owns `price`/`composite`/`momentum`. Disjoint columns → the two cron jobs can fire at the same instant with no clobbering (no schedule offset needed).
+
+**`macro_state` table (single source of truth):** `run_macro_refresh` and `run_refresh` both persist the live overlay dict to `macro_state` (single row, id=1, JSONB `overlay`). `_load_macro_state()` reads it. The **app reads `macro_state` for the banner** (via `_live_macro()` in app.py — every former in-process `fetch_macro_overlay()` call now routes through it), so the displayed regime always matches the `adj_composite` scoring AND page loads no longer each hit the RSS/VIX/WTI feeds. Falls back to a live scan only if `macro_state` is empty.
+
+**News summary:** `fetch_macro_overlay` now returns `summary` (human-readable, e.g. "Risk Off — War Escalation, Oil Spike (VIX 31.2, WTI $98). 47 live headlines scanned.") and `event_labels`. The banner renders `summary` as a "News read:" line.
+
+**`INTRADAY_RUN`/`MACRO_RUN` are driven by the dispatch INPUT, not `github.event.schedule`.** Original bug (May 31): the workflow keyed `INTRADAY_RUN` off `github.event.schedule == '...'`, but cron-job.org triggers via `workflow_dispatch` where that field is empty → always ran full refresh → cache-skip → timestamp never advanced. Fixed: workflow_dispatch `inputs.intraday`/`inputs.macro` → env. The workflow's high-frequency GitHub `schedule` crons were removed; cron-job.org owns intraday+macro, GitHub `schedule` keeps only the 2 AM full run.
 
 ---
 
@@ -112,7 +137,7 @@ Every `def page_X()` starts with `_pin_nav("X")` — prevents text input reruns 
 **DOES NOT EXIST:** `sector`, `adj_action`, `pct_rank`, `score_delta`
 
 **Derive in Python:**
-- `sector` → `SECTORS.get(ticker, "Unknown")` from `model_engine`
+- `sector` → `SECTORS.get(ticker, "Unknown")` from `model_engine`. NOTE: `run_macro_refresh` attaches sector from `load_cached_fundamentals(max_age_hours=48)` (the fundamentals JSONB carries `sector`) so the overlay maps correctly on the read side. The macro pass writes ONLY `adj_composite`/`signal`/`macro_overlay` (disjoint from the price pass — see Refresh Architecture).
 - `adj_action` → `"BUY" if adj>=60 else "SELL" if adj<45 else "HOLD"` (internal enum, never displayed)
 - `pct_rank` → computed in `factor_panel_html` on the fly from the session `scan_results` distribution when missing (watchlist/portfolio rows from signal_log lack it; otherwise they'd all show "50th"). Falls back to 50 only if no scan in session.
 
@@ -182,9 +207,10 @@ Both MUST be from the SAME Stripe environment (sandbox key + sandbox price). Mis
 ---
 
 ## Supabase Tables
-`users`, `holdings`, `signal_log`, `notifications`, `backtest_cache`, `fundamentals_cache`, `signal_snapshots`, `model_portfolio_positions`, `watchlists`, `watchlist_items`, `arl_consent_log`, `notices_sent`, `signal_batch_audit`
+`users`, `holdings`, `signal_log`, `notifications`, `backtest_cache`, `fundamentals_cache`, `signal_snapshots`, `model_portfolio_positions`, `watchlists`, `watchlist_items`, `arl_consent_log`, `notices_sent`, `signal_batch_audit`, `macro_state`
 
 **Migrations (run in Supabase SQL editor; prod+dev share one project):**
+- `macro_state.sql` — single-row live macro overlay table (id=1, JSONB `overlay`, public-read RLS). **Run May 31.** Written by `run_macro_refresh`/`run_refresh`, read by the app banner.
 - `migrations/atomic_publishing.sql` — batch_id/published_at columns, append-only `signal_batch_audit`, `publish_signal_batch` RPC (atomic batch swap). NOTE: still need to wire `publish_signal_batch()` into `run_refresh` to activate atomicity.
 - `migrations/arl_compliance.sql` — `arl_consent_log` + `notices_sent` (both append-only, UPDATE/DELETE blocked by trigger).
 - Signal normalization (3 SQL blocks, run on backup): add `signal_legacy`, UPDATE `signal` from adj_composite to HIGH/MODERATE/LOW, verify.
@@ -240,35 +266,69 @@ SUPABASE_SERVICE_KEY = "..."
 ENCRYPTION_KEY = "gvRXtS0L-DqgRu9ieMvt9oxMgPdCChFCsUx-qgyGXd0="
 ENVIRONMENT = "dev"   # dev deployment only; prod omits or sets "prod"
 ```
-**Outstanding:** rotate Supabase keys before paid launch (flagged repeatedly). Add `SUPABASE_SERVICE_KEY` to Streamlit Cloud secrets on BOTH dev and prod — the ARL logging, atomic publish, and freshness checks use the service-key client.
+**Outstanding:** rotate Supabase keys before paid launch (flagged repeatedly).
+**Where secrets live now:** dev = Streamlit Cloud secrets; **prod = Render Secret File** mounted at `.streamlit/secrets.toml` (must include `SUPABASE_SERVICE_KEY` — ARL logging, atomic publish, freshness checks, and the macro pass all use the service-key client). **GitHub Actions** (the refresh jobs) has its own repo secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ENCRYPTION_KEY`. `STRIPE_*` stays OFF prod until go-live.
 
 ---
 
 ## Pre-Launch Checklist
 - [x] **QNTM LLC** — Articles of Organization FILED (pending state approval). EIN + business email obtained.
-- [x] Stripe integration built & working in SANDBOX (Checkout + 7-day trial + cancel + Founder-supporter)
-- [x] Prod in sync with dev (May 30)
+- [x] Stripe integration built & working in SANDBOX (Checkout + 7-day trial + cancel + Founder-supporter); validated end-to-end on dev May 31. Prod stays GATED (no STRIPE_* secrets) until go-live.
 - [x] Signal vocabulary normalized to HIGH/MODERATE/LOW (code + DB)
 - [x] ARL machinery built (auto-on when Stripe configured)
+- [x] **Prod migrated to Render at qntm.live** (May 31) — always-on, custom domain, SSL, auto-deploy
+- [x] **Supabase upgraded to Pro** (May 31) — daily backups, no auto-pause (PITR add-on NOT enabled; unnecessary)
+- [x] **Streamlit ≥1.56 migration** — off deprecated `st.components.v1.html` (June-1 deprecation resolved)
+- [x] **Live intraday macro engine** shipped (May 31) — `run_macro_refresh`, `macro_state`, banner reads it, news summary
+- [x] **Intraday + macro crons live** — cron-job.org jobs verified (intraday Mon–Fri market hours; macro all-week extended hours)
+- [x] qntm.live mailboxes (hello@/legal@/billing@/privacy@/security@ → admin@), receiving only
 - [ ] **Bank account (Mercury)** — blocked on Articles approval; needed for Stripe payout
-- [ ] **Swap Stripe sandbox → live keys** + recreate product in live mode (needs bank + account activation)
-- [ ] **Fintech lawyer review** — IAA 1940 publisher's exclusion, ARL copy + consent/cancel UI, Founder-supporter path, conflicts disclosure, trading policy, disclaimers, CA DFPI. THE GATE before paying users.
-- [ ] Wire `arl._send_email` to SendGrid (currently stubbed)
-- [ ] Add `STRIPE_*` + `SUPABASE_SERVICE_KEY` to PROD secrets when going live
+- [ ] **Swap Stripe sandbox → live keys** + recreate $29 product/price in live mode (needs bank + account activation); add `STRIPE_*` to PROD secrets ONLY at go-live
+- [ ] **Fintech lawyer review** — IAA 1940 publisher's exclusion, ARL copy + consent/cancel UI, Founder-supporter path, conflicts disclosure, trading policy, disclaimers, CA DFPI. THE GATE before paying users. (Counsel engaged; will forward `QNTM_POLICIES_FINAL.md`.) Disclaimer/label finalization is gated on their feedback.
+- [ ] Wire `arl._send_email` to SendGrid (stubbed) + SPF/DKIM/DMARC on qntm.live for sending
 - [ ] Rotate Supabase keys
-- [ ] **Upgrade Supabase to Pro for backups** (currently FREE = no backups — risk before paying users)
 - [ ] Wire `publish_signal_batch()` into `run_refresh` (atomic publishing)
-- [ ] Verify intraday cron on prod
+- [ ] **SEO: split marketing site from app** (NEXT PROJECT — see Next Session)
+- [ ] (optional) Decommission old prod Streamlit app `qntmmvp.streamlit.app` once qntm.live is stable a few days
+- [ ] (optional) iPhone home-screen icon via edge-served `apple-touch-icon.png` (180px file ready; Streamlit doesn't serve it)
 - [ ] (optional) Stripe webhooks to replace polling lag; same-tab checkout button
 
 ## Next Session
-Stripe sandbox lifecycle is DONE. Remaining path to revenue: **Articles approve → Mercury bank → Stripe live activation → swap to live keys → attorney sign-off → go live.** Attorney review is the real gate and can run in parallel with the bank wait. Quick wins available now: test-account cleanup discipline (`+test` aliases), Supabase Pro backups, SendGrid wiring.
+**Primary next project: SEO — split the marketing site from the app.** qntm.live currently serves the Streamlit SPA, which returns an empty JS shell to crawlers (title "Streamlit", body "enable JavaScript") → effectively zero indexable content. The fix is the standard SaaS split: a real static/SSR landing page on the apex `qntm.live` (Astro on Cloudflare Pages recommended — zero-JS, free, sits next to Render) with proper title/meta/OG/`SoftwareApplication`+`Organization`+`WebSite` schema and the competitor matrix as crawlable HTML; move the Streamlit app to `app.qntm.live` (add the subdomain in Render → Custom Domains; repoint apex DNS to the static host, add `app` CNAME → `qntm-opbn.onrender.com`). Estimated SEO score jumps ~18→65–75.
+- **Brand collision is real and in-vertical:** ticker `QNTM` = **Quantum BioPharma** (NASDAQ/CSE) dominates all finance SERPs; also Sam Hughes (qntm.org, sci-fi author) + QNTM Group (MarTech). Don't chase bare "qntm" — target "QNTM quantitative conviction model / factor screener / conviction signals"; avoid "QNTM stock" (that's the biopharma ticker). Title/H1 should always pair the name with the category.
+- **Legal applies to the public page too:** the competitor matrix + "conviction signal" claims on an indexable marketing page are the same public-facing claim surface the fintech lawyer is reviewing — don't publish performance/comparative claims ahead of sign-off.
+
+**Path to revenue (unchanged):** Articles approve → Mercury bank → Stripe live activation → swap to live keys → attorney sign-off → go live. Attorney review is the real gate and runs in parallel with the bank wait.
 
 Other backlog: see **BACKLOG.md**.
 
 ---
 
 ## Session History
+
+### May 31, 2026 (evening — Render migration + live intraday macro engine)
+Big infrastructure + feature day.
+
+**Hosting / domain / infra:**
+- Renamed `qntm.app` → **`qntm.live`** everywhere (~37 refs across app.py, policies, arl.py).
+- **Migrated prod off Streamlit Cloud → Render** (Starter, always-on; `render.yaml` blueprint; secrets via Render Secret File → `.streamlit/secrets.toml`). Custom domain `qntm.live` + `www`, SSL auto-issued. GoDaddy DNS: apex A→Render IP, www CNAME→`qntm-opbn.onrender.com`. Prod now auto-deploys on push to main, no reboot.
+- **Supabase → Pro** (daily backups, no auto-pause; PITR add-on deliberately skipped).
+- Set up 5 qntm.live mailboxes as forwarding aliases → admin@ (receiving only).
+- Mobile sign-in bug fixed (home-page tz detector was calling `location.replace()` mid-navigation → `history.replaceState()`). Q favicon wired (`qntm_icon.png`). Repo cleanup (removed junk/dupes, untracked venv). MFA-gate buttons stacked vertically (were clipping on mobile). Stripe checkout re-validated on dev with test card.
+- **`st.components.v1.html` → `qntm_html()` migration** + bumped Streamlit to ≥1.56 (resolved the June-1 deprecation). All 8 call sites migrated; JS-only payloads go inline via `st.html`, the backtest chart via `st.iframe`.
+
+**Live intraday macro engine (the main feature — see Refresh Architecture):**
+- Diagnosed why "last refreshed" was stuck a day behind: the workflow keyed `INTRADAY_RUN` off `github.event.schedule`, but cron-job.org triggers via `workflow_dispatch` (that field empty) → every run did a full refresh → cache-skip in 2s → timestamp never moved. Fixed by driving `INTRADAY_RUN`/`MACRO_RUN` off `workflow_dispatch` inputs; removed the redundant high-frequency GitHub `schedule` crons (cron-job.org owns intraday+macro now; GitHub keeps the 2 AM full run).
+- Built **`run_macro_refresh`** (`--macro` / `MACRO_RUN`): lightweight live macro re-scan (~6 calls) that re-applies the sector overlay to today's existing scores with no ticker re-fetch, so daytime macro/geopolitical events move `adj_composite` intraday. Writes ONLY `adj_composite`/`signal`/`macro_overlay` (disjoint from the price pass → collision-safe).
+- New **`macro_state`** table (single-row JSONB) as the macro source of truth; written by macro + full passes, read by the app.
+- **Banner now reads `macro_state`** via `_live_macro()` (replaced all in-process `fetch_macro_overlay()` calls) → displayed regime matches the scoring, and page loads stop hitting RSS/VIX/WTI per-session.
+- `fetch_macro_overlay` now returns `summary` + `event_labels`; banner shows a "News read:" line.
+- Two cron-job.org jobs configured: intraday (`intraday:true`, Mon–Fri market hours) + macro (`macro:true`, all-week extended hours). Verified end-to-end; macro run shows on the app.
+
+**Lessons / scars (READ):**
+- **Workflows live ONLY in `.github/workflows/`.** A downloaded `nightly_refresh.yml` landed in the repo root (twice) and did nothing; the macro input never appeared and the cron 422'd. Always `grep -c "macro:" .github/workflows/nightly_refresh.yml` (must be ≥1) before committing workflow changes.
+- **`git diff --stat` before every commit.** Stale/ancient files from `~/Downloads` got copied over current code (app.py showing 8000+ changed lines = wrong file). Re-download from the session's presented files, not old Downloads; delete stale Downloads copies.
+- A `204` from cron-job.org only means GitHub accepted the dispatch — it says nothing about whether the Action ran or wrote anything. Check the Action run logs + step duration (a 2s "Run refresh" = cache-skip, not a real run).
 
 ### May 30, 2026 (evening — Stripe billing)
 Built the full payments layer. Major themes: Stripe Checkout + trial, Founder-supporter path, lots of Streamlit-sandbox navigation debugging.

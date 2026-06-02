@@ -534,6 +534,39 @@ MACRO_EVENT_INFO = {
 }
 
 
+EVENT_LABELS = {
+    "tariff_broad":     "Tariff Headwinds",
+    "tariff_relief":    "Tariff Relief",
+    "fed_hawkish":      "Fed Hawkish",
+    "fed_dovish":       "Fed Dovish",
+    "recession_signal": "Recession Signal",
+    "war_escalation":   "War Escalation",
+    "chip_export_ban":  "Chip Export Ban",
+    "oil_spike":        "Oil Spike",
+}
+
+
+def _macro_event_labels(active_events: list) -> list:
+    return [EVENT_LABELS.get(e, e.replace("_", " ").title()) for e in (active_events or [])]
+
+
+def _macro_summary(regime_label: str, event_labels: list, vix, oil, n_headlines: int, live: bool) -> str:
+    """One-line human-readable read of the current macro scan, for the app banner."""
+    s = (regime_label or "NEUTRAL").replace("_", " ").title()
+    if event_labels:
+        s += " — " + ", ".join(event_labels[:4])
+    ctx = []
+    if vix is not None: ctx.append(f"VIX {vix:.1f}")
+    if oil is not None: ctx.append(f"WTI ${oil:.0f}")
+    if ctx:
+        s += " (" + ", ".join(ctx) + ")"
+    if live:
+        s += f". {n_headlines} live headline{'s' if n_headlines != 1 else ''} scanned."
+    else:
+        s += ". Estimated regime — live feeds unavailable."
+    return s
+
+
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
     Fetch macro regime and sector overlays from live data sources.
@@ -691,6 +724,9 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         if oil_price: source_desc += f", WTI ${oil_price:.1f}"
         source_desc += ")"
 
+        _ev_labels_live = _macro_event_labels(active_events)
+        _summary_live   = _macro_summary(regime_label, _ev_labels_live, vix_level, oil_price, n_headlines, True)
+
         return {
             "regime":          regime_label,
             "regime_score":    round(risk_score, 3),
@@ -702,6 +738,8 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "headlines_scanned": n_headlines,
             "source":          source_desc,
             "live":            True,
+            "event_labels":    _ev_labels_live,
+            "summary":         _summary_live,
         }
 
     except Exception as e:
@@ -716,8 +754,10 @@ def _build_overlay_from_regime(regime: dict) -> dict:
         impacts = SECTOR_EVENT_MAP.get(event_type, {})
         for sector, impact in impacts.items():
             sector_overlays[sector] = sector_overlays.get(sector, 0.0) + impact * 0.6
+    _rg_label  = regime.get("label", "NEUTRAL")
+    _ev_labels = _macro_event_labels(regime.get("active_events", []))
     return {
-        "regime":          regime.get("label", "NEUTRAL"),
+        "regime":          _rg_label,
         "regime_score":    regime.get("score", 0.0),
         "sector_overlays": sector_overlays,
         "active_events":   regime.get("active_events", []),
@@ -727,6 +767,8 @@ def _build_overlay_from_regime(regime: dict) -> dict:
         "headlines_scanned": 0,
         "source":          "estimated",
         "live":            False,
+        "event_labels":    _ev_labels,
+        "summary":         _macro_summary(_rg_label, _ev_labels, None, None, 0, False),
     }
 
 

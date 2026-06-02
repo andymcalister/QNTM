@@ -1518,6 +1518,25 @@ def score_bar_html(val, width=80):
     col = "#00ff87" if val>=65 else "#fbbf24" if val>=50 else "#ef4444"
     return f'<div style="width:{width}px;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;"><div style="width:{val}%;height:100%;background:{col};border-radius:2px;"></div></div>'
 
+def _live_macro() -> dict:
+    """Single source of truth for the displayed macro regime: read the cron's
+    persisted live overlay (macro_state) so the banner and regime always match the
+    scoring that produced adj_composite. Falls back to a one-off live scan only if
+    macro_state is empty (e.g. before the first macro pass has run)."""
+    try:
+        from data_refresh import _load_macro_state
+        m = _load_macro_state()
+        if m:
+            return m
+    except Exception:
+        pass
+    try:
+        from model_engine import fetch_macro_overlay
+        return fetch_macro_overlay(use_live_feeds=True)
+    except Exception:
+        return {}
+
+
 def macro_regime_banner_html(macro: dict) -> str:
     """Renders the macro regime banner with live stats from macro_data."""
     regime    = macro.get("regime","NEUTRAL")
@@ -1554,6 +1573,14 @@ def macro_regime_banner_html(macro: dict) -> str:
                            f'border-radius:3px;padding:2px 8px;font-size:13px;color:#94a3b8;margin-right:6px;">'
                            f'{nice.get(e,e.replace("_"," ").title())}</span>')
 
+    # News summary line (synthesized from the live macro scan)
+    summary_txt  = (macro.get("summary") or "").strip()
+    summary_html = ""
+    if summary_txt:
+        import html as _html
+        summary_html = (f'<div style="font-size:13px;color:#cbd5e1;margin-top:6px;line-height:1.5;">'
+                        f'<span style="color:#64748b;">News read:</span> {_html.escape(summary_txt)}</div>')
+
     # Source badge
     if macro.get("live"):
         src_parts = [f'⚡ Live']
@@ -1587,6 +1614,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         f'color:{color};letter-spacing:.1em;">MACRO REGIME: {regime}</span>'
         f'{src_badge}</div>'
         f'<div style="font-size:14px;color:#94a3b8;margin-top:2px;">{desc}</div>'
+        f'{summary_html}'
         f'<div style="margin-top:6px;">{events_html}</div>'
         f'</div></div>'
         f'<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">'
@@ -1917,7 +1945,15 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     act    = r.get("adj_action", r.get("action","HOLD"))
     score  = r.get("adj_composite", r.get("composite", 50))
     quant  = r.get("composite", 50)
-    delta  = r.get("score_delta", 0)
+    # MACRO box = macro overlay impact. signal_log rows don't carry `score_delta`,
+    # so fall back to adj_composite - composite (the same values shown as
+    # score/quant) instead of defaulting to 0 and always reading "+0.0".
+    delta  = r.get("score_delta")
+    if delta is None:
+        try:
+            delta = float(score or 50) - float(quant or 50)
+        except Exception:
+            delta = 0
 
     # Percentile rank: use the stored value if present, else derive on the fly
     # from the full-universe distribution in session (watchlist/portfolio rows
@@ -3064,7 +3100,7 @@ body { background-color: #0a0b14 !important; }
     # Fetch macro regime for right-side intelligence panel
     try:
         from model_engine import fetch_macro_overlay
-        _macro_now = fetch_macro_overlay()
+        _macro_now = _live_macro()
     except Exception:
         _macro_now = {}
     _regime       = _macro_now.get("regime", "NEUTRAL")
@@ -4438,7 +4474,7 @@ def page_screener():
                 else:
                     scored = score_stock(resolved_tk, hist)
                     scored["sector"] = ALL_SECTORS.get(resolved_tk, "Unknown")
-                    macro = st.session_state.get("macro_data") or fetch_macro_overlay(use_live_feeds=True)
+                    macro = st.session_state.get("macro_data") or _live_macro()
                     scored_list = apply_macro_overlay([scored], macro)
                     sr = scored_list[0]
                     if sr.get("promoted"):
@@ -4528,7 +4564,7 @@ def page_screener():
             pass
         with st.spinner(stale_msg):
             raw   = run_full_scan(use_live_prices=False)
-            macro = fetch_macro_overlay()
+            macro = _live_macro()
             for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = ALL_SECTORS.get(r["ticker"], "Unknown")
@@ -4550,7 +4586,7 @@ def page_screener():
     _macro_age = _time.time() - st.session_state.get("_macro_fetched_at", 0)
     if not st.session_state.get("macro_data") or _macro_age > 900:
         try:
-            macro = fetch_macro_overlay()
+            macro = _live_macro()
             st.session_state.macro_data      = macro
             st.session_state._macro_fetched_at = _time.time()
         except Exception:
@@ -5457,7 +5493,7 @@ def page_gems():
             _gems_prog.progress(15, text="Running factor model...")
             _raw = run_full_scan(use_live_prices=False)
             _gems_prog.progress(60, text="Applying macro overlay...")
-            _mac = fetch_macro_overlay()
+            _mac = _live_macro()
             for _r in _raw:
                 if not _r.get("sector") or _r.get("sector") == "Unknown":
                     _r["sector"] = _GEM_SECTORS.get(_r["ticker"], "Unknown")
@@ -5476,6 +5512,21 @@ def page_gems():
 
     _macro_gems = st.session_state.get("macro_data") or {}
     gems = detect_hidden_gems(st.session_state.scan_results, macro_data=_macro_gems)
+
+    # Resolve the macro regime up front so BOTH the empty-state branch and the
+    # normal render path can reference it. Previously `regime` was only assigned
+    # below the empty-state block; because Python scopes it as a function-local
+    # for the whole function, the empty-state reference raised UnboundLocalError
+    # whenever `gems` came back empty.
+    if not st.session_state.get("macro_data"):
+        try:
+            st.session_state.macro_data = _live_macro()
+        except Exception:
+            st.session_state.macro_data = {}
+    regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
+    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316","RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
+    regime_color = regime_colors.get(regime, "#d4a843")
+
     if not gems:
         st.markdown(
             '<div style="padding:48px 32px;text-align:center;">'
@@ -5491,17 +5542,6 @@ def page_gems():
             '</div></div>',
             unsafe_allow_html=True)
         return
-
-    # Ensure macro data is loaded — fetch if not cached from screener
-    if not st.session_state.get("macro_data"):
-        try:
-            from model_engine import fetch_macro_overlay
-            st.session_state.macro_data = fetch_macro_overlay()
-        except Exception:
-            st.session_state.macro_data = {}
-    regime = st.session_state.get("macro_data", {}).get("regime", "NEUTRAL")
-    regime_colors = {"RISK_OFF":"#ef4444","HIGH VOLATILITY":"#f97316","RISK_ON":"#00ff87","MILDLY BULLISH":"#4ade80","NEUTRAL":"#d4a843"}
-    regime_color = regime_colors.get(regime, "#d4a843")
 
     st.markdown(f'<div style="padding:0 32px;">', unsafe_allow_html=True)
     st.markdown(f"""
@@ -6031,7 +6071,7 @@ def page_portfolio():
     if st.session_state.scan_results is None:
         with st.spinner("Loading model signals..."):
             raw   = run_full_scan(use_live_prices=False)
-            macro = fetch_macro_overlay()
+            macro = _live_macro()
             for r in raw:
                 if not r.get("sector") or r.get("sector") == "Unknown":
                     r["sector"] = SECTORS.get(r["ticker"], "Unknown")
@@ -8739,7 +8779,7 @@ def main():
             from model_engine import fetch_macro_overlay, apply_macro_overlay, run_full_scan
             from model_engine import SECTORS as _SIM_SECTORS
             _raw = run_full_scan(use_live_prices=False)
-            _mac = fetch_macro_overlay()
+            _mac = _live_macro()
             for _r in _raw:
                 if not _r.get("sector") or _r.get("sector") == "Unknown":
                     _r["sector"] = _SIM_SECTORS.get(_r["ticker"], "Unknown")

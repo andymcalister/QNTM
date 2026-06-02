@@ -4,6 +4,8 @@ Run from your local QNTM directory:
   python rebuild_model_portfolio.py
 """
 import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from datetime import date
 
 # Load secrets from streamlit

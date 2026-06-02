@@ -37,6 +37,7 @@ MAX_RETRIES        = 2      # retry failed tickers once
 STALE_HOURS        = 20     # treat cache as stale after this many hours
 FUNDAMENTALS_TABLE = "fundamentals_cache"   # new table (see schema addition below)
 SIGNAL_TABLE       = "signal_log"
+MACRO_STATE_TABLE  = "macro_state"          # single-row live macro overlay (see schema below)
 
 
 # ── SUPABASE CLIENT ───────────────────────────────────────────────────────────
@@ -307,6 +308,79 @@ def write_fundamentals_cache(ticker_data: dict) -> bool:
     except Exception as e:
         log.error(f"Supabase write failed: {e}")
         return False
+
+
+def _write_macro_state(macro: dict) -> bool:
+    """
+    Persist the latest macro overlay so every reader (intraday pass, app banner,
+    next macro pass) shares one source of truth. Stored json-encoded to match the
+    fundamentals_cache convention.
+    """
+    sb = _get_supabase()
+    if not sb:
+        return False
+    try:
+        sb.table(MACRO_STATE_TABLE).upsert(
+            {"id": 1,
+             "overlay":    json.dumps(macro),
+             "updated_at": datetime.utcnow().isoformat()},
+            on_conflict="id"
+        ).execute()
+        return True
+    except Exception as e:
+        log.warning(f"macro_state write failed: {e}")
+        return False
+
+
+# Minimum populated rows required to consider a signal_date a "real" batch.
+# 500 is well below a healthy nightly run (~830) but well above what a partial
+# intraday/macro write would produce on its own. Tune up if the universe grows
+# materially.
+COMPLETE_BATCH_MIN_ROWS = 500
+
+
+def _today_batch_is_complete(sb, signal_date: str, min_rows: int = COMPLETE_BATCH_MIN_ROWS) -> bool:
+    """
+    True iff signal_log has at least `min_rows` rows for `signal_date` with a
+    non-NULL `composite`. Used by the intraday and macro passes to enforce the
+    invariant that ONLY the full nightly run may create a new signal_date — both
+    sub-passes must refuse to write to signal_log until the base batch exists.
+
+    Without this, either sub-pass can fire after the UTC clock rolls past
+    midnight but before the 2 AM UTC nightly, and PostgREST's upsert will INSERT
+    new rows for today with only its own columns populated (pillars NULL,
+    composite NULL). The app reads "latest signal_date" and shows every name at
+    QUANT 50.0 — the bug we hit on 2026-06-02.
+    """
+    if not sb:
+        return False
+    try:
+        # head=True returns count without payload; .not_.is_(col, "null") filters NULLs.
+        resp = (sb.table(SIGNAL_TABLE)
+                .select("ticker", count="exact", head=True)
+                .eq("signal_date", signal_date)
+                .not_.is_("composite", "null")
+                .execute())
+        n = int(getattr(resp, "count", 0) or 0)
+        return n >= min_rows
+    except Exception as e:
+        log.warning(f"_today_batch_is_complete check failed: {e}")
+        # Fail safe: if we can't verify the batch is complete, refuse to write.
+        return False
+
+
+def _load_macro_state() -> dict:
+    """Read the latest persisted macro overlay. Returns {} if unavailable/empty."""
+    sb = _get_supabase()
+    if not sb:
+        return {}
+    try:
+        resp = sb.table(MACRO_STATE_TABLE).select("overlay").eq("id", 1).limit(1).execute()
+        if resp.data:
+            return json.loads(resp.data[0]["overlay"])
+    except Exception:
+        pass
+    return {}
 
 
 def write_signal_snapshot(scored_list: list) -> bool:
@@ -769,6 +843,7 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
 
         # Apply live macro overlay
         macro = fetch_macro_overlay(use_live_feeds=True)
+        _write_macro_state(macro)
         scored = apply_macro_overlay(scores, macro)
 
         # Write to signal_log
@@ -827,6 +902,19 @@ ALTER TABLE public.fundamentals_cache ENABLE ROW LEVEL SECURITY;
 -- Index for fast date-filtered lookups
 CREATE INDEX IF NOT EXISTS idx_fundamentals_cache_date
     ON public.fundamentals_cache(data_date, refreshed_at);
+
+-- ── macro_state: single-row live macro overlay (run once in Supabase SQL editor) ──
+CREATE TABLE IF NOT EXISTS public.macro_state (
+    id          INT PRIMARY KEY DEFAULT 1,
+    overlay     JSONB NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT macro_state_singleton CHECK (id = 1)
+);
+
+ALTER TABLE public.macro_state ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Macro state public read" ON public.macro_state
+    FOR SELECT USING (true);
 """
 
 
@@ -854,6 +942,17 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     today = date.today().isoformat()
     updated = 0
     failed  = 0
+
+    # Invariant: only run_refresh may create new signal_dates. If today's batch
+    # hasn't been populated yet (UTC has rolled past midnight but the 2 AM full
+    # run hasn't fired or has failed), DO NOT upsert — the on_conflict path
+    # would INSERT new rows for today with only `price` filled and pillars NULL,
+    # which the app would then show as the latest batch.
+    if not _today_batch_is_complete(sb, today):
+        log.warning(f"Intraday refresh: no complete signal_log batch for {today} yet — "
+                    "skipping signal_log writes. Will resume once the nightly populates the batch.")
+        return {"success": True, "mode": "intraday", "updated": 0,
+                "skipped_reason": "no_base_batch_for_today"}
 
     # Fetch current prices in batches of 200
     chunk_size = 200
@@ -934,7 +1033,7 @@ def run_intraday_refresh(tickers: list = None) -> dict:
             # Apply macro overlay to get fresh adj_composite scores
             try:
                 from model_engine import apply_macro_overlay, fetch_macro_overlay
-                macro = fetch_macro_overlay(use_live_feeds=False)
+                macro = _load_macro_state() or fetch_macro_overlay(use_live_feeds=False)
                 scored_today = apply_macro_overlay(sig_resp.data, macro)
             except Exception:
                 scored_today = sig_resp.data  # use raw if overlay fails
@@ -949,6 +1048,133 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     return {"success": True, "updated": updated, "failed": failed, "duration_s": duration, "mode": "intraday"}
 
 
+# ── LIVE MACRO REFRESH ────────────────────────────────────────────────────────
+def run_macro_refresh(tickers: list = None) -> dict:
+    """
+    Lightweight live macro pass. Re-scans news/macro feeds and re-applies the
+    sector overlay to today's EXISTING scores — no fundamental/price re-fetch.
+    Cheap enough (a handful of RSS + VIX + WTI calls) to run every 30 min all
+    day, including after hours and weekends, so a breaking macro/geopolitical
+    event moves adj_composite intraday instead of waiting for the nightly run.
+
+    Steps:
+      1. fetch_macro_overlay(use_live_feeds=True)        — RSS headlines + VIX + WTI
+      2. persist it to macro_state (single source of truth)
+      3. load today's signal_log rows, attach sector from fundamentals_cache
+      4. apply_macro_overlay -> fresh adj_composite / signal / macro_overlay
+      5. write the refreshed rows back to signal_log
+      6. update_model_portfolio on the new scores
+    """
+    from model_engine import fetch_macro_overlay, apply_macro_overlay
+
+    log.info("Macro refresh: scanning live macro feeds")
+    start = time.time()
+    sb = _get_supabase()
+    if not sb:
+        return {"success": False, "error": "No Supabase connection", "mode": "macro"}
+
+    today = date.today().isoformat()
+
+    # 1-2. Live scan + persist (do this even if there are no scores yet to adjust)
+    macro = fetch_macro_overlay(use_live_feeds=True)
+    _write_macro_state(macro)
+
+    # Invariant: only run_refresh may create new signal_dates. If today's batch
+    # isn't populated yet, refuse to write to signal_log — otherwise the upsert
+    # would INSERT or update rows on top of NULL pillars/composite, producing the
+    # all-50 "every stock identical" display bug. macro_state is already saved
+    # above, so the banner/regime stays live.
+    if not _today_batch_is_complete(sb, today):
+        duration = round(time.time() - start, 1)
+        log.warning(f"Macro refresh: no complete signal_log batch for {today} yet — "
+                    "macro_state saved; signal_log writes skipped.")
+        return {"success": True, "mode": "macro", "regime": macro.get("regime"),
+                "source": macro.get("source"), "updated": 0,
+                "skipped_reason": "no_base_batch_for_today", "duration_s": duration}
+
+    # 3. Load today's scores
+    try:
+        resp = sb.table(SIGNAL_TABLE).select(
+            "ticker,composite,momentum,quality,volume,value,sentiment,"
+            "signal,macro_overlay,adj_composite,price,is_hidden_gem,hidden_gem_reason"
+        ).eq("signal_date", today).execute()
+        rows = resp.data or []
+    except Exception as e:
+        return {"success": False, "error": f"signal_log read failed: {e}",
+                "mode": "macro", "regime": macro.get("regime")}
+
+    if not rows:
+        duration = round(time.time() - start, 1)
+        log.info("Macro refresh: no signal_log rows for today yet — macro_state saved only")
+        return {"success": True, "mode": "macro", "regime": macro.get("regime"),
+                "source": macro.get("source"), "updated": 0, "duration_s": duration}
+
+    # 4. Attach sector (required for the sector overlay). Sector is NOT stored
+    #    in signal_log or in the fundamentals cache — the canonical source is the
+    #    universe_data.SECTORS map, exactly what score_stock() uses to label each
+    #    score and what apply_macro_overlay() looks up against SECTOR_EVENT_MAP.
+    #    Without this, every row is "Unknown" and the sector overlay resolves to
+    #    0.0 for the entire universe (MACRO +0.0 on every stock).
+    try:
+        from universe_data import SECTORS as _SECTORS
+    except Exception:
+        _SECTORS = {}
+    for r in rows:
+        r["sector"]    = _SECTORS.get(r["ticker"], "Unknown")
+        r["composite"] = float(r.get("composite") or 50)
+        r["momentum"]  = float(r.get("momentum")  or 50)
+
+    scored = apply_macro_overlay(rows, macro)
+
+    # 5. Write back ONLY the macro-derived columns. The intraday price pass owns
+    #    price/composite/momentum; this pass owns adj_composite/signal/macro_overlay.
+    #    Disjoint column sets => the two jobs can run at the same instant safely
+    #    (PostgREST upserts only the columns present; today's rows already exist).
+    write_rows = []
+    for s in scored:
+        write_rows.append({
+            "ticker":        s["ticker"],
+            "signal_date":   today,
+            "adj_composite": s.get("adj_composite"),
+            "signal":        s.get("signal"),
+            "macro_overlay": s.get("macro_overlay"),
+        })
+    updated = 0
+    try:
+        for i in range(0, len(write_rows), BATCH_SIZE):
+            batch = write_rows[i:i + BATCH_SIZE]
+            sb.table(SIGNAL_TABLE).upsert(batch, on_conflict="ticker,signal_date").execute()
+            updated += len(batch)
+    except Exception as e:
+        return {"success": False, "error": f"signal_log write failed: {e}",
+                "mode": "macro", "regime": macro.get("regime")}
+
+    # 6. Refresh model portfolio (exits/entries) on the new scores
+    try:
+        update_model_portfolio(scored)
+    except Exception as e:
+        log.warning(f"[MODEL PORTFOLIO] Macro-pass update failed: {e}")
+
+    # Touch the pill timestamp (reuse the intraday sentinel row)
+    try:
+        sb.table("fundamentals_cache").upsert(
+            {"ticker": "_intraday_sentinel", "data_date": today,
+             "refreshed_at": datetime.utcnow().isoformat(),
+             "fundamentals": "{}", "price": None, "vol_ratio": None},
+            on_conflict="ticker,data_date"
+        ).execute()
+    except Exception:
+        pass
+
+    duration = round(time.time() - start, 1)
+    log.info(f"Macro refresh complete: regime={macro.get('regime')} "
+             f"({macro.get('source')}) — {updated} rows re-scored in {duration}s")
+    return {"success": True, "mode": "macro",
+            "regime": macro.get("regime"), "source": macro.get("source"),
+            "active_events": macro.get("active_events"),
+            "updated": updated, "duration_s": duration}
+
+
 # ── ENTRYPOINT ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -956,6 +1182,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="QNTM Nightly Data Refresh")
     parser.add_argument("--force",    action="store_true", help="Bypass freshness check")
     parser.add_argument("--intraday", action="store_true", help="Run lightweight intraday price refresh only")
+    parser.add_argument("--macro",    action="store_true", help="Run lightweight live macro re-scan + overlay re-apply only")
     parser.add_argument("--tickers",  nargs="*",           help="Specific tickers to refresh")
     parser.add_argument("--schema",   action="store_true", help="Print schema SQL and exit")
     args = parser.parse_args()
@@ -967,8 +1194,11 @@ if __name__ == "__main__":
     # Respect INTRADAY_RUN env var (set by GitHub Actions intraday cron)
     import os
     is_intraday = args.intraday or os.getenv("INTRADAY_RUN", "false").lower() == "true"
+    is_macro    = args.macro    or os.getenv("MACRO_RUN",    "false").lower() == "true"
 
-    if is_intraday:
+    if is_macro:
+        result = run_macro_refresh(tickers=args.tickers)
+    elif is_intraday:
         result = run_intraday_refresh(tickers=args.tickers)
     else:
         result = run_refresh(tickers=args.tickers, force=args.force)

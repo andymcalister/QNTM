@@ -1,0 +1,48 @@
+# render.yaml — QNTM on Render
+# ============================================================================
+# Blueprint deploy: in Render, New → Blueprint, point at andymcalister/qntm.
+# Render reads this file and provisions the service.
+#
+# SECRETS are NOT in this file. Add them in the Render dashboard as a
+# "Secret File" mounted at .streamlit/secrets.toml (paste your existing
+# Streamlit Cloud secrets.toml content verbatim). That keeps st.secrets
+# working with zero code changes. Be sure SUPABASE_SERVICE_KEY is included.
+#
+# CUSTOM DOMAIN: after the service is live, Settings → Custom Domains →
+# add qntm.live (and www.qntm.live if you want it). Render gives you the DNS
+# records to set at your registrar and auto-provisions SSL.
+# ============================================================================
+
+services:
+  - type: web
+    name: qntm
+    runtime: python
+    plan: starter            # $7/mo, always-on. Do NOT use free — it cold-starts
+                             # and drops Streamlit sessions, which breaks login.
+    region: oregon           # pick the US region closest to you (oregon/ohio)
+    branch: main             # prod tracks the main branch (same as your prod today)
+    autoDeploy: true         # auto-redeploy on push to main, like Streamlit Cloud
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+# ── Optional: a separate dev service tracking the `dev` branch ───────────────
+# Uncomment to mirror your dev/prod split on Render (adds another $7/mo).
+# Or keep dev on Streamlit Cloud and only move prod — your call.
+#
+#  - type: web
+#    name: qntm-dev
+#    runtime: python
+#    plan: starter
+#    region: oregon
+#    branch: dev
+#    autoDeploy: true
+#    buildCommand: pip install -r requirements.txt
+#    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+#    healthCheckPath: /_stcore/health
+#    envVars:
+#      - key: PYTHON_VERSION
+#        value: "3.11.9"
