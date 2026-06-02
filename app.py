@@ -3330,7 +3330,7 @@ body { background-color: #0a0b14 !important; }
         '<div style="width:6px;height:6px;background:#00ff87;border-radius:50%;'
         'animation:land-pulse 2s infinite;flex-shrink:0;"></div>'
         '<span style="font-family:DM Mono,monospace;font-size:11px;color:#d4a843;letter-spacing:.1em;">'
-        'MODEL LIVE · 5-YR VALIDATED</span></div>'
+        'MODEL LIVE · UPDATED DAILY</span></div>'
         '<div style="display:inline-flex;align-items:center;background:rgba(0,255,135,.05);'
         'border:1px solid rgba(0,255,135,.15);border-radius:100px;padding:5px 14px;">'
         f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#00ff87;letter-spacing:.08em;">'
@@ -8069,7 +8069,6 @@ def page_methodology():
         "Transparent methodology — what the model does, how it scores stocks, and what it doesn't do.")
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    from model_engine import BACKTEST_DATA as _bt
     sections = [
         ("The Universe", "#00ff87",
          "QNTM covers 834 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
