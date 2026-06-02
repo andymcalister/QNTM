@@ -5716,6 +5716,14 @@ def _track_record_data(sb):
             prior = [dt for dt in m if dt <= d]
             return m[max(prior)] if prior else fallback
 
+        # TRUE equity curve — a real portfolio ledger. Start with $100K; each
+        # entry deploys $2K (shares = $2K / entry price); each exit returns
+        # shares x exit price to cash (so realized P&L, e.g. BORR's loss, is
+        # permanently reflected); every session the whole book is marked to the
+        # close. Endpoint = $100K + realized P&L + unrealized P&L = the true
+        # account value. The poisoned-batch exits were reversed in the data, so
+        # they carry no exit record here and are correctly excluded.
+        BASE = 100000.0
         entries_by_date, exits_by_date = {}, {}
         for p in positions:
             entries_by_date.setdefault(str(p["entry_date"])[:10], []).append(p)
@@ -5723,7 +5731,7 @@ def _track_record_data(sb):
             if len(xd) == 10:
                 exits_by_date.setdefault(xd, []).append(p)
 
-        cash = 100000.0
+        cash = BASE
         open_lots = {}
         model_series = []
         for d in dates:
@@ -5744,13 +5752,14 @@ def _track_record_data(sb):
                              for lot in open_lots.values())
             model_series.append((d, mtm))
 
+        basis = BASE
         spy0 = float(spy_close.iloc[0])
-        spy_series = [(d, 100000.0 * float(v) / spy0)
+        spy_series = [(d, BASE * float(v) / spy0)
                       for d, v in zip(dates, spy_close.values)]
 
         m_last, s_last = model_series[-1][1], spy_series[-1][1]
-        model_ret = (m_last / 100000.0 - 1) * 100
-        spy_ret   = (s_last / 100000.0 - 1) * 100
+        model_ret = (m_last / BASE - 1) * 100
+        spy_ret   = (s_last / BASE - 1) * 100
         day_model = ((model_series[-1][1] / model_series[-2][1] - 1) * 100
                      if model_series[-2][1] else 0.0)
         day_spy   = ((spy_series[-1][1] / spy_series[-2][1] - 1) * 100
@@ -5779,7 +5788,7 @@ def _track_record_data(sb):
         return {
             "inception": inception, "model_series": model_series, "spy_series": spy_series,
             "model_ret": model_ret, "spy_ret": spy_ret, "day_model": day_model, "day_spy": day_spy,
-            "model_value": m_last, "spy_value": s_last, "exits": exits,
+            "model_value": m_last, "spy_value": s_last, "exits": exits, "basis": basis,
             "sector_counts": sector_counts,
             "n_active": sum(1 for p in positions if p.get("is_active")),
             "n_exited": len(exits), "n_sessions": len(dates),
@@ -5789,54 +5798,72 @@ def _track_record_data(sb):
 
 
 def _tr_line_chart_svg(model_series, spy_series):
-    """Two-line SVG (gold = model, gray = SPY) of $ book value over time, with
-    value gridlines + $ labels, date ticks, a $100K reference, and end-point
-    value labels so the chart is readable at a glance."""
+    """Polished two-line area chart (gold = model, slate = SPY) of $ book value
+    over time, with gradient fills, value gridlines + $ labels, date ticks, a
+    $100K reference, and labeled end-points."""
     if not model_series or len(model_series) < 2:
         return ""
     dates  = [d for d, _ in model_series]
     m_vals = [v for _, v in model_series]
     s_vals = [v for _, v in spy_series]
-    W, H = 720, 280
-    PL, PR, PT, PB = 48, 66, 12, 26
+    W, H = 760, 300
+    PL, PR, PT, PB = 52, 70, 16, 30
     lo, hi = min(min(m_vals), min(s_vals)), max(max(m_vals), max(s_vals))
     if hi == lo:
         hi = lo + 1
-    pad = (hi - lo) * 0.08
+    pad = (hi - lo) * 0.10
     lo -= pad; hi += pad
     n = len(m_vals)
+    BASE = H - PB
     def X(i): return PL + (W - PL - PR) * (i / (n - 1))
-    def Y(v): return PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo))
-    def path(vals): return "M " + " L ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(vals))
+    def Y(v): return PT + (BASE - PT) * (1 - (v - lo) / (hi - lo))
+    def line(vals): return "M " + " L ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(vals))
+    def area(vals):
+        return (f"M {X(0):.1f},{BASE:.1f} L "
+                + " L ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(vals))
+                + f" L {X(n-1):.1f},{BASE:.1f} Z")
     def fmtk(v): return f"${v/1000:.1f}K"
-    p = []
+    p = [
+        '<defs>'
+        '<linearGradient id="trGold" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0%" stop-color="#d4a843" stop-opacity="0.28"/>'
+        '<stop offset="100%" stop-color="#d4a843" stop-opacity="0"/></linearGradient>'
+        '<linearGradient id="trSpy" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0%" stop-color="#64748b" stop-opacity="0.12"/>'
+        '<stop offset="100%" stop-color="#64748b" stop-opacity="0"/></linearGradient>'
+        '</defs>'
+    ]
     # value gridlines + $ labels
     for k in range(4):
         tv = lo + (hi - lo) * k / 3.0
         y = Y(tv)
-        p.append(f'<line x1="{PL}" y1="{y:.1f}" x2="{W-PR}" y2="{y:.1f}" stroke="rgba(255,255,255,.05)"/>')
-        p.append(f'<text x="{PL-6}" y="{y+3:.1f}" text-anchor="end" font-family="DM Mono,monospace" font-size="9" fill="#475569">{fmtk(tv)}</text>')
+        p.append(f'<line x1="{PL}" y1="{y:.1f}" x2="{W-PR}" y2="{y:.1f}" stroke="rgba(255,255,255,.045)"/>')
+        p.append(f'<text x="{PL-8}" y="{y+3:.1f}" text-anchor="end" font-family="DM Mono,monospace" font-size="10" fill="#475569">{fmtk(tv)}</text>')
     # $100K reference
     if lo <= 100000.0 <= hi:
         y0 = Y(100000.0)
-        p.append(f'<line x1="{PL}" y1="{y0:.1f}" x2="{W-PR}" y2="{y0:.1f}" stroke="rgba(255,255,255,.16)" stroke-dasharray="3,3"/>')
-    # date ticks (first / mid / last)
+        p.append(f'<line x1="{PL}" y1="{y0:.1f}" x2="{W-PR}" y2="{y0:.1f}" stroke="rgba(255,255,255,.15)" stroke-dasharray="2,4"/>')
+    # date ticks
     for i in (0, n // 2, n - 1):
         anc = "start" if i == 0 else ("end" if i == n - 1 else "middle")
-        p.append(f'<text x="{X(i):.1f}" y="{H-6}" text-anchor="{anc}" font-family="DM Mono,monospace" font-size="9" fill="#475569">{dates[i][5:].replace("-","/")}</text>')
-    # lines
-    p.append(f'<path d="{path(s_vals)}" fill="none" stroke="#64748b" stroke-width="1.5"/>')
-    p.append(f'<path d="{path(m_vals)}" fill="none" stroke="#d4a843" stroke-width="2.2"/>')
-    # end-point dots + value labels (nudge apart if they'd collide)
+        p.append(f'<text x="{X(i):.1f}" y="{H-8}" text-anchor="{anc}" font-family="DM Mono,monospace" font-size="10" fill="#475569">{dates[i][5:].replace("-","/")}</text>')
+    # area fills
+    p.append(f'<path d="{area(s_vals)}" fill="url(#trSpy)" stroke="none"/>')
+    p.append(f'<path d="{area(m_vals)}" fill="url(#trGold)" stroke="none"/>')
+    # lines (rounded)
+    p.append(f'<path d="{line(s_vals)}" fill="none" stroke="#7c8aa0" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>')
+    p.append(f'<path d="{line(m_vals)}" fill="none" stroke="#d4a843" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>')
+    # end-points + labels (nudge apart if colliding)
     my, sy = Y(m_vals[-1]), Y(s_vals[-1])
     lm, ls = my, sy
-    if abs(lm - ls) < 11:
-        if lm <= ls: lm -= 6; ls += 6
-        else:        lm += 6; ls -= 6
-    p.append(f'<circle cx="{X(n-1):.1f}" cy="{sy:.1f}" r="2.5" fill="#64748b"/>')
-    p.append(f'<circle cx="{X(n-1):.1f}" cy="{my:.1f}" r="3" fill="#d4a843"/>')
-    p.append(f'<text x="{W-PR+5}" y="{ls+3:.1f}" font-family="DM Mono,monospace" font-size="9" fill="#94a3b8">{fmtk(s_vals[-1])}</text>')
-    p.append(f'<text x="{W-PR+5}" y="{lm+3:.1f}" font-family="DM Mono,monospace" font-size="10" font-weight="700" fill="#d4a843">{fmtk(m_vals[-1])}</text>')
+    if abs(lm - ls) < 13:
+        if lm <= ls: lm -= 7; ls += 7
+        else:        lm += 7; ls -= 7
+    ex = X(n - 1)
+    p.append(f'<circle cx="{ex:.1f}" cy="{sy:.1f}" r="3" fill="#7c8aa0"/>')
+    p.append(f'<circle cx="{ex:.1f}" cy="{my:.1f}" r="3.5" fill="#d4a843"/>')
+    p.append(f'<text x="{ex+8:.1f}" y="{ls+3:.1f}" font-family="DM Mono,monospace" font-size="10" fill="#94a3b8">{fmtk(s_vals[-1])}</text>')
+    p.append(f'<text x="{ex+8:.1f}" y="{lm+3.5:.1f}" font-family="DM Mono,monospace" font-size="11" font-weight="700" fill="#d4a843">{fmtk(m_vals[-1])}</text>')
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">' + "".join(p) + '</svg>'
 
 
@@ -5880,7 +5907,7 @@ def page_backtest():
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:20px 0;">
       <div style="{ss}"><div style="{ls}">MODEL VALUE</div>
         <div style="font-size:18px;font-weight:700;color:#d4a843;">${tr['model_value']:,.0f}</div>
-        <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">from $100K</div></div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">from ${tr['basis']/1000:.0f}K</div></div>
       <div style="{ss}"><div style="{ls}">MODEL RETURN</div>
         <div style="font-size:18px;font-weight:700;color:{mc};">{sg(tr['model_ret'])}{tr['model_ret']:.2f}%</div></div>
       <div style="{ss}"><div style="{ls}">SPY RETURN</div>
@@ -7997,10 +8024,36 @@ def page_model_portfolio():
             "is_gem":        current_data.get("is_hidden_gem", False),
         })
 
-    port_return = (total_current / total_invested - 1) * 100 if total_invested > 0 else 0
-    port_pnl    = total_current - total_invested
-    sign        = "+" if port_return >= 0 else ""
-    ret_color   = "#00ff87" if port_return >= 0 else "#ef4444"
+    # ── True portfolio P&L — real-account basis. Start $100K; fold in realized
+    # P&L from exited positions (e.g. BORR's loss) alongside unrealized P&L on
+    # the active book, so this reflects the actual account, not just current
+    # holdings. The poisoned-batch exits were reversed in the data (those names
+    # are active again with no exit record), so they're correctly excluded.
+    # Matches the Track Record page exactly.
+    BASE_CAPITAL = 100000.0
+    realized_pnl = 0.0
+    try:
+        _ex = sb.table("model_portfolio_positions") \
+            .select("ticker,entry_date,exit_date,entry_price,position_size,exit_price") \
+            .eq("is_active", False).execute()
+        _seen = {}
+        for _r in (_ex.data or []):
+            _k = (_r.get("ticker"), str(_r.get("entry_date") or "")[:10], str(_r.get("exit_date") or "")[:10])
+            _seen[_k] = _r  # dedup matches Track Record
+        for _r in _seen.values():
+            _ep, _xp = _r.get("entry_price"), _r.get("exit_price")
+            _ps = _r.get("position_size", 2000) or 2000
+            if _ep and _xp and float(_ep) > 0:
+                realized_pnl += (_ps / float(_ep)) * float(_xp) - _ps
+    except Exception:
+        pass
+
+    unrealized_pnl  = total_current - total_invested
+    portfolio_value = BASE_CAPITAL + unrealized_pnl + realized_pnl
+    port_return     = (portfolio_value / BASE_CAPITAL - 1) * 100
+    port_pnl        = portfolio_value - BASE_CAPITAL
+    sign            = "+" if port_return >= 0 else ""
+    ret_color       = "#00ff87" if port_return >= 0 else "#ef4444"
 
     # ── SPY benchmark — $100K invested at inception, marked to latest close.
     # Standard lump-at-inception benchmark, matching the Track Record page so
@@ -8030,7 +8083,7 @@ def page_model_portfolio():
                 spy_now  = float(spy_close.iloc[-1])
                 spy_base = float(w.iloc[0])
                 spy_return = (spy_now / spy_base - 1) * 100
-                spy_pnl    = total_invested * (spy_return / 100)
+                spy_pnl    = BASE_CAPITAL * (spy_return / 100)
     except Exception:
         pass
 
@@ -8107,7 +8160,7 @@ def page_model_portfolio():
     st.markdown(f"""
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:20px;">
       <div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>
-        <div style="font-size:18px;font-weight:700;color:#d4a843;">${total_current:,.0f}</div></div>
+        <div style="font-size:18px;font-weight:700;color:#d4a843;">${portfolio_value:,.0f}</div></div>
       <div style="{ss}"><div style="{ls}">TODAY</div>
         <div style="font-size:18px;font-weight:700;color:{_day_color};">{_day_val}</div>
         <div style="font-family:DM Mono,monospace;font-size:10px;color:#475569;margin-top:2px;">{_day_sub}</div></div>
