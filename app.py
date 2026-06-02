@@ -4790,6 +4790,14 @@ def page_screener():
         # on phones via the .qntm-conv-grid media query in the main-doc <style>.
         _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
 
+        # Trailing vs-SPY mini charts for the top/bottom 10 — these lists have no
+        # stored "entered the list" date, so we show a fixed trailing window.
+        _scr_trail = _trail_start(30)
+        _scr_tks = [r["ticker"] for r in buys_ranked[:10]] + [r["ticker"] for r in sells_ranked[:10]]
+        _scr_pm, _scr_sm = ({}, {})
+        if _scr_tks:
+            _scr_pm, _scr_sm = _mini_price_data(tuple(sorted(set(_scr_tks))), _scr_trail)
+
         def _conv_col(label, color, ranked):
             out = (f'<div style="font-family:DM Mono,monospace;font-size:12px;color:{color};'
                    f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
@@ -4802,6 +4810,8 @@ def page_screener():
                     r = dict(r); r["adj_action"] = "SELL"
                 elif color == "#00ff87" and r.get("adj_action",r.get("action")) != "BUY":
                     r = dict(r); r["adj_action"] = "BUY"
+                r["_mini_chart_html"] = _build_mini_chart_html(
+                    r["ticker"], _scr_trail, _scr_pm, _scr_sm, since_label="vs SPY · 20d")
                 out += build_card_html(r, nav="screener", is_gem=is_gem,
                                        company_info=ci, in_list=_wl_now)
             return out
@@ -5657,8 +5667,10 @@ def page_gems():
     except Exception:
         pass
     _gem_pm, _gem_sm = ({}, {})
-    if _gem_first:
-        _gem_pm, _gem_sm = _mini_price_data(tuple(sorted(_gem_first)), min(_gem_first.values()))
+    _gem_trail = _trail_start(30)
+    if _gem_tks:
+        _starts = list(_gem_first.values()) + [_gem_trail]
+        _gem_pm, _gem_sm = _mini_price_data(tuple(sorted(set(_gem_tks))), min(_starts))
 
     # Gems use same collapsed card pattern — batched into one markdown render
     _gems_html = ""
@@ -5672,9 +5684,10 @@ def page_gems():
             if not g.get("sector") or g.get("sector") == "Unknown":
                 g["sector"] = SECTORS.get(tk, "")
             ci = get_company_info(tk)
-            if _gem_first.get(tk):
-                g["_mini_chart_html"] = _build_mini_chart_html(
-                    tk, _gem_first[tk], _gem_pm, _gem_sm, since_label="since flagged")
+            _gstart = _gem_first.get(tk) or _gem_trail
+            _glabel = "since flagged" if _gem_first.get(tk) else "vs SPY · 20d"
+            g["_mini_chart_html"] = _build_mini_chart_html(
+                tk, _gstart, _gem_pm, _gem_sm, since_label=_glabel)
             _gems_html += build_card_html(g, nav="gems", is_gem=True,
                                           company_info=ci, in_list=wl_tickers)
         except Exception:
@@ -5867,6 +5880,14 @@ def _mini_vs_spy_svg(stock_pairs, spy_pairs):
     return (f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;max-width:300px;">{zero}'
             f'<path d="{path(k)}" fill="none" stroke="#7c8aa0" stroke-width="1.4" stroke-linejoin="round"/>'
             f'<path d="{path(s)}" fill="none" stroke="#d4a843" stroke-width="2" stroke-linejoin="round"/></svg>')
+
+
+def _trail_start(days: int = 30):
+    """ISO date ~`days` calendar days back — ~20 trading sessions at 30 days,
+    used as the window for trailing vs-SPY mini charts (top/bottom 10, and the
+    fallback for gems with no recorded flag date)."""
+    from datetime import date, timedelta
+    return (date.today() - timedelta(days=days)).isoformat()
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
