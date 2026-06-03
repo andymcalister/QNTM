@@ -5335,6 +5335,18 @@ def page_watchlist():
     st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
 
     watchlist = get_watchlist_items(_wl_uid, _active_id)
+    _ln = (_active_list.get("name") or "").replace("<", "&lt;").replace(">", "&gt;")
+    st.markdown(
+        '<div style="display:flex;align-items:center;gap:10px;margin:4px 0 12px;flex-wrap:wrap;">'
+        '<span style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;'
+        'letter-spacing:.14em;text-transform:uppercase;">Viewing</span>'
+        f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#f0c668;'
+        f'letter-spacing:.02em;">{_ln}</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#94a3b8;">· '
+        f'{len(watchlist)} {"stock" if len(watchlist)==1 else "stocks"}</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     scan      = st.session_state.get("scan_results") or []
     score_map = {r["ticker"]: r for r in scan}
 
