@@ -4005,6 +4005,7 @@ def page_auth():
                             st.session_state.user         = user
                             st.session_state.mfa_verified = True
                             st.session_state.scan_results = None
+                            st.session_state.show_welcome = True
                             # Only prompt MFA if never offered before
                             if not user.get("mfa_offered"):
                                 st.session_state.force_mfa_setup = True
@@ -4160,6 +4161,7 @@ def page_mfa():
                     st.session_state.logged_in    = True
                     st.session_state.user         = user
                     st.session_state.mfa_verified = True
+                    st.session_state.show_welcome = True
                     # Always persist — signed 30-day token
                     _signed = _sign_token(user["id"], user.get("plan","free"))
                     st.query_params["uid"]  = _signed
@@ -4431,6 +4433,41 @@ def page_screener():
     _pin_nav("screener")
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
+
+    # First-run welcome card — shown once after login, cleared on any navigation
+    # (a full-page reload starts a fresh session, so the flag naturally resets).
+    if st.session_state.get("show_welcome"):
+        _wu = st.session_state.user or {}
+        _wcta = f"?qnav=screener&uid={_wu.get('id','')}&plan={_wu.get('plan','free')}&ck=1"
+        st.markdown(
+            '<div style="margin:14px 32px 0;padding:22px 26px;border-radius:14px;'
+            'background:linear-gradient(135deg,rgba(52,211,153,.08),rgba(52,211,153,.02));'
+            'border:1px solid rgba(52,211,153,.28);">'
+            '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;'
+            'letter-spacing:.04em;color:#e2e8f0;margin-bottom:4px;">Welcome to '
+            '<span style="color:#34d399;">QNTM</span></div>'
+            '<div style="font-family:Inter,sans-serif;font-size:14px;color:#b3bed0;'
+            'line-height:1.5;margin-bottom:14px;">Here\'s the quickest way to find your footing:</div>'
+            '<div style="display:grid;gap:8px;font-family:Inter,sans-serif;font-size:13px;'
+            'color:#cbd5e1;line-height:1.45;">'
+            '<div><b style="color:#34d399;">1 · Screener</b> — you\'re here. Every stock ranked by '
+            'conviction; start at the top and work down.</div>'
+            '<div><b style="color:#34d399;">2 · Open a stock</b> — tap any row for its plain-English '
+            'rationale and the five pillar scores behind the signal.</div>'
+            '<div><b style="color:#34d399;">3 · Watchlist</b> — star names to track them against the S&amp;P 500.</div>'
+            '<div><b style="color:#34d399;">4 · Hidden Gems</b> — strong scorers flying under Wall Street\'s radar.</div>'
+            '<div><b style="color:#34d399;">5 · Simulator &amp; Track Record</b> — test an allocation, '
+            'then see the model\'s live performance.</div>'
+            '</div>'
+            f'<a href="{_wcta}" target="_self" style="display:inline-block;margin-top:16px;'
+            'padding:10px 22px;border-radius:8px;text-decoration:none;background:#34d399;color:#06070f;'
+            'font-family:Syne,sans-serif;font-size:13px;font-weight:700;letter-spacing:.06em;'
+            'text-transform:uppercase;">Start exploring →</a>'
+            '<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;margin-top:10px;">'
+            'Full walkthrough anytime under How It Works.</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
     # Compact header — title + refresh inline, no wasted vertical space.
     # The "updated" date only changes once nightly, so cache it per session
@@ -8603,6 +8640,18 @@ def page_methodology():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     sections = [
+        ("Getting Started — Where to Begin", "#34d399",
+         "New here? This is the path most users follow:\n\n"
+         "1. Screener — your home base. Every stock in the universe, ranked by conviction. Start at the top (High Conviction) and work down.\n"
+         "2. Open a stock — tap any row to see its plain-English rationale and the five pillar scores behind the signal.\n"
+         "3. Watchlist — star the names you want to follow; they get a tracked view marked against the S&P 500.\n"
+         "4. Hidden Gems — strong-scoring names that fly under Wall Street's radar.\n"
+         "5. Portfolio Simulator — test a hypothetical allocation against the model before committing real capital.\n"
+         "6. Portfolio & Track Record — the model's live, rules-based portfolio and its performance since inception.\n"
+         "7. Alerts — get notified when a stock's conviction changes (Pro).\n\n"
+         "Throughout, the macro overlay at the top of the Screener tells you what regime the market is in "
+         "and how it's shaping the scores. Everything below explains how those scores are built."),
+
         ("The Universe", "#34d399",
          "QNTM covers 834 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
          "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
