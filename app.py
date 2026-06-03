@@ -4232,6 +4232,108 @@ def page_mfa():
 # ══════════════════════════════════════════════════════════════════════════════
 # PLATFORM — TOP NAV
 # ══════════════════════════════════════════════════════════════════════════════
+HELP_CONTENT = {
+    "screener": ("The Screener",
+        "Your home base — every stock in the universe, ranked by conviction.",
+        [("Conviction ranking", "Stocks are sorted High → Low by the model's composite score. Start at the top and work down."),
+         ("Open any stock", "Tap a row to expand its plain-English rationale and the five pillar scores behind the signal."),
+         ("Macro overlay", "The strip up top shows the current market regime and how it's shaping the scores."),
+         ("Search & filter", "Narrow by ticker or sector to find what you're after."),
+         ("Add to Watchlist", "Star a stock to keep an eye on it from the Watchlist page.")]),
+    "watchlist": ("Your Watchlist",
+        "The names you're following, all in one place.",
+        [("Tracked vs. SPY", "Each stock shows a mini chart of its move since you added it, against the S&P 500."),
+         ("Live conviction", "Scores move with the model, so you see when a name strengthens or weakens."),
+         ("Remove anytime", "Unstar a stock to drop it from the list.")]),
+    "gems": ("Hidden Gems",
+        "Strong-scoring names that fly under Wall Street's radar.",
+        [("What qualifies", "High conviction plus light analyst coverage and mid-cap size — quality without the crowd."),
+         ("Since flagged", "The mini chart tracks each gem from the date the model first flagged it."),
+         ("Regime-aware", "In high-volatility regimes the bar rises, so only the strongest names surface.")]),
+    "portfolio": ("Your Portfolio",
+        "See how the names you hold rate against the model.",
+        [("Add holdings", "Enter the stocks you hold to see each one's current conviction."),
+         ("Conviction check", "Spot at a glance which of your names the model rates High, Moderate, or Low."),
+         ("Track over time", "Watch how your set moves across different periods.")]),
+    "simulator": ("Portfolio Simulator",
+        "A what-if tool for exploring the model.",
+        [("Build a mix", "Pick stocks and weights to assemble a hypothetical set."),
+         ("Score it", "See the blended conviction of your selection."),
+         ("Hypothetical only", "This is a sandbox for exploring the model — nothing here is a recommendation.")]),
+    "model_portfolio": ("Portfolio & Track Record",
+        "The model's own rules-based portfolio, marked daily.",
+        [("Live equity curve", "Real performance since inception, charted against the S&P 500."),
+         ("Active positions", "Every open position the model holds, with entry and current marks."),
+         ("Rules-based", "Entries and exits follow fixed model rules — no discretion, no hindsight.")]),
+    "alerts": ("Alerts",
+        "Get a heads-up when conviction changes.",
+        [("Conviction shifts", "A flag when a name you follow crosses a conviction threshold."),
+         ("Stay current", "Check in here for the latest model-driven changes.")]),
+    "account": ("Account",
+        "Your plan and settings.",
+        [("Plan & access", "See your current plan and what's included."),
+         ("Security", "Manage sign-in and two-factor settings.")]),
+    "methodology": ("How QNTM Works",
+        "The full methodology, in plain English.",
+        [("Start here", "The Getting Started section walks you through where to go and what each page does."),
+         ("The model", "How the five-pillar score and the macro overlay are built."),
+         ("What it is — and isn't", "QNTM is a research tool: quantitative rankings, not advice.")]),
+}
+
+
+def _render_help_popup(page_key):
+    """Per-page help popup. Pure-CSS checkbox toggle (no JS): the '?' button
+    opens it, the ✕ or a click on the backdrop closes it."""
+    content = HELP_CONTENT.get(page_key)
+    if not content:
+        return
+    title, intro, items = content
+    items_html = "".join(
+        '<div style="margin-bottom:11px;">'
+        f'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#34d399;'
+        f'letter-spacing:.02em;">{t}</div>'
+        f'<div style="font-family:Inter,sans-serif;font-size:13px;color:#cbd5e1;line-height:1.45;'
+        f'margin-top:2px;">{d}</div></div>'
+        for t, d in items
+    )
+    cb = f"qntm-help-{page_key}"
+    st.markdown(
+        "<style>"
+        ".qntm-help-cb{display:none;}"
+        ".qntm-help-fab{position:fixed;bottom:22px;right:22px;z-index:1400;width:44px;height:44px;"
+        "border-radius:50%;display:flex;align-items:center;justify-content:center;"
+        "background:rgba(52,211,153,.14);border:1px solid rgba(52,211,153,.5);color:#34d399;"
+        "font-family:Syne,sans-serif;font-size:22px;font-weight:800;cursor:pointer;"
+        "box-shadow:0 6px 20px rgba(0,0,0,.45);transition:background .15s ease;user-select:none;}"
+        ".qntm-help-fab:hover{background:rgba(52,211,153,.26);}"
+        ".qntm-help-ov{display:none;position:fixed;inset:0;z-index:1500;background:rgba(2,4,8,.72);"
+        "backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);}"
+        ".qntm-help-cb:checked ~ .qntm-help-ov{display:block;}"
+        ".qntm-help-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);"
+        "z-index:1501;width:min(440px,92vw);max-height:82vh;overflow-y:auto;"
+        "background:rgba(10,13,20,.99);border:1px solid rgba(52,211,153,.28);border-radius:16px;"
+        "box-shadow:0 24px 64px rgba(0,0,0,.8);}"
+        ".qntm-help-cb:checked ~ .qntm-help-modal{display:block;}"
+        ".qntm-help-x{position:absolute;top:14px;right:16px;cursor:pointer;color:#94a3b8;font-size:18px;"
+        "width:28px;height:28px;display:flex;align-items:center;justify-content:center;"
+        "border-radius:6px;text-decoration:none;}"
+        ".qntm-help-x:hover{background:rgba(255,255,255,.08);color:#e2e8f0;}"
+        "</style>"
+        f'<input type="checkbox" id="{cb}" class="qntm-help-cb">'
+        f'<label for="{cb}" class="qntm-help-fab" title="How this page works">?</label>'
+        f'<label for="{cb}" class="qntm-help-ov"></label>'
+        f'<div class="qntm-help-modal"><div style="padding:24px 26px;position:relative;">'
+        f'<label for="{cb}" class="qntm-help-x">✕</label>'
+        f'<div style="font-family:Syne,sans-serif;font-size:19px;font-weight:800;color:#e2e8f0;'
+        f'margin-bottom:6px;padding-right:30px;">{title}</div>'
+        f'<div style="font-family:Inter,sans-serif;font-size:13px;color:#b3bed0;line-height:1.5;'
+        f'margin-bottom:16px;">{intro}</div>'
+        f'{items_html}'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def platform_nav():
     user  = st.session_state.user or {}
     plan  = user.get("plan","free")
@@ -4427,6 +4529,8 @@ def platform_nav():
         "})();</script>",
         height=0,
     )
+
+    _render_help_popup(cur_nav)
 
 
 def page_screener():
@@ -8646,7 +8750,7 @@ def page_methodology():
          "2. Open a stock — tap any row to see its plain-English rationale and the five pillar scores behind the signal.\n"
          "3. Watchlist — star the names you want to follow; they get a tracked view marked against the S&P 500.\n"
          "4. Hidden Gems — strong-scoring names that fly under Wall Street's radar.\n"
-         "5. Portfolio Simulator — test a hypothetical allocation against the model before committing real capital.\n"
+         "5. Portfolio Simulator — test a hypothetical allocation and see how the model scores it.\n"
          "6. Portfolio & Track Record — the model's live, rules-based portfolio and its performance since inception.\n"
          "7. Alerts — get notified when a stock's conviction changes (Pro).\n\n"
          "Throughout, the macro overlay at the top of the Screener tells you what regime the market is in "
