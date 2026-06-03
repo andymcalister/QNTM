@@ -4241,8 +4241,9 @@ HELP_CONTENT = {
          ("Search & filter", "Narrow by ticker or sector to find what you're after."),
          ("Add to Watchlist", "Star a stock to keep an eye on it from the Watchlist page.")]),
     "watchlist": ("Your Watchlist",
-        "The names you're following, all in one place.",
-        [("Tracked vs. SPY", "Each stock shows a mini chart of its move since you added it, against the S&P 500."),
+        "The names you're following, organized however you like.",
+        [("Multiple lists", "Keep several separate watchlists — group names by theme, sector, or whatever suits you, and switch between them."),
+         ("Tracked vs. SPY", "Each stock shows a mini chart of its move since you added it, against the S&P 500."),
          ("Live conviction", "Scores move with the model, so you see when a name strengthens or weakens."),
          ("Remove anytime", "Unstar a stock to drop it from the list.")]),
     "gems": ("Hidden Gems",
@@ -4531,6 +4532,26 @@ def platform_nav():
     )
 
     _render_help_popup(cur_nav)
+
+    # First-load nudge toward the per-page helper, shown once after login on the
+    # Screener (same show_welcome flag; clears on navigation, auto-fades after 9s).
+    if cur_nav == "screener" and st.session_state.get("show_welcome"):
+        st.markdown(
+            '<div style="position:fixed;bottom:76px;right:14px;z-index:1402;max-width:232px;'
+            'padding:11px 14px;border-radius:12px;background:rgba(10,13,20,.99);'
+            'border:1px solid rgba(52,211,153,.4);box-shadow:0 8px 24px rgba(0,0,0,.55);'
+            'font-family:Inter,sans-serif;font-size:12.5px;color:#cbd5e1;line-height:1.4;'
+            'animation:helphintout .5s ease 9s forwards;">'
+            '<b style="color:#34d399;">Need a hand?</b> Tap the '
+            '<span style="color:#34d399;font-weight:700;">?</span> on any page for a quick guide to '
+            'what\'s on it.'
+            '<span style="position:absolute;bottom:-7px;right:18px;width:12px;height:12px;'
+            'background:rgba(10,13,20,.99);border-right:1px solid rgba(52,211,153,.4);'
+            'border-bottom:1px solid rgba(52,211,153,.4);transform:rotate(45deg);"></span>'
+            '</div>'
+            '<style>@keyframes helphintout{to{opacity:0;visibility:hidden;}}</style>',
+            unsafe_allow_html=True,
+        )
 
 
 def page_screener():
