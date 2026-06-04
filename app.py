@@ -4028,6 +4028,15 @@ def page_auth():
             </div>
             """, unsafe_allow_html=True)
 
+            with st.expander("Forgot your password?"):
+                fp_email = st.text_input("Your account email", key="fp_email",
+                                         placeholder="you@example.com")
+                if st.button("Send reset link", key="fp_btn", use_container_width=True):
+                    from db import request_password_reset
+                    request_password_reset(fp_email)
+                    st.success("If an account exists for that email, we've sent a reset link. "
+                               "Check your inbox (and spam folder) — the link is valid for 30 minutes.")
+
         # ── REGISTER ──────────────────────────────────────────────────────────
         else:
             st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
@@ -9222,6 +9231,48 @@ def page_upgrade():
     """, unsafe_allow_html=True)
 
 
+def page_reset_password():
+    from db import peek_auth_token, consume_auth_token, set_password
+    token = st.query_params.get("reset_token", "")
+    st.markdown('<div style="max-width:420px;margin:56px auto 0;padding:0 24px;">', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;letter-spacing:.04em;'
+        'color:#e2e8f0;margin-bottom:8px;">Q<span style="color:#34d399;">NTM</span></div>'
+        '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#e2e8f0;'
+        'margin-bottom:14px;">Reset your password</div>',
+        unsafe_allow_html=True,
+    )
+    if not token or not peek_auth_token(token, "reset"):
+        st.error("This reset link is invalid or has expired. Request a new one from the sign-in page.")
+        st.markdown('<a href="?nav=signin" target="_self" style="color:#34d399;font-weight:700;'
+                    'text-decoration:none;">← Back to sign in</a>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+    np1 = st.text_input("New password", type="password", key="rp_p1",
+                        placeholder="At least 8 characters")
+    np2 = st.text_input("Confirm new password", type="password", key="rp_p2")
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+    if st.button("Set new password", key="rp_btn", use_container_width=True):
+        if not np1 or len(np1) < 8:
+            st.error("Password must be at least 8 characters")
+        elif np1 != np2:
+            st.error("Passwords don't match")
+        else:
+            uid_ = consume_auth_token(token, "reset")
+            if not uid_:
+                st.error("This reset link is invalid or has expired. Request a new one.")
+            else:
+                r = set_password(uid_, np1)
+                if r.get("success"):
+                    st.success("Password updated. You can now sign in with your new password.")
+                    st.markdown('<a href="?nav=signin" target="_self" style="color:#34d399;'
+                                'font-weight:700;text-decoration:none;">→ Go to sign in</a>',
+                                unsafe_allow_html=True)
+                else:
+                    st.error(r.get("error", "Couldn't update password"))
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def main():
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
@@ -9528,6 +9579,10 @@ def main():
     elif st.session_state.page == "landing" and st.session_state.logged_in:
         st.session_state.page = "platform"
 
+    # ── Password-reset deep link — overrides everything, works logged out ─────
+    if st.query_params.get("reset_token"):
+        st.session_state.page = "reset"
+
     _pl = st.empty()
     _pl.markdown(
         '<div style="position:fixed;top:0;left:0;width:100%;height:100%;'
@@ -9551,6 +9606,7 @@ def main():
         elif route == "model":    go("landing")
         elif route == "platform": page_platform()
         elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
+        elif route == "reset":    page_reset_password()
         else:                     page_landing()
     finally:
         _pl.empty()

@@ -1084,3 +1084,149 @@ def send_email(to_email: str, subject: str, html: str, text: str = None) -> dict
         return {"success": False, "error": "sendgrid package not installed"}
     except Exception as e:
         return {"success": False, "error": f"Send failed: {str(e)[:120]}"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PASSWORD RESET  (token-based, emailed link)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _user_id_by_email(email: str):
+    email = (email or "").lower().strip()
+    if not email:
+        return None
+    eh = hashlib.sha256(email.encode()).hexdigest()
+    sb = get_supabase()
+    if sb:
+        try:
+            r = sb.table("users").select("id").eq("email_hash", eh).execute()
+            return r.data[0]["id"] if r.data else None
+        except Exception:
+            return None
+    for u in _demo_users().values():
+        if u.get("email_hash") == eh:
+            return u["id"]
+    return None
+
+
+def create_auth_token(user_id: str, kind: str = "reset", ttl_minutes: int = 30) -> str:
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    token = secrets.token_urlsafe(32)
+    expires = (_dt.now(_tz.utc) + _td(minutes=ttl_minutes)).isoformat()
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("auth_tokens").insert({
+                "token": token, "user_id": user_id, "kind": kind,
+                "expires_at": expires, "used": False,
+            }).execute()
+        except Exception:
+            return ""
+    else:
+        store = st.session_state.setdefault("qntm_demo_tokens", {})
+        store[token] = {"user_id": user_id, "kind": kind, "expires_at": expires, "used": False}
+    return token
+
+
+def _token_row(token: str):
+    sb = get_supabase()
+    if sb:
+        try:
+            r = sb.table("auth_tokens").select("*").eq("token", token).execute()
+            return r.data[0] if r.data else None
+        except Exception:
+            return None
+    return st.session_state.get("qntm_demo_tokens", {}).get(token)
+
+
+def _token_valid(row, kind) -> bool:
+    if not row or row.get("used") or row.get("kind") != kind:
+        return False
+    from datetime import datetime as _dt, timezone as _tz
+    try:
+        exp = _dt.fromisoformat(str(row.get("expires_at")).replace("Z", "+00:00"))
+    except Exception:
+        return False
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=_tz.utc)
+    return exp >= _dt.now(_tz.utc)
+
+
+def peek_auth_token(token: str, kind: str = "reset") -> bool:
+    """Validate a token WITHOUT consuming it (used to render the reset form)."""
+    if not token:
+        return False
+    return _token_valid(_token_row(token), kind)
+
+
+def consume_auth_token(token: str, kind: str = "reset"):
+    """Validate and mark used (one-time). Returns user_id, or None if invalid."""
+    if not token:
+        return None
+    row = _token_row(token)
+    if not _token_valid(row, kind):
+        return None
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("auth_tokens").update({"used": True}).eq("token", token).execute()
+        except Exception:
+            return None
+    else:
+        store = st.session_state.get("qntm_demo_tokens", {})
+        if token in store:
+            store[token]["used"] = True
+    return row["user_id"]
+
+
+def set_password(user_id: str, new_password: str) -> dict:
+    if not new_password or len(new_password) < 8:
+        return {"success": False, "error": "Password must be at least 8 characters"}
+    pw_hash = hash_password(new_password)
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("users").update({"password_hash": pw_hash}).eq("id", user_id).execute()
+            return {"success": True}
+        except Exception:
+            return {"success": False, "error": "Couldn't update password"}
+    u = _demo_find_user(user_id)
+    if u:
+        u["password_hash"] = pw_hash
+        return {"success": True}
+    return {"success": False, "error": "User not found"}
+
+
+def request_password_reset(email: str) -> dict:
+    """Generate a reset token and email a link. ALWAYS returns success — never
+    reveals whether an account exists (prevents email enumeration)."""
+    uid_ = _user_id_by_email(email)
+    if uid_:
+        token = create_auth_token(uid_, kind="reset", ttl_minutes=30)
+        if token:
+            try:
+                base = st.secrets.get("APP_URL") or os.getenv("APP_URL") or "https://qntm.live"
+            except Exception:
+                base = os.getenv("APP_URL") or "https://qntm.live"
+            link = f"{base.rstrip('/')}/?reset_token={token}"
+            html = (
+                '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">'
+                '<div style="font-size:22px;font-weight:800;letter-spacing:.04em;color:#0a0b14;">'
+                'Q<span style="color:#15a97a;">NTM</span></div>'
+                '<p style="font-size:15px;color:#333;line-height:1.5;">We received a request to reset your '
+                'QNTM password. Click the button below to choose a new one:</p>'
+                f'<p style="margin:22px 0;"><a href="{link}" style="display:inline-block;background:#15a97a;'
+                'color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:8px;font-weight:700;'
+                'font-size:15px;">Reset password</a></p>'
+                '<p style="font-size:13px;color:#777;line-height:1.5;">This link expires in 30 minutes. '
+                "If you didn't request this, you can safely ignore this email — your password won't change.</p>"
+                '<p style="font-size:12px;color:#aaa;margin-top:24px;">QNTM · Quantitative stock conviction</p>'
+                '</div>'
+            )
+            send_email(
+                (email or "").lower().strip(),
+                "Reset your QNTM password",
+                html,
+                text=f"Reset your QNTM password: {link}\n\n"
+                     "This link expires in 30 minutes. If you didn't request this, ignore this email.",
+            )
+    return {"success": True}
