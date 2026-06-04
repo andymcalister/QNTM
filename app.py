@@ -7601,7 +7601,7 @@ def page_account():
         st.session_state["_checkout_page"] = "account"
         st.session_state.pop("_checkout_url", None)
         st.session_state.pop("_checkout_err", None)
-    from db import disable_mfa, upgrade_plan, plan_limit
+    from db import disable_mfa, upgrade_plan, plan_limit, update_email
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
 
@@ -7623,8 +7623,8 @@ def page_account():
         c1, c2 = st.columns(2)
         with c1:
             new_name = st.text_input("Full name", value=user.get("full_name",""), key="acc_name")
-            st.text_input("Email address", value=user.get("email",""), disabled=True,
-                          help="Email cannot be changed. Contact support if needed.")
+            new_email = st.text_input("Email address", value=user.get("email",""), key="acc_email",
+                          help="Updating your email changes the address you sign in with.")
             st.text_input("Member since",
                           value=str(user.get("created_at",""))[:10] or "—",
                           disabled=True)
@@ -7641,19 +7641,31 @@ def page_account():
             """, unsafe_allow_html=True)
             st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
             if st.button("Save Profile", key="acc_save"):
-                if new_name.strip():
-                    # update_preferences handles encryption internally when the
-                    # key is "full_name" — passing "full_name_enc" with a pre-
-                    # encrypted value writes to a non-existent column and silently
-                    # fails. Pass the plain name and let the db helper encrypt.
-                    ok = update_preferences(uid(), {"full_name": new_name.strip()})
-                    if ok:
-                        st.session_state.user["full_name"] = new_name.strip()
-                        st.success("Profile saved")
+                _errs, _changed = [], False
+                _nm = (new_name or "").strip()
+                if not _nm:
+                    _errs.append("Name cannot be blank")
+                elif _nm != (user.get("full_name") or ""):
+                    if update_preferences(uid(), {"full_name": _nm}):
+                        st.session_state.user["full_name"] = _nm
+                        _changed = True
                     else:
-                        st.error("Save failed — try again")
+                        _errs.append("Couldn't save name — try again")
+                _em = (new_email or "").strip().lower()
+                if _em and _em != (user.get("email") or "").lower():
+                    _r = update_email(uid(), _em)
+                    if _r.get("success"):
+                        st.session_state.user["email"] = _em
+                        _changed = True
+                    else:
+                        _errs.append(_r.get("error", "Couldn't save email"))
+                if _errs:
+                    for _e in _errs:
+                        st.error(_e)
+                elif _changed:
+                    st.success("Profile saved")
                 else:
-                    st.error("Name cannot be blank")
+                    st.info("No changes to save")
 
     # ── SECURITY & MFA ────────────────────────────────────────────────────────
     with tab_security:

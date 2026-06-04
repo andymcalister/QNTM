@@ -487,6 +487,45 @@ def update_preferences(user_id: str, prefs: dict) -> bool:
     return False
 
 
+def update_email(user_id: str, new_email: str) -> dict:
+    """Change a user's email. Re-hashes (for lookup) and re-encrypts (for
+    storage) and enforces uniqueness. NOTE: does not by itself prove the user
+    owns the new address — pair with email verification before relying on it
+    for account recovery."""
+    new_email = (new_email or "").lower().strip()
+    if not new_email or "@" not in new_email or "." not in new_email.split("@")[-1]:
+        return {"success": False, "error": "Invalid email address"}
+    new_hash = hashlib.sha256(new_email.encode()).hexdigest()
+    enc = encrypt_field(new_email)
+    sb = get_supabase()
+    if sb:
+        try:
+            existing = sb.table("users").select("id").eq("email_hash", new_hash).execute()
+            if existing.data and existing.data[0]["id"] != user_id:
+                return {"success": False, "error": "That email is already in use"}
+            sb.table("users").update({
+                "email_hash":      new_hash,
+                "email_encrypted": enc,
+            }).eq("id", user_id).execute()
+            return {"success": True}
+        except Exception as e:
+            err = str(e).lower()
+            if "duplicate" in err or "unique" in err:
+                return {"success": False, "error": "That email is already in use"}
+            return {"success": False, "error": "Update failed. Please try again."}
+    users = _demo_users()
+    for h, u in list(users.items()):
+        if u["id"] == user_id:
+            if new_hash in users and users[new_hash]["id"] != user_id:
+                return {"success": False, "error": "That email is already in use"}
+            users.pop(h, None)
+            u["email"] = new_email
+            u["email_hash"] = new_hash
+            users[new_hash] = u
+            return {"success": True}
+    return {"success": False, "error": "User not found"}
+
+
 def upgrade_plan(user_id: str, new_plan: str) -> bool:
     if new_plan not in PLAN_LIMITS:
         return False
@@ -1009,3 +1048,39 @@ def get_price_on_date_latest(ticker: str):
         return None
     except Exception:
         return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRANSACTIONAL EMAIL (SendGrid)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def send_email(to_email: str, subject: str, html: str, text: str = None) -> dict:
+    """Send a transactional email via SendGrid.
+
+    Fails soft: returns {"success": False, ...} (never raises) if SendGrid
+    isn't configured or the package isn't installed, so callers degrade
+    gracefully. Configure with SENDGRID_API_KEY and SENDGRID_FROM in secrets/env
+    (SENDGRID_FROM must be a verified sender or on an authenticated domain)."""
+    try:
+        api_key   = st.secrets.get("SENDGRID_API_KEY") or os.getenv("SENDGRID_API_KEY")
+        from_email = st.secrets.get("SENDGRID_FROM")   or os.getenv("SENDGRID_FROM")
+    except Exception:
+        api_key    = os.getenv("SENDGRID_API_KEY")
+        from_email = os.getenv("SENDGRID_FROM")
+    if not api_key or not from_email:
+        return {"success": False, "error": "Email not configured"}
+    if not to_email:
+        return {"success": False, "error": "No recipient"}
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        kwargs = dict(from_email=from_email, to_emails=to_email,
+                      subject=subject, html_content=html)
+        if text:
+            kwargs["plain_text_content"] = text
+        resp = SendGridAPIClient(api_key).send(Mail(**kwargs))
+        return {"success": 200 <= resp.status_code < 300, "status": resp.status_code}
+    except ImportError:
+        return {"success": False, "error": "sendgrid package not installed"}
+    except Exception as e:
+        return {"success": False, "error": f"Send failed: {str(e)[:120]}"}
