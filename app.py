@@ -7704,6 +7704,31 @@ def page_account():
         st.markdown('<div style="height:14px;border-bottom:1px solid rgba(255,255,255,.07);'
                     'margin-bottom:18px;"></div>', unsafe_allow_html=True)
 
+        # ── Email delivery test (diagnostic) ────────────────────────────────
+        st.markdown('<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;'
+                    'color:#e2e8f0;margin-bottom:6px;">Email delivery test</div>', unsafe_allow_html=True)
+        st.caption("Sends a test email to your account address to confirm delivery is working.")
+        if st.button("Send test email to myself", key="email_test_btn"):
+            from db import send_email
+            _to = (st.session_state.user or {}).get("email", "")
+            if not _to:
+                st.error("No email on file for this account.")
+            else:
+                _res = send_email(
+                    _to, "QNTM email test",
+                    "<div style='font-family:Arial,sans-serif;font-size:15px;color:#333;'>"
+                    "This is a QNTM test email. If you're reading this, delivery is working. ✓</div>",
+                    text="QNTM test email — if you received this, delivery is working.",
+                )
+                if _res.get("success"):
+                    st.success(f"✓ Accepted by SendGrid (status {_res.get('status')}) for {_to}. "
+                               "Check your inbox/spam.")
+                else:
+                    st.error(f"Send failed: {_res.get('error', 'unknown error')}")
+                st.caption(f"Raw result: {_res}")
+        st.markdown('<div style="height:14px;border-bottom:1px solid rgba(255,255,255,.07);'
+                    'margin-bottom:18px;"></div>', unsafe_allow_html=True)
+
         mfa_data = get_user_mfa(uid())
         mfa_on   = mfa_data.get("mfa_enabled", False)
 
