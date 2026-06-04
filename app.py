@@ -216,6 +216,7 @@ section[data-testid="stMain"] > div,
 @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 @keyframes qntmspin{to{transform:rotate(360deg)}}
 @keyframes qntmload{to{opacity:1}}
+@keyframes qntmfill{from{width:4%}to{width:93%}}
 
 /* ── Collapsed card (details/summary) ── */
 details summary { list-style: none; }
@@ -7610,7 +7611,7 @@ def page_account():
         st.session_state["_checkout_page"] = "account"
         st.session_state.pop("_checkout_url", None)
         st.session_state.pop("_checkout_err", None)
-    from db import disable_mfa, upgrade_plan, plan_limit, update_email
+    from db import disable_mfa, upgrade_plan, plan_limit, update_email, change_password
     user = st.session_state.user or {}
     plan = user.get("plan", "free")
 
@@ -7679,6 +7680,30 @@ def page_account():
     # ── SECURITY & MFA ────────────────────────────────────────────────────────
     with tab_security:
         st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+
+        # ── Change password ─────────────────────────────────────────────────
+        st.markdown('<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;'
+                    'color:#e2e8f0;margin-bottom:8px;">Change password</div>', unsafe_allow_html=True)
+        cp_cur = st.text_input("Current password", type="password", key="cp_cur")
+        cp_n1  = st.text_input("New password", type="password", key="cp_n1",
+                               placeholder="At least 8 characters")
+        cp_n2  = st.text_input("Confirm new password", type="password", key="cp_n2")
+        if st.button("Update password", key="cp_btn"):
+            if not cp_cur or not cp_n1:
+                st.error("Fill in all three fields")
+            elif cp_n1 != cp_n2:
+                st.error("New passwords don't match")
+            elif len(cp_n1) < 8:
+                st.error("New password must be at least 8 characters")
+            else:
+                _cpr = change_password(uid(), cp_cur, cp_n1)
+                if _cpr.get("success"):
+                    st.success("Password updated")
+                else:
+                    st.error(_cpr.get("error", "Couldn't update password"))
+        st.markdown('<div style="height:14px;border-bottom:1px solid rgba(255,255,255,.07);'
+                    'margin-bottom:18px;"></div>', unsafe_allow_html=True)
+
         mfa_data = get_user_mfa(uid())
         mfa_on   = mfa_data.get("mfa_enabled", False)
 
@@ -9584,16 +9609,38 @@ def main():
         st.session_state.page = "reset"
 
     _pl = st.empty()
+    import random as _rnd
+    _load_msgs = [
+        "Consulting the bulls and the bears…",
+        "Reading the tape…",
+        "Marking to market…",
+        "Buying low, loading high…",
+        "Pricing in the latest data…",
+        "Calculating conviction…",
+        "Running it past the quants…",
+        "Crunching the order book…",
+        "Waiting for the opening bell…",
+        "Compounding the pixels…",
+        "Rebalancing the dashboard…",
+        "Doing the due diligence…",
+        "Scanning the whole universe…",
+        "Separating signal from noise…",
+    ]
+    _msg = _rnd.choice(_load_msgs)
     _pl.markdown(
         '<div style="position:fixed;top:0;left:0;width:100%;height:100%;'
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;'
-        'z-index:99999;background:rgba(6,7,15,.72);backdrop-filter:blur(2px);pointer-events:none;'
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;'
+        'z-index:99999;background:rgba(6,7,15,.80);backdrop-filter:blur(2px);pointer-events:none;'
         'opacity:0;animation:qntmload .25s ease .45s forwards;">'
-        '<div style="width:46px;height:46px;border-radius:50%;'
-        'border:3px solid rgba(52,211,153,.18);border-top-color:#34d399;'
-        'animation:qntmspin .8s linear infinite;"></div>'
-        '<div style="font-family:\'DM Mono\',monospace;font-size:12px;letter-spacing:.18em;'
-        'color:#34d399;text-transform:uppercase;">Loading</div>'
+        '<div style="font-family:Syne,sans-serif;font-size:21px;font-weight:800;letter-spacing:.05em;'
+        'color:#e2e8f0;">Q<span style="color:#34d399;">NTM</span></div>'
+        f'<div style="font-family:Inter,sans-serif;font-size:13.5px;color:#b3bed0;">{_msg}</div>'
+        '<div style="width:240px;height:5px;border-radius:99px;background:rgba(52,211,153,.14);'
+        'overflow:hidden;">'
+        '<div style="height:100%;border-radius:99px;background:linear-gradient(90deg,#34d399,#5eead4);'
+        'width:4%;animation:qntmfill 3s cubic-bezier(.15,.75,.2,1) .45s forwards;'
+        'box-shadow:0 0 10px rgba(52,211,153,.5);"></div>'
+        '</div>'
         '</div>',
         unsafe_allow_html=True,
     )

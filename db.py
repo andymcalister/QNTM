@@ -1230,3 +1230,27 @@ def request_password_reset(email: str) -> dict:
                      "This link expires in 30 minutes. If you didn't request this, ignore this email.",
             )
     return {"success": True}
+
+
+def change_password(user_id: str, current_password: str, new_password: str) -> dict:
+    """Logged-in password change: verifies the current password before setting
+    the new one."""
+    if not new_password or len(new_password) < 8:
+        return {"success": False, "error": "New password must be at least 8 characters"}
+    sb = get_supabase()
+    if sb:
+        try:
+            r = sb.table("users").select("password_hash").eq("id", user_id).execute()
+            if not r.data:
+                return {"success": False, "error": "User not found"}
+            current_hash = r.data[0].get("password_hash")
+        except Exception:
+            return {"success": False, "error": "Couldn't verify current password"}
+    else:
+        u = _demo_find_user(user_id)
+        if not u:
+            return {"success": False, "error": "User not found"}
+        current_hash = u.get("password_hash")
+    if not verify_password(current_password or "", current_hash or ""):
+        return {"success": False, "error": "Current password is incorrect"}
+    return set_password(user_id, new_password)
