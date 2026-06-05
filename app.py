@@ -228,6 +228,7 @@ section[data-testid="stMain"] > div,
 @keyframes qntmspin{to{transform:rotate(360deg)}}
 @keyframes qntmload{to{opacity:1}}
 @keyframes qntmfill{from{width:4%}to{width:93%}}
+@keyframes qntmphrase{0%{opacity:0;transform:translateY(4px)}3%{opacity:1;transform:translateY(0)}17%{opacity:1;transform:translateY(0)}20%{opacity:0;transform:translateY(-4px)}100%{opacity:0}}
 
 /* ── Collapsed card (details/summary) ── */
 details summary { list-style: none; }
@@ -8668,9 +8669,21 @@ def page_model_portfolio():
     _rc1, _rc2 = st.columns([5, 2])
     with _rc2:
         st.markdown(
-            "<style>.st-key-tr_refresh button{white-space:nowrap;padding:8px 10px;}"
+            "<style>"
+            ".st-key-tr_refresh button{white-space:nowrap;padding:8px 14px;"
+            "background:linear-gradient(135deg,rgba(52,211,153,.14),rgba(52,211,153,.04));"
+            "border:1px solid rgba(52,211,153,.38);border-radius:10px;color:#6ee7b7;"
+            "font-weight:600;letter-spacing:.02em;"
+            "box-shadow:inset 0 1px 0 rgba(255,255,255,.05);"
+            "transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease;}"
+            ".st-key-tr_refresh button:hover{"
+            "background:linear-gradient(135deg,rgba(52,211,153,.24),rgba(52,211,153,.09));"
+            "border-color:rgba(52,211,153,.65);color:#a7f3d0;"
+            "box-shadow:0 0 0 1px rgba(52,211,153,.25),0 4px 14px rgba(52,211,153,.15);}"
+            ".st-key-tr_refresh button:active{transform:translateY(1px);}"
             ".st-key-tr_refresh button p,.st-key-tr_refresh button div{"
-            "white-space:nowrap;font-size:13px;}</style>",
+            "white-space:nowrap;font-size:13px;}"
+            "</style>",
             unsafe_allow_html=True)
         if st.button("↻ Refresh", key="tr_refresh", use_container_width=True,
                      help="Re-pull the latest prices and re-mark the equity curve now"):
@@ -10156,7 +10169,15 @@ def main():
         "Compounding the pixels…",
         "Waiting for the opening bell…",
     ]
-    _msg = _rnd.choice(_load_msgs)
+    _per   = 0.85                                  # seconds each phrase is shown
+    _msgs  = _rnd.sample(_load_msgs, 6)            # rotate through 6 of them
+    _cycle = round(_per * len(_msgs), 2)
+    _phrase_stack = "".join(
+        f'<div style="position:absolute;left:0;right:0;text-align:center;opacity:0;'
+        f'font-family:Inter,sans-serif;font-size:13.5px;color:#b3bed0;'
+        f'animation:qntmphrase {_cycle}s ease-in-out {round(_i*_per,2)}s infinite;">{_m}</div>'
+        for _i, _m in enumerate(_msgs)
+    )
     _pl.markdown(
         '<div style="position:fixed;top:0;left:0;width:100%;height:100%;'
         'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;'
@@ -10164,7 +10185,7 @@ def main():
         'opacity:0;animation:qntmload .25s ease .45s forwards;">'
         '<div style="font-family:Syne,sans-serif;font-size:21px;font-weight:800;letter-spacing:.05em;'
         'color:#e2e8f0;">Q<span style="color:#34d399;">NTM</span></div>'
-        f'<div style="font-family:Inter,sans-serif;font-size:13.5px;color:#b3bed0;">{_msg}</div>'
+        f'<div style="position:relative;height:20px;min-width:300px;max-width:90vw;">{_phrase_stack}</div>'
         '<div style="width:240px;height:5px;border-radius:99px;background:rgba(52,211,153,.14);'
         'overflow:hidden;">'
         '<div style="height:100%;border-radius:99px;background:linear-gradient(90deg,#34d399,#5eead4);'
