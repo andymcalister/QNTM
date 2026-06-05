@@ -1154,10 +1154,15 @@ def _back_btn(href: str, label: str = "← Back") -> str:
     )
 
 def _upgrade_url(feature: str, return_nav: str) -> str:
-    """Build URL to the upgrade page preserving session."""
+    """Build URL to the upgrade page preserving session. Deliberately omits the
+    _n nav param: _n drives the reconnect-recovery handler, which on a fresh
+    page-reload session would override page='upgrade' back to the platform tab
+    (that's what made the Alerts/Simulator upgrade CTAs appear to do nothing)."""
+    from urllib.parse import quote_plus
     _uid  = (st.session_state.user or {}).get("id", "")
     _plan = (st.session_state.user or {}).get("plan", "free")
-    return f"?upgrade_page=1&feature={feature}&return_nav={return_nav}&uid={_uid}&plan={_plan}&ck=1&_n={return_nav}"
+    return (f"?upgrade_page=1&feature={quote_plus(feature)}"
+            f"&return_nav={return_nav}&uid={_uid}&plan={_plan}&ck=1")
 
 # ── ONBOARDING MODAL ──────────────────────────────────────────────────────────
 def show_onboarding():
@@ -2566,6 +2571,30 @@ def add_to_watchlist(user_id: str, ticker: str, price_at_add: float = None) -> b
         return add_watchlist_item(user_id, lid, ticker.strip().upper(), price_at_add)
     except Exception:
         return False
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _preview_score(ticker: str):
+    """Fetch the latest signal_log row for a single ticker so the watchlist add
+    box can show a conviction preview before the user commits. Cached briefly so
+    repeated reruns (every keystroke / Enter) don't re-hit Supabase. Returns the
+    row dict or None."""
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return None
+        resp = (sb.table("signal_log")
+                .select("ticker,adj_composite,composite,price,signal,"
+                        "momentum,quality,volume,value,sentiment,signal_date")
+                .eq("ticker", ticker)
+                .order("signal_date", desc=True)
+                .limit(1)
+                .execute())
+        rows = resp.data or []
+        return rows[0] if rows else None
+    except Exception:
+        return None
 
 
 def remove_from_watchlist(user_id: str, ticker: str) -> bool:
@@ -5473,6 +5502,63 @@ def page_watchlist():
                         st.rerun()
                     else:
                         st.toast(f"Could not add {_tk_clean}")
+    # ── Live preview: type a ticker + Enter to see its conviction before adding ─
+    _preview_tk = (_new_tk or "").strip().upper()
+    _already = {w["ticker"] for w in watchlist}
+    if _preview_tk and _preview_tk not in _already:
+        if not is_valid_universe_ticker(_preview_tk):
+            st.caption(f"{_preview_tk} isn't in the QNTM universe ({_universe_n()} tickers).")
+        else:
+            _pv = _preview_score(_preview_tk)
+            if not _pv:
+                st.caption(f"No score on file for {_preview_tk} yet — try the Screener.")
+            else:
+                _adj = float(_pv.get("adj_composite") or _pv.get("composite") or 0)
+                if   _adj >= 60: _lbl, _col = "High Conviction",     "#34d399"
+                elif _adj >= 45: _lbl, _col = "Moderate Conviction", "#fbbf24"
+                else:            _lbl, _col = "Low Conviction",       "#f87171"
+                _px = _pv.get("price")
+                _px_str = f"${_px:,.2f}" if _px else "—"
+
+                def _pv_bar(v):
+                    v = float(v or 0)
+                    _c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
+                    return ('<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);">'
+                            f'<div style="width:{max(4,int(v))}%;height:100%;background:{_c};'
+                            'border-radius:2px;"></div></div>')
+
+                _pillars = [("MOM", _pv.get("momentum")), ("QUAL", _pv.get("quality")),
+                            ("VOL", _pv.get("volume")), ("VAL", _pv.get("value")),
+                            ("SENT", _pv.get("sentiment"))]
+                _pcols = "".join(
+                    f'<div style="text-align:center;">'
+                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;margin-bottom:3px;">{_nm}</div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#cbd5e1;margin-bottom:3px;">{float(_v or 0):.0f}</div>'
+                    f'{_pv_bar(_v)}</div>'
+                    for _nm, _v in _pillars
+                )
+                st.markdown(
+                    f'<div style="background:rgba(255,255,255,.03);border:1px solid {_col}33;'
+                    f'border-left:3px solid {_col};border-radius:10px;padding:14px 16px;margin-top:8px;">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+                    f'<div><span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">{_preview_tk}</span>'
+                    f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_col};margin-left:10px;">{_lbl} · {_adj:.0f}</span></div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#cbd5e1;">{_px_str}</div></div>'
+                    f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">{_pcols}</div>'
+                    f'<div style="font-size:11px;color:#64748b;margin-top:8px;">Preview only — not yet on your watchlist.</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button(f"☆ Add {_preview_tk} to watchlist", key="wl_preview_add",
+                             use_container_width=True):
+                    _add_px = _px or get_price_on_date_latest(_preview_tk)
+                    if add_watchlist_item(_wl_uid, _active_id, _preview_tk, _add_px):
+                        st.session_state.pop("_wl_daychange_cache", None)
+                        st.session_state.pop("wl_native_add_tk", None)
+                        st.toast(f"Added {_preview_tk}")
+                        st.rerun()
+                    else:
+                        st.toast(f"Could not add {_preview_tk}")
     if watchlist:
         _rm_c, _rmbtn_c = st.columns([3, 1])
         with _rm_c:
