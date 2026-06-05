@@ -10111,20 +10111,22 @@ def main():
     _pl = st.empty()
     import random as _rnd
     _load_msgs = [
-        "Consulting the bulls and the bears…",
-        "Reading the tape…",
-        "Marking to market…",
-        "Buying low, loading high…",
-        "Pricing in the latest data…",
-        "Calculating conviction…",
-        "Running it past the quants…",
-        "Crunching the order book…",
-        "Waiting for the opening bell…",
-        "Compounding the pixels…",
-        "Rebalancing the dashboard…",
-        "Doing the due diligence…",
-        "Scanning the whole universe…",
+        f"Scoring all {_universe_n()} tickers…",
+        "Weighing the five pillars…",
+        "Checking the macro regime…",
+        "Sorting conviction, high to low…",
+        "Stress-testing against SPY…",
+        "Sniffing out hidden gems…",
         "Separating signal from noise…",
+        "Letting the quants argue it out…",
+        "Consulting the bulls and the bears…",
+        "Crunching factor scores…",
+        "Reading the tape…",
+        "Pricing in the macro…",
+        "Marking to market…",
+        "Doing the due diligence…",
+        "Compounding the pixels…",
+        "Waiting for the opening bell…",
     ]
     _msg = _rnd.choice(_load_msgs)
     _pl.markdown(
@@ -10138,7 +10140,7 @@ def main():
         '<div style="width:240px;height:5px;border-radius:99px;background:rgba(52,211,153,.14);'
         'overflow:hidden;">'
         '<div style="height:100%;border-radius:99px;background:linear-gradient(90deg,#34d399,#5eead4);'
-        'width:4%;animation:qntmfill 3s cubic-bezier(.15,.75,.2,1) .45s forwards;'
+        'width:4%;animation:qntmfill 5s cubic-bezier(.2,.08,.6,.78) .45s forwards;'
         'box-shadow:0 0 10px rgba(52,211,153,.5);"></div>'
         '</div>'
         '</div>',
