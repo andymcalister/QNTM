@@ -4800,8 +4800,12 @@ def page_screener():
     def _on_search_change():
         val = st.session_state.get("screener_search_raw","").strip().upper()
         st.session_state._search_live = val
-        # Clear selected stock when user starts typing a new query
-        if st.session_state.get("screener_search_val","") != val:
+        # If the submitted value is an exact ticker in the universe, surface its
+        # score card right away — Enter now behaves like clicking a suggestion.
+        # Otherwise clear the selected stock so suggestions show while typing.
+        if val in SECTORS:
+            st.session_state.screener_search_val = val
+        elif st.session_state.get("screener_search_val","") != val:
             st.session_state.screener_search_val = ""
 
     # When suggestion selected, delete widget key so it reinits with new value
@@ -7295,6 +7299,9 @@ def page_simulator():
         _raw = st.session_state.sim_add_query.strip().upper()
         st.session_state._sim_search_live = _raw
         st.session_state.nav = "simulator"
+        # Exact ticker + Enter → show its card immediately, like a suggestion tap.
+        if _raw in SECTORS:
+            st.session_state._sim_selected_tk = _raw
 
     if "_sim_sug_just_picked" in st.session_state:
         _picked = st.session_state.pop("_sim_sug_just_picked")
