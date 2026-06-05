@@ -1,12 +1,15 @@
 # render.yaml — QNTM on Render
 # ============================================================================
 # Blueprint deploy: in Render, New → Blueprint, point at andymcalister/qntm.
-# Render reads this file and provisions the service.
+# Render reads this file and provisions the service(s).
 #
 # SECRETS are NOT in this file. Add them in the Render dashboard as a
 # "Secret File" mounted at .streamlit/secrets.toml (paste your existing
 # Streamlit Cloud secrets.toml content verbatim). That keeps st.secrets
 # working with zero code changes. Be sure SUPABASE_SERVICE_KEY is included.
+#
+# Secret Files are PER-SERVICE: you must attach secrets.toml to BOTH the web
+# service and the cron job below (Environment → Secret Files on each).
 #
 # CUSTOM DOMAIN: after the service is live, Settings → Custom Domains →
 # add qntm.live (and www.qntm.live if you want it). Render gives you the DNS
@@ -25,6 +28,26 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
     healthCheckPath: /_stcore/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+  # ── Intraday conviction-drop alert emails ──────────────────────────────────
+  # Runs every 30 min, 13:00–21:00 UTC, Mon–Fri — a window that covers US market
+  # hours year-round. intraday_alerts.py self-gates precisely to 9:30 AM–4:00 PM
+  # ET (incl. DST) and no-ops when the market is closed or nobody has opted in,
+  # so off-hours runs cost almost nothing. Reuses data_refresh._get_supabase,
+  # which prefers SUPABASE_SERVICE_KEY (RLS-bypassing) for the batch reads.
+  # REMEMBER: attach the same secrets.toml Secret File to THIS service too.
+  - type: cron
+    name: qntm-intraday-alerts
+    runtime: python
+    plan: starter            # smallest is fine — each run finishes in well under a minute
+    region: oregon
+    branch: main
+    schedule: "*/30 13-21 * * 1-5"
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python intraday_alerts.py
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
