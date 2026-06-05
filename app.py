@@ -2730,6 +2730,77 @@ def _render_stock_preview(ticker: str) -> bool:
     return True
 
 
+def _render_stock_result(ticker: str, nav: str = "screener"):
+    """Standard rich search-result card used everywhere a stock is searched:
+    full factor panel (detail open) with price + fundamentals, the signal-history
+    mini chart, and the Add/Remove-watchlist action row. Scores the ticker live so
+    the card matches the Screener exactly. Returns {'ticker','price'} on success,
+    else None (and renders a 'not found' note)."""
+    from model_engine import score_stock, fetch_price_data
+    resolved_tk, resolved_name = resolve_ticker(ticker)
+    if not resolved_tk:
+        return None
+    _ok = None
+    _not_found = (
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
+        f'border-radius:8px;padding:20px 24px;">'
+        f'<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:#b3bed0;margin-bottom:6px;">'
+        f'"{ticker}" not found</div>'
+        f'<div style="font-size:13px;color:#8896ac;line-height:1.6;">'
+        f'Could not retrieve data. Try the exact ticker symbol — e.g. '
+        f'<strong style="color:#b3bed0;">AAPL</strong>, <strong style="color:#b3bed0;">NVDA</strong>.</div>'
+        f'</div>')
+    with st.spinner(f"Scoring {resolved_tk}..."):
+        try:
+            price_data = fetch_price_data([resolved_tk], period="1y")
+            hist = price_data.get(resolved_tk, [])
+            if not hist or len(hist) < 10:
+                st.markdown(_not_found, unsafe_allow_html=True)
+            else:
+                scored = score_stock(resolved_tk, hist)
+                scored["sector"] = SECTORS.get(resolved_tk, "Unknown")
+                macro = st.session_state.get("macro_data") or _live_macro()
+                sr = apply_macro_overlay([scored], macro)[0]
+                if sr.get("promoted"):
+                    regime = macro.get("regime", "NEUTRAL")
+                    eff = 62 if regime in ("RISK_OFF", "HIGH VOLATILITY") else 60
+                    adj = float(sr.get("adj_composite", sr.get("composite", 50)))
+                    sr["adj_action"] = "BUY" if adj >= eff else ("SELL" if adj < EXIT_THRESHOLD else "HOLD")
+                    sr["promoted"] = False
+                sr["pct_rank"] = 50
+                ci = get_company_info(resolved_tk)
+                _html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
+                _html = _html.replace('class="qcard-detail" style="display:none;',
+                                      'class="qcard-detail" style="display:block;')
+                st.markdown(_html, unsafe_allow_html=True)
+                _chart = signal_history_chart(
+                    resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
+                if _chart:
+                    st.markdown(_chart, unsafe_allow_html=True)
+                _ok = {"ticker": resolved_tk, "price": sr.get("price")}
+                if resolved_tk not in SECTORS:
+                    st.markdown('<div style="font-size:13px;color:#8896ac;margin-bottom:8px;">'
+                                '⚠ Not in core universe — scored from live price data. '
+                                'Fundamental data may be limited.</div>', unsafe_allow_html=True)
+        except Exception:
+            _ok = None
+            st.markdown(_not_found, unsafe_allow_html=True)
+    # Watchlist add/remove toggle — rendered outside the try so a button error
+    # can never surface as "not found". Always shows for a successfully scored tk.
+    if _ok:
+        try:
+            from db import get_watchlist_items as _gwi, get_watchlists as _gws
+            _u = uid()
+            _lists = _gws(_u)
+            _did = next((l["id"] for l in _lists if l.get("is_default")),
+                        _lists[0]["id"] if _lists else None)
+            _wtk = {w["ticker"] for w in _gwi(_u, _did)} if _did else set()
+            render_watchlist_actions([_ok["ticker"]], nav=nav, in_list=_wtk)
+        except Exception:
+            pass
+    return _ok
+
+
 def remove_from_watchlist(user_id: str, ticker: str) -> bool:
     """Remove ticker from the user's DEFAULT named list."""
     try:
@@ -5585,19 +5656,8 @@ def page_watchlist():
         _render_suggestions(_wl_live, "wlsug", "wl_sel_tk", exclude=_wl_excl)
 
     _wl_sel = st.session_state.get("wl_sel_tk", "").strip().upper()
-    if _wl_sel and _wl_sel not in set(_wl_excl):
-        _render_stock_preview(_wl_sel)
-        if st.button(f"☆ Add {_wl_sel} to Watchlist", key="wl_sel_add",
-                     use_container_width=True):
-            _add_px = ((score_map.get(_wl_sel) or {}).get("price")) or get_price_on_date_latest(_wl_sel)
-            if add_watchlist_item(_wl_uid, _active_id, _wl_sel, _add_px):
-                st.session_state.pop("_wl_daychange_cache", None)
-                st.session_state.pop("wl_native_add_tk", None)
-                st.session_state.wl_sel_tk = ""
-                st.toast(f"Added {_wl_sel}")
-                st.rerun()
-            else:
-                st.toast(f"Could not add {_wl_sel}")
+    if _wl_sel:
+        _render_stock_result(_wl_sel, nav="watchlist")
     if watchlist:
         _rm_c, _rmbtn_c = st.columns([3, 1])
         with _rm_c:
@@ -6789,7 +6849,7 @@ def page_portfolio():
                     resolved_ticker, resolved_name = resolve_ticker(tk_query)
 
             if resolved_ticker and is_valid_universe_ticker(resolved_ticker):
-                _render_stock_preview(resolved_ticker)
+                _render_stock_result(resolved_ticker, nav="portfolio")
             elif resolved_ticker and resolved_name and resolved_name != resolved_ticker:
                 st.markdown(
                     f'<div style="font-size:14px;color:#34d399;margin-bottom:8px;">'
@@ -7385,6 +7445,9 @@ def page_simulator():
         _sel_ci = get_company_info(_sim_sel_tk)
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
         st.markdown(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True), unsafe_allow_html=True)
+        _sim_chart = signal_history_chart(_sim_sel_tk, _sel_adj)
+        if _sim_chart:
+            st.markdown(_sim_chart, unsafe_allow_html=True)
         # Add / Remove CTA
         _in_sim = _sim_sel_tk in st.session_state.get("sim_selected", [])
         if _in_sim:
@@ -7401,6 +7464,16 @@ def page_simulator():
                 st.session_state._sim_selected_tk = ""
                 st.session_state.nav = "simulator"
                 st.rerun()
+        try:
+            from db import get_watchlist_items as _gwi2, get_watchlists as _gws2
+            _u2 = uid()
+            _l2 = _gws2(_u2)
+            _d2 = next((l["id"] for l in _l2 if l.get("is_default")),
+                       _l2[0]["id"] if _l2 else None)
+            _w2 = {w["ticker"] for w in _gwi2(_u2, _d2)} if _d2 else set()
+            render_watchlist_actions([_sim_sel_tk], nav="simulator", in_list=_w2)
+        except Exception:
+            pass
         st.markdown('</div>', unsafe_allow_html=True)
 
     selected_rows = [ticker_map[t] for t in st.session_state.sim_selected if t in ticker_map]
