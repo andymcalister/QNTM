@@ -2597,6 +2597,139 @@ def _preview_score(ticker: str):
         return None
 
 
+# ── Standard stock search: shared across every search box on the platform ──────
+# There is no universe-wide company-name table (names only exist for well-known
+# tickers), so the standard is: partial TICKER match across the whole universe +
+# company-NAME match across this curated map. Used by Screener, Watchlist,
+# Portfolio, and Simulator so search behaves identically everywhere.
+_SEARCH_NAMES = {
+    "AAPL":"Apple","MSFT":"Microsoft","NVDA":"NVIDIA","GOOGL":"Alphabet (Google)",
+    "GOOG":"Alphabet (Google)","META":"Meta Platforms","AMZN":"Amazon","TSLA":"Tesla",
+    "NFLX":"Netflix","AMD":"Advanced Micro Devices","INTC":"Intel","CSCO":"Cisco",
+    "ORCL":"Oracle","CRM":"Salesforce","ADBE":"Adobe","INTU":"Intuit","QCOM":"Qualcomm",
+    "TXN":"Texas Instruments","AVGO":"Broadcom","MU":"Micron","AMAT":"Applied Materials",
+    "JPM":"JPMorgan Chase","BAC":"Bank of America","GS":"Goldman Sachs","MS":"Morgan Stanley",
+    "WFC":"Wells Fargo","C":"Citigroup","V":"Visa","MA":"Mastercard","BLK":"BlackRock",
+    "AXP":"American Express","PYPL":"PayPal","SQ":"Block (Square)","COF":"Capital One",
+    "UNH":"UnitedHealth","LLY":"Eli Lilly","JNJ":"Johnson & Johnson","ABBV":"AbbVie",
+    "MRK":"Merck","PFE":"Pfizer","TMO":"Thermo Fisher","AMGN":"Amgen","GILD":"Gilead Sciences",
+    "BMY":"Bristol Myers Squibb","CVS":"CVS Health","WMT":"Walmart","COST":"Costco",
+    "PG":"Procter & Gamble","KO":"Coca-Cola","PEP":"PepsiCo","HD":"Home Depot",
+    "LOW":"Lowe's","TGT":"Target","MCD":"McDonald's","NKE":"Nike","SBUX":"Starbucks",
+    "DIS":"Disney","XOM":"Exxon Mobil","CVX":"Chevron","COP":"ConocoPhillips","OXY":"Occidental",
+    "SLB":"Schlumberger","BRK.B":"Berkshire Hathaway","BRK":"Berkshire Hathaway",
+    "PLTR":"Palantir","COIN":"Coinbase","HOOD":"Robinhood","SNOW":"Snowflake","DDOG":"Datadog",
+    "NET":"Cloudflare","ZS":"Zscaler","CRWD":"CrowdStrike","PANW":"Palo Alto Networks",
+    "FTNT":"Fortinet","NOW":"ServiceNow","WDAY":"Workday","TEAM":"Atlassian","SHOP":"Shopify",
+    "UBER":"Uber","LYFT":"Lyft","ABNB":"Airbnb","DASH":"DoorDash","SPOT":"Spotify",
+    "BKNG":"Booking","MAR":"Marriott","BA":"Boeing","CAT":"Caterpillar","DE":"Deere",
+    "GE":"GE Aerospace","HON":"Honeywell","LMT":"Lockheed Martin","RTX":"RTX (Raytheon)",
+    "NOC":"Northrop Grumman","GD":"General Dynamics","F":"Ford","GM":"General Motors",
+    "T":"AT&T","VZ":"Verizon","TMUS":"T-Mobile","CMCSA":"Comcast","DINO":"HF Sinclair",
+    "KOS":"Kosmos Energy","APA":"APA Corp","VLO":"Valero Energy","MPC":"Marathon Petroleum",
+    "CHRD":"Chord Energy","CRGY":"Crescent Energy","SM":"SM Energy","PSX":"Phillips 66",
+    "ET":"Energy Transfer","KMI":"Kinder Morgan","WMB":"Williams","MMM":"3M","IBM":"IBM",
+    "QCOM ":"Qualcomm","ARM":"Arm Holdings","SMCI":"Super Micro","MRVL":"Marvell",
+    "DELL":"Dell","HPQ":"HP","WBD":"Warner Bros Discovery","PARA":"Paramount",
+}
+
+
+def _stock_suggestions(query, limit: int = 6, exclude=None):
+    """Standard matcher: returns up to `limit` (ticker, name) tuples for a partial
+    ticker OR company-name query. Prefix matches (ticker or name) rank first, then
+    substring matches. `exclude` hides tickers already added to the current list."""
+    q = (query or "").strip().lower()
+    if not q:
+        return []
+    excl = {t.upper() for t in (exclude or [])}
+    starts, contains = [], []
+    for tk in SECTORS.keys():
+        if tk in excl:
+            continue
+        tl  = tk.lower()
+        nm  = _SEARCH_NAMES.get(tk, "")
+        nml = nm.lower()
+        if tl.startswith(q) or (nml and nml.startswith(q)):
+            starts.append((tk, nm))
+        elif (q in tl) or (nml and q in nml):
+            contains.append((tk, nm))
+        if len(starts) >= limit:
+            break
+    out = starts + [c for c in contains if c not in starts]
+    return out[:limit]
+
+
+def _render_suggestions(query, key_prefix: str, pick_state_key: str, exclude=None,
+                        limit: int = 6):
+    """Standard suggestion dropdown. Renders clickable ticker+name rows; on click
+    sets st.session_state[pick_state_key] = ticker and reruns. Returns the list of
+    suggestions shown (so callers can decide what else to render)."""
+    sugg = _stock_suggestions(query, limit=limit, exclude=exclude)
+    if not sugg:
+        if (query or "").strip():
+            st.markdown('<div style="font-size:13px;color:#94a3b8;padding:4px 2px;">'
+                        'No matches — try the ticker symbol.</div>', unsafe_allow_html=True)
+        return sugg
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;'
+                'letter-spacing:.1em;padding:8px 2px 2px;">SUGGESTIONS</div>',
+                unsafe_allow_html=True)
+    for _tk, _nm in sugg:
+        _label = f"{_tk}   ·   {_nm}" if _nm else _tk
+        if st.button(_label, key=f"{key_prefix}_{_tk}", use_container_width=True):
+            st.session_state[pick_state_key] = _tk
+            st.rerun()
+    return sugg
+
+
+def _render_stock_preview(ticker: str) -> bool:
+    """Render the standard compact conviction preview card (label + score + price +
+    5 pillar bars) for a ticker. Returns True if a score was found and rendered,
+    False otherwise (caller can show a fallback)."""
+    _pv = _preview_score(ticker)
+    if not _pv:
+        st.caption(f"No score on file for {ticker} yet — scored on the nightly refresh.")
+        return False
+    _adj = float(_pv.get("adj_composite") or _pv.get("composite") or 0)
+    if   _adj >= 60: _lbl, _col = "High Conviction",     "#34d399"
+    elif _adj >= 45: _lbl, _col = "Moderate Conviction", "#fbbf24"
+    else:            _lbl, _col = "Low Conviction",       "#f87171"
+    _px = _pv.get("price")
+    _px_str = f"${_px:,.2f}" if _px else "—"
+
+    def _pv_bar(v):
+        v = float(v or 0)
+        _c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
+        return ('<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);">'
+                f'<div style="width:{max(4,int(v))}%;height:100%;background:{_c};'
+                'border-radius:2px;"></div></div>')
+
+    _pillars = [("MOM", _pv.get("momentum")), ("QUAL", _pv.get("quality")),
+                ("VOL", _pv.get("volume")), ("VAL", _pv.get("value")),
+                ("SENT", _pv.get("sentiment"))]
+    _pcols = "".join(
+        f'<div style="text-align:center;">'
+        f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;margin-bottom:3px;">{_nm}</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#cbd5e1;margin-bottom:3px;">{float(_v or 0):.0f}</div>'
+        f'{_pv_bar(_v)}</div>'
+        for _nm, _v in _pillars
+    )
+    _nm_disp = _SEARCH_NAMES.get(ticker, "")
+    _nm_html = (f'<span style="font-size:13px;color:#8896ac;margin-left:8px;">{_nm_disp}</span>'
+                if _nm_disp else "")
+    st.markdown(
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid {_col}33;'
+        f'border-left:3px solid {_col};border-radius:10px;padding:14px 16px;margin-top:8px;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+        f'<div><span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">{ticker}</span>{_nm_html}'
+        f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{_col};margin-top:2px;">{_lbl} · {_adj:.0f}</div></div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#cbd5e1;">{_px_str}</div></div>'
+        f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">{_pcols}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    return True
+
+
 def remove_from_watchlist(user_id: str, ticker: str) -> bool:
     """Remove ticker from the user's DEFAULT named list."""
     try:
@@ -4743,25 +4876,6 @@ def page_screener():
         st.session_state.screener_search_val = _sq_param
         st.query_params.pop("sq", None)
 
-    # Known ticker names for suggestions
-    _AC_KNOWN = {
-        "AAPL":"Apple Inc.","MSFT":"Microsoft","NVDA":"NVIDIA","GOOGL":"Alphabet",
-        "META":"Meta","AMZN":"Amazon","TSLA":"Tesla","NFLX":"Netflix",
-        "AMD":"AMD","INTC":"Intel","CSCO":"Cisco","ORCL":"Oracle","CRM":"Salesforce",
-        "ADBE":"Adobe","AVGO":"Broadcom","JPM":"JPMorgan Chase","BAC":"Bank of America",
-        "GS":"Goldman Sachs","V":"Visa","MA":"Mastercard","WMT":"Walmart",
-        "COST":"Costco","PG":"P&G","KO":"Coca-Cola","PEP":"PepsiCo",
-        "HD":"Home Depot","MCD":"McDonald's","NKE":"Nike","XOM":"Exxon Mobil",
-        "CVX":"Chevron","UNH":"UnitedHealth","LLY":"Eli Lilly","JNJ":"J&J",
-        "ABBV":"AbbVie","MRK":"Merck","PFE":"Pfizer","AMGN":"Amgen",
-        "PLTR":"Palantir","COIN":"Coinbase","SNOW":"Snowflake","CRWD":"CrowdStrike",
-        "PANW":"Palo Alto Networks","NOW":"ServiceNow","UBER":"Uber","ABNB":"Airbnb",
-        "SPOT":"Spotify","PYPL":"PayPal","DDOG":"Datadog","NET":"Cloudflare",
-        "ZS":"Zscaler","WDAY":"Workday","TEAM":"Atlassian","SM":"SM Energy",
-        "DINO":"HF Sinclair","KOS":"Kosmos Energy","APA":"APA Corp","VLO":"Valero Energy",
-        "MPC":"Marathon Petroleum","CHRD":"Chord Energy","CRGY":"Crescent Energy",
-    }
-
     # Styled search input
     st.markdown("""
     <style>
@@ -4832,36 +4946,10 @@ def page_screener():
 
     _live_q = st.session_state.get("_search_live","").strip().upper()
 
-    # Suggestions — shown after typing, click = st.button sets val and reruns
-    _suggestions = []
-    if _live_q and not st.session_state.get("screener_search_val",""):
-        _q = _live_q.lower()
-        _suggestions = [
-            tk for tk in list(SECTORS.keys())
-            if tk.lower().startswith(_q) or (_AC_KNOWN.get(tk,"").lower().find(_q) >= 0)
-        ][:6]
-    elif _live_q:
-        _q = _live_q.lower()
-        _suggestions = [
-            tk for tk in list(SECTORS.keys())
-            if tk.lower().startswith(_q) or (_AC_KNOWN.get(tk,"").lower().find(_q) >= 0)
-        ][:6]
-
-    if _suggestions and _live_q:
-        st.markdown(
-            '<div class="qntm-sug-wrap" style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
-            'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
-            '<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;'
-            'letter-spacing:.1em;padding:8px 14px 4px;">SUGGESTIONS</div>',
-            unsafe_allow_html=True
-        )
-        for _tk in _suggestions:
-            _nm = _AC_KNOWN.get(_tk, "")
-            _label = f"**{_tk}** {_nm}" if _nm else f"**{_tk}**"
-            if st.button(f"{_tk}  {_nm}", key=f"sug_{_tk}", use_container_width=True):
-                st.session_state.screener_search_val = _tk
-                st.session_state._search_live = _tk
-                st.rerun()
+    # Suggestions — standard ticker/company search (shared platform-wide).
+    # Clicking one sets screener_search_val, which renders the score card below.
+    if _live_q:
+        _render_suggestions(_live_q, "sug", "screener_search_val")
 
     # Only show stock card when user explicitly clicks a suggestion
     # screener_search_val is set by suggestion click OR ac_pick URL param — not by typing
@@ -5483,86 +5571,33 @@ def page_watchlist():
     }
     </style>
     """, unsafe_allow_html=True)
-    _add_c, _addbtn_c = st.columns([3, 1])
-    with _add_c:
-        _new_tk = st.text_input("Add ticker", key="wl_native_add_tk",
-                                placeholder="Add a ticker — e.g. NVDA",
-                                label_visibility="collapsed")
-    with _addbtn_c:
-        if st.button("☆ Add", key="wl_native_add", use_container_width=True):
-            _tk_clean = (_new_tk or "").strip().upper()
-            if _tk_clean:
-                if not is_valid_universe_ticker(_tk_clean):
-                    st.toast(f"{_tk_clean} is not in the QNTM universe ({_universe_n()} tickers).")
-                else:
-                    # price baseline from scan or signal_log
-                    _px = (score_map.get(_tk_clean) or {}).get("price")
-                    if not _px:
-                        _px = get_price_on_date_latest(_tk_clean)
-                    if add_watchlist_item(_wl_uid, _active_id, _tk_clean, _px):
-                        st.session_state.pop("_wl_daychange_cache", None)
-                        st.session_state.pop("wl_native_add_tk", None)
-                        st.toast(f"Added {_tk_clean}")
-                        st.rerun()
-                    else:
-                        st.toast(f"Could not add {_tk_clean}")
-    # ── Live preview: type a ticker + Enter to see its conviction before adding ─
-    _preview_tk = (_new_tk or "").strip().upper()
-    _already = {w["ticker"] for w in watchlist}
-    if _preview_tk and _preview_tk not in _already:
-        if not is_valid_universe_ticker(_preview_tk):
-            st.caption(f"{_preview_tk} isn't in the QNTM universe ({_universe_n()} tickers).")
-        else:
-            _pv = _preview_score(_preview_tk)
-            if not _pv:
-                st.caption(f"No score on file for {_preview_tk} yet — try the Screener.")
+    def _on_wl_search():
+        v = st.session_state.get("wl_native_add_tk", "").strip().upper()
+        st.session_state.wl_sel_tk = v if v in SECTORS else ""
+
+    st.text_input("Add ticker", key="wl_native_add_tk",
+                  placeholder="🔍  Search ticker or company — NVDA, Apple…",
+                  label_visibility="collapsed", on_change=_on_wl_search)
+
+    _wl_excl = [w["ticker"] for w in watchlist]
+    _wl_live = st.session_state.get("wl_native_add_tk", "").strip()
+    if _wl_live and not st.session_state.get("wl_sel_tk"):
+        _render_suggestions(_wl_live, "wlsug", "wl_sel_tk", exclude=_wl_excl)
+
+    _wl_sel = st.session_state.get("wl_sel_tk", "").strip().upper()
+    if _wl_sel and _wl_sel not in set(_wl_excl):
+        _render_stock_preview(_wl_sel)
+        if st.button(f"☆ Add {_wl_sel} to Watchlist", key="wl_sel_add",
+                     use_container_width=True):
+            _add_px = ((score_map.get(_wl_sel) or {}).get("price")) or get_price_on_date_latest(_wl_sel)
+            if add_watchlist_item(_wl_uid, _active_id, _wl_sel, _add_px):
+                st.session_state.pop("_wl_daychange_cache", None)
+                st.session_state.pop("wl_native_add_tk", None)
+                st.session_state.wl_sel_tk = ""
+                st.toast(f"Added {_wl_sel}")
+                st.rerun()
             else:
-                _adj = float(_pv.get("adj_composite") or _pv.get("composite") or 0)
-                if   _adj >= 60: _lbl, _col = "High Conviction",     "#34d399"
-                elif _adj >= 45: _lbl, _col = "Moderate Conviction", "#fbbf24"
-                else:            _lbl, _col = "Low Conviction",       "#f87171"
-                _px = _pv.get("price")
-                _px_str = f"${_px:,.2f}" if _px else "—"
-
-                def _pv_bar(v):
-                    v = float(v or 0)
-                    _c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
-                    return ('<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);">'
-                            f'<div style="width:{max(4,int(v))}%;height:100%;background:{_c};'
-                            'border-radius:2px;"></div></div>')
-
-                _pillars = [("MOM", _pv.get("momentum")), ("QUAL", _pv.get("quality")),
-                            ("VOL", _pv.get("volume")), ("VAL", _pv.get("value")),
-                            ("SENT", _pv.get("sentiment"))]
-                _pcols = "".join(
-                    f'<div style="text-align:center;">'
-                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;margin-bottom:3px;">{_nm}</div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#cbd5e1;margin-bottom:3px;">{float(_v or 0):.0f}</div>'
-                    f'{_pv_bar(_v)}</div>'
-                    for _nm, _v in _pillars
-                )
-                st.markdown(
-                    f'<div style="background:rgba(255,255,255,.03);border:1px solid {_col}33;'
-                    f'border-left:3px solid {_col};border-radius:10px;padding:14px 16px;margin-top:8px;">'
-                    f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
-                    f'<div><span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">{_preview_tk}</span>'
-                    f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_col};margin-left:10px;">{_lbl} · {_adj:.0f}</span></div>'
-                    f'<div style="font-family:DM Mono,monospace;font-size:15px;color:#cbd5e1;">{_px_str}</div></div>'
-                    f'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">{_pcols}</div>'
-                    f'<div style="font-size:11px;color:#64748b;margin-top:8px;">Preview only — not yet on your watchlist.</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-                if st.button(f"☆ Add {_preview_tk} to watchlist", key="wl_preview_add",
-                             use_container_width=True):
-                    _add_px = _px or get_price_on_date_latest(_preview_tk)
-                    if add_watchlist_item(_wl_uid, _active_id, _preview_tk, _add_px):
-                        st.session_state.pop("_wl_daychange_cache", None)
-                        st.session_state.pop("wl_native_add_tk", None)
-                        st.toast(f"Added {_preview_tk}")
-                        st.rerun()
-                    else:
-                        st.toast(f"Could not add {_preview_tk}")
+                st.toast(f"Could not add {_wl_sel}")
     if watchlist:
         _rm_c, _rmbtn_c = st.columns([3, 1])
         with _rm_c:
@@ -6731,27 +6766,40 @@ def page_portfolio():
             with r1c1:
                 def _pin_portfolio_nav():
                     st.session_state.nav = "portfolio"
+                    _v = st.session_state.get("p_tk", "").strip().upper()
+                    st.session_state.p_sel_tk = _v if _v in SECTORS else ""
                 tk_query = st.text_input("Ticker / Company Name", key="p_tk",
-                    placeholder="e.g. Tesla, AAPL",
+                    placeholder="🔍  Search ticker or company — NVDA, Apple…",
                     on_change=_pin_portfolio_nav)
             with r1c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f", on_change=_pin_portfolio_nav)
             with r1c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f", on_change=_pin_portfolio_nav)
 
-            # Resolve and preview
+            # Standard ticker/company search — suggestions + conviction preview
+            _p_hold = [h.get("ticker") for h in holdings] if holdings else []
+            _p_live = (tk_query or "").strip()
+            if _p_live and not st.session_state.get("p_sel_tk"):
+                _render_suggestions(_p_live, "psug", "p_sel_tk", exclude=_p_hold)
+
             resolved_ticker, resolved_name = "", ""
-            if tk_query and tk_query.strip():
+            _p_picked = st.session_state.get("p_sel_tk", "").strip().upper()
+            if _p_picked and _p_picked in SECTORS:
+                resolved_ticker, resolved_name = _p_picked, _SEARCH_NAMES.get(_p_picked, "")
+            elif tk_query and tk_query.strip():
                 with st.spinner("Looking up...") if len(tk_query) > 2 and not tk_query.strip().isupper() else contextlib.nullcontext():
                     resolved_ticker, resolved_name = resolve_ticker(tk_query)
-                if resolved_ticker and resolved_name and resolved_name != resolved_ticker:
-                    st.markdown(
-                        f'<div style="font-size:14px;color:#34d399;margin-bottom:8px;">'
-                        f'✓ {resolved_ticker} — {resolved_name}</div>',
-                        unsafe_allow_html=True)
-                elif resolved_ticker:
-                    st.markdown(
-                        f'<div style="font-size:14px;color:#b3bed0;margin-bottom:8px;">'
-                        f'Ticker: {resolved_ticker}</div>',
-                        unsafe_allow_html=True)
+
+            if resolved_ticker and is_valid_universe_ticker(resolved_ticker):
+                _render_stock_preview(resolved_ticker)
+            elif resolved_ticker and resolved_name and resolved_name != resolved_ticker:
+                st.markdown(
+                    f'<div style="font-size:14px;color:#34d399;margin-bottom:8px;">'
+                    f'✓ {resolved_ticker} — {resolved_name}</div>',
+                    unsafe_allow_html=True)
+            elif resolved_ticker:
+                st.markdown(
+                    f'<div style="font-size:14px;color:#b3bed0;margin-bottom:8px;">'
+                    f'Ticker: {resolved_ticker}</div>',
+                    unsafe_allow_html=True)
 
             r2c1, r2c2 = st.columns([3, 1])
             with r2c1: new_date = st.date_input("Entry Date", key="p_date", value=date.today())
@@ -6769,6 +6817,7 @@ def page_portfolio():
                             ok = upsert_holding(uid(), tk_clean, new_sh, new_cost, new_date)
                             if ok:
                                 st.success(f"Added {tk_clean}")
+                                st.session_state.pop("p_sel_tk", None)
                                 # Fire notification if signal is active
                                 sc = score_map.get(tk_clean)
                                 if sc:
@@ -7321,51 +7370,10 @@ def page_simulator():
 
     _sim_q = st.session_state.get("_sim_search_live", "").strip().upper()
 
-    # Suggestions dropdown
-    _sim_matches = []
+    # Suggestions dropdown — standard ticker/company search (shared platform-wide)
     if _sim_q:
-        _sim_matches = sorted(
-            [r for r in scan if r["ticker"].startswith(_sim_q) or
-             _sim_q.lower() in r.get("ticker","").lower()],
-            key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
-        )[:6]
-
-    if _sim_matches:
-        _sug_html = ('<div style="background:#0d1117;border:1px solid rgba(255,255,255,.1);'
-                    'border-radius:0 0 8px 8px;margin-top:-1px;overflow:hidden;">'
-                    '<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;'
-                    'letter-spacing:.1em;padding:7px 14px 3px;">SUGGESTIONS</div>')
-        for _r in _sim_matches:
-            _tk  = _r["ticker"]
-            _sc  = float(_r.get("adj_composite", _r.get("composite", 0)) or 0)
-            _already = _tk in st.session_state.get("sim_selected", [])
-            if _already:
-                _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
-                             'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;opacity:.5;">'
-                             f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#8896ac;min-width:52px;">{_tk}</span>'
-                             f'<span style="font-size:13px;color:#94a3b8;">score {_sc:.0f} · in simulation</span></a>')
-            else:
-                _sug_html += ('<a style="display:flex;align-items:center;gap:10px;padding:9px 14px;'
-                             'border-top:1px solid rgba(255,255,255,.04);text-decoration:none;cursor:pointer;'
-                             f'" onclick="">'
-                             f'<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#e2e8f0;min-width:52px;">{_tk}</span>'
-                             f'<span style="font-size:13px;color:#34d399;">score {_sc:.0f}</span>'
-                             f'<span style="font-size:13px;color:#8896ac;margin-left:auto;">tap to select</span></a>')
-        _sug_html += '</div>'
-        st.markdown(_sug_html, unsafe_allow_html=True)
-
-        # Clickable buttons for each suggestion
-        for _r in _sim_matches:
-            _tk = _r["ticker"]
-            _sc = float(_r.get("adj_composite", _r.get("composite", 0)) or 0)
-            _already = _tk in st.session_state.get("sim_selected", [])
-            if not _already:
-                if st.button(f"{_tk}  ·  {_sc:.0f}", key=f"simsug_{_tk}", use_container_width=True):
-                    st.session_state._sim_sug_just_picked = _tk
-                    st.session_state._sim_selected_tk = _tk
-                    st.rerun()
-    elif _sim_q:
-        st.markdown('<div style="font-size:13px;color:#94a3b8;padding:4px 0;">No matches in universe</div>', unsafe_allow_html=True)
+        _render_suggestions(_sim_q, "simsug", "_sim_selected_tk",
+                            exclude=st.session_state.get("sim_selected", []))
 
     # Show selected ticker card with Add/Remove CTA
     _sim_sel_tk = st.session_state.get("_sim_selected_tk", "")
