@@ -8642,8 +8642,13 @@ def page_model_portfolio():
     )
 
     # ── Manual refresh — re-pull the live equity curve without leaving the page ─
-    _rc1, _rc2 = st.columns([5, 1])
+    _rc1, _rc2 = st.columns([5, 2])
     with _rc2:
+        st.markdown(
+            "<style>.st-key-tr_refresh button{white-space:nowrap;padding:8px 10px;}"
+            ".st-key-tr_refresh button p,.st-key-tr_refresh button div{"
+            "white-space:nowrap;font-size:13px;}</style>",
+            unsafe_allow_html=True)
         if st.button("↻ Refresh", key="tr_refresh", use_container_width=True,
                      help="Re-pull the latest prices and re-mark the equity curve now"):
             st.session_state.pop("_pt_cache", None)
