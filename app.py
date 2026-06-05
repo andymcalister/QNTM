@@ -2676,12 +2676,21 @@ PRIVACY_POLICY = """
 | Stripe, Inc. | Payment processing | stripe.com/privacy |
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
 | Render (Render Services, Inc.) | Application hosting | render.com/privacy |
-| SendGrid (Twilio) | Transactional email — only if you enable email notifications | sendgrid.com/policies/privacy |
+| SendGrid (Twilio) | Account, security, and notification emails — e.g. email verification, password resets, and optional signal alerts | sendgrid.com/policies/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
 Market data is sourced from public providers (Yahoo Finance, FRED) and is not personal data.
 
 We will share data with law enforcement if legally required, and may disclose data to protect QNTM's rights or the safety of users.
+
+### Email Communications
+
+We use your email address to send two kinds of messages:
+
+- **Account and security emails** — for example, email verification, password resets, and billing notices. These are necessary to operate your account, so you can't opt out of them while your account is active.
+- **Optional signal alerts** — for example, an email when a stock on your watchlist or in your portfolio moves to LOW conviction. These are **off by default** and entirely optional. You can turn them on or off anytime in Account → Notifications, and every alert email includes an unsubscribe reminder and our mailing address.
+
+We send email through SendGrid (Twilio). We don't use your email address for advertising, and we don't sell it.
 
 ### Security
 - Passwords: bcrypt-hashed (cost factor 12)
@@ -2740,6 +2749,7 @@ You must be 18 or older. By using QNTM you confirm this. You are responsible for
 - Keep your password and 2FA credentials secure
 - You are responsible for all activity on your account
 - Report unauthorized access immediately to security@qntm.live
+- By creating an account, you agree to receive account and security emails (such as email verification, password resets, and billing notices), which are necessary to operate your account. Optional signal-alert emails are off by default and can be enabled or disabled anytime in Account → Notifications.
 
 ### 6. Subscriptions
 
@@ -2901,6 +2911,8 @@ HIGH, MODERATE, and LOW conviction signals are produced by an algorithm. They re
 **A HIGH conviction signal is not a buy recommendation.**
 **A LOW conviction signal is not a sell recommendation.**
 **A MODERATE signal is not a hold recommendation.**
+
+This applies equally to any alerts or emails we send. If you enable signal alerts, an email or in-app notice telling you that a stock has moved to LOW conviction is an automated, algorithmic notification — not advice and not a recommendation to sell. Intraday alerts in particular are based on partial-day data and are more reactive and noisier than the end-of-day signal. You remain solely responsible for your own investment decisions.
 
 ## Conflicts of Interest
 
@@ -8228,10 +8240,13 @@ def page_account():
                              value=prefs.get("signals", True), key="pref_sig")
             a_on = st.toggle("Macro regime change alerts",
                              value=prefs.get("alerts", True), key="pref_alert")
+            le_on = st.toggle("Email me when a holding or watchlist stock drops to LOW conviction (intraday, checked ~every 30 min during market hours)",
+                              value=prefs.get("low_alert_email", False), key="pref_low_email")
 
             st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
             if st.button("Save Notification Preferences", key="save_prefs"):
-                new_prefs = {"email": e_on, "signals": s_on, "alerts": a_on}
+                new_prefs = {"email": e_on, "signals": s_on, "alerts": a_on,
+                             "low_alert_email": le_on}
                 if update_preferences(uid(), {"notifications": new_prefs}):
                     st.session_state.user["notifications"] = new_prefs
                     st.success("Preferences saved")

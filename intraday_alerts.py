@@ -247,9 +247,13 @@ def _email_html(ticker, adj, when_et):
         f'font-size:15px;">Open QNTM</a></p>'
         '<p style="font-size:12px;color:#999;line-height:1.5;">HIGH/MODERATE/LOW conviction signals are '
         'algorithmic outputs, not recommendations. You make your own investment decisions. '
-        'Past model performance does not guarantee future results. '
-        'To stop these emails, turn off low-conviction alerts in Account → Notifications.</p>'
-        '<p style="font-size:12px;color:#aaa;margin-top:18px;">QNTM · Quantitative stock conviction</p>'
+        'Past model performance does not guarantee future results. Intraday signals are based on '
+        'partial-day data and are more reactive than the end-of-day signal.</p>'
+        '<p style="font-size:12px;color:#aaa;line-height:1.5;margin-top:18px;">'
+        f'You are receiving this because you enabled low-conviction alerts and {ticker} is on your '
+        'QNTM watchlist or portfolio. To stop these emails, turn off low-conviction alerts in '
+        'Account &rarr; Notifications.<br>'
+        'QNTM LLC · 35 Laguna Woods Drive, Laguna Niguel, CA 92677</p>'
         '</div>'
     )
 
