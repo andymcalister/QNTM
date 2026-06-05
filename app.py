@@ -2767,7 +2767,7 @@ def _render_rel_spy_chart(ticker: str, days: int = 20):
         return
 
 
-def _render_stock_result(ticker: str, nav: str = "screener"):
+def _render_stock_result(ticker: str, nav: str = "screener", wl_actions: bool = True):
     """Standard rich search-result card used everywhere a stock is searched:
     full factor panel (detail open) with price + fundamentals, the signal-history
     mini chart, and the Add/Remove-watchlist action row. Scores the ticker live so
@@ -2820,8 +2820,9 @@ def _render_stock_result(ticker: str, nav: str = "screener"):
             _ok = None
             st.markdown(_not_found, unsafe_allow_html=True)
     # Watchlist add/remove toggle — rendered outside the try so a button error
-    # can never surface as "not found". Always shows for a successfully scored tk.
-    if _ok:
+    # can never surface as "not found". Suppressed (wl_actions=False) on the
+    # Watchlist page, which renders its own prominent Add/Remove button instead.
+    if _ok and wl_actions:
         try:
             from db import get_watchlist_items as _gwi, get_watchlists as _gws
             _u = uid()
@@ -5689,7 +5690,29 @@ def page_watchlist():
 
     _wl_sel = st.session_state.get("wl_sel_tk", "").strip().upper()
     if _wl_sel:
-        _render_stock_result(_wl_sel, nav="watchlist")
+        _render_stock_result(_wl_sel, nav="watchlist", wl_actions=False)
+        _wl_have = {w["ticker"] for w in watchlist}
+        if _wl_sel in _wl_have:
+            if st.button(f"✕ Remove {_wl_sel} from Watchlist", key="wl_sel_remove",
+                         use_container_width=True):
+                if remove_watchlist_item(_wl_uid, _active_id, _wl_sel):
+                    st.session_state.pop("_wl_daychange_cache", None)
+                    st.session_state.pop("wl_native_add_tk", None)
+                    st.session_state.wl_sel_tk = ""
+                    st.toast(f"Removed {_wl_sel}")
+                    st.rerun()
+        else:
+            if st.button(f"☆ Add {_wl_sel} to Watchlist", key="wl_sel_add",
+                         use_container_width=True, type="primary"):
+                _add_px = ((score_map.get(_wl_sel) or {}).get("price")) or get_price_on_date_latest(_wl_sel)
+                if add_watchlist_item(_wl_uid, _active_id, _wl_sel, _add_px):
+                    st.session_state.pop("_wl_daychange_cache", None)
+                    st.session_state.pop("wl_native_add_tk", None)
+                    st.session_state.wl_sel_tk = ""
+                    st.toast(f"Added {_wl_sel}")
+                    st.rerun()
+                else:
+                    st.toast(f"Could not add {_wl_sel}")
     if watchlist:
         _rm_c, _rmbtn_c = st.columns([3, 1])
         with _rm_c:
