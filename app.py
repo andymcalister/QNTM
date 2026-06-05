@@ -76,6 +76,16 @@ from db import (register_user, login_user, get_holdings, upsert_holding,
                 check_and_notify_signal_changes, save_signal_snapshot,
                 get_signal_snapshot, get_unread_count, get_user_by_id,
                 request_email_verification, consume_verify_token, is_email_verified)
+
+
+def _universe_n() -> int:
+    """Live size of the scoring universe (len of SECTORS) so every stock count
+    shown across the site stays accurate as the universe changes over time."""
+    try:
+        from model_engine import SECTORS
+        return len(SECTORS) or 846
+    except Exception:
+        return 846
 from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
                            ENTRY_THRESHOLD, EXIT_THRESHOLD, SECTORS,
                            fetch_macro_overlay, apply_macro_overlay)
@@ -1352,7 +1362,7 @@ def _run_full_scan_cached():
     """Process-level cache of the expensive universe scan. Unlike
     st.session_state (which a full-page reload wipes by starting a new
     session), this survives across reloads/sessions — so navigating between
-    screens no longer re-scores all 846 tickers from scratch every time."""
+    screens no longer re-scores the full universe from scratch every time."""
     return run_full_scan(use_live_prices=False)
 
 
@@ -3403,7 +3413,7 @@ body { background-color: #0a0b14 !important; }
         'Know where<br>conviction is<br>'
         '<span style="color:#d4a843;">strongest.</span></h1>'
         '<p style="font-size:15px;color:#b3bed0;max-width:400px;line-height:1.75;margin-bottom:32px;">'
-        'A multi-factor quantitative model scoring 846 stocks daily — blended with a live macro regime overlay.'
+        f'A multi-factor quantitative model scoring {_universe_n()} stocks daily — blended with a live macro regime overlay.'
         '</p>'
         # CTAs inline in left column
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:360px;">'
@@ -3459,7 +3469,7 @@ body { background-color: #0a0b14 !important; }
         # Compact stats strip at bottom of panel — factual, no performance claims
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05);">'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">UNIVERSE</div>'
-        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">~846</div></div>'
+        + f'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">~{_universe_n()}</div></div>'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">FACTORS</div>'
         + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">5</div></div>'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">REFRESH</div>'
@@ -3517,7 +3527,7 @@ body { background-color: #0a0b14 !important; }
     _gems_display = _n_gems if _n_gems is not None else "—"
     _gem_word = "gem" if _n_gems == 1 else "gems"
     _today_items.append(f'<span style="color:#34d399;font-weight:600;">💎 {_gems_display} hidden {_gem_word}</span>')
-    _today_items.append(f'<span style="color:#9fabc0;">846 stocks scored</span>')
+    _today_items.append(f'<span style="color:#9fabc0;">{_universe_n()} stocks scored</span>')
 
     st.markdown(
         '<div style="padding:14px clamp(20px,5vw,64px);max-width:1200px;margin:0 auto;'
@@ -3588,7 +3598,7 @@ body { background-color: #0a0b14 !important; }
     )
     st.markdown(tape_block, unsafe_allow_html=True)
 
-    st.markdown("""
+    st.markdown(f"""
     <div class="land-divider"></div>
     <div class="land-section">
       <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; WHY QNTM</div>
@@ -3604,7 +3614,7 @@ body { background-color: #0a0b14 !important; }
     <div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">~846 stocks</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">~{_universe_n()} stocks</div>
           <div style="font-size:13px;color:#b3bed0;margin-top:6px;">S&amp;P 500 + Russell 1000, rescored every day</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
@@ -3788,7 +3798,7 @@ body { background-color: #0a0b14 !important; }
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:13px;color:#b3bed0;margin-bottom:14px;margin-top:3px;">forever · no card needed</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row("Screener — top 50 of 846")}
+          {feat_row(f"Screener — top 50 of {_universe_n()}")}
           {feat_row("HIGH / MOD / LOW conviction signals")}
           {feat_row("5-pillar score breakdown")}
           {feat_row("Live macro regime overlay")}
@@ -3807,7 +3817,7 @@ body { background-color: #0a0b14 !important; }
         <div style="font-size:13px;color:#b3bed0;margin-bottom:14px;margin-top:3px;">first 50 users get it free</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Free", True)}
-          {feat_row("Full 846-stock screener", True)}
+          {feat_row(f"Full {_universe_n()}-stock screener", True)}
           {feat_row("Unlimited portfolio positions", True)}
           {feat_row("Hidden Gems detection", True)}
           {feat_row("Portfolio Simulator (risk profiles)", True)}
@@ -4684,7 +4694,7 @@ def page_screener():
     st.markdown(
         f'<div style="padding:10px 32px 4px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">📊 Market Screener</span>'
-        f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">846 stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">{_universe_n()} stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -5450,7 +5460,7 @@ def page_watchlist():
             _tk_clean = (_new_tk or "").strip().upper()
             if _tk_clean:
                 if not is_valid_universe_ticker(_tk_clean):
-                    st.toast(f"{_tk_clean} is not in the QNTM universe (846 tickers).")
+                    st.toast(f"{_tk_clean} is not in the QNTM universe ({_universe_n()} tickers).")
                 else:
                     # price baseline from scan or signal_log
                     _px = (score_map.get(_tk_clean) or {}).get("price")
@@ -6270,10 +6280,11 @@ def _build_mini_chart_html(ticker, entry_date, price_map, spy_map, since_label="
         return ""
 
 
-def _tr_line_chart_svg(model_series, spy_series):
+def _tr_line_chart_svg(model_series, spy_series, intraday=False):
     """Polished two-line area chart (gold = model, slate = SPY) of $ book value
     over time, with gradient fills, value gridlines + $ labels, date ticks, a
-    $100K reference, and labeled end-points."""
+    $100K reference, and labeled end-points. When intraday=True, x-axis shows
+    clock times and every point carries a hover tooltip (timestamp · value)."""
     if not model_series or len(model_series) < 2:
         return ""
     dates  = [d for d, _ in model_series]
@@ -6316,16 +6327,28 @@ def _tr_line_chart_svg(model_series, spy_series):
     if lo <= 100000.0 <= hi:
         y0 = Y(100000.0)
         p.append(f'<line x1="{PL}" y1="{y0:.1f}" x2="{W-PR}" y2="{y0:.1f}" stroke="rgba(255,255,255,.15)" stroke-dasharray="2,4"/>')
-    # date ticks
-    for i in (0, n // 2, n - 1):
+    # x-axis ticks (dates for daily windows, clock times for intraday)
+    if intraday:
+        _tick_idx = sorted(set(round(i * (n - 1) / 4) for i in range(5)))
+        def _xlab(i): return dates[i]
+    else:
+        _tick_idx = (0, n // 2, n - 1)
+        def _xlab(i): return dates[i][5:].replace("-", "/")
+    for i in _tick_idx:
         anc = "start" if i == 0 else ("end" if i == n - 1 else "middle")
-        p.append(f'<text x="{X(i):.1f}" y="{H-8}" text-anchor="{anc}" font-family="DM Mono,monospace" font-size="10" fill="#8896ac">{dates[i][5:].replace("-","/")}</text>')
+        p.append(f'<text x="{X(i):.1f}" y="{H-8}" text-anchor="{anc}" font-family="DM Mono,monospace" font-size="10" fill="#8896ac">{_xlab(i)}</text>')
     # area fills
     p.append(f'<path d="{area(s_vals)}" fill="url(#trSpy)" stroke="none"/>')
     p.append(f'<path d="{area(m_vals)}" fill="url(#trGold)" stroke="none"/>')
     # lines (rounded)
     p.append(f'<path d="{line(s_vals)}" fill="none" stroke="#7c8aa0" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>')
     p.append(f'<path d="{line(m_vals)}" fill="none" stroke="#d4a843" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>')
+    # intraday: a dot + hover tooltip (timestamp · value) at every mark
+    if intraday:
+        for i, (d, v) in enumerate(spy_series):
+            p.append(f'<circle cx="{X(i):.1f}" cy="{Y(v):.1f}" r="2" fill="#7c8aa0" opacity="0.7"><title>{d} · {fmtk(v)} · SPY</title></circle>')
+        for i, (d, v) in enumerate(model_series):
+            p.append(f'<circle cx="{X(i):.1f}" cy="{Y(v):.1f}" r="2.4" fill="#d4a843"><title>{d} · {fmtk(v)} · Model</title></circle>')
     # end-points + labels (nudge apart if colliding)
     my, sy = Y(m_vals[-1]), Y(s_vals[-1])
     lm, ls = my, sy
@@ -6649,7 +6672,7 @@ def page_portfolio():
                     if new_tk and new_sh > 0:
                         tk_clean = new_tk.upper().strip()
                         if not is_valid_universe_ticker(tk_clean):
-                            st.error(f"{tk_clean} is not in the QNTM universe (846 tickers). "
+                            st.error(f"{tk_clean} is not in the QNTM universe ({_universe_n()} tickers). "
                                      "Holdings must match a tracked ticker so the model can "
                                      "score and price the position.")
                         else:
@@ -7898,7 +7921,7 @@ def page_account():
 
         if plan == "free":
             # Comparison table
-            st.markdown("""
+            st.markdown(f"""
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
 
               <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);
@@ -7909,7 +7932,7 @@ def page_account():
                      color:#e2e4f0;line-height:1;margin-bottom:4px;">$0</div>
                 <div style="font-size:13px;color:#b3bed0;margin-bottom:18px;">forever</div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
-                  ✓ Screener — top 50 of 846<br>
+                  ✓ Screener — top 50 of {_universe_n()}<br>
                   ✓ HIGH / MODERATE / LOW conviction signals<br>
                   ✓ 5-pillar factor breakdown<br>
                   ✓ Up to 10 portfolio positions<br>
@@ -7934,7 +7957,7 @@ def page_account():
                 </div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
                   ✓ Everything in Free<br>
-                  ✓ Full 846-stock screener<br>
+                  ✓ Full {_universe_n()}-stock screener<br>
                   ✓ Unlimited portfolio positions<br>
                   ✓ 💎 Hidden Gem alerts<br>
                   ✓ Real-time signal notifications<br>
@@ -8259,6 +8282,150 @@ def page_account():
 # ══════════════════════════════════════════════════════════════════════════════
 # PLATFORM SHELL
 # ══════════════════════════════════════════════════════════════════════════════
+def _window_track_series(model_series, spy_series, window_key):
+    """Slice the model + SPY equity series to a trailing window and rebase BOTH
+    to $100K at the window's first point, so the chart shows performance *over
+    that window* on a fair shared baseline. Returns
+    (model_win, spy_win, model_ret_pct, spy_ret_pct, label).
+    window_key in {'1D','1W','1M','6M','1Y','ALL'}. Any window that predates
+    inception (or leaves <2 points) gracefully falls back to all-since-inception."""
+    from datetime import date, timedelta
+    BASE = 100000.0
+    if not model_series or not spy_series or len(model_series) < 2:
+        return model_series, spy_series, 0.0, 0.0, "since inception"
+    days = {"1D": 1, "1W": 7, "1M": 30, "6M": 182, "1Y": 365}.get(window_key)
+    first_date = model_series[0][0]
+    cutoff = None
+    if days is not None:
+        try:
+            cutoff = (date.today() - timedelta(days=days)).isoformat()
+        except Exception:
+            cutoff = None
+    if days is None or cutoff is None or cutoff <= first_date:
+        m, s, label = model_series, spy_series, "since inception"
+    else:
+        m = [pt for pt in model_series if pt[0] >= cutoff]
+        s = [pt for pt in spy_series   if pt[0] >= cutoff]
+        if len(m) < 2 or len(s) < 2:
+            m, s, label = model_series, spy_series, "since inception"
+        else:
+            label = {"1D": "past day", "1W": "past week", "1M": "past month",
+                     "6M": "past 6 months", "1Y": "past year"}.get(window_key, "window")
+    try:
+        m0 = m[0][1] or BASE
+        s0 = s[0][1] or BASE
+        m_re = [(d, v / m0 * BASE) for d, v in m]
+        s_re = [(d, v / s0 * BASE) for d, v in s]
+        m_ret = (m_re[-1][1] / BASE - 1) * 100
+        s_ret = (s_re[-1][1] / BASE - 1) * 100
+        return m_re, s_re, m_ret, s_ret, label
+    except Exception:
+        return m, s, 0.0, 0.0, label
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _intraday_prices(tickers_tuple):
+    """Today's (or the last session's) intraday 15-minute bars for the given
+    tickers plus SPY. Returns (labels, {ticker: [price,...]}) where labels are
+    ET clock times aligned to each bar, or (None, None) on failure. Cached 5 min."""
+    try:
+        import yfinance as yf
+        try:
+            from zoneinfo import ZoneInfo
+            _et = ZoneInfo("America/New_York")
+        except Exception:
+            _et = None
+        syms = sorted({t for t in tickers_tuple if t} | {"SPY"})
+        dl = yf.download(syms, period="1d", interval="15m",
+                         progress=False, auto_adjust=True)
+        if dl is None or dl.empty:
+            return None, None
+        close = dl["Close"].ffill()
+        labels = []
+        for ts in close.index:
+            t = ts
+            if _et is not None:
+                try:
+                    t = ts.tz_convert(_et)
+                except Exception:
+                    try:
+                        t = ts.tz_localize("UTC").tz_convert(_et)
+                    except Exception:
+                        t = ts
+            try:
+                labels.append(t.strftime("%-I:%M %p"))
+            except Exception:
+                labels.append(str(t)[11:16])
+        cols = {}
+        multi = hasattr(close, "columns")
+        for tk in syms:
+            if multi and tk in close.columns:
+                cols[tk] = [float(v) if v == v else None for v in close[tk].values]
+            elif not multi and len(syms) == 1:
+                cols[tk] = [float(v) if v == v else None for v in close.values]
+        return labels, cols
+    except Exception:
+        return None, None
+
+
+def _intraday_track_series(pt, positions):
+    """Build today's intraday equity curve (model vs SPY) by marking the open
+    book at each 15-min bar: model(t) = cash + Σ shares·price(t). Cash is held
+    constant intraday (no intraday entries/exits). Both series are rebased to
+    $100K at the day's first bar so the comparison shows today's move. Returns
+    (model, spy, model_ret, spy_ret, label) with HH:MM labels, or None."""
+    if not pt or not positions:
+        return None
+    active = [(p["ticker"], float(p["entry_price"])) for p in positions
+              if p.get("entry_price") and float(p["entry_price"]) > 0]
+    if not active:
+        return None
+    labels, cols = _intraday_prices(tuple(sorted({t for t, _ in active})))
+    if not labels or not cols or "SPY" not in cols:
+        return None
+    pm = pt.get("price_map", {})
+    def last_close(tk):
+        m = pm.get(tk) or {}
+        return m[max(m)] if m else None
+    shares = {tk: 2000.0 / ep for tk, ep in active}
+    base_close = 0.0
+    for tk, _ in active:
+        lc = last_close(tk)
+        if lc:
+            base_close += shares[tk] * lc
+    cash = (pt.get("model_value") or 100000.0) - base_close
+    spy_arr = cols.get("SPY") or []
+    model, spy = [], []
+    for i in range(len(labels)):
+        s = spy_arr[i] if i < len(spy_arr) else None
+        if s is None:
+            continue
+        mtm, ok = cash, True
+        for tk, _ in active:
+            arr = cols.get(tk) or []
+            v = arr[i] if i < len(arr) else None
+            if v is None:
+                v = last_close(tk)
+            if v is None:
+                ok = False
+                break
+            mtm += shares[tk] * v
+        if not ok:
+            continue
+        model.append((labels[i], mtm))
+        spy.append((labels[i], s))
+    if len(model) < 2:
+        return None
+    BASE = 100000.0
+    m0 = model[0][1] or BASE
+    s0 = spy[0][1] or BASE
+    m_re = [(l, v / m0 * BASE) for l, v in model]
+    s_re = [(l, v / s0 * BASE) for l, v in spy]
+    m_ret = (m_re[-1][1] / BASE - 1) * 100
+    s_ret = (s_re[-1][1] / BASE - 1) * 100
+    return m_re, s_re, m_ret, s_ret, f"today · {labels[0]}\u2013{labels[-1]} ET"
+
+
 def page_model_portfolio():
     _pin_nav("model_portfolio")
     # Model portfolio: HIGH conviction positions, exits at score < 45
@@ -8269,6 +8436,19 @@ def page_model_portfolio():
         "🏆", "Portfolio & Track Record",
         "Live model portfolio vs SPY · equal-weighted $2K · true P&L · exits at Low Conviction"
     )
+
+    # ── Manual refresh — re-pull the live equity curve without leaving the page ─
+    _rc1, _rc2 = st.columns([5, 1])
+    with _rc2:
+        if st.button("↻ Refresh", key="tr_refresh", use_container_width=True,
+                     help="Re-pull the latest prices and re-mark the equity curve now"):
+            st.session_state.pop("_pt_cache", None)
+            st.session_state.pop("_pt_at", None)
+            try:
+                _mini_price_data.clear()
+            except Exception:
+                pass
+            st.rerun()
 
     sb = _get_supabase()
 
@@ -8616,14 +8796,33 @@ def page_model_portfolio():
 
     # ── Equity curve (model vs SPY) — folded in from the Track Record view ────
     if _pt:
-        _eqchart = _tr_line_chart_svg(_pt["model_series"], _pt["spy_series"])
+        _win = st.radio("Window", ["1D", "1W", "1M", "6M", "1Y", "All"],
+                        index=5, horizontal=True, key="tr_window",
+                        label_visibility="collapsed")
+        _wk = "ALL" if _win == "All" else _win
+        _intraday = False
+        if _wk == "1D":
+            _intra = _intraday_track_series(_pt, positions)
+            if _intra:
+                _ms, _ss, _mret, _sret, _wlabel = _intra
+                _intraday = True
+            else:
+                _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+                    _pt["model_series"], _pt["spy_series"], "1D")
+        else:
+            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+                _pt["model_series"], _pt["spy_series"], _wk)
+        _eqchart = _tr_line_chart_svg(_ms, _ss, intraday=_intraday)
         if _eqchart:
+            _vs = _mret - _sret
+            _vs_color = "#34d399" if _vs >= 0 else "#f87171"
             st.markdown(f"""
             <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
-              <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;font-family:DM Mono,monospace;font-size:13px;">
-                <span style="color:#d4a843;">\u2014 QNTM Model</span>
-                <span style="color:#7c8aa0;">\u2014 SPY</span>
-                <span style="color:#8896ac;margin-left:auto;">$100K since {_pt['inception']}</span>
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-family:DM Mono,monospace;font-size:13px;">
+                <span style="color:#d4a843;">\u2014 QNTM Model {_mret:+.1f}%</span>
+                <span style="color:#7c8aa0;">\u2014 SPY {_sret:+.1f}%</span>
+                <span style="color:{_vs_color};">vs SPY {_vs:+.1f}%</span>
+                <span style="color:#8896ac;margin-left:auto;">{_wlabel}</span>
               </div>
               {_eqchart}
             </div>
@@ -8897,7 +9096,7 @@ def page_methodology():
          "and how it's shaping the scores. Everything below explains how those scores are built."),
 
         ("The Universe", "#34d399",
-         "QNTM covers 846 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
+         f"QNTM covers {_universe_n()} stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
          "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
          "most retail investors already hold or consider. Scores update nightly via automated refresh."),
 
@@ -9218,7 +9417,7 @@ def page_upgrade():
         <div style="font-size:13px;color:#9fabc0;margin-top:4px;">free now · $29/mo after launch</div>
       </div>
       <div style="font-size:13px;color:#8896ac;margin-bottom:20px;line-height:1.6;">
-        Hidden Gems · Simulator · Alerts · Unlimited holdings · Full 846-stock universe
+        Hidden Gems · Simulator · Alerts · Unlimited holdings · Full {_universe_n()}-stock universe
       </div>
     </div>
     """, unsafe_allow_html=True)
