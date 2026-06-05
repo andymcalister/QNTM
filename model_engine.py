@@ -9,7 +9,7 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 import json
 
-# ── UNIVERSE DATA — S&P 500 + Russell 1000 (~963 tickers) ───────────────────
+# ── UNIVERSE DATA — S&P 500 + Russell 1000 (~846 tickers) ───────────────────
 from universe_data import SECTORS, FUNDAMENTALS
 
 

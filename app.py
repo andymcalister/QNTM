@@ -1352,7 +1352,7 @@ def _run_full_scan_cached():
     """Process-level cache of the expensive universe scan. Unlike
     st.session_state (which a full-page reload wipes by starting a new
     session), this survives across reloads/sessions — so navigating between
-    screens no longer re-scores all 834 tickers from scratch every time."""
+    screens no longer re-scores all 846 tickers from scratch every time."""
     return run_full_scan(use_live_prices=False)
 
 
@@ -3403,7 +3403,7 @@ body { background-color: #0a0b14 !important; }
         'Know where<br>conviction is<br>'
         '<span style="color:#d4a843;">strongest.</span></h1>'
         '<p style="font-size:15px;color:#b3bed0;max-width:400px;line-height:1.75;margin-bottom:32px;">'
-        'A multi-factor quantitative model scoring 834 stocks daily — blended with a live macro regime overlay.'
+        'A multi-factor quantitative model scoring 846 stocks daily — blended with a live macro regime overlay.'
         '</p>'
         # CTAs inline in left column
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:360px;">'
@@ -3459,7 +3459,7 @@ body { background-color: #0a0b14 !important; }
         # Compact stats strip at bottom of panel — factual, no performance claims
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05);">'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">UNIVERSE</div>'
-        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">~834</div></div>'
+        + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#d4a843;">~846</div></div>'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">FACTORS</div>'
         + '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;">5</div></div>'
         + '<div><div style="font-size:11px;color:#8896ac;letter-spacing:.08em;">REFRESH</div>'
@@ -3517,7 +3517,7 @@ body { background-color: #0a0b14 !important; }
     _gems_display = _n_gems if _n_gems is not None else "—"
     _gem_word = "gem" if _n_gems == 1 else "gems"
     _today_items.append(f'<span style="color:#34d399;font-weight:600;">💎 {_gems_display} hidden {_gem_word}</span>')
-    _today_items.append(f'<span style="color:#9fabc0;">834 stocks scored</span>')
+    _today_items.append(f'<span style="color:#9fabc0;">846 stocks scored</span>')
 
     st.markdown(
         '<div style="padding:14px clamp(20px,5vw,64px);max-width:1200px;margin:0 auto;'
@@ -3604,7 +3604,7 @@ body { background-color: #0a0b14 !important; }
     <div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
-          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">~834 stocks</div>
+          <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">~846 stocks</div>
           <div style="font-size:13px;color:#b3bed0;margin-top:6px;">S&amp;P 500 + Russell 1000, rescored every day</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
@@ -3788,7 +3788,7 @@ body { background-color: #0a0b14 !important; }
         <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:#e2e4f0;line-height:1;">$0</div>
         <div style="font-size:13px;color:#b3bed0;margin-bottom:14px;margin-top:3px;">forever · no card needed</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
-          {feat_row("Screener — top 50 of 834")}
+          {feat_row("Screener — top 50 of 846")}
           {feat_row("HIGH / MOD / LOW conviction signals")}
           {feat_row("5-pillar score breakdown")}
           {feat_row("Live macro regime overlay")}
@@ -3807,7 +3807,7 @@ body { background-color: #0a0b14 !important; }
         <div style="font-size:13px;color:#b3bed0;margin-bottom:14px;margin-top:3px;">first 50 users get it free</div>
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row("Everything in Free", True)}
-          {feat_row("Full 834-stock screener", True)}
+          {feat_row("Full 846-stock screener", True)}
           {feat_row("Unlimited portfolio positions", True)}
           {feat_row("Hidden Gems detection", True)}
           {feat_row("Portfolio Simulator (risk profiles)", True)}
@@ -4684,7 +4684,7 @@ def page_screener():
     st.markdown(
         f'<div style="padding:10px 32px 4px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#e2e8f0;">📊 Market Screener</span>'
-        f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">834 stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:2px;">846 stocks · 5-pillar quant · macro overlay{_fresh_html}</div>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -5450,7 +5450,7 @@ def page_watchlist():
             _tk_clean = (_new_tk or "").strip().upper()
             if _tk_clean:
                 if not is_valid_universe_ticker(_tk_clean):
-                    st.toast(f"{_tk_clean} is not in the QNTM universe (834 tickers).")
+                    st.toast(f"{_tk_clean} is not in the QNTM universe (846 tickers).")
                 else:
                     # price baseline from scan or signal_log
                     _px = (score_map.get(_tk_clean) or {}).get("price")
@@ -6649,7 +6649,7 @@ def page_portfolio():
                     if new_tk and new_sh > 0:
                         tk_clean = new_tk.upper().strip()
                         if not is_valid_universe_ticker(tk_clean):
-                            st.error(f"{tk_clean} is not in the QNTM universe (834 tickers). "
+                            st.error(f"{tk_clean} is not in the QNTM universe (846 tickers). "
                                      "Holdings must match a tracked ticker so the model can "
                                      "score and price the position.")
                         else:
@@ -7909,7 +7909,7 @@ def page_account():
                      color:#e2e4f0;line-height:1;margin-bottom:4px;">$0</div>
                 <div style="font-size:13px;color:#b3bed0;margin-bottom:18px;">forever</div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
-                  ✓ Screener — top 50 of 834<br>
+                  ✓ Screener — top 50 of 846<br>
                   ✓ HIGH / MODERATE / LOW conviction signals<br>
                   ✓ 5-pillar factor breakdown<br>
                   ✓ Up to 10 portfolio positions<br>
@@ -7934,7 +7934,7 @@ def page_account():
                 </div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
                   ✓ Everything in Free<br>
-                  ✓ Full 834-stock screener<br>
+                  ✓ Full 846-stock screener<br>
                   ✓ Unlimited portfolio positions<br>
                   ✓ 💎 Hidden Gem alerts<br>
                   ✓ Real-time signal notifications<br>
@@ -8897,7 +8897,7 @@ def page_methodology():
          "and how it's shaping the scores. Everything below explains how those scores are built."),
 
         ("The Universe", "#34d399",
-         "QNTM covers 834 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
+         "QNTM covers 846 stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
          "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
          "most retail investors already hold or consider. Scores update nightly via automated refresh."),
 
@@ -9218,7 +9218,7 @@ def page_upgrade():
         <div style="font-size:13px;color:#9fabc0;margin-top:4px;">free now · $29/mo after launch</div>
       </div>
       <div style="font-size:13px;color:#8896ac;margin-bottom:20px;line-height:1.6;">
-        Hidden Gems · Simulator · Alerts · Unlimited holdings · Full 834-stock universe
+        Hidden Gems · Simulator · Alerts · Unlimited holdings · Full 846-stock universe
       </div>
     </div>
     """, unsafe_allow_html=True)
