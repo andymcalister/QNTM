@@ -74,7 +74,8 @@ from db import (register_user, login_user, get_holdings, upsert_holding,
                 enable_mfa, disable_mfa, get_user_mfa, update_preferences,
                 upgrade_plan, plan_limit, PLAN_LIMITS,
                 check_and_notify_signal_changes, save_signal_snapshot,
-                get_signal_snapshot, get_unread_count, get_user_by_id)
+                get_signal_snapshot, get_unread_count, get_user_by_id,
+                request_email_verification, consume_verify_token, is_email_verified)
 from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
                            ENTRY_THRESHOLD, EXIT_THRESHOLD, SECTORS,
                            fetch_macro_overlay, apply_macro_overlay)
@@ -4096,14 +4097,21 @@ def page_auth():
                     with st.spinner("Creating account..."):
                         res = register_user(rg_email, rg_pass, rg_name)
                     if res["success"]:
+                        # Fire off the email-confirmation link (soft gate)
+                        try:
+                            request_email_verification(rg_email)
+                        except Exception:
+                            pass
                         # Auto-upgrade if came from Founding Member CTA
                         if st.session_state.get("auto_upgrade"):
                             upgrade_plan(res["user_id"], "pro")
                             st.session_state.auto_upgrade = False
-                            msg = "✓ Founding Member spot claimed! Full Pro access is active."
+                            msg = ("✓ Founding Member spot claimed! Full Pro access is active. "
+                                   "Check your email to confirm your address, then sign in above.")
                             tag = "🏆 Founding Member"
                         else:
-                            msg = "✓ Account created. Sign in above to continue."
+                            msg = ("✓ Account created. We've emailed you a link to confirm your "
+                                   "address — then sign in above to continue.")
                             tag = ""
                         st.markdown(f"""
                         <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);
@@ -4290,6 +4298,42 @@ HELP_CONTENT = {
          ("The model", "How the five-pillar score and the macro overlay are built."),
          ("What it is — and isn't", "QNTM is a research tool: quantitative rankings, not advice.")]),
 }
+
+
+def _render_verify_banner():
+    """Soft email-verification nag shown on in-app pages until confirmed.
+    Non-blocking: the user keeps full access; this only reminds and offers a
+    resend. Reads the cached session flag; while still unverified it confirms
+    live (cheap, and stops the moment the address is confirmed)."""
+    u = st.session_state.get("user")
+    if not u:
+        return
+    if u.get("email_verified") is not True:
+        try:
+            if is_email_verified(u.get("id")):
+                u["email_verified"] = True
+        except Exception:
+            return  # transient read error — don't nag
+    if u.get("email_verified") is True:
+        return
+    import html as _html
+    st.markdown(
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
+        'background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.30);'
+        'border-radius:10px;padding:11px 15px;margin:0 0 12px;">'
+        '<span style="font-size:15px;line-height:1;">✉️</span>'
+        '<span style="font-family:Inter,sans-serif;font-size:13.5px;color:#e7d6a8;line-height:1.45;">'
+        'Please confirm your email address — we sent a link to '
+        f'<b>{_html.escape(u.get("email",""))}</b>. Check your inbox or spam folder.</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("Resend confirmation email", key="resend_verify_btn"):
+        try:
+            request_email_verification(u.get("email", ""))
+            st.success("Sent — check your inbox (and spam folder).")
+        except Exception:
+            st.error("Couldn't send right now. Please try again in a moment.")
 
 
 def _render_help_popup(page_key):
@@ -4542,6 +4586,8 @@ def platform_nav():
     )
 
     _render_help_popup(cur_nav)
+
+    _render_verify_banner()
 
     # First-load nudge toward the per-page helper, shown once after login on the
     # Screener (same show_welcome flag; clears on navigation, auto-fades after 9s).
@@ -9256,6 +9302,38 @@ def page_upgrade():
     """, unsafe_allow_html=True)
 
 
+def page_verify_email():
+    """Email-confirmation landing page. Clicking the emailed link hits this with
+    ?verify_token=…; we consume it on load (one-shot) and confirm the address."""
+    token = st.query_params.get("verify_token", "")
+    res = consume_verify_token(token) if token else {"success": False, "error": "Missing token"}
+    # If the just-verified user is the one in this session, clear any stale flag
+    if res.get("success"):
+        u = st.session_state.get("user")
+        if u and u.get("id") == res.get("user_id"):
+            u["email_verified"] = True
+    st.markdown('<div style="max-width:420px;margin:56px auto 0;padding:0 24px;">', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;letter-spacing:.04em;'
+        'color:#e2e8f0;margin-bottom:8px;">Q<span style="color:#34d399;">NTM</span></div>'
+        '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#e2e8f0;'
+        'margin-bottom:14px;">Email confirmation</div>',
+        unsafe_allow_html=True,
+    )
+    if res.get("success"):
+        st.success("✓ Your email is confirmed. You're all set.")
+        dest = "?nav=landing" if st.session_state.get("logged_in") else "?nav=signin"
+        label = "→ Back to QNTM" if st.session_state.get("logged_in") else "→ Go to sign in"
+        st.markdown(f'<a href="{dest}" target="_self" style="color:#34d399;font-weight:700;'
+                    f'text-decoration:none;">{label}</a>', unsafe_allow_html=True)
+    else:
+        st.error(f"{res.get('error','This link is invalid or has expired.')} "
+                 "You can request a fresh link from the banner inside the app.")
+        st.markdown('<a href="?nav=signin" target="_self" style="color:#34d399;font-weight:700;'
+                    'text-decoration:none;">← Back to sign in</a>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def page_reset_password():
     from db import peek_auth_token, consume_auth_token, set_password
     token = st.query_params.get("reset_token", "")
@@ -9608,6 +9686,10 @@ def main():
     if st.query_params.get("reset_token"):
         st.session_state.page = "reset"
 
+    # ── Email-verify deep link — works logged in or out ───────────────────────
+    if st.query_params.get("verify_token"):
+        st.session_state.page = "verify"
+
     _pl = st.empty()
     import random as _rnd
     _load_msgs = [
@@ -9654,6 +9736,7 @@ def main():
         elif route == "platform": page_platform()
         elif route == "legal":    page_legal(st.session_state.get("legal_doc","privacy"))
         elif route == "reset":    page_reset_password()
+        elif route == "verify":   page_verify_email()
         else:                     page_landing()
     finally:
         _pl.empty()
