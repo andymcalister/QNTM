@@ -2730,6 +2730,43 @@ def _render_stock_preview(ticker: str) -> bool:
     return True
 
 
+def _render_rel_spy_chart(ticker: str, days: int = 20):
+    """Render a small sparkline of the stock's % return vs SPY over the last
+    `days` trading sessions, rebased to 0% at the window start (gold = stock,
+    slate = SPY). Reuses the same vs-SPY drawing as the watchlist/portfolio
+    cards. Silently renders nothing if data is unavailable."""
+    try:
+        # Fetch enough calendar days to comfortably cover `days` sessions.
+        start = _trail_start(int(days * 1.6) + 7)
+        pm, sm = _mini_price_data((ticker,), start)
+        series = (pm or {}).get(ticker) or {}
+        if len(series) < 2:
+            return
+        sdates = sorted(series.keys())[-days:]          # last N trading sessions
+        if len(sdates) < 2:
+            return
+        stock_pairs = [(d, series[d]) for d in sdates]
+        spy_pairs   = [(d, sm[d]) for d in sdates if d in sm]
+        svg = _mini_vs_spy_svg(stock_pairs, spy_pairs)
+        if not svg:
+            return
+        s_ret = (stock_pairs[-1][1] / stock_pairs[0][1] - 1) * 100 if stock_pairs[0][1] else 0
+        k_ret = (spy_pairs[-1][1] / spy_pairs[0][1] - 1) * 100 if spy_pairs and spy_pairs[0][1] else 0
+        ss = "+" if s_ret >= 0 else ""; ks = "+" if k_ret >= 0 else ""
+        st.markdown(
+            '<div style="padding:10px 18px 14px;border-top:1px solid rgba(255,255,255,.05);">'
+            '<div style="display:flex;gap:14px;align-items:center;font-family:DM Mono,monospace;'
+            'font-size:11px;margin-bottom:6px;">'
+            f'<span style="color:#d4a843;">\u2014 {ticker} {ss}{s_ret:.1f}%</span>'
+            f'<span style="color:#7c8aa0;">\u2014 SPY {ks}{k_ret:.1f}%</span>'
+            f'<span style="color:#8896ac;margin-left:auto;">{len(sdates)}-day vs SPY</span></div>'
+            f'{svg}</div>',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        return
+
+
 def _render_stock_result(ticker: str, nav: str = "screener"):
     """Standard rich search-result card used everywhere a stock is searched:
     full factor panel (detail open) with price + fundamentals, the signal-history
@@ -2773,10 +2810,7 @@ def _render_stock_result(ticker: str, nav: str = "screener"):
                 _html = _html.replace('class="qcard-detail" style="display:none;',
                                       'class="qcard-detail" style="display:block;')
                 st.markdown(_html, unsafe_allow_html=True)
-                _chart = signal_history_chart(
-                    resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
-                if _chart:
-                    st.markdown(_chart, unsafe_allow_html=True)
+                _render_rel_spy_chart(resolved_tk, 20)
                 _ok = {"ticker": resolved_tk, "price": sr.get("price")}
                 if resolved_tk not in SECTORS:
                     st.markdown('<div style="font-size:13px;color:#8896ac;margin-bottom:8px;">'
@@ -5072,10 +5106,8 @@ def page_screener():
                     # Force detail open
                     _sr_html = _sr_html.replace('class="qcard-detail" style="display:none;', 'class="qcard-detail" style="display:block;')
                     st.markdown(_sr_html, unsafe_allow_html=True)
-                    # Signal history sparkline
-                    _chart_html = signal_history_chart(resolved_tk, float(sr.get("adj_composite", sr.get("composite", 50)) or 50))
-                    if _chart_html:
-                        st.markdown(_chart_html, unsafe_allow_html=True)
+                    # 20-day price vs SPY sparkline
+                    _render_rel_spy_chart(resolved_tk, 20)
                     # Flag this ticker as successfully scored so the watchlist
                     # button can render AFTER the try block (never masked by except).
                     _sr_ok = {"ticker": resolved_tk, "price": sr.get("price")}
@@ -7445,9 +7477,7 @@ def page_simulator():
         _sel_ci = get_company_info(_sim_sel_tk)
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
         st.markdown(factor_panel_html(_sel_r, False, company_info=_sel_ci, suppress_wl_btn=True), unsafe_allow_html=True)
-        _sim_chart = signal_history_chart(_sim_sel_tk, _sel_adj)
-        if _sim_chart:
-            st.markdown(_sim_chart, unsafe_allow_html=True)
+        _render_rel_spy_chart(_sim_sel_tk, 20)
         # Add / Remove CTA
         _in_sim = _sim_sel_tk in st.session_state.get("sim_selected", [])
         if _in_sim:
