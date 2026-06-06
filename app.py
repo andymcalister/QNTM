@@ -8783,6 +8783,44 @@ def _intraday_track_series(pt, positions):
     return m_re, s_re, m_ret, s_ret, f"today · {labels[0]}\u2013{labels[-1]} ET"
 
 
+@st.fragment
+def _render_track_equity(_pt, positions):
+    """Equity-curve window selector + chart for the track record, isolated in a
+    fragment so changing the time window re-renders ONLY the chart, not the whole
+    model-portfolio page. Nothing outside the chart depends on the window."""
+    _win = st.radio("Window", ["1D", "1W", "1M", "6M", "1Y", "All"],
+                    index=5, horizontal=True, key="tr_window",
+                    label_visibility="collapsed")
+    _wk = "ALL" if _win == "All" else _win
+    _intraday = False
+    if _wk == "1D":
+        _intra = _intraday_track_series(_pt, positions)
+        if _intra:
+            _ms, _ss, _mret, _sret, _wlabel = _intra
+            _intraday = True
+        else:
+            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+                _pt["model_series"], _pt["spy_series"], "1D")
+    else:
+        _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+            _pt["model_series"], _pt["spy_series"], _wk)
+    _eqchart = _tr_line_chart_svg(_ms, _ss, intraday=_intraday)
+    if _eqchart:
+        _vs = _mret - _sret
+        _vs_color = "#34d399" if _vs >= 0 else "#f87171"
+        st.markdown(f"""
+        <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
+          <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-family:DM Mono,monospace;font-size:13px;">
+            <span style="color:#d4a843;">\u2014 QNTM Model {_mret:+.1f}%</span>
+            <span style="color:#7c8aa0;">\u2014 SPY {_sret:+.1f}%</span>
+            <span style="color:{_vs_color};">vs SPY {_vs:+.1f}%</span>
+            <span style="color:#8896ac;margin-left:auto;">{_wlabel}</span>
+          </div>
+          {_eqchart}
+        </div>
+        """, unsafe_allow_html=True)
+
+
 def page_model_portfolio():
     _pin_nav("model_portfolio")
     # Model portfolio: HIGH conviction positions, exits at score < 45
@@ -9171,37 +9209,7 @@ def page_model_portfolio():
 
     # ── Equity curve (model vs SPY) — folded in from the Track Record view ────
     if _pt:
-        _win = st.radio("Window", ["1D", "1W", "1M", "6M", "1Y", "All"],
-                        index=5, horizontal=True, key="tr_window",
-                        label_visibility="collapsed")
-        _wk = "ALL" if _win == "All" else _win
-        _intraday = False
-        if _wk == "1D":
-            _intra = _intraday_track_series(_pt, positions)
-            if _intra:
-                _ms, _ss, _mret, _sret, _wlabel = _intra
-                _intraday = True
-            else:
-                _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-                    _pt["model_series"], _pt["spy_series"], "1D")
-        else:
-            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-                _pt["model_series"], _pt["spy_series"], _wk)
-        _eqchart = _tr_line_chart_svg(_ms, _ss, intraday=_intraday)
-        if _eqchart:
-            _vs = _mret - _sret
-            _vs_color = "#34d399" if _vs >= 0 else "#f87171"
-            st.markdown(f"""
-            <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
-              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-family:DM Mono,monospace;font-size:13px;">
-                <span style="color:#d4a843;">\u2014 QNTM Model {_mret:+.1f}%</span>
-                <span style="color:#7c8aa0;">\u2014 SPY {_sret:+.1f}%</span>
-                <span style="color:{_vs_color};">vs SPY {_vs:+.1f}%</span>
-                <span style="color:#8896ac;margin-left:auto;">{_wlabel}</span>
-              </div>
-              {_eqchart}
-            </div>
-            """, unsafe_allow_html=True)
+        _render_track_equity(_pt, positions)
 
     # ── Holdings table ────────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;'
