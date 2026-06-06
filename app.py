@@ -3051,7 +3051,7 @@ We send email through SendGrid (Twilio). We don't use your email address for adv
 
 ### Security
 - Passwords: bcrypt-hashed (cost factor 12)
-- Sensitive personal fields (email, name, 2FA secret): AES-256 encrypted at rest
+- Sensitive personal fields (email, name, 2FA secret): encrypted at rest with authenticated symmetric encryption (Fernet — AES-128-CBC with HMAC-SHA256)
 - Email-hash lookup so we can find your account without decrypting your email
 - Two-factor authentication available and strongly recommended
 - Login events are logged for security review
@@ -8206,8 +8206,9 @@ def page_account():
           <div style="font-family:'DM Mono',monospace;font-size:13px;color:#b3bed0;
                letter-spacing:.12em;margin-bottom:10px;">DATA SECURITY</div>
           <div style="font-size:13px;color:#9fabc0;line-height:1.8;">
-            Your email and personal data are stored encrypted using AES-256-GCM
-            (Fernet). Passwords are hashed with bcrypt (cost 12) and never stored
+            Your email and personal data are stored encrypted using Fernet
+            authenticated encryption (AES-128-CBC with HMAC-SHA256). Passwords
+            are hashed with bcrypt (cost 12) and never stored
             in plaintext. TOTP secrets are encrypted before storage. No sensitive
             data is ever logged or transmitted in plain text.
           </div>

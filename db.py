@@ -3,8 +3,8 @@ QNTM — Database & Auth Layer
 =============================
 Security model:
   - Passwords: bcrypt cost=12 — never stored plain text
-  - Sensitive fields (email, name, TOTP secret): AES-256-GCM via Fernet
-    Key stored in st.secrets / env — NOT in the database
+  - Sensitive fields (email, name, TOTP secret): Fernet authenticated encryption
+    (AES-128-CBC + HMAC-SHA256). Key stored in st.secrets / env — NOT in the database
   - email_hash (SHA-256) stored for O(1) lookup without decryption
   - Row Level Security on all Supabase tables
   - Demo mode: in-memory only, bcrypt still enforced, nothing persisted to disk
@@ -25,7 +25,7 @@ import qrcode
 from io import BytesIO
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ENCRYPTION  (AES-256 via Fernet)
+# ENCRYPTION  (Fernet — AES-128-CBC + HMAC-SHA256)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _get_fernet():
