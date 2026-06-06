@@ -201,12 +201,15 @@ def status_grants_access(status: str) -> bool:
 
 # ── CANCEL ────────────────────────────────────────────────────────────────────
 def cancel_subscription(subscription_id: str) -> dict:
-    """Cancel at period end. During the trial, period end == trial end, so no
-    charge ever fires (the user's "cancel free in the first 7 days"). After the
-    trial, this stops the next renewal while access continues to period end —
-    matching the ARL cancellation copy.
+    """Cancel at period end, branching only on messaging.
 
-    Returns {ok, current_period_end, status} or {ok:False, error}.
+    For a trialing sub the current period IS the trial, so cancel_at_period_end
+    ends it on the trial date with no charge ever — the user keeps Pro through
+    the rest of their free trial. For a paid sub it stops the next renewal while
+    access continues to the end of the paid period (ARL copy, no partial refund).
+
+    Returns {ok, canceled_now, was_trialing, status, current_period_end,
+    trial_end, end_ts} or {ok:False, error}.
     """
     global _last_error
     _last_error = None
@@ -218,11 +221,20 @@ def cancel_subscription(subscription_id: str) -> dict:
         _last_error = "no subscription id on file"
         return {"ok": False, "error": _last_error}
     try:
+        cur = stripe.Subscription.retrieve(subscription_id)
+        was_trialing = (_g(cur, "status") == "trialing")
         sub = stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
+        cpe = _g(sub, "current_period_end")
+        te  = _g(sub, "trial_end")
         return {
             "ok": True,
-            "current_period_end": _g(sub, "current_period_end"),
+            "canceled_now": False,
+            "was_trialing": was_trialing,
             "status": _g(sub, "status"),
+            "current_period_end": cpe,
+            "trial_end": te,
+            # During the trial the period end == trial end; prefer trial_end.
+            "end_ts": (te or cpe) if was_trialing else (cpe or te),
         }
     except Exception as e:
         _last_error = str(e)

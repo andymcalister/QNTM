@@ -4833,10 +4833,12 @@ def platform_nav():
         '</label>'
         '<div style="display:flex;align-items:center;gap:10px;">'
         + notif_dot
-        + f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
+        + f'<a href="?qnav=account&uid={user.get("id","")}&plan={plan}&ck=1&_n=account&acct_focus=billing" '
+        f'target="_self" title="Manage your plan" style="text-decoration:none;">'
+        f'<span style="background:rgba({plan_rgb},.15);color:{plan_color};'
         f'border:1px solid {plan_color}44;border-radius:4px;padding:3px 9px;'
-        f'font-size:13px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;">'
-        f'{plan.upper()}</span>'
+        f'font-size:13px;font-weight:700;letter-spacing:.1em;font-family:Syne,sans-serif;cursor:pointer;">'
+        f'{plan.upper()}</span></a>'
         f'<span style="font-size:13px;color:#9fabc0;font-family:DM Mono,monospace;">{display_name}</span>'
         '</div></div>'
     )
@@ -7932,9 +7934,15 @@ def page_account():
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
-    tab_profile, tab_security, tab_plan, tab_notifs = st.tabs([
-        "Profile", "Security & MFA", "Plan & Billing", "Notification Prefs"
-    ])
+    if st.query_params.get("acct_focus") == "billing":
+        # Arrived via the plan badge → surface Plan & Billing first.
+        tab_plan, tab_profile, tab_security, tab_notifs = st.tabs([
+            "Plan & Billing", "Profile", "Security & MFA", "Notification Prefs"
+        ])
+    else:
+        tab_profile, tab_security, tab_plan, tab_notifs = st.tabs([
+            "Profile", "Security & MFA", "Plan & Billing", "Notification Prefs"
+        ])
 
     # ── PROFILE ───────────────────────────────────────────────────────────────
     with tab_profile:
@@ -8210,7 +8218,16 @@ def page_account():
                 # Rewrite localStorage token with updated plan so nav restores correctly
                 _write_localstorage_token(uid(), "pro")
                 if ok:
-                    st.success("✓ Founding Member activated! Navigate to Hidden Gems via the menu.")
+                    # Refresh signed session params and rerun in place so the whole
+                    # UI — including the nav badge — reflects Pro right away, with no
+                    # navigation needed.
+                    try:
+                        st.query_params["uid"]  = _sign_token(uid(), "pro")
+                        st.query_params["plan"] = "pro"
+                    except Exception:
+                        pass
+                    st.success("✓ Founding Member activated — you now have full Pro access.")
+                    st.rerun()
                 else:
                     st.warning("Could not write to DB — contact hello@qntm.live")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -8427,7 +8444,9 @@ def page_account():
                         '<div style="font-size:13px;color:#9fabc0;line-height:1.7;margin-bottom:12px;">'
                         'Clicking Cancel stops your next charge immediately. You keep Pro access '
                         f'until the end of your current paid period (<strong style="color:#b3bed0;">{_proposed_end}</strong>), '
-                        'then your account converts to Free. Your data is preserved.'
+                        'then your account converts to Free. Your data is preserved. '
+                        '<strong style="color:#b3bed0;">If you\u2019re still in your 7-day free trial, '
+                        'you won\u2019t be charged \u2014 you keep Pro through the end of your trial.</strong>'
                         '</div>',
                         unsafe_allow_html=True)
                     # TRUE one-click cancel — single button, immediate effect.
@@ -8438,6 +8457,8 @@ def page_account():
                         # stops next renewal, access to period end).
                         _stripe_ok = True
                         _cancel_err = ""
+                        _was_trial = False
+                        _end_iso = _proposed_end
                         try:
                             import stripe_billing as _sbc
                             from db import get_stripe_billing as _gsbc
@@ -8446,25 +8467,40 @@ def page_account():
                             if _subc and _sbc.billing_configured():
                                 _cres = _sbc.cancel_subscription(_subc)
                                 _stripe_ok = _cres.get("ok", False)
+                                _was_trial = bool(_cres.get("was_trialing"))
+                                _end_ts = _cres.get("end_ts")
+                                if _end_ts:
+                                    try:
+                                        from datetime import datetime as _dt, timezone as _tz
+                                        _end_iso = _dt.fromtimestamp(int(_end_ts), _tz.utc).date().isoformat()
+                                    except Exception:
+                                        pass
                                 if not _stripe_ok:
                                     _cancel_err = _cres.get("error", _sbc.last_error())
                         except Exception as _ce:
                             _stripe_ok = True  # don't block local cancel on stripe error
                             _cancel_err = str(_ce)
-                        if schedule_cancellation(uid(), _proposed_end) and _stripe_ok:
-                            # 2D — confirmation email (stubbed send + logged).
+                        if schedule_cancellation(uid(), _end_iso) and _stripe_ok:
+                            # confirmation email (stubbed send + logged).
                             try:
                                 import arl as _arl_c
                                 _em = user.get("email")
                                 if _em:
-                                    _arl_c.send_cancellation_confirmation(uid(), _em, _proposed_end)
+                                    _arl_c.send_cancellation_confirmation(uid(), _em, _end_iso)
                             except Exception:
                                 pass
-                            st.success(
-                                "Your subscription is cancelled. Your next charge has been "
-                                f"stopped. You keep Pro access until {_proposed_end}, then your "
-                                "account converts to Free. A confirmation email is on its way."
-                            )
+                            if _was_trial:
+                                st.success(
+                                    "Your subscription is cancelled — you won\u2019t be charged. "
+                                    "You keep Pro access through the end of your free trial on "
+                                    f"{_end_iso}, then your account converts to Free."
+                                )
+                            else:
+                                st.success(
+                                    "Your subscription is cancelled. Your next charge has been "
+                                    f"stopped. You keep Pro access until {_end_iso}, then your "
+                                    "account converts to Free. A confirmation email is on its way."
+                                )
                             st.rerun()
                         else:
                             st.error(f"Could not cancel: {_cancel_err}  ·  contact billing@qntm.live")
@@ -9771,6 +9807,37 @@ def page_verify_email():
         u = st.session_state.get("user")
         if u and u.get("id") == res.get("user_id"):
             u["email_verified"] = True
+        # Auto sign-in and drop them straight onto the screener — unless the
+        # account has MFA enabled, in which case route through normal sign-in so
+        # the second factor is still enforced.
+        if not st.session_state.get("logged_in") and res.get("user_id"):
+            try:
+                _mfa = get_user_mfa(res["user_id"])
+            except Exception:
+                _mfa = {}
+            if not (_mfa.get("mfa_enabled") and _mfa.get("totp_secret")):
+                try:
+                    _vu = get_user_by_id(res["user_id"])
+                    if _vu:
+                        _vu["email_verified"] = True
+                        st.session_state.logged_in       = True
+                        st.session_state.user            = _vu
+                        st.session_state.mfa_verified    = True
+                        st.session_state.signed_out      = False
+                        st.session_state.onboarding_done = True
+                        st.session_state.page            = "platform"
+                        st.session_state.nav             = "screener"
+                        try:
+                            _write_localstorage_token(_vu["id"], _vu.get("plan", "free"))
+                        except Exception:
+                            pass
+                        st.query_params.clear()
+                        st.query_params["uid"]  = _sign_token(_vu["id"], _vu.get("plan", "free"))
+                        st.query_params["plan"] = _vu.get("plan", "free")
+                        st.query_params["qnav"] = "screener"
+                        st.rerun()
+                except Exception:
+                    pass
     st.markdown('<div style="max-width:420px;margin:56px auto 0;padding:0 24px;">', unsafe_allow_html=True)
     st.markdown(
         '<div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;letter-spacing:.04em;'
