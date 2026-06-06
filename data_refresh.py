@@ -1,7 +1,7 @@
 """
 QNTM — Nightly Data Refresh Script
 ====================================
-Pulls live fundamentals + price data from yfinance for all 846 tickers
+Pulls live fundamentals + price data from yfinance for all 963 tickers
 and writes results to Supabase signal_log table.
 
 Run nightly via:
@@ -9,7 +9,7 @@ Run nightly via:
   - Cron job: 0 2 * * * python data_refresh.py
   - Manual: python data_refresh.py
 
-Rate limiting: 0.25s delay between tickers → ~4 min for full 846-ticker pass.
+Rate limiting: 0.25s delay between tickers → ~4 min for full 963-ticker pass.
 Failed tickers fall back to universe_data.py static fundamentals silently.
 
 Usage from app.py (to load cached scores):
@@ -590,28 +590,74 @@ def update_model_portfolio(scored_list: list) -> None:
             sec = _SECTORS.get(p["ticker"], "Unknown")
             sector_counts[sec] = sector_counts.get(sec, 0) + 1
 
-        # ── Step 1: Exit any position whose conviction has collapsed ──────────
-        exited = []
+        # ── Run-health gate — never act on a degraded/garbage scoring run ─────
+        #    A broken data or macro pass reverts scores to the neutral 50 fallback
+        #    (every pillar == 50, composite == 50). Acting on that mass-exits good
+        #    positions — the 2026-06 incident. Detect it and do nothing.
+        EXIT_SCORE   = 45.0
+        MIN_UNIVERSE = 100      # a healthy run scores the whole ~800-name universe
+        def _is_neutral_fallback(r):
+            try:
+                if abs(float(r.get("composite", 0) or 0) - 50.0) > 0.5:
+                    return False
+                return all(
+                    abs(float(r.get(k, 50) or 50) - 50.0) < 0.01
+                    for k in ("momentum", "quality", "volume", "value", "sentiment")
+                )
+            except Exception:
+                return False
+        _n_scored  = len(scored_list)
+        _n_neutral = sum(1 for r in scored_list if _is_neutral_fallback(r))
+        if _n_scored < MIN_UNIVERSE or (_n_scored and _n_neutral / _n_scored > 0.40):
+            log.error(
+                f"[MODEL PORTFOLIO] ABORT — degraded scoring run "
+                f"(scored={_n_scored}, neutral_fallback={_n_neutral}). "
+                f"No exits or entries executed; positions left untouched."
+            )
+            return
+
+        # ── Step 1: Exit positions whose OWN factors have collapsed ───────────
+        #    Exit on the QUANT composite (the five-pillar score), NOT the
+        #    macro-adjusted score. A market-wide / sector macro swing must never
+        #    force-sell a fundamentally-intact holding — this matches the stated
+        #    rule that positions are never force-exited for sector reasons, and
+        #    fixes the macro overlay leaking into exits.
+        exit_candidates = []
         for pos in active:
-            tk     = pos["ticker"]
-            sc     = score_map.get(tk)
+            sc = score_map.get(pos["ticker"])
             if not sc:
                 continue
-            adj = float(sc.get("adj_composite", sc.get("composite", 50)) or 50)
-            if adj < 45:
-                sb.table("model_portfolio_positions").update({
-                    "is_active":   False,
-                    "exit_date":   today,
-                    "exit_price":  sc.get("price"),
-                    "exit_score":  round(adj, 1),
-                    "exit_reason": "SELL_SIGNAL",
-                }).eq("id", pos["id"]).execute()
-                exited.append(tk)
-                active_tickers.discard(tk)
-                # Reduce sector count for exited position
-                sec = _SECTORS.get(tk, "Unknown")
-                sector_counts[sec] = max(0, sector_counts.get(sec, 1) - 1)
-                log.info(f"[MODEL PORTFOLIO] EXIT {tk} score={adj:.1f} — conviction collapsed")
+            quant = float(sc.get("composite", 50) or 50)
+            if quant < EXIT_SCORE:
+                exit_candidates.append((pos, quant, sc))
+
+        # ── Circuit breaker — a one-run cluster of exits is a data/model artifact,
+        #    not real conviction collapse. Refuse to act and alert instead.
+        MAX_EXITS_PER_RUN = max(5, int(0.20 * len(active)))
+        if len(exit_candidates) > MAX_EXITS_PER_RUN:
+            log.error(
+                f"[MODEL PORTFOLIO] ABORT exits — {len(exit_candidates)} positions "
+                f"would exit this run (cap {MAX_EXITS_PER_RUN}). Treating as a data/"
+                f"model artifact rather than real conviction collapse; nothing exited."
+            )
+            return
+
+        exited = []
+        for pos, quant, sc in exit_candidates:
+            tk = pos["ticker"]
+            sb.table("model_portfolio_positions").update({
+                "is_active":   False,
+                "exit_date":   today,
+                "exit_price":  sc.get("price"),
+                "exit_score":  round(quant, 1),
+                "exit_reason": "SELL_SIGNAL",
+            }).eq("id", pos["id"]).execute()
+            exited.append(tk)
+            active_tickers.discard(tk)
+            # Reduce sector count for exited position
+            sec = _SECTORS.get(tk, "Unknown")
+            sector_counts[sec] = max(0, sector_counts.get(sec, 1) - 1)
+            log.info(f"[MODEL PORTFOLIO] EXIT {tk} quant={quant:.1f} — conviction collapsed")
 
         # ── Step 2: Fill open slots up to TARGET ─────────────────────────────
         slots_needed = TARGET - len(active_tickers)
@@ -1062,6 +1108,18 @@ def run_macro_refresh(tickers: list = None) -> dict:
         r["sector"]    = _SECTORS.get(r["ticker"], "Unknown")
         r["composite"] = float(r.get("composite") or 50)
         r["momentum"]  = float(r.get("momentum")  or 50)
+
+    # If the sector map didn't resolve (SECTORS import failed / universe drift),
+    # the overlay silently collapses to 0.0 on every name (MACRO +0.0 everywhere).
+    # Surface it loudly instead of shipping a no-op macro pass as if it were real.
+    _unknown = sum(1 for r in rows if r.get("sector", "Unknown") == "Unknown")
+    if rows and _unknown / len(rows) > 0.5:
+        log.error(
+            f"[MACRO] sector map degraded — {_unknown}/{len(rows)} rows resolved to "
+            f"Unknown (SECTORS import or universe map likely broken). Overlay will be "
+            f"~0 on every name; exits are gated on quant composite so this won't force "
+            f"sells, but the macro tilt is effectively off until this is fixed."
+        )
 
     scored = apply_macro_overlay(rows, macro)
 
