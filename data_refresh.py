@@ -1104,24 +1104,41 @@ def run_macro_refresh(tickers: list = None) -> dict:
         from universe_data import SECTORS as _SECTORS
     except Exception:
         _SECTORS = {}
+    # Only rows with a REAL composite from the nightly full scoring run get a
+    # macro overlay. A null composite means the nightly rescore hasn't populated
+    # this row yet — coercing it to 50 and writing a fabricated adj_composite is
+    # exactly what produced the bogus scores and the mass tech exit on
+    # 2026-06-06. Skip those rows so a missed nightly can't fabricate signals.
+    scored_rows  = []
+    skipped_null = 0
     for r in rows:
+        if r.get("composite") is None:
+            skipped_null += 1
+            continue
         r["sector"]    = _SECTORS.get(r["ticker"], "Unknown")
-        r["composite"] = float(r.get("composite") or 50)
-        r["momentum"]  = float(r.get("momentum")  or 50)
+        r["composite"] = float(r["composite"])
+        r["momentum"]  = float(r.get("momentum") or 50)
+        scored_rows.append(r)
+    if skipped_null:
+        log.warning(
+            f"[MACRO] skipped {skipped_null}/{len(rows)} rows with null composite "
+            f"(nightly rescore hasn't populated them) — no fabricated overlay written. "
+            f"Run a full refresh (data_refresh.py --force) to repopulate scores."
+        )
 
     # If the sector map didn't resolve (SECTORS import failed / universe drift),
     # the overlay silently collapses to 0.0 on every name (MACRO +0.0 everywhere).
     # Surface it loudly instead of shipping a no-op macro pass as if it were real.
-    _unknown = sum(1 for r in rows if r.get("sector", "Unknown") == "Unknown")
-    if rows and _unknown / len(rows) > 0.5:
+    _unknown = sum(1 for r in scored_rows if r.get("sector", "Unknown") == "Unknown")
+    if scored_rows and _unknown / len(scored_rows) > 0.5:
         log.error(
-            f"[MACRO] sector map degraded — {_unknown}/{len(rows)} rows resolved to "
+            f"[MACRO] sector map degraded — {_unknown}/{len(scored_rows)} rows resolved to "
             f"Unknown (SECTORS import or universe map likely broken). Overlay will be "
             f"~0 on every name; exits are gated on quant composite so this won't force "
             f"sells, but the macro tilt is effectively off until this is fixed."
         )
 
-    scored = apply_macro_overlay(rows, macro)
+    scored = apply_macro_overlay(scored_rows, macro)
 
     # 5. Write back ONLY the macro-derived columns. The intraday price pass owns
     #    price/composite/momentum; this pass owns adj_composite/signal/macro_overlay.
