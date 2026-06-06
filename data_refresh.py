@@ -42,8 +42,16 @@ MACRO_STATE_TABLE  = "macro_state"          # single-row live macro overlay (see
 
 # ── SUPABASE CLIENT ───────────────────────────────────────────────────────────
 
+_SB_SINGLETON = None
+
 def _get_supabase():
-    """Return Supabase client from env or Streamlit secrets."""
+    """Return a cached Supabase client (service key preferred), created once per
+    process. Memoized so the Streamlit app doesn't create a new client on every
+    rerun — it was being called many times per page load. Harmless in the cron
+    processes too (one client per short-lived run)."""
+    global _SB_SINGLETON
+    if _SB_SINGLETON is not None:
+        return _SB_SINGLETON
     try:
         from supabase import create_client
         url = os.getenv("SUPABASE_URL", "")
@@ -59,7 +67,8 @@ def _get_supabase():
                 pass
 
         if url and key:
-            return create_client(url, key)
+            _SB_SINGLETON = create_client(url, key)
+            return _SB_SINGLETON
     except Exception as e:
         log.warning(f"Supabase unavailable: {e}")
     return None

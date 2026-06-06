@@ -88,24 +88,17 @@ def _universe_n() -> int:
         return 846
 
 
-def _universe_rank_dist():
-    """Latest signal_date's full adj_composite distribution, session-cached by
-    date so the percentile lookup hits Supabase at most once per day. Returns a
-    list of floats (possibly empty). Never raises. This is the single source of
-    truth for the RANK cell on every card (screener, watchlist, portfolio, model
-    portfolio, single-stock view) — replacing the old per-page logic that left
-    cards stuck at the '50th' fallback."""
+@st.cache_data(ttl=900, show_spinner=False)
+def _universe_rank_dist_cached():
+    """Latest signal_date's full adj_composite distribution. Process-cached for
+    15 min and SHARED across all users/sessions (st.cache_data), so the
+    percentile lookup hits Supabase at most once per window instead of once per
+    session. Returns a list of floats (possibly empty). Never raises."""
     try:
-        from datetime import date as _date
-        _key = "_uni_rank_dist"
-        _today = _date.today().isoformat()
-        _cached = st.session_state.get(_key)
-        if _cached and _cached.get("day") == _today and _cached.get("dist"):
-            return _cached["dist"]
         from data_refresh import _get_supabase
         sb = _get_supabase()
         if not sb:
-            return (_cached or {}).get("dist", [])
+            return []
         resp = (sb.table("signal_log")
                 .select("adj_composite,composite,signal_date")
                 .order("signal_date", desc=True)
@@ -127,12 +120,22 @@ def _universe_rank_dist():
                     dist.append(float(v))
                 except (TypeError, ValueError):
                     continue
-        # Only cache a non-empty result so a transient failure can retry.
-        if dist:
-            st.session_state[_key] = {"day": _today, "dist": dist}
         return dist
     except Exception:
         return []
+
+
+def _universe_rank_dist():
+    """Public accessor. If the cached fetch came back empty (transient failure),
+    drop the cache entry so the next call retries instead of serving an empty
+    distribution for the full 15-min TTL."""
+    dist = _universe_rank_dist_cached()
+    if not dist:
+        try:
+            _universe_rank_dist_cached.clear()
+        except Exception:
+            pass
+    return dist
 
 
 def _pct_rank_of(score):

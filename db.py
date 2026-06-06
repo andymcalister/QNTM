@@ -89,13 +89,24 @@ def verify_password(password: str, hashed: str) -> bool:
 # SUPABASE
 # ─────────────────────────────────────────────────────────────────────────────
 
+_SB_CLIENT = None
+
 def get_supabase():
+    """Cached Supabase client (anon key), created once per process and reused.
+    Memoized so db operations don't spin up a brand-new client on every call —
+    it was being recreated dozens of times per page render, which was a big
+    chunk of the latency. A long-lived client is safe: the underlying httpx
+    transport re-establishes connections per request."""
+    global _SB_CLIENT
+    if _SB_CLIENT is not None:
+        return _SB_CLIENT
     try:
         from supabase import create_client
         url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL", "")
         key = st.secrets.get("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_ANON_KEY", "")
         if url and key and url.startswith("https://") and "supabase" in url:
-            return create_client(url, key)
+            _SB_CLIENT = create_client(url, key)
+            return _SB_CLIENT
     except Exception:
         pass
     return None
