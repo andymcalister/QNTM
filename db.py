@@ -187,6 +187,10 @@ def register_user(email: str, password: str, full_name: str) -> dict:
                 "email_verified":        False,
                 "created_at":            datetime.now().isoformat(),
             }).execute()
+            try:
+                notify_admin_signup(email, full_name.strip(), "free")
+            except Exception:
+                pass
             return {"success": True, "user_id": uid}
         except Exception as e:
             err = str(e).lower()
@@ -1087,6 +1091,41 @@ def send_email(to_email: str, subject: str, html: str, text: str = None) -> dict
         return {"success": False, "error": "sendgrid package not installed"}
     except Exception as e:
         return {"success": False, "error": f"Send failed: {str(e)[:120]}"}
+
+
+def notify_admin_signup(user_email: str, full_name: str = "", plan: str = "free") -> None:
+    """Fire-and-forget internal notification when a new account is created.
+
+    Sends to ADMIN_EMAIL (or SIGNUP_NOTIFY_EMAIL) from secrets/env, falling back
+    to hello@qntm.live. Uses a stable 'New user' subject so it's trivial to
+    filter into a folder. Never raises and never blocks registration — any
+    failure (email not configured, SendGrid down) is swallowed."""
+    try:
+        try:
+            admin = (st.secrets.get("ADMIN_EMAIL") or st.secrets.get("SIGNUP_NOTIFY_EMAIL")
+                     or os.getenv("ADMIN_EMAIL") or os.getenv("SIGNUP_NOTIFY_EMAIL"))
+        except Exception:
+            admin = os.getenv("ADMIN_EMAIL") or os.getenv("SIGNUP_NOTIFY_EMAIL")
+        admin = admin or "hello@qntm.live"
+        when = datetime.now().strftime("%Y-%m-%d %H:%M")
+        name = (full_name or "").strip() or "—"
+        subject = f"QNTM — New user: {user_email}"
+        html = (
+            '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;">'
+            '<div style="font-size:20px;font-weight:800;color:#0a0b14;">New QNTM signup</div>'
+            f'<p style="font-size:15px;color:#333;line-height:1.7;">'
+            f'<b>Email:</b> {user_email}<br>'
+            f'<b>Name:</b> {name}<br>'
+            f'<b>Plan:</b> {plan}<br>'
+            f'<b>When:</b> {when}</p>'
+            '<p style="font-size:12px;color:#999;">Automated internal notification.</p>'
+            '</div>'
+        )
+        text = (f"New QNTM signup\nEmail: {user_email}\nName: {name}\n"
+                f"Plan: {plan}\nWhen: {when}")
+        send_email(admin, subject, html, text=text)
+    except Exception:
+        pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
