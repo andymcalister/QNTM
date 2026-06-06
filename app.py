@@ -86,6 +86,79 @@ def _universe_n() -> int:
         return len(SECTORS) or 846
     except Exception:
         return 846
+
+
+def _universe_rank_dist():
+    """Latest signal_date's full adj_composite distribution, session-cached by
+    date so the percentile lookup hits Supabase at most once per day. Returns a
+    list of floats (possibly empty). Never raises. This is the single source of
+    truth for the RANK cell on every card (screener, watchlist, portfolio, model
+    portfolio, single-stock view) — replacing the old per-page logic that left
+    cards stuck at the '50th' fallback."""
+    try:
+        from datetime import date as _date
+        _key = "_uni_rank_dist"
+        _today = _date.today().isoformat()
+        _cached = st.session_state.get(_key)
+        if _cached and _cached.get("day") == _today and _cached.get("dist"):
+            return _cached["dist"]
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return (_cached or {}).get("dist", [])
+        resp = (sb.table("signal_log")
+                .select("adj_composite,composite,signal_date")
+                .order("signal_date", desc=True)
+                .limit(2000)
+                .execute())
+        rows = resp.data or []
+        dist = []
+        if rows:
+            _ld = rows[0].get("signal_date")
+            for x in rows:
+                if x.get("signal_date") != _ld:
+                    continue
+                v = x.get("adj_composite")
+                if v is None:
+                    v = x.get("composite")
+                if v is None:
+                    continue
+                try:
+                    dist.append(float(v))
+                except (TypeError, ValueError):
+                    continue
+        # Only cache a non-empty result so a transient failure can retry.
+        if dist:
+            st.session_state[_key] = {"day": _today, "dist": dist}
+        return dist
+    except Exception:
+        return []
+
+
+def _pct_rank_of(score):
+    """Percentile rank (0–100) of `score` within the latest full universe, or
+    None if the distribution is unavailable. Never raises."""
+    try:
+        dist = _universe_rank_dist()
+        if not dist:
+            return None
+        s = float(score)
+        return sum(1 for c in dist if c <= s) / len(dist) * 100.0
+    except Exception:
+        return None
+
+
+def _ordinal(n) -> str:
+    """Integer with its ordinal suffix: 1->1st, 2->2nd, 62->62nd, 96->96th,
+    11/12/13->th. Used for the RANK cell so cards read '62nd', not '62th'."""
+    try:
+        n = int(round(float(n)))
+    except (TypeError, ValueError):
+        return f"{n}th"
+    suf = "th" if 10 <= (n % 100) <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suf}"
+
+
 from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
                            ENTRY_THRESHOLD, EXIT_THRESHOLD, SECTORS,
                            fetch_macro_overlay, apply_macro_overlay)
@@ -2020,10 +2093,14 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         except Exception:
             delta = 0
 
-    # Percentile rank: use the stored value if present, else derive on the fly
-    # from the full-universe distribution in session (watchlist/portfolio rows
-    # loaded from signal_log don't carry pct_rank, so they'd otherwise show 50th).
+    # Percentile rank: use the stored value if present (model-portfolio/page code
+    # may stamp one), else rank against the full latest-day universe via the
+    # shared session-cached helper, else derive from the current scan session,
+    # else fall back to 50. The universe helper is what keeps the RANK cell from
+    # silently reading "50th" on pages that don't carry pct_rank.
     _pct_rank = r.get("pct_rank")
+    if _pct_rank is None:
+        _pct_rank = _pct_rank_of(score)
     if _pct_rank is None:
         try:
             _all = st.session_state.get("scan_results") or []
@@ -2130,7 +2207,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
         f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">RANK</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#b3bed0;">'
-        f'{_pct_rank:.0f}th</div></div>'
+        f'{_ordinal(_pct_rank)}</div></div>'
         f'</div>'
         + why_html
         + _wl_btn_html
@@ -2805,7 +2882,8 @@ def _render_stock_result(ticker: str, nav: str = "screener", wl_actions: bool = 
                     adj = float(sr.get("adj_composite", sr.get("composite", 50)))
                     sr["adj_action"] = "BUY" if adj >= eff else ("SELL" if adj < EXIT_THRESHOLD else "HOLD")
                     sr["promoted"] = False
-                sr["pct_rank"] = 50
+                # pct_rank intentionally not set here — factor_panel_html ranks
+                # this card against the full universe via _pct_rank_of().
                 ci = get_company_info(resolved_tk)
                 _html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
                 _html = _html.replace('class="qcard-detail" style="display:none;',
@@ -5103,7 +5181,8 @@ def page_screener():
                         adj = float(sr.get("adj_composite", sr.get("composite", 50)))
                         sr["adj_action"] = "BUY" if adj >= eff_threshold else ("SELL" if adj < EXIT_THRESHOLD else "HOLD")
                         sr["promoted"] = False
-                    sr["pct_rank"] = 50
+                    # pct_rank intentionally not set — factor_panel_html ranks
+                    # this card against the full universe via _pct_rank_of().
                     ci = get_company_info(resolved_tk)
                     # Show search result pre-expanded — always one card, no toggle needed
                     _sr_html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
@@ -8791,40 +8870,6 @@ def page_model_portfolio():
         except Exception:
             pass  # fall back to session state if query fails
 
-    # ── Universe distribution for true percentile rank ────────────────────────
-    #    Fetch the latest signal_date's full adj_composite spread ONCE here. The
-    #    render loop below ranks each card's *displayed* conviction against this
-    #    distribution inline. Computing the rank inline (instead of stamping it
-    #    onto score_map in a separate scope) removes the cross-scope dependency
-    #    that was silently leaving every card at the "50th" fallback: if this one
-    #    block threw, pct_rank never got stamped while every other field still
-    #    populated — real scores/pillars, RANK stuck at 50.
-    _mp_uni_comps = []
-    if sb:
-        try:
-            _uq = (sb.table("signal_log")
-                   .select("adj_composite,composite,signal_date")
-                   .order("signal_date", desc=True)
-                   .limit(2000)
-                   .execute())
-            _urows = _uq.data or []
-            if _urows:
-                _ld = _urows[0].get("signal_date")
-                for _x in _urows:
-                    if _x.get("signal_date") != _ld:
-                        continue
-                    _cv = _x.get("adj_composite")
-                    if _cv is None:
-                        _cv = _x.get("composite")
-                    if _cv is None:
-                        continue
-                    try:
-                        _mp_uni_comps.append(float(_cv))
-                    except (TypeError, ValueError):
-                        continue
-        except Exception:
-            _mp_uni_comps = []
-    _mp_uni_n = len(_mp_uni_comps)
 
     if not positions:
         # No positions yet — show what would be entered today
@@ -9205,12 +9250,9 @@ def page_model_portfolio():
         # Always recompute macro impact from adj_composite − composite; signal_log
         # does not persist score_delta as a column.
         sc["score_delta"] = round(score - _quant, 1)
-        # True percentile rank of THIS card's displayed conviction against the
-        # latest full-universe distribution, computed inline so RANK can never
-        # silently fall back to "50th". Only set when we have a universe to rank
-        # against; otherwise factor_panel_html keeps its own fallback.
-        if _mp_uni_n:
-            sc["pct_rank"] = sum(1 for _c in _mp_uni_comps if _c <= float(score)) / _mp_uni_n * 100.0
+        # RANK is computed by factor_panel_html against the full universe via the
+        # shared _pct_rank_of() helper (sc["adj_composite"] is the displayed
+        # conviction), so no per-card stamp is needed here.
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
         # Build card + P&L strip
