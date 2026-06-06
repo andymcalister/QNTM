@@ -8791,39 +8791,40 @@ def page_model_portfolio():
         except Exception:
             pass  # fall back to session state if query fails
 
-    # ── Percentile rank vs the full universe ──────────────────────────────────
-    #    factor_panel_html shows "50th" when a record has no pct_rank and the
-    #    session has no scan_results — always true on this page, so every card
-    #    read 50th. Compute the real percentile here from the latest universe
-    #    distribution and stamp it on each record so the cards show true rank.
-    if sb and score_map:
+    # ── Universe distribution for true percentile rank ────────────────────────
+    #    Fetch the latest signal_date's full adj_composite spread ONCE here. The
+    #    render loop below ranks each card's *displayed* conviction against this
+    #    distribution inline. Computing the rank inline (instead of stamping it
+    #    onto score_map in a separate scope) removes the cross-scope dependency
+    #    that was silently leaving every card at the "50th" fallback: if this one
+    #    block threw, pct_rank never got stamped while every other field still
+    #    populated — real scores/pillars, RANK stuck at 50.
+    _mp_uni_comps = []
+    if sb:
         try:
-            _ur = sb.table("signal_log") \
-                .select("adj_composite,composite,signal_date") \
-                .order("signal_date", desc=True) \
-                .limit(2000) \
-                .execute()
-            _urows = _ur.data or []
+            _uq = (sb.table("signal_log")
+                   .select("adj_composite,composite,signal_date")
+                   .order("signal_date", desc=True)
+                   .limit(2000)
+                   .execute())
+            _urows = _uq.data or []
             if _urows:
                 _ld = _urows[0].get("signal_date")
-                _comps = [
-                    float(x["adj_composite"] if x.get("adj_composite") is not None
-                          else x["composite"])
-                    for x in _urows
-                    if x.get("signal_date") == _ld
-                    and (x.get("adj_composite") is not None or x.get("composite") is not None)
-                ]
-                if _comps:
-                    _nU = len(_comps)
-                    for _tk, _scr in score_map.items():
-                        _vv = _scr.get("adj_composite")
-                        if _vv is None:
-                            _vv = _scr.get("composite")
-                        if _vv is None:
-                            continue
-                        _scr["pct_rank"] = sum(1 for c in _comps if c <= float(_vv)) / _nU * 100.0
+                for _x in _urows:
+                    if _x.get("signal_date") != _ld:
+                        continue
+                    _cv = _x.get("adj_composite")
+                    if _cv is None:
+                        _cv = _x.get("composite")
+                    if _cv is None:
+                        continue
+                    try:
+                        _mp_uni_comps.append(float(_cv))
+                    except (TypeError, ValueError):
+                        continue
         except Exception:
-            pass
+            _mp_uni_comps = []
+    _mp_uni_n = len(_mp_uni_comps)
 
     if not positions:
         # No positions yet — show what would be entered today
@@ -9204,6 +9205,12 @@ def page_model_portfolio():
         # Always recompute macro impact from adj_composite − composite; signal_log
         # does not persist score_delta as a column.
         sc["score_delta"] = round(score - _quant, 1)
+        # True percentile rank of THIS card's displayed conviction against the
+        # latest full-universe distribution, computed inline so RANK can never
+        # silently fall back to "50th". Only set when we have a universe to rank
+        # against; otherwise factor_panel_html keeps its own fallback.
+        if _mp_uni_n:
+            sc["pct_rank"] = sum(1 for _c in _mp_uni_comps if _c <= float(score)) / _mp_uni_n * 100.0
         _ci_cache_mp = st.session_state.get("company_info_cache", {})
         ci = _ci_cache_mp.get(tk)
         # Build card + P&L strip
