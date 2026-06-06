@@ -8791,6 +8791,40 @@ def page_model_portfolio():
         except Exception:
             pass  # fall back to session state if query fails
 
+    # ── Percentile rank vs the full universe ──────────────────────────────────
+    #    factor_panel_html shows "50th" when a record has no pct_rank and the
+    #    session has no scan_results — always true on this page, so every card
+    #    read 50th. Compute the real percentile here from the latest universe
+    #    distribution and stamp it on each record so the cards show true rank.
+    if sb and score_map:
+        try:
+            _ur = sb.table("signal_log") \
+                .select("adj_composite,composite,signal_date") \
+                .order("signal_date", desc=True) \
+                .limit(2000) \
+                .execute()
+            _urows = _ur.data or []
+            if _urows:
+                _ld = _urows[0].get("signal_date")
+                _comps = [
+                    float(x["adj_composite"] if x.get("adj_composite") is not None
+                          else x["composite"])
+                    for x in _urows
+                    if x.get("signal_date") == _ld
+                    and (x.get("adj_composite") is not None or x.get("composite") is not None)
+                ]
+                if _comps:
+                    _nU = len(_comps)
+                    for _tk, _scr in score_map.items():
+                        _vv = _scr.get("adj_composite")
+                        if _vv is None:
+                            _vv = _scr.get("composite")
+                        if _vv is None:
+                            continue
+                        _scr["pct_rank"] = sum(1 for c in _comps if c <= float(_vv)) / _nU * 100.0
+        except Exception:
+            pass
+
     if not positions:
         # No positions yet — show what would be entered today
         st.markdown(
