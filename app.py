@@ -4984,6 +4984,63 @@ def platform_nav():
         )
 
 
+@st.fragment
+def _render_screener_cards(filtered, gem_tickers, filter_key):
+    """Pagination + card rendering for the screener, isolated in a fragment so
+    Prev/Next (and re-renders) re-run ONLY this block via st.rerun(scope=
+    "fragment") instead of the entire 10k-line app. Inputs are passed in and
+    preserved across fragment reruns; the filter controls live OUTSIDE the
+    fragment, so changing a filter triggers a normal full rerun that re-invokes
+    this with a fresh `filtered` list."""
+    _PAGE_SIZE = 50
+    _total_pages = max(1, (len(filtered) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+    if "_fu_page" not in st.session_state:
+        st.session_state._fu_page = 0
+    # Reset to page 0 when the filter selection changes
+    if st.session_state.get("_fu_filter_key") != filter_key:
+        st.session_state._fu_page = 0
+        st.session_state._fu_filter_key = filter_key
+    _page = min(st.session_state._fu_page, _total_pages - 1)
+    _page_items = filtered[_page * _PAGE_SIZE:(_page + 1) * _PAGE_SIZE]
+
+    # Prev / Next — scoped reruns keep paging snappy
+    if _total_pages > 1:
+        _pn1, _pn2, _pn3 = st.columns([1, 2, 1])
+        with _pn1:
+            if _page > 0 and st.button("← Prev", key="fu_prev", use_container_width=True):
+                st.session_state._fu_page = _page - 1
+                st.rerun(scope="fragment")
+        with _pn2:
+            st.markdown(f'<div style="text-align:center;font-family:DM Mono,monospace;'
+                        f'font-size:13px;color:#8896ac;padding:8px 0;">'
+                        f'Page {_page+1} of {_total_pages}</div>', unsafe_allow_html=True)
+        with _pn3:
+            if _page < _total_pages - 1 and st.button("Next →", key="fu_next", use_container_width=True):
+                st.session_state._fu_page = _page + 1
+                st.rerun(scope="fragment")
+
+    _show_sparkline = len(_page_items) <= 20
+    _ci_cache = st.session_state.get("company_info_cache", {})
+    _fu_prog = st.progress(0, text="Loading cards...")
+    _fu_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+    _fu_html = ""
+    for _fu_i, r in enumerate(_page_items):
+        ci = _ci_cache.get(r["ticker"])
+        _extra = ""
+        if _show_sparkline:
+            _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
+            _ch = signal_history_chart(r["ticker"], _sc)
+            if _ch:
+                _extra = _ch
+        _fu_html += build_card_html(r, nav="screener",
+                                    is_gem=(r["ticker"] in gem_tickers),
+                                    company_info=ci, in_list=_fu_wl_now,
+                                    extra_detail=_extra)
+        _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
+    _fu_prog.empty()
+    render_cards_batch(_fu_html)
+
+
 def page_screener():
     _pin_nav("screener")
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
@@ -5498,57 +5555,10 @@ def page_screener():
                f' · Showing {RENDER_LIMIT} of {_total_filtered} — filter to see all' if _show_render_cap else '') +
             f'</div>',
             unsafe_allow_html=True)
-        # Paginate at 50 per page — each page is one st.markdown so CSS toggle works
-        _PAGE_SIZE = 50
-        _total_pages = max(1, (len(filtered) + _PAGE_SIZE - 1) // _PAGE_SIZE)
-        if "_fu_page" not in st.session_state:
-            st.session_state._fu_page = 0
-        # Reset page when filters change
+        # Paginate + render cards in a fragment so Prev/Next re-runs ONLY this
+        # block, not the whole app (keeps in-page paging snappy).
         _fu_filter_key = f"{filter_sec}_{filter_act}_{filter_min}"
-        if st.session_state.get("_fu_filter_key") != _fu_filter_key:
-            st.session_state._fu_page = 0
-            st.session_state._fu_filter_key = _fu_filter_key
-        _page = min(st.session_state._fu_page, _total_pages - 1)
-        _page_items = filtered[_page * _PAGE_SIZE:(_page + 1) * _PAGE_SIZE]
-
-        # Prev / Next
-        if _total_pages > 1:
-            _pn1, _pn2, _pn3 = st.columns([1, 2, 1])
-            with _pn1:
-                if _page > 0 and st.button("← Prev", key="fu_prev", use_container_width=True):
-                    st.session_state._fu_page = _page - 1
-                    st.session_state.nav = "screener"
-                    st.rerun()
-            with _pn2:
-                st.markdown(f'<div style="text-align:center;font-family:DM Mono,monospace;'
-                            f'font-size:13px;color:#8896ac;padding:8px 0;">'
-                            f'Page {_page+1} of {_total_pages}</div>', unsafe_allow_html=True)
-            with _pn3:
-                if _page < _total_pages - 1 and st.button("Next →", key="fu_next", use_container_width=True):
-                    st.session_state._fu_page = _page + 1
-                    st.session_state.nav = "screener"
-                    st.rerun()
-
-        _show_sparkline = len(_page_items) <= 20
-        _ci_cache = st.session_state.get("company_info_cache", {})
-        _fu_prog = st.progress(0, text="Loading cards...")
-        _fu_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
-        _fu_html = ""
-        for _fu_i, r in enumerate(_page_items):
-            ci = _ci_cache.get(r["ticker"])
-            _extra = ""
-            if _show_sparkline:
-                _sc = float(r.get("adj_composite", r.get("composite", 50)) or 50)
-                _ch = signal_history_chart(r["ticker"], _sc)
-                if _ch:
-                    _extra = _ch
-            _fu_html += build_card_html(r, nav="screener",
-                                        is_gem=(r["ticker"] in gem_tickers),
-                                        company_info=ci, in_list=_fu_wl_now,
-                                        extra_detail=_extra)
-            _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
-        _fu_prog.empty()
-        render_cards_batch(_fu_html)
+        _render_screener_cards(filtered, gem_tickers, _fu_filter_key)
 
         if _show_gate:
             st.markdown(
