@@ -10007,7 +10007,60 @@ def page_reset_password():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+# ── PERF INSTRUMENTATION (opt-in via ?debug=timing; invisible to normal users) ─
+import contextlib as _contextlib
+
+def _perf_on() -> bool:
+    """True only when the session was opened with ?debug=timing. Sticky per
+    session (cached) so it survives the app's query-param navigation."""
+    try:
+        v = st.session_state.get("_perf_on")
+        if v is None:
+            v = (st.query_params.get("debug") == "timing")
+            st.session_state["_perf_on"] = bool(v)
+        return bool(st.session_state.get("_perf_on"))
+    except Exception:
+        return False
+
+@_contextlib.contextmanager
+def timed(label: str):
+    """Log '[PERF] label: Nms' to stdout (Render logs) when timing is on."""
+    if not _perf_on():
+        yield
+        return
+    _t = _time.perf_counter()
+    try:
+        yield
+    finally:
+        print(f"[PERF] {label}: {(_time.perf_counter()-_t)*1000:.0f}ms", flush=True)
+
+def _instrument_db(sb):
+    """When timing is on, wrap the memoized client's postgrest httpx session so
+    every DB round-trip is counted + timed (this captures NETWORK latency, not
+    just the 2.4ms server execution). Patches the singleton instance once;
+    defensive — any version mismatch silently skips DB timing."""
+    if sb is None or not _perf_on() or getattr(sb, "_perf_wrapped", False):
+        return sb
+    try:
+        _sess = sb.postgrest.session            # httpx.Client used for DB queries
+        _orig_send = _sess.send
+        def _timed_send(*a, **k):
+            _t = _time.perf_counter()
+            try:
+                return _orig_send(*a, **k)
+            finally:
+                dt = (_time.perf_counter() - _t) * 1000
+                st.session_state["_perf_db_n"]  = st.session_state.get("_perf_db_n", 0) + 1
+                st.session_state["_perf_db_ms"] = st.session_state.get("_perf_db_ms", 0.0) + dt
+        _sess.send = _timed_send
+        sb._perf_wrapped = True
+    except Exception:
+        pass
+    return sb
+
+
 def main():
+    _perf_on()  # prime the ?debug=timing flag from the entry URL before nav strips params
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
@@ -10369,6 +10422,20 @@ def main():
     )
     try:
         route = st.session_state.page
+        if _perf_on():
+            st.session_state["_perf_db_n"] = 0
+            st.session_state["_perf_db_ms"] = 0.0
+            try:
+                from db import get_supabase as _dbsb
+                _instrument_db(_dbsb())
+            except Exception:
+                pass
+            try:
+                from data_refresh import _get_supabase as _drsb
+                _instrument_db(_drsb())
+            except Exception:
+                pass
+        _t_page = _time.perf_counter()
         if   route == "landing":  page_landing()
         elif route == "auth":     page_auth()
         elif route == "mfa":      page_mfa()
@@ -10379,6 +10446,13 @@ def main():
         elif route == "reset":    page_reset_password()
         elif route == "verify":   page_verify_email()
         else:                     page_landing()
+        if _perf_on():
+            _tot  = (_time.perf_counter() - _t_page) * 1000
+            _dbn  = st.session_state.get("_perf_db_n", 0)
+            _dbms = st.session_state.get("_perf_db_ms", 0.0)
+            _sub  = st.session_state.get("nav", route)
+            print(f"[PERF] page:{route}/{_sub} total={_tot:.0f}ms "
+                  f"db={_dbn}q/{_dbms:.0f}ms render~={_tot-_dbms:.0f}ms", flush=True)
     finally:
         _pl.empty()
 
