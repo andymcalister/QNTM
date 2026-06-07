@@ -740,6 +740,27 @@ def undo_cancellation(user_id: str) -> bool:
     return ok
 
 
+def clear_stripe_state(user_id: str) -> bool:
+    """Wipe all Stripe/billing/cancellation fields from the notifications blob.
+    Used when a user (re)claims a free founding spot after a prior paid-then-
+    canceled cycle. Without this, the billing reconciler sees the leftover
+    canceled subscription on the next load and downgrades the fresh founder grant
+    straight back to free — the claim/cancel tug-of-war loop. Clearing
+    stripe_subscription_id is the key part (the reconciler's poll is gated on it),
+    but we drop the whole set so the account page reads clean too."""
+    user = get_user_by_id(user_id) or {}
+    prefs = user.get("notifications") or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    for k in ("stripe_customer_id", "stripe_subscription_id", "billing_active",
+              "stripe_status", "cancel_at", "trial_end", "current_period_end"):
+        prefs.pop(k, None)
+    ok = update_preferences(user_id, {"notifications": prefs})
+    if ok and st.session_state.get("user"):
+        st.session_state.user["notifications"] = prefs
+    return ok
+
+
 def get_user_by_id(user_id: str) -> Optional[dict]:
     _ck = f"user:{user_id}"
     _cached = _rc_get(_ck)
