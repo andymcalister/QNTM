@@ -103,7 +103,27 @@ def create_checkout_url(user_id: str, user_email: str, base_url: str,
             kwargs["customer"] = existing_customer_id
         else:
             kwargs["customer_email"] = user_email
-        session = stripe.checkout.Session.create(**kwargs)
+        try:
+            session = stripe.checkout.Session.create(**kwargs)
+        except Exception as ce:
+            # The stored stripe_customer_id no longer exists in this Stripe
+            # account/mode (deleted in the dashboard, or created under a
+            # different key). Self-heal: drop the dead customer and let Checkout
+            # mint a fresh one from the email. finalize_checkout() returns the
+            # new customer_id on success, which the app writes back to the DB,
+            # overwriting the stale reference.
+            _cmsg = str(ce)
+            _missing = (getattr(ce, "code", "") == "resource_missing"
+                        or "No such customer" in _cmsg
+                        or "resource_missing" in _cmsg)
+            if existing_customer_id and _missing:
+                log.warning(f"stale stripe customer {existing_customer_id} "
+                            f"missing; recreating from email")
+                kwargs.pop("customer", None)
+                kwargs["customer_email"] = user_email
+                session = stripe.checkout.Session.create(**kwargs)
+            else:
+                raise
         return session.url
     except Exception as e:
         _last_error = str(e)
