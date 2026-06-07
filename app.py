@@ -8287,7 +8287,15 @@ def page_account():
         """, unsafe_allow_html=True)
 
         if plan == "free":
-            # Comparison table
+            # Comparison table — the "Pro" card shows the founding $0 offer only
+            # while first-50 spots remain; once they're gone it reads as the
+            # standard $29/mo plan (kept in sync with the upgrade-page gate).
+            _acct_founding = _founding_spots_remaining() > 0
+            _pro_label    = "FOUNDING MEMBER" if _acct_founding else "QNTM PRO"
+            _pro_price    = "$0" if _acct_founding else "$29"
+            _pro_sub      = ("first 50 users · then $29/mo" if _acct_founding
+                             else "per month · cancel anytime")
+            _pro_badge_ln = "✓ Founding member badge<br>" if _acct_founding else ""
             st.markdown(f"""
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
 
@@ -8316,11 +8324,11 @@ def page_account():
                      font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
                      letter-spacing:.1em;padding:3px 12px;border-radius:3px;">RECOMMENDED</div>
                 <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
-                     color:#d4a843;letter-spacing:.08em;margin-bottom:6px;">FOUNDING MEMBER</div>
+                     color:#d4a843;letter-spacing:.08em;margin-bottom:6px;">{_pro_label}</div>
                 <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
-                     color:#d4a843;line-height:1;margin-bottom:4px;">$0</div>
+                     color:#d4a843;line-height:1;margin-bottom:4px;">{_pro_price}</div>
                 <div style="font-size:13px;color:#b3bed0;margin-bottom:18px;">
-                  first 50 users · then $29/mo
+                  {_pro_sub}
                 </div>
                 <div style="font-size:13px;color:#b3bed0;line-height:2;">
                   ✓ Everything in Free<br>
@@ -8330,8 +8338,7 @@ def page_account():
                   ✓ Real-time signal notifications<br>
                   ✓ Macro regime change alerts<br>
                   ✓ Email signal summaries<br>
-                  ✓ Founding member badge<br>
-                  ✓ Priority support
+                  {_pro_badge_ln}✓ Priority support
                 </div>
               </div>
 
@@ -10278,6 +10285,17 @@ def main():
         ok = upgrade_plan(uid(), "pro")
         if ok and st.session_state.get("user"):
             st.session_state.user["plan"] = "pro"
+            # Persist the new plan into the signed URL token + localStorage so the
+            # upgrade survives the _confirm_url redirect and any prod reconnect.
+            # Without this the page reloads with the stale free token, the session
+            # reverts to free, and the user bounces back to the locked feature —
+            # an endless claim loop on production.
+            try:
+                st.query_params["uid"]  = _sign_token(uid(), "pro")
+                st.query_params["plan"] = "pro"
+            except Exception:
+                pass
+            _write_localstorage_token(uid(), "pro")
         st.query_params.pop("upgrade", None)
 
     # ── Stripe checkout return + status polling ───────────────────────────────
