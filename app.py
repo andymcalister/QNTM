@@ -2969,6 +2969,21 @@ def _cta_gold(label: str, href: str, full_width: bool = True) -> str:
     )
 
 
+def _upgrade_href(feature: str, return_nav: str) -> str:
+    """Build an upgrade-page URL that carries the session creds. Internal nav is a
+    full page reload; without uid/plan the reload lands logged-out, so the
+    upgrade_page handler (gated on logged_in) silently no-ops and the user drops
+    back to the screener instead of opening the upgrade page."""
+    from urllib.parse import quote_plus
+    _u = (st.session_state.user or {}).get("id", "")
+    _p = (st.session_state.user or {}).get("plan", "free")
+    _q = (f"?upgrade_page=1&feature={quote_plus(feature)}"
+          f"&return_nav={return_nav}&plan={_p}&ck=1&_n={return_nav}")
+    if _u:
+        _q += f"&uid={_u}"
+    return _q
+
+
 def _cta_ghost(label: str, href: str, full_width: bool = True) -> str:
     """Ghost secondary CTA — HTML link styled as ghost button."""
     w = "width:100%;display:block;" if full_width else "display:inline-block;"
@@ -5596,7 +5611,7 @@ def page_screener():
             if st.session_state.get("logged_in"):
                 st.markdown(_cta_gold(f"Unlock Full Universe — {_total_filtered - FREE_LIMIT} more stocks", _upgrade_url("Full Universe", "screener")), unsafe_allow_html=True)
             else:
-                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", "?upgrade_page=1&feature=Full+Universe+Access&return_nav=screener"), unsafe_allow_html=True)
+                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", _upgrade_href("Full Universe Access","screener")), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -6258,7 +6273,7 @@ def page_gems():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Join Founding Members — Unlock Now", _upgrade_url("Hidden Gems", "gems")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Join Free — First 50 Spots", "?upgrade_page=1&feature=Hidden+Gems&return_nav=screener"), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Join Free — First 50 Spots", _upgrade_href("Hidden Gems","screener")), unsafe_allow_html=True)
         return
 
     # Use exactly same data pipeline as screener — guarantees matching gem count
@@ -7436,7 +7451,7 @@ def page_simulator():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Simulator — Upgrade to Pro", _upgrade_url("Portfolio Simulator", "simulator")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", "?upgrade_page=1&feature=Unlimited+Holdings&return_nav=portfolio"), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", _upgrade_href("Unlimited Holdings","portfolio")), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -7927,7 +7942,7 @@ def page_alerts():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Alerts — Upgrade to Pro", _upgrade_url("Signal Alerts", "alerts")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", "?upgrade_page=1&feature=Signal+Alerts&return_nav=alerts"), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", _upgrade_href("Signal Alerts","alerts")), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -10287,7 +10302,13 @@ def main():
             _sub_id = _bs.get("stripe_subscription_id")
             if _sub_id and _sbp2.billing_configured():
                 _ps = _sbp2.poll_subscription_status(_sub_id)
-                if _ps.get("ok"):
+                if _ps.get("gone"):
+                    # Subscription no longer exists in Stripe (deleted/resource_missing).
+                    # Clear the dead reference so we stop polling + erroring every
+                    # session, and mark billing inactive. Plan is left as-is (an
+                    # explicit cancel/downgrade path handles status changes).
+                    _ssb2(uid(), subscription_id="", billing_active=False, status="canceled")
+                elif _ps.get("ok"):
                     _grant = _sbp2.status_grants_access(_ps.get("status", ""))
                     _ssb2(uid(), billing_active=_grant, status=_ps.get("status"))
                     _cur_plan = (st.session_state.user or {}).get("plan", "free")
