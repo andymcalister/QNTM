@@ -7006,6 +7006,9 @@ def page_portfolio():
               Free plan limit reached (10 positions). Upgrade to Pro for unlimited holdings.
             </div>
             """, unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — Unlimited Holdings",
+                                  _upgrade_url("Unlimited Holdings", "portfolio")),
+                        unsafe_allow_html=True)
         else:
             r1c1, r1c2, r1c3 = st.columns([2, 2, 2])
             with r1c1:
@@ -8338,26 +8341,35 @@ def page_account():
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="land-btn-primary">', unsafe_allow_html=True)
-            if st.button("Join Founding Members — Claim Free Spot", key="upgrade_btn", use_container_width=True):
-                ok = upgrade_plan(uid(), "pro")
-                # Force plan into session state immediately
-                if st.session_state.get("user"):
-                    st.session_state.user["plan"] = "pro"
-                # Rewrite localStorage token with updated plan so nav restores correctly
-                _write_localstorage_token(uid(), "pro")
-                if ok:
-                    # Refresh signed session params and rerun in place so the whole
-                    # UI — including the nav badge — reflects Pro right away, with no
-                    # navigation needed.
-                    try:
-                        st.query_params["uid"]  = _sign_token(uid(), "pro")
-                        st.query_params["plan"] = "pro"
-                    except Exception:
-                        pass
-                    st.success("✓ Founding Member activated — you now have full Pro access.")
-                    st.rerun()
-                else:
-                    st.warning("Could not write to DB — contact hello@qntm.live")
+            if _founding_spots_remaining() > 0:
+                if st.button("Join Founding Members — Claim Free Spot", key="upgrade_btn", use_container_width=True):
+                    ok = upgrade_plan(uid(), "pro")
+                    # Force plan into session state immediately
+                    if st.session_state.get("user"):
+                        st.session_state.user["plan"] = "pro"
+                    # Rewrite localStorage token with updated plan so nav restores correctly
+                    _write_localstorage_token(uid(), "pro")
+                    if ok:
+                        # Refresh signed session params and rerun in place so the whole
+                        # UI — including the nav badge — reflects Pro right away, with no
+                        # navigation needed.
+                        try:
+                            st.query_params["uid"]  = _sign_token(uid(), "pro")
+                            st.query_params["plan"] = "pro"
+                        except Exception:
+                            pass
+                        st.success("✓ Founding Member activated — you now have full Pro access.")
+                        st.rerun()
+                    else:
+                        st.warning("Could not write to DB — contact hello@qntm.live")
+            else:
+                # Founding window closed — never hand out free Pro from the account
+                # page once the first 50 spots are gone. Route through the upgrade
+                # page so the paid Stripe trial is the single source of billing,
+                # exactly like the feature-gate CTAs.
+                st.markdown(_cta_gold("Upgrade to Pro — Start 7-Day Trial",
+                                      _upgrade_url("Pro Access", "account")),
+                            unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif plan in ("pro","institutional"):
