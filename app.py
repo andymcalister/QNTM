@@ -1393,6 +1393,36 @@ def finalize_scores_from_signal_log(results: list, macro_data: dict = None) -> l
     return results
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _signal_log_map(tickers_key: tuple) -> dict:
+    """Cached fetch of the latest signal_log row per ticker, keyed by the
+    (sorted) ticker set. signal_log only changes on the nightly + 30-min
+    intraday crons, so a short TTL removes the heavy in.(...800 tickers...)
+    round-trip that previously ran on every screener render."""
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb or not tickers_key:
+            return {}
+        rows = sb.table("signal_log") \
+            .select("ticker,signal_date,adj_composite,composite,signal,"
+                    "momentum,quality,volume,value,sentiment,price,"
+                    "is_hidden_gem,hidden_gem_reason") \
+            .in_("ticker", list(tickers_key)) \
+            .order("signal_date", desc=True) \
+            .execute()
+        if not rows.data:
+            return {}
+        log_map = {}
+        for row in rows.data:
+            tk = row["ticker"]
+            if tk not in log_map:   # first row per ticker == latest signal_date
+                log_map[tk] = row
+        return log_map
+    except Exception:
+        return {}
+
+
 def enrich_with_signal_log(results: list) -> list:
     """
     Replaces model-computed scores with latest signal_log values from Supabase.
@@ -1400,27 +1430,12 @@ def enrich_with_signal_log(results: list) -> list:
     Falls back to run_full_scan results if signal_log unavailable.
     """
     try:
-        from data_refresh import _get_supabase
-        sb = _get_supabase()
-        if not sb or not results:
+        if not results:
             return results
         tickers = [r["ticker"] for r in results]
-        # Fetch ALL fields from latest signal_log row per ticker
-        rows = sb.table("signal_log") \
-            .select("ticker,signal_date,adj_composite,composite,signal,"
-                    "momentum,quality,volume,value,sentiment,price,"
-                    "is_hidden_gem,hidden_gem_reason") \
-            .in_("ticker", tickers) \
-            .order("signal_date", desc=True) \
-            .execute()
-        if not rows.data:
+        log_map = _signal_log_map(tuple(sorted(set(tickers))))
+        if not log_map:
             return results
-        # Build map: ticker → latest row (deduplicated)
-        log_map = {}
-        for row in rows.data:
-            tk = row["ticker"]
-            if tk not in log_map:
-                log_map[tk] = row
         # Merge signal_log scores into results — DB scores take precedence
         for r in results:
             tk = r["ticker"]
@@ -1659,11 +1674,14 @@ def score_bar_html(val, width=80):
     col = "#34d399" if val>=65 else "#fbbf24" if val>=50 else "#f87171"
     return f'<div style="width:{width}px;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;"><div style="width:{val}%;height:100%;background:{col};border-radius:2px;"></div></div>'
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _live_macro() -> dict:
     """Single source of truth for the displayed macro regime: read the cron's
     persisted live overlay (macro_state) so the banner and regime always match the
     scoring that produced adj_composite. Falls back to a one-off live scan only if
-    macro_state is empty (e.g. before the first macro pass has run)."""
+    macro_state is empty (e.g. before the first macro pass has run).
+    Cached 5 min: macro_state only changes on the ~30-min macro cron, and it was
+    previously re-fetched several times per render."""
     try:
         from data_refresh import _load_macro_state
         m = _load_macro_state()
@@ -2485,31 +2503,35 @@ def resolve_ticker(query: str) -> tuple[str, str]:
 # ══════════════════════════════════════════════════════════════════════════════
 def _default_watchlist_id(user_id: str):
     """Resolve (and auto-create) the user's default watchlist id."""
-    try:
-        from db import get_watchlists
-        lists = get_watchlists(user_id)
-        if not lists:
+    def _resolve():
+        try:
+            from db import get_watchlists
+            lists = get_watchlists(user_id)
+            if not lists:
+                return None
+            # Prefer the flagged default, else the first list
+            for w in lists:
+                if w.get("is_default"):
+                    return w["id"]
+            return lists[0]["id"]
+        except Exception:
             return None
-        # Prefer the flagged default, else the first list
-        for w in lists:
-            if w.get("is_default"):
-                return w["id"]
-        return lists[0]["id"]
-    except Exception:
-        return None
+    return _run_once(f"defwl:{user_id}", _resolve)
 
 
 def get_watchlist(user_id: str) -> list:
     """Back-compat shim: return items from the user's DEFAULT named list,
     shaped like the old flat watchlist rows (ticker, price_at_add, added_at)."""
-    try:
-        from db import get_watchlist_items
-        lid = _default_watchlist_id(user_id)
-        if not lid:
+    def _fetch():
+        try:
+            from db import get_watchlist_items
+            lid = _default_watchlist_id(user_id)
+            if not lid:
+                return []
+            return get_watchlist_items(user_id, lid)
+        except Exception:
             return []
-        return get_watchlist_items(user_id, lid)
-    except Exception:
-        return []
+    return _run_once(f"wl:{user_id}", _fetch)
 
 
 def is_valid_universe_ticker(tk) -> bool:
@@ -10034,6 +10056,18 @@ def timed(label: str):
     finally:
         print(f"[PERF] {label}: {(_time.perf_counter()-_t)*1000:.0f}ms", flush=True)
 
+def _run_once(key, fn):
+    """Memoize fn() for the duration of one Streamlit run. The backing dict is
+    reset at the top of main(), so any interaction (which triggers a rerun)
+    re-reads fresh — safe for user-mutable data like watchlists."""
+    rc = st.session_state.get("_run_cache")
+    if not isinstance(rc, dict):
+        rc = {}
+        st.session_state["_run_cache"] = rc
+    if key not in rc:
+        rc[key] = fn()
+    return rc[key]
+
 def _instrument_db(sb):
     """When timing is on, wrap the memoized client's postgrest httpx session so
     every DB round-trip is counted + timed (this captures NETWORK latency, not
@@ -10061,6 +10095,9 @@ def _instrument_db(sb):
 
 def main():
     _perf_on()  # prime the ?debug=timing flag from the entry URL before nav strips params
+    # Fresh per-run read caches (deduped within one render; re-read after any rerun)
+    st.session_state["_db_run_cache"] = {}
+    st.session_state["_run_cache"] = {}
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")

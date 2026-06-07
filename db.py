@@ -112,6 +112,38 @@ def get_supabase():
     return None
 
 
+# ── Per-run read cache ────────────────────────────────────────────────────────
+# Dedupes repeated identical reads (notably get_user_by_id, which several billing
+# helpers funnel through) within a single Streamlit script run. Backed by
+# st.session_state["_db_run_cache"], which app.main() resets at the top of every
+# run, so a write→rerun always re-reads fresh. No-ops outside a Streamlit run
+# context (e.g. cron jobs), where it simply always hits the DB.
+def _rc_get(key):
+    try:
+        rc = st.session_state.get("_db_run_cache")
+        return rc.get(key) if isinstance(rc, dict) else None
+    except Exception:
+        return None
+
+def _rc_put(key, val):
+    try:
+        rc = st.session_state.get("_db_run_cache")
+        if not isinstance(rc, dict):
+            rc = {}
+            st.session_state["_db_run_cache"] = rc
+        rc[key] = val
+    except Exception:
+        pass
+
+def _rc_clear(key):
+    try:
+        rc = st.session_state.get("_db_run_cache")
+        if isinstance(rc, dict):
+            rc.pop(key, None)
+    except Exception:
+        pass
+
+
 def _is_demo():
     return get_supabase() is None
 
@@ -489,6 +521,7 @@ def update_preferences(user_id: str, prefs: dict) -> bool:
     if sb:
         try:
             sb.table("users").update(prefs).eq("id", user_id).execute()
+            _rc_clear(f"user:{user_id}")   # next read in this run re-fetches fresh
             return True
         except Exception:
             return False
@@ -649,6 +682,10 @@ def undo_cancellation(user_id: str) -> bool:
 
 
 def get_user_by_id(user_id: str) -> Optional[dict]:
+    _ck = f"user:{user_id}"
+    _cached = _rc_get(_ck)
+    if _cached is not None:
+        return _cached
     sb = get_supabase()
     if sb:
         try:
@@ -656,7 +693,7 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
             if res.data:
                 r = res.data[0]
                 notif_raw = r.get("notifications") or "{}"
-                return {
+                _u = {
                     "id":          r["id"],
                     "email":       decrypt_field(r.get("email_encrypted", "")),
                     "full_name":   decrypt_field(r.get("full_name_encrypted", "")),
@@ -666,6 +703,8 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
                     "notifications": json.loads(notif_raw) if isinstance(notif_raw, str) else notif_raw,
                     "created_at":  r.get("created_at"),
                 }
+                _rc_put(_ck, _u)
+                return _u
         except Exception:
             pass
         return None
