@@ -5011,7 +5011,7 @@ def platform_nav():
             'padding:11px 14px;border-radius:12px;background:rgba(10,13,20,.99);'
             'border:1px solid rgba(52,211,153,.4);box-shadow:0 8px 24px rgba(0,0,0,.55);'
             'font-family:Inter,sans-serif;font-size:12.5px;color:#cbd5e1;line-height:1.4;'
-            'animation:helphintout .5s ease 9s forwards;">'
+            'animation:helphintout .5s ease 20s forwards;">'
             '<b style="color:#34d399;">Need a hand?</b> Tap the '
             '<span style="color:#34d399;font-weight:700;">?</span> on any page for a quick guide to '
             'what\'s on it.'
