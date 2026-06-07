@@ -3042,7 +3042,7 @@ DISCLAIMER = """<div style="display:flex;align-items:center;gap:8px;padding:6px 
 # ══════════════════════════════════════════════════════════════════════════════
 PRIVACY_POLICY = """
 ## Privacy Policy
-**Effective Date: To be set at publication** · QNTM LLC (California)
+**Effective Date: June 6, 2026** · QNTM LLC (California)
 
 ### What We Collect
 
@@ -3121,7 +3121,7 @@ privacy@qntm.live
 
 TERMS_OF_SERVICE = """
 ## Terms of Service
-**Effective Date: To be set at publication** · QNTM LLC (California)
+**Effective Date: June 6, 2026** · QNTM LLC (California)
 
 ### 1. Who We Are and What We Do
 QNTM is a quantitative research platform operated by QNTM LLC, a California limited liability company. We score stocks using a five-factor model, apply a live macro regime overlay, and surface conviction signals. Everything we produce is algorithmic research — not investment advice.
@@ -3241,7 +3241,7 @@ We will give you 14 days' email notice before material changes take effect. The 
 
 BILLING_POLICY = """
 ## Billing & Refund Policy
-**Effective Date: To be set at publication** · QNTM LLC (California)
+**Effective Date: June 6, 2026** · QNTM LLC (California)
 
 ### Plans
 
@@ -3336,7 +3336,7 @@ Before making any investment decision, speak with a qualified financial adviser 
 
 COOKIE_POLICY = """
 ## Cookie Policy
-**Effective Date: To be set at publication**
+**Effective Date: June 6, 2026**
 
 ### Cookies We Use
 
@@ -4059,7 +4059,7 @@ body { background-color: #0a0b14 !important; }
     st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
     signals_html = ""
     for label, score, desc, color, brd in [
-        ("▲ HIGH",        "Score ≥ 60", "Strongest factor profile in the universe. Historically associated with multi-month relative outperformance. Not a recommendation to buy.", "#1D9E75", "rgba(29,158,117,.3)"),
+        ("▲ HIGH",        "Score ≥ 60", "Strongest factor profile in the universe. Historically associated with multi-month relative outperformance. In high-volatility or risk-off regimes the model tightens this threshold to 62 to stay selective. Not a recommendation to buy.", "#1D9E75", "rgba(29,158,117,.3)"),
         ("─ MODERATE",    "Score 45–59", "Mixed factor profile — neither strong nor deteriorating on the model's measures. Not a recommendation to hold.",           "#f59e0b", "rgba(245,158,11,.25)"),
         ("▼ LOW",         "Score < 45",  "Weakest factor profile. The model flagged UNH here at month 3, ahead of a −49% full-year drawdown. Not a recommendation to sell.",                "#E24B4A", "rgba(226,75,74,.25)"),
     ]:
@@ -9782,8 +9782,8 @@ def page_platform():
 
     # ── Persistent disclaimer footer ────────────────────────────────────
     st.markdown(
-        '<div style="margin:32px 32px 8px;padding:12px 16px;"'
-        'background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05);"'
+        '<div style="margin:32px 32px 8px;padding:12px 16px;'
+        'background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05);'
         'border-radius:6px;font-size:13px;color:#94a3b8;line-height:1.6;text-align:center;">'
         'QNTM provides quantitative signal analysis for informational and educational purposes only. '
         'Conviction scores are model outputs — not personalized investment advice. '
