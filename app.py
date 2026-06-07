@@ -4737,8 +4737,13 @@ def _render_verify_banner():
     )
     if st.button("Resend confirmation email", key="resend_verify_btn"):
         try:
-            request_email_verification(u.get("email", ""))
-            st.success("Sent — check your inbox (and spam folder).")
+            _vr = request_email_verification(u.get("email", ""))
+            if _vr.get("delivered"):
+                st.success("Sent — check your inbox (and spam folder).")
+            else:
+                st.error("We couldn't send the confirmation email right now. "
+                         "Please try again shortly, or contact hello@qntm.live "
+                         "if it keeps failing.")
         except Exception:
             st.error("Couldn't send right now. Please try again in a moment.")
 

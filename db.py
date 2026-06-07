@@ -1204,7 +1204,11 @@ def send_email(to_email: str, subject: str, html: str, text: str = None) -> dict
     except Exception:
         api_key    = os.getenv("SENDGRID_API_KEY")
         from_email = os.getenv("SENDGRID_FROM")
+    _to_masked = (to_email[:1] + "***@" + to_email.split("@", 1)[1]) \
+        if to_email and "@" in to_email else "***"
     if not api_key or not from_email:
+        log.warning("send_email: SendGrid not configured "
+                    "(SENDGRID_API_KEY/SENDGRID_FROM missing) — %r not sent", subject)
         return {"success": False, "error": "Email not configured"}
     if not to_email:
         return {"success": False, "error": "No recipient"}
@@ -1216,10 +1220,19 @@ def send_email(to_email: str, subject: str, html: str, text: str = None) -> dict
         if text:
             kwargs["plain_text_content"] = text
         resp = SendGridAPIClient(api_key).send(Mail(**kwargs))
-        return {"success": 200 <= resp.status_code < 300, "status": resp.status_code}
+        ok = 200 <= resp.status_code < 300
+        if ok:
+            log.info("send_email: sent to %s (%r) status=%s", _to_masked, subject, resp.status_code)
+        else:
+            log.warning("send_email: SendGrid returned %s for %s (%r) — check "
+                        "sender verification / domain authentication",
+                        resp.status_code, _to_masked, subject)
+        return {"success": ok, "status": resp.status_code}
     except ImportError:
+        log.warning("send_email: sendgrid package not installed")
         return {"success": False, "error": "sendgrid package not installed"}
     except Exception as e:
+        log.warning("send_email: send failed for %s: %s", _to_masked, str(e)[:160])
         return {"success": False, "error": f"Send failed: {str(e)[:120]}"}
 
 
@@ -1455,6 +1468,8 @@ def request_email_verification(email: str) -> dict:
     success (never reveals whether an account exists). Safe to call on signup
     and from a 'resend' button."""
     uid_ = _user_id_by_email(email)
+    _delivered = False
+    _err = None
     if uid_:
         token = create_auth_token(uid_, kind="verify", ttl_minutes=60 * 24)  # 24h
         if token:
@@ -1477,14 +1492,19 @@ def request_email_verification(email: str) -> dict:
                 '<p style="font-size:12px;color:#aaa;margin-top:24px;">QNTM · Quantitative stock conviction</p>'
                 '</div>'
             )
-            send_email(
+            _send = send_email(
                 (email or "").lower().strip(),
                 "Confirm your QNTM email",
                 html,
                 text=f"Welcome to QNTM. Confirm your email: {link}\n\n"
                      "This link expires in 24 hours. If you didn't create an account, ignore this email.",
             )
-    return {"success": True}
+            _delivered = bool(_send.get("success"))
+            _err = _send.get("error")
+    # success stays True so unauthenticated callers can't enumerate accounts by the
+    # response; `delivered` carries the real SendGrid result for authenticated
+    # callers (the logged-in resend button) to surface honestly.
+    return {"success": True, "delivered": _delivered, "error": _err}
 
 
 def consume_verify_token(token: str) -> dict:
