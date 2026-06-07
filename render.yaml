@@ -22,7 +22,9 @@ services:
     runtime: python
     plan: starter            # $7/mo, always-on. Do NOT use free — it cold-starts
                              # and drops Streamlit sessions, which breaks login.
-    region: oregon           # pick the US region closest to you (oregon/ohio)
+    region: virginia         # us-east — co-located with Supabase (us-east-1) to
+                             # cut per-query round-trip latency from ~70ms to ~10ms.
+                             # (was: oregon/us-west — cross-country from the DB.)
     branch: main             # prod tracks the main branch (same as your prod today)
     autoDeploy: true         # auto-redeploy on push to main, like Streamlit Cloud
     buildCommand: pip install -r requirements.txt
@@ -43,7 +45,7 @@ services:
     name: qntm-intraday-alerts
     runtime: python
     plan: starter            # smallest is fine — each run finishes in well under a minute
-    region: oregon
+    region: virginia         # match the web service + Supabase us-east-1
     branch: main
     schedule: "*/30 13-21 * * 1-5"
     buildCommand: pip install -r requirements.txt
