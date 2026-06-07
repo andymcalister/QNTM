@@ -9793,6 +9793,23 @@ def page_platform():
 # ══════════════════════════════════════════════════════════════════════════════
 # ROUTER
 # ══════════════════════════════════════════════════════════════════════════════
+@st.cache_data(ttl=120, show_spinner=False)
+def _founding_spots_remaining() -> int:
+    """Founding-member spots left in the first-50 window. While > 0, upgrades are
+    a free Pro grant (no card, no Stripe); once exhausted, the paid trial kicks
+    in. Fails OPEN (returns spots) so a transient DB hiccup never wrongly charges
+    a founder — matches the landing-page counter's behaviour."""
+    try:
+        from data_refresh import _get_supabase as _fs_sb
+        sb = _fs_sb()
+        if sb:
+            r = sb.table("users").select("id", count="exact").execute()
+            n = r.count if getattr(r, "count", None) else len(r.data or [])
+            return max(0, 50 - int(n))
+    except Exception:
+        pass
+    return 50
+
 def page_upgrade():
     """Upgrade to Pro page — handles upgrade flow, Stripe when ready."""
     # Keep this as a top-level page (route == "upgrade") across reruns. Do NOT use
@@ -9853,7 +9870,12 @@ def page_upgrade():
     # (keys + price ID present); can also be forced via session for testing.
     try:
         import stripe_billing as _sb_cfg
-        _paid_trial = bool(st.session_state.get("_paid_trial_mode", False)) or _sb_cfg.billing_configured()
+        # Founders (first-50 window) get a free Pro grant — no card, no Stripe.
+        # Stripe's paid 7-day trial only takes over once founding spots are gone.
+        # _paid_trial_mode stays an explicit test override that ignores the window.
+        _force_paid = bool(st.session_state.get("_paid_trial_mode", False))
+        _founding_open = _founding_spots_remaining() > 0
+        _paid_trial = _force_paid or (_sb_cfg.billing_configured() and not _founding_open)
     except Exception:
         _paid_trial = bool(st.session_state.get("_paid_trial_mode", False))
 
