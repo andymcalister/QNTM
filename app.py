@@ -8354,6 +8354,15 @@ def page_account():
                     # Force plan into session state immediately
                     if st.session_state.get("user"):
                         st.session_state.user["plan"] = "pro"
+                    # Founder claim overrides any prior paid+canceled cycle: wipe
+                    # stale Stripe/cancellation state so the billing reconciler
+                    # doesn't downgrade this grant back to free on the next load.
+                    if ok:
+                        try:
+                            from db import clear_stripe_state as _clear_billing
+                            _clear_billing(uid())
+                        except Exception:
+                            pass
                     # Rewrite localStorage token with updated plan so nav restores correctly
                     _write_localstorage_token(uid(), "pro")
                     if ok:
@@ -10282,20 +10291,34 @@ def main():
 
     # ── Plan upgrade via URL action ───────────────────────────────────────────
     if st.query_params.get("upgrade") == "pro" and st.session_state.get("logged_in"):
-        ok = upgrade_plan(uid(), "pro")
-        if ok and st.session_state.get("user"):
-            st.session_state.user["plan"] = "pro"
-            # Persist the new plan into the signed URL token + localStorage so the
-            # upgrade survives the _confirm_url redirect and any prod reconnect.
-            # Without this the page reloads with the stale free token, the session
-            # reverts to free, and the user bounces back to the locked feature —
-            # an endless claim loop on production.
-            try:
-                st.query_params["uid"]  = _sign_token(uid(), "pro")
-                st.query_params["plan"] = "pro"
-            except Exception:
-                pass
-            _write_localstorage_token(uid(), "pro")
+        # Only grant a free founder spot while spots remain. A previously
+        # paid-then-canceled user is allowed to re-take a spot (cancellation is
+        # final → free, but a free user can claim again while the first-50 window
+        # is open).
+        if _founding_spots_remaining() > 0:
+            ok = upgrade_plan(uid(), "pro")
+            if ok and st.session_state.get("user"):
+                st.session_state.user["plan"] = "pro"
+                # Founder claim overrides any prior paid+canceled cycle: wipe the
+                # stale Stripe/cancellation state so the billing reconciler doesn't
+                # see a canceled subscription on the next load and downgrade this
+                # fresh grant back to free (the claim/cancel tug-of-war loop).
+                try:
+                    from db import clear_stripe_state as _clear_billing
+                    _clear_billing(uid())
+                except Exception:
+                    pass
+                # Persist the new plan into the signed URL token + localStorage so
+                # the upgrade survives the _confirm_url redirect and any prod
+                # reconnect. Without this the page reloads with the stale free
+                # token, the session reverts to free, and the user bounces back to
+                # the locked feature — an endless claim loop on production.
+                try:
+                    st.query_params["uid"]  = _sign_token(uid(), "pro")
+                    st.query_params["plan"] = "pro"
+                except Exception:
+                    pass
+                _write_localstorage_token(uid(), "pro")
         st.query_params.pop("upgrade", None)
 
     # ── Stripe checkout return + status polling ───────────────────────────────
