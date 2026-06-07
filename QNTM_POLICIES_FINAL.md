@@ -1,7 +1,7 @@
 # QNTM Platform — Policy Documents
 **Draft for Attorney Review — May 27, 2026**
 **Platform: qntm.live**
-**Entity: QNTM LLC (California, formation pending)**
+**Entity: QNTM LLC (California)**
 
 > All effective dates below are placeholders. They will be set at publication. Do not publish without legal sign-off.
 
@@ -9,7 +9,7 @@
 
 # 1. TERMS OF SERVICE
 
-**Effective Date: [TBD at publication]**
+**Effective Date: June 6, 2026**
 
 ## 1. Who We Are and What We Do
 
@@ -35,6 +35,7 @@ You must be 18 or older. By using QNTM you confirm this. You're responsible for 
 - Keep your password and 2FA credentials secure
 - You're responsible for all activity on your account
 - Report unauthorized access immediately to security@qntm.live
+- By creating an account, you agree to receive account and security emails (such as email verification, password resets, and billing notices), which are necessary to operate your account. Optional signal-alert emails are off by default and can be enabled or disabled anytime in Account → Notifications.
 
 ## 6. Subscriptions
 
@@ -155,7 +156,7 @@ We'll give you 14 days' email notice before material changes take effect. The no
 
 # 2. PRIVACY POLICY
 
-**Effective Date: [TBD at publication]**
+**Effective Date: June 6, 2026**
 
 ## What We Collect
 
@@ -185,17 +186,26 @@ We'll give you 14 days' email notice before material changes take effect. The no
 | Stripe, Inc. | Payment processing | stripe.com/privacy |
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
 | Render (Render Services, Inc.) | Application hosting | render.com/privacy |
-| SendGrid (Twilio) | Transactional email — only if you enable email notifications | sendgrid.com/policies/privacy |
+| SendGrid (Twilio) | Account, security, and notification emails — e.g. email verification, password resets, and optional signal alerts | sendgrid.com/policies/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
 Market data is sourced from public providers (Yahoo Finance, FRED) and is not personal data.
 
 We'll share data with law enforcement if legally required, and may disclose data to protect QNTM's rights or the safety of users.
 
+## Email Communications
+
+We use your email address to send two kinds of messages:
+
+- **Account and security emails** — for example, email verification, password resets, and billing notices. These are necessary to operate your account, so you can't opt out of them while your account is active.
+- **Optional signal alerts** — for example, an email when a stock on your watchlist or in your portfolio moves to LOW conviction. These are **off by default** and entirely optional. You can turn them on or off at any time in Account → Notifications, and every alert email includes an unsubscribe reminder and our mailing address.
+
+We send email through SendGrid (Twilio). We don't use your email address for advertising, and we don't sell it.
+
 ## Security
 
 - Passwords: bcrypt-hashed (cost factor 12).
-- Sensitive personal fields (email, name, 2FA secret): AES-256 encrypted at rest.
+- Sensitive personal fields (email, name, 2FA secret): encrypted at rest with authenticated symmetric encryption (Fernet — AES-128-CBC with HMAC-SHA256).
 - Email-hash lookup so we can find your account without decrypting your email.
 - Two-factor authentication available and strongly recommended.
 - Login events are logged for security review.
@@ -232,7 +242,7 @@ privacy@qntm.live
 
 # 3. BILLING & REFUND POLICY
 
-**Effective Date: [TBD at publication]**
+**Effective Date: June 6, 2026**
 
 ## Plans
 
@@ -309,13 +319,27 @@ HIGH, MODERATE, and LOW conviction signals are produced by an algorithm. They re
 **A LOW conviction signal is not a sell recommendation.**
 **A MODERATE signal is not a hold recommendation.**
 
+This applies equally to any alerts or emails we send. If you enable signal alerts, an email or in-app notice telling you that a stock has moved to LOW conviction is an automated, algorithmic notification — not advice and not a recommendation to sell. Intraday alerts in particular are based on partial-day data and are more reactive and noisier than the end-of-day signal. You remain solely responsible for your own investment decisions.
+
+## Conflicts of Interest
+
+QNTM LLC does not hold, buy, or sell any securities. The company takes no position in any stock the model scores.
+
+The founder and any principals of QNTM LLC may personally own and trade securities the model scores, including securities carrying a HIGH, MODERATE, or LOW signal. To manage this conflict:
+
+- We act only on signals after they are published to subscribers, using the same information available to every user at the same time.
+- We do not trade ahead of a signal we know is about to publish or change.
+- Scoring is fully algorithmic. Personal holdings do not influence how any security is scored, ranked, or labeled.
+
+The model applies the same rules to every security in its universe, regardless of whether anyone connected to QNTM holds it.
+
 ## Model Portfolio
 
 The Model Portfolio shown in QNTM is a hypothetical illustration of how the model's signals would translate into a position book. It uses equal-weighted notional sizing, ignores slippage, taxes, brokerage commissions, and dividend treatment. It is not a real portfolio, no securities are held on your behalf, and no trades are executed. It is provided for transparency about the model's behavior, not as a recommendation.
 
 ## Past Performance
 
-Our 5-year backtest covers Q2 2020 through Q1 2025. It uses historical data with the same model rules applied throughout — no changes between periods. It does not account for all real-world costs, taxes, or execution constraints. Survivorship bias is disclosed in our methodology page and quantified in the adjusted return figures. Past model performance is not a guarantee of future results.
+QNTM does not currently publish a historical backtest. The only performance we show is the live Model Portfolio, which is marked daily on the model's rules-based signals from its inception date forward. It is a hypothetical illustration (see Model Portfolio above) and does not account for all real-world costs, taxes, or execution constraints. A live track record is short by nature, and past model performance is not a guarantee of future results.
 
 ## You Can Lose Money
 
@@ -329,7 +353,7 @@ Before making any investment decision, speak with a qualified financial adviser 
 
 # 5. COOKIE POLICY
 
-**Effective Date: [TBD at publication]**
+**Effective Date: June 6, 2026**
 
 ## Cookies We Use
 
@@ -361,7 +385,7 @@ privacy@qntm.live
 ---
 
 *These are draft documents for attorney review. Do not publish without legal sign-off.*
-*Last updated: May 30, 2026*
+*Last updated: June 5, 2026*
 
 ---
 
@@ -388,3 +412,5 @@ The following items were intentionally left for your judgment. They are flagged 
 9. **CCPA.** Privacy Policy notes CCPA rights and a no-sale statement. We are below the CCPA revenue and data-volume thresholds at launch, but the no-sale statement is still appropriate. Confirm whether a separate "Do Not Sell" link is required for our user volume.
 
 10. **State securities regulator notice/exemption.** QNTM does not currently provide personalized advice and so should not require investment adviser registration in California. As subscriber volume grows, please advise whether ongoing publication of model outputs to paid subscribers brings the platform under any state-level publisher carve-out or registration requirement.
+
+11. **Email communications & CAN-SPAM.** The platform now sends (a) account/security emails (email verification, password reset, billing notices) to all users, and (b) optional, opt-in signal-alert emails. Transactional/relationship emails are generally exempt from CAN-SPAM's commercial-message requirements; the signal-alert email is closer to a commercial/relationship message, so it includes a working opt-out (Account → Notifications) and, per CAN-SPAM, a physical postal address in its footer. **Please confirm (i) the mailing address used in the alert-email footer, (ii) whether the alert email's classification and disclosures are adequate, and (iii) the wording of the alert-email copy itself, which is action-adjacent — it tells a subscriber a specific security they hold/watch has moved to LOW conviction.** The opt-in is off by default and is described in the Privacy Policy (Email Communications) and Terms §5.
