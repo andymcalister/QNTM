@@ -16,8 +16,11 @@ Plans:
 """
 
 import os, json, secrets, hashlib
+import logging
 from datetime import datetime, date
 from typing import Optional
+
+log = logging.getLogger("qntm.db")
 import streamlit as st
 import bcrypt
 import pyotp
@@ -92,18 +95,61 @@ def verify_password(password: str, hashed: str) -> bool:
 _SB_CLIENT = None
 
 def get_supabase():
-    """Cached Supabase client (anon key), created once per process and reused.
-    Memoized so db operations don't spin up a brand-new client on every call —
-    it was being recreated dozens of times per page render, which was a big
-    chunk of the latency. A long-lived client is safe: the underlying httpx
-    transport re-establishes connections per request."""
+    """Cached Supabase client, created once per process and reused.
+
+    Prefers the SERVICE-ROLE key. This app runs entirely server-side (Render /
+    Streamlit Cloud) and authenticates users with its own bcrypt/JWT layer — it
+    does NOT use Supabase Auth, so the anon role carries no auth.uid() context and
+    RLS UPDATE/INSERT policies silently reject its writes (0 rows, HTTP 200). That
+    is what blocked plan upgrades (the founding-claim loop) and the
+    signal_snapshots 401s. The service key bypasses RLS; it never reaches the
+    browser, and all per-user scoping is enforced in app code via the verified
+    session id. Falls back to the anon key if no service key is configured.
+
+    Memoized so db ops don't spin up a client per call (a big latency win); a
+    long-lived client is safe — httpx re-establishes connections per request.
+    """
     global _SB_CLIENT
     if _SB_CLIENT is not None:
         return _SB_CLIENT
     try:
         from supabase import create_client
         url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL", "")
-        key = st.secrets.get("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_ANON_KEY", "")
+
+        def _first(*names):
+            for n in names:
+                v = st.secrets.get(n) or os.getenv(n, "")
+                if v:
+                    return n, v
+            return None, ""
+
+        # Privileged server-side key (bypasses RLS). New Supabase keys look like
+        # sb_secret_…; legacy service_role keys are JWTs (eyJ…).
+        _svc_name, _svc = _first("SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY",
+                                 "SUPABASE_SECRET_KEY")
+        # RLS-governed key. New keys look like sb_publishable_…; legacy anon is a JWT.
+        _anon_name, _anon = _first("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY")
+
+        src_name, key = (_svc_name, _svc) if _svc else (_anon_name, _anon)
+
+        def _kind(k):
+            if k.startswith("sb_secret_"):      return "secret/privileged"
+            if k.startswith("sb_publishable_"): return "publishable/RLS-governed"
+            if k.startswith("eyJ"):             return "legacy-JWT"
+            return "unknown-format"
+
+        # Surface exactly what the client is authenticating with — type + var name,
+        # never the key value. A publishable/anon key here means RLS will silently
+        # block writes (plan upgrades, prefs, signal_snapshots) — the claim loop.
+        if not key:
+            log.warning("Supabase: no API key found in secrets/env.")
+        elif _kind(key) in ("publishable/RLS-governed",) or (not _svc):
+            log.warning("Supabase client using %s key (var: %s) — RLS will block "
+                        "writes. Set a Secret key (sb_secret_…) as SUPABASE_SERVICE_KEY.",
+                        _kind(key), src_name)
+        else:
+            log.info("Supabase client using %s key (var: %s).", _kind(key), src_name)
+
         if url and key and url.startswith("https://") and "supabase" in url:
             _SB_CLIENT = create_client(url, key)
             return _SB_CLIENT
@@ -520,10 +566,23 @@ def update_preferences(user_id: str, prefs: dict) -> bool:
     sb = get_supabase()
     if sb:
         try:
-            sb.table("users").update(prefs).eq("id", user_id).execute()
+            resp = sb.table("users").update(prefs).eq("id", user_id).execute()
+            # A successful UPDATE returns the affected rows in .data. If RLS on the
+            # users table blocks the anon-key write (or the row is missing), Supabase
+            # returns 0 rows with a 200 OK — no exception — so the old code returned
+            # True for a write that never landed. That's what made plan upgrades
+            # appear to succeed in-session but revert on the next reload (the founding
+            # claim loop). Treat 0 rows as a real failure and log it.
+            if not getattr(resp, "data", None):
+                log.warning(
+                    "update_preferences wrote 0 rows for user %s (keys=%s) — "
+                    "likely RLS blocking the anon-key UPDATE on users, or missing row",
+                    user_id, list(prefs))
+                return False
             _rc_clear(f"user:{user_id}")   # next read in this run re-fetches fresh
             return True
-        except Exception:
+        except Exception as e:
+            log.warning("update_preferences DB error for user %s: %s", user_id, e)
             return False
     u = _demo_find_user(user_id)
     if u:
