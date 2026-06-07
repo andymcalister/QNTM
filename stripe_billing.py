@@ -191,8 +191,11 @@ def poll_subscription_status(subscription_id: str) -> dict:
             "trial_end": _g(sub, "trial_end"),
         }
     except Exception as e:
+        _gone = (getattr(e, "code", "") == "resource_missing"
+                 or "resource_missing" in str(e)
+                 or "No such subscription" in str(e))
         log.error(f"poll_subscription_status failed: {e}")
-        return {"ok": False}
+        return {"ok": False, "gone": _gone}
 
 
 def status_grants_access(status: str) -> bool:
