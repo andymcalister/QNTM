@@ -1470,11 +1470,24 @@ def _cached_full_scan():
     return copy.deepcopy(_run_full_scan_cached())
 
 
+DELISTED = set()  # intentionally empty: yfinance's "possibly delisted" is a
+# generic/rate-limit error, NOT proof a ticker is dead (CTRA, SEE, MAXN are all
+# live, held names). Excluding real tickers would corrupt the model-portfolio
+# track record. The retry-storm slowness is handled by resilient pricing, not by
+# dropping symbols.
+
+def _strip_delisted(tks):
+    """Dedupe/clean a ticker list before a yfinance pull. With DELISTED empty
+    this only removes blanks/dupes — it never excludes a real holding."""
+    return sorted({t for t in (tks or []) if t and t not in DELISTED})
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_live_prices(tickers: tuple):
     """Process-level cache of the top-tickers intraday price pull so it isn't
     re-fetched from yfinance on every navigation."""
     out = {}
+    tickers = tuple(_strip_delisted(tickers))
     if not tickers:
         return out
     try:
@@ -2582,7 +2595,7 @@ def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
             today_str = _dt.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
         except Exception:
             today_str = _dt.now().strftime("%Y-%m-%d")
-        hist = yf.download(list(set(tickers)), period="5d", auto_adjust=True,
+        hist = yf.download(_strip_delisted(tickers), period="5d", auto_adjust=True,
                            progress=False, threads=True)
         if hist.empty:
             cache[key] = out
@@ -2967,21 +2980,6 @@ def _cta_gold(label: str, href: str, full_width: bool = True) -> str:
         f'letter-spacing:.06em;text-transform:uppercase;color:#0a0b14;text-decoration:none;'
         f'box-sizing:border-box;margin-top:4px;">{label}</a>'
     )
-
-
-def _upgrade_href(feature: str, return_nav: str) -> str:
-    """Build an upgrade-page URL that carries the session creds. Internal nav is a
-    full page reload; without uid/plan the reload lands logged-out, so the
-    upgrade_page handler (gated on logged_in) silently no-ops and the user drops
-    back to the screener instead of opening the upgrade page."""
-    from urllib.parse import quote_plus
-    _u = (st.session_state.user or {}).get("id", "")
-    _p = (st.session_state.user or {}).get("plan", "free")
-    _q = (f"?upgrade_page=1&feature={quote_plus(feature)}"
-          f"&return_nav={return_nav}&plan={_p}&ck=1&_n={return_nav}")
-    if _u:
-        _q += f"&uid={_u}"
-    return _q
 
 
 def _cta_ghost(label: str, href: str, full_width: bool = True) -> str:
@@ -5611,7 +5609,7 @@ def page_screener():
             if st.session_state.get("logged_in"):
                 st.markdown(_cta_gold(f"Unlock Full Universe — {_total_filtered - FREE_LIMIT} more stocks", _upgrade_url("Full Universe", "screener")), unsafe_allow_html=True)
             else:
-                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", _upgrade_href("Full Universe Access","screener")), unsafe_allow_html=True)
+                st.markdown(_cta_gold(f"Upgrade to Pro — see all {_total_filtered} stocks", _upgrade_url("Full Universe Access","screener")), unsafe_allow_html=True)
 
     # ── TAB 3: SECTOR BREAKDOWN ────────────────────────────────────────────────
     with scr_tab3:
@@ -5973,7 +5971,7 @@ def page_watchlist():
                     _today_str = _dt_dc.now(_ZI("America/New_York")).strftime("%Y-%m-%d")
                 except Exception:
                     _today_str = _dt_dc.now().strftime("%Y-%m-%d")
-                hist = yf.download(wl_tickers, period="5d", auto_adjust=True,
+                hist = yf.download(_strip_delisted(wl_tickers), period="5d", auto_adjust=True,
                                    progress=False, threads=True)
                 if not hist.empty:
                     # Latest session is "live" only when it's today; otherwise
@@ -6273,7 +6271,7 @@ def page_gems():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Join Founding Members — Unlock Now", _upgrade_url("Hidden Gems", "gems")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Join Free — First 50 Spots", _upgrade_href("Hidden Gems","screener")), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Join Free — First 50 Spots", _upgrade_url("Hidden Gems","screener")), unsafe_allow_html=True)
         return
 
     # Use exactly same data pipeline as screener — guarantees matching gem count
@@ -6439,7 +6437,7 @@ def _track_record_data(sb):
         # reconcile (signal_log can lag a session behind when the batch gate is
         # holding). Forward-filled across any gaps; SPY index is the date axis.
         tickers = sorted({p["ticker"] for p in positions})
-        dl = yf.download(tickers + ["SPY"], start=inception,
+        dl = yf.download(_strip_delisted(tickers) + ["SPY"], start=inception,
                          progress=False, auto_adjust=True)
         if dl.empty:
             return None
@@ -6601,7 +6599,7 @@ def _mini_price_data(tickers_tuple: tuple, start: str):
     try:
         import yfinance as yf
         import pandas as pd
-        syms = sorted({t for t in tickers_tuple if t} | {"SPY"})
+        syms = sorted({t for t in tickers_tuple if t and t not in DELISTED} | {"SPY"})
         if len(syms) < 2 or not start:
             return {}, {}
         raw = yf.download(syms, start=start, auto_adjust=True, progress=False)
@@ -7193,7 +7191,7 @@ def page_portfolio():
             import yfinance as yf
             from datetime import date as _date, timedelta as _td
             fetch_days = (pdays or 0) + 5  # extra buffer for weekends/holidays
-            hist = yf.download(tickers, period=f"{max(fetch_days, 10)}d",
+            hist = yf.download(_strip_delisted(tickers), period=f"{max(fetch_days, 10)}d",
                                auto_adjust=True, progress=False, threads=True)
             if not hist.empty:
                 close = hist["Close"] if hasattr(hist["Close"], "columns") else hist[["Close"]]
@@ -7451,7 +7449,7 @@ def page_simulator():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Simulator — Upgrade to Pro", _upgrade_url("Portfolio Simulator", "simulator")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", _upgrade_href("Unlimited Holdings","portfolio")), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — $29/mo →", _upgrade_url("Unlimited Holdings","portfolio")), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -7942,7 +7940,7 @@ def page_alerts():
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Alerts — Upgrade to Pro", _upgrade_url("Signal Alerts", "alerts")), unsafe_allow_html=True)
         else:
-            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", _upgrade_href("Signal Alerts","alerts")), unsafe_allow_html=True)
+            st.markdown(_cta_gold("Upgrade to Pro — Unlock Alerts", _upgrade_url("Signal Alerts","alerts")), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
@@ -8729,7 +8727,7 @@ def _intraday_prices(tickers_tuple):
             _et = ZoneInfo("America/New_York")
         except Exception:
             _et = None
-        syms = sorted({t for t in tickers_tuple if t} | {"SPY"})
+        syms = sorted({t for t in tickers_tuple if t and t not in DELISTED} | {"SPY"})
         dl = yf.download(syms, period="1d", interval="15m",
                          progress=False, auto_adjust=True)
         if dl is None or dl.empty:
@@ -9007,7 +9005,7 @@ def page_model_portfolio():
         # Then fetch live prices from yfinance to get current market prices
         try:
             import yfinance as yf
-            _px_data = yf.download(tickers_to_fetch, period="1d", interval="1d",
+            _px_data = yf.download(_strip_delisted(tickers_to_fetch), period="1d", interval="1d",
                                    auto_adjust=True, progress=False, threads=True)
             if not _px_data.empty:
                 _cls = _px_data["Close"]
@@ -9797,7 +9795,11 @@ def page_platform():
 # ══════════════════════════════════════════════════════════════════════════════
 def page_upgrade():
     """Upgrade to Pro page — handles upgrade flow, Stripe when ready."""
-    _pin_nav("upgrade")
+    # Keep this as a top-level page (route == "upgrade") across reruns. Do NOT use
+    # _pin_nav here: that sets page="platform" + nav="upgrade", but "upgrade" isn't
+    # a platform sub-page, so the next rerun (e.g. checking the consent box) would
+    # dispatch to page_platform and fall through to the screener.
+    st.session_state.page = "upgrade"
     # Clear any stale checkout URL/error from a previous visit, once per page entry
     # (guarded so we don't wipe a URL created during this visit's reruns).
     if st.session_state.get("_checkout_page") != "upgrade":
