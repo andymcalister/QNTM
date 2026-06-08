@@ -6724,17 +6724,35 @@ def _tr_line_chart_svg(model_series, spy_series, intraday=False):
             p.append(f'<circle cx="{X(i):.1f}" cy="{Y(v):.1f}" r="2" fill="#7c8aa0" opacity="0.7"><title>{d} · {fmtk(v)} · SPY</title></circle>')
         for i, (d, v) in enumerate(model_series):
             p.append(f'<circle cx="{X(i):.1f}" cy="{Y(v):.1f}" r="2.4" fill="#d4a843"><title>{d} · {fmtk(v)} · Model</title></circle>')
-    # end-points + labels (nudge apart if colliding)
+    # period % change over the visible window (end vs start) — shown at each endpoint
+    def _pct(v): return (v[-1] / v[0] - 1) * 100 if v and v[0] else 0.0
+    def _pcol(x): return "#34d399" if x >= 0 else "#f87171"
+    m_pct, s_pct = _pct(m_vals), _pct(s_vals)
+    # start-point dots + value labels (left)
+    sx = X(0)
+    smy, ssy = Y(m_vals[0]), Y(s_vals[0])
+    bm, bs = smy, ssy
+    if abs(bm - bs) < 13:
+        if bm <= bs: bm -= 7; bs += 7
+        else:        bm += 7; bs -= 7
+    p.append(f'<circle cx="{sx:.1f}" cy="{ssy:.1f}" r="3" fill="#7c8aa0"/>')
+    p.append(f'<circle cx="{sx:.1f}" cy="{smy:.1f}" r="3.5" fill="#d4a843"/>')
+    p.append(f'<text x="{sx+8:.1f}" y="{bs+3:.1f}" font-family="DM Mono,monospace" font-size="10" fill="#8896ac">{fmtk(s_vals[0])}</text>')
+    p.append(f'<text x="{sx+8:.1f}" y="{bm+3.5:.1f}" font-family="DM Mono,monospace" font-size="10" font-weight="700" fill="#caa23f">{fmtk(m_vals[0])}</text>')
+    # end-points: dots + value labels + period % (nudge apart if colliding)
     my, sy = Y(m_vals[-1]), Y(s_vals[-1])
     lm, ls = my, sy
-    if abs(lm - ls) < 13:
-        if lm <= ls: lm -= 7; ls += 7
-        else:        lm += 7; ls -= 7
+    if abs(lm - ls) < 26:
+        _mid = (lm + ls) / 2.0
+        if lm <= ls: lm, ls = _mid - 13, _mid + 13
+        else:        lm, ls = _mid + 13, _mid - 13
     ex = X(n - 1)
     p.append(f'<circle cx="{ex:.1f}" cy="{sy:.1f}" r="3" fill="#7c8aa0"/>')
     p.append(f'<circle cx="{ex:.1f}" cy="{my:.1f}" r="3.5" fill="#d4a843"/>')
     p.append(f'<text x="{ex+8:.1f}" y="{ls+3:.1f}" font-family="DM Mono,monospace" font-size="10" fill="#b3bed0">{fmtk(s_vals[-1])}</text>')
+    p.append(f'<text x="{ex+8:.1f}" y="{ls+15:.1f}" font-family="DM Mono,monospace" font-size="9" fill="{_pcol(s_pct)}">{s_pct:+.1f}%</text>')
     p.append(f'<text x="{ex+8:.1f}" y="{lm+3.5:.1f}" font-family="DM Mono,monospace" font-size="11" font-weight="700" fill="#d4a843">{fmtk(m_vals[-1])}</text>')
+    p.append(f'<text x="{ex+8:.1f}" y="{lm+15.5:.1f}" font-family="DM Mono,monospace" font-size="9" fill="{_pcol(m_pct)}">{m_pct:+.1f}%</text>')
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">' + "".join(p) + '</svg>'
 
 
