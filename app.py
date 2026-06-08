@@ -8860,6 +8860,26 @@ def _render_track_equity(_pt, positions):
                     index=5, horizontal=True, key="tr_window",
                     label_visibility="collapsed")
     _wk = "ALL" if _win == "All" else _win
+    # Anchor both daily curves to the live marks (model_value / spy_ret) so the
+    # chart agrees with the headline cards. Without this the series ends at the
+    # last daily close and lags the cards by today's intraday move.
+    from datetime import date as _date_anchor
+    _today_iso = _date_anchor.today().isoformat()
+    _mseries = list(_pt.get("model_series") or [])
+    _sseries = list(_pt.get("spy_series") or [])
+    _mv_live = _pt.get("model_value")
+    _sret_live = _pt.get("spy_ret")
+    if _mseries and _mv_live:
+        if _mseries[-1][0] == _today_iso:
+            _mseries[-1] = (_today_iso, _mv_live)
+        else:
+            _mseries.append((_today_iso, _mv_live))
+    if _sseries and _sret_live is not None:
+        _s_live = _sseries[0][1] * (1 + _sret_live / 100.0)
+        if _sseries[-1][0] == _today_iso:
+            _sseries[-1] = (_today_iso, _s_live)
+        else:
+            _sseries.append((_today_iso, _s_live))
     _intraday = False
     if _wk == "1D":
         _intra = _intraday_track_series(_pt, positions)
@@ -8868,10 +8888,10 @@ def _render_track_equity(_pt, positions):
             _intraday = True
         else:
             _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-                _pt["model_series"], _pt["spy_series"], "1D")
+                _mseries, _sseries, "1D")
     else:
         _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-            _pt["model_series"], _pt["spy_series"], _wk)
+            _mseries, _sseries, _wk)
     _eqchart = _tr_line_chart_svg(_ms, _ss, intraday=_intraday)
     if _eqchart:
         _vs = _mret - _sret
