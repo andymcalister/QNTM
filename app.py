@@ -8868,6 +8868,17 @@ def _render_track_equity(_pt, positions):
     _today_iso = _date_anchor.today().isoformat()
     _mseries = list(_pt.get("model_series") or [])
     _sseries = list(_pt.get("spy_series") or [])
+    # Anchor BOTH curves at exactly $100K at inception so the chart's
+    # since-inception return matches the headline cards (which measure from the
+    # $100K starting capital). The model curve's first daily point is the day-1
+    # close mark, already carrying day-1 P&L, so without this the chart measures
+    # from ~$100.2K and the ALL % drifts ~0.2pt off the cards. (SPY already starts
+    # at $100K; we prepend to both to keep the two series index-aligned.)
+    _base0 = 100000.0
+    if _mseries and _sseries and _mseries[0][1] != _base0:
+        _inc0 = _pt.get("inception") or _mseries[0][0]
+        _mseries.insert(0, (_inc0, _base0))
+        _sseries.insert(0, (_inc0, _base0))
     _mv_live = _pt.get("model_value")
     _sret_live = _pt.get("spy_ret")
     if _mseries and _mv_live:
