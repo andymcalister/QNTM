@@ -8893,26 +8893,19 @@ def _render_track_equity(_pt, positions):
         else:
             _sseries.append((_today_iso, _s_live))
     _intraday = False
-    if _wk == "1D":
-        _intra = _intraday_track_series(_pt, positions)
-        if _intra:
-            _ms, _ss, _mret, _sret, _wlabel = _intra
-            _intraday = True
-        elif len(_mseries) >= 2 and len(_sseries) >= 2:
-            # 15-min bars unavailable — show last close -> live mark as an honest
-            # one-day line (rebased to $100K at last close, like the intraday
-            # view) instead of collapsing to the full since-inception chart.
-            _b = 100000.0
-            _m0 = _mseries[-2][1] or _b
-            _s0 = _sseries[-2][1] or _b
-            _ms = [(_mseries[-2][0], _b), (_mseries[-1][0], _mseries[-1][1] / _m0 * _b)]
-            _ss = [(_sseries[-2][0], _b), (_sseries[-1][0], _sseries[-1][1] / _s0 * _b)]
-            _mret = (_ms[-1][1] / _b - 1) * 100
-            _sret = (_ss[-1][1] / _b - 1) * 100
-            _wlabel = "since last close"
-        else:
-            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-                _mseries, _sseries, "1D")
+    if _wk == "1D" and len(_mseries) >= 2 and len(_sseries) >= 2:
+        # 1D in REAL dollars: each line starts at its OWN prior-session close (not
+        # $100K) and runs to the live mark, so it shows today's move from
+        # yesterday's finish for both QNTM and SPY — consistent with the other
+        # windows, which also show real values rather than a rebased baseline.
+        _ms = _mseries[-2:]
+        _ss = _sseries[-2:]
+        _mret = (_ms[-1][1] / _ms[0][1] - 1) * 100 if _ms[0][1] else 0.0
+        _sret = (_ss[-1][1] / _ss[0][1] - 1) * 100 if _ss[0][1] else 0.0
+        _wlabel = "since last close"
+    elif _wk == "1D":
+        _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+            _mseries, _sseries, "1D")
     else:
         _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
             _mseries, _sseries, _wk)
