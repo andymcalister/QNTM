@@ -8708,10 +8708,11 @@ def page_account():
 # PLATFORM SHELL
 # ══════════════════════════════════════════════════════════════════════════════
 def _window_track_series(model_series, spy_series, window_key):
-    """Slice the model + SPY equity series to a trailing window and rebase BOTH
-    to $100K at the window's first point, so the chart shows performance *over
-    that window* on a fair shared baseline. Returns
-    (model_win, spy_win, model_ret_pct, spy_ret_pct, label).
+    """Zoom the inception-anchored equity series to a trailing window WITHOUT
+    rebasing — both lines keep their real cumulative $ values so the chart shows
+    the true divergence. Returns (model_win, spy_win, model_ret_pct, spy_ret_pct,
+    label) where the %s are the change over the visible window (= since-inception
+    for ALL, matching the headline cards).
     window_key in {'1D','1W','1M','6M','1Y','ALL'}. Any window that predates
     inception (or leaves <2 points) gracefully falls back to all-since-inception."""
     from datetime import date, timedelta
@@ -8737,13 +8738,13 @@ def _window_track_series(model_series, spy_series, window_key):
             label = {"1D": "past day", "1W": "past week", "1M": "past month",
                      "6M": "past 6 months", "1Y": "past year"}.get(window_key, "window")
     try:
-        m0 = m[0][1] or BASE
-        s0 = s[0][1] or BASE
-        m_re = [(d, v / m0 * BASE) for d, v in m]
-        s_re = [(d, v / s0 * BASE) for d, v in s]
-        m_ret = (m_re[-1][1] / BASE - 1) * 100
-        s_ret = (s_re[-1][1] / BASE - 1) * 100
-        return m_re, s_re, m_ret, s_ret, label
+        # No rebasing — keep the real cumulative dollar values so the chart shows
+        # the true divergence (both lines stay anchored to $100K at inception).
+        # The reported % is the change over the visible window (start -> now); for
+        # ALL this equals the since-inception number on the headline cards.
+        m_ret = (m[-1][1] / (m[0][1] or BASE) - 1) * 100
+        s_ret = (s[-1][1] / (s[0][1] or BASE) - 1) * 100
+        return m, s, m_ret, s_ret, label
     except Exception:
         return m, s, 0.0, 0.0, label
 
@@ -8867,6 +8868,17 @@ def _render_track_equity(_pt, positions):
     _today_iso = _date_anchor.today().isoformat()
     _mseries = list(_pt.get("model_series") or [])
     _sseries = list(_pt.get("spy_series") or [])
+    # Anchor BOTH curves at exactly $100K at inception so the chart's
+    # since-inception return matches the headline cards (which measure from the
+    # $100K starting capital). The model curve's first daily point is the day-1
+    # close mark, already carrying day-1 P&L, so without this the chart measures
+    # from ~$100.2K and the ALL % drifts ~0.2pt off the cards. (SPY already starts
+    # at $100K; we prepend to both to keep the two series index-aligned.)
+    _base0 = 100000.0
+    if _mseries and _sseries and _mseries[0][1] != _base0:
+        _inc0 = _pt.get("inception") or _mseries[0][0]
+        _mseries.insert(0, (_inc0, _base0))
+        _sseries.insert(0, (_inc0, _base0))
     _mv_live = _pt.get("model_value")
     _sret_live = _pt.get("spy_ret")
     if _mseries and _mv_live:
@@ -8881,14 +8893,19 @@ def _render_track_equity(_pt, positions):
         else:
             _sseries.append((_today_iso, _s_live))
     _intraday = False
-    if _wk == "1D":
-        _intra = _intraday_track_series(_pt, positions)
-        if _intra:
-            _ms, _ss, _mret, _sret, _wlabel = _intra
-            _intraday = True
-        else:
-            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-                _mseries, _sseries, "1D")
+    if _wk == "1D" and len(_mseries) >= 2 and len(_sseries) >= 2:
+        # 1D in REAL dollars: each line starts at its OWN prior-session close (not
+        # $100K) and runs to the live mark, so it shows today's move from
+        # yesterday's finish for both QNTM and SPY — consistent with the other
+        # windows, which also show real values rather than a rebased baseline.
+        _ms = _mseries[-2:]
+        _ss = _sseries[-2:]
+        _mret = (_ms[-1][1] / _ms[0][1] - 1) * 100 if _ms[0][1] else 0.0
+        _sret = (_ss[-1][1] / _ss[0][1] - 1) * 100 if _ss[0][1] else 0.0
+        _wlabel = "since last close"
+    elif _wk == "1D":
+        _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+            _mseries, _sseries, "1D")
     else:
         _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
             _mseries, _sseries, _wk)
