@@ -2570,6 +2570,101 @@ def is_valid_universe_ticker(tk) -> bool:
         return False
 
 
+def _market_phase():
+    """Current US-market phase by the ET clock: 'pre' (04:00-09:30),
+    'regular' (09:30-16:00), 'post' (16:00-20:00), or 'closed' (overnight /
+    weekend). Used to decide which extended-hours figure (if any) to surface."""
+    try:
+        from datetime import datetime as _dt, time as _t
+        from zoneinfo import ZoneInfo
+        now = _dt.now(ZoneInfo("America/New_York"))
+        if now.weekday() >= 5:
+            return "closed"
+        tm = now.time()
+        if tm < _t(4, 0):   return "closed"
+        if tm < _t(9, 30):  return "pre"
+        if tm < _t(16, 0):  return "regular"
+        if tm < _t(20, 0):  return "post"
+        return "closed"
+    except Exception:
+        return "regular"
+
+
+def _fetch_extended_hours_map(tickers: list, cache_key: str = "_xh_cache") -> dict:
+    """Return {ticker: {pre_pct, pre_chg, post_pct, post_chg}} for the current
+    pre-market / after-hours session, vs the relevant regular-session close:
+      pre_*  = last pre-market print (04:00-09:30 ET) vs the PRIOR regular close
+      post_* = last after-hours print (16:00-20:00 ET) vs TODAY's regular close
+    A session's keys are present only when it has prints. Pulls one prepost
+    1-min download (yfinance's extended-hours feed is flaky, so this degrades to
+    {} on any failure) and caches by ticker set."""
+    if not tickers:
+        return {}
+    cache = st.session_state.setdefault(cache_key, {})
+    key = ",".join(sorted(set(tickers)))
+    if key in cache:
+        return cache[key]
+    out = {}
+    try:
+        import yfinance as yf
+        import pandas as pd
+        import datetime as _d
+        from zoneinfo import ZoneInfo
+        ET = ZoneInfo("America/New_York")
+        df = yf.download(_strip_delisted(tickers), period="2d", interval="1m",
+                         prepost=True, progress=False, threads=True)
+        if df is None or df.empty or "Close" not in df:
+            cache[key] = out
+            return out
+        close = df["Close"]
+        idx = close.index
+        try:
+            idx = idx.tz_localize("UTC").tz_convert(ET) if idx.tz is None else idx.tz_convert(ET)
+        except Exception:
+            pass
+
+        def _sess(ts):
+            t = ts.time()
+            if t < _d.time(9, 30): return "pre"
+            if t < _d.time(16, 0): return "reg"
+            return "post"
+        meta = [(ts.date(), _sess(ts)) for ts in idx]
+        day_list = sorted({d for d, _ in meta})
+        if not day_list:
+            cache[key] = out
+            return out
+        today = day_list[-1]
+        prev  = day_list[-2] if len(day_list) >= 2 else None
+        multi = hasattr(close, "columns")
+        for tk in set(tickers):
+            col = close[tk] if (multi and tk in getattr(close, "columns", [])) else (None if multi else close)
+            if col is None:
+                continue
+            prior_close = today_close = pre_last = post_last = None
+            for i in range(len(col)):
+                v = col.iloc[i]
+                if pd.isna(v):
+                    continue
+                v = float(v); d, ss = meta[i]
+                if   d == today and ss == "reg":  today_close = v
+                elif d == today and ss == "pre":  pre_last = v
+                elif d == today and ss == "post": post_last = v
+                elif prev and d == prev and ss == "reg": prior_close = v
+            e = {}
+            if pre_last is not None and prior_close:
+                e["pre_chg"] = pre_last - prior_close
+                e["pre_pct"] = (pre_last / prior_close - 1) * 100
+            if post_last is not None and today_close:
+                e["post_chg"] = post_last - today_close
+                e["post_pct"] = (post_last / today_close - 1) * 100
+            if e:
+                out[tk] = e
+    except Exception:
+        pass
+    cache[key] = out
+    return out
+
+
 def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
     """Return {ticker: {chg_pct, chg_dollar, price, prev_close, settled, last_bar_date}}
     for `tickers`. Cached in st.session_state[cache_key] by sorted ticker set so
@@ -2632,6 +2727,16 @@ def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
                 out[tk] = _entry(float(vals.iloc[-1]), float(vals.iloc[-2]))
     except Exception:
         pass
+    # Extended-hours overlay — only outside regular trading, since during the
+    # session the move is already reflected in chg_pct. Merged onto existing
+    # entries so callers can read pre_pct/pre_chg/post_pct/post_chg.
+    if _market_phase() in ("pre", "post", "closed"):
+        try:
+            for _tk, _e in _fetch_extended_hours_map(tickers).items():
+                if _tk in out:
+                    out[_tk].update(_e)
+        except Exception:
+            pass
     cache[key] = out
     return out
 
@@ -2661,6 +2766,22 @@ def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> 
         sign = "+" if pct >= 0 else ""
         lbl = "at&nbsp;close" if dc.get("settled") else "today"
         bits.append(f'<span style="color:{col};">{sign}{pct:.2f}%&nbsp;{lbl}</span>')
+    # Extended-hours figure — live session only: pre-market before the open,
+    # after-hours after the close (nothing extra during regular trading).
+    _phase = _market_phase()
+    _xk = "pre" if _phase == "pre" else ("post" if _phase in ("post", "closed") else None)
+    if _xk and dc.get(f"{_xk}_pct") is not None:
+        _xp = float(dc[f"{_xk}_pct"]); _xd = dc.get(f"{_xk}_chg")
+        _xc = "#34d399" if _xp > 0 else ("#f87171" if _xp < 0 else "#b3bed0")
+        _xlbl = "pre" if _xk == "pre" else "AH"
+        _xdollar = (
+            f"&nbsp;({'+' if _xd >= 0 else '-'}${abs(_xd):,.2f})"
+            if _xd is not None else ""
+        )
+        bits.append(
+            f'<span style="color:{_xc};">{"+" if _xp >= 0 else ""}{_xp:.2f}%'
+            f'&nbsp;{_xlbl}{_xdollar}</span>'
+        )
     if not bits:
         return ""
     sep = '<span style="color:#1e293b;">·</span>'
@@ -6186,7 +6307,25 @@ def page_watchlist():
             f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;letter-spacing:.08em;margin-bottom:2px;">TODAY</div>'
             f'{_today_inner}</div>'
         )
-        _segments = [_seg_since, _seg_today]
+        # Extended-hours segment — live session only (pre before open, AH after
+        # close). Same merged source as the per-stock line; its own column.
+        _seg_xh = ""
+        _xphase = _market_phase()
+        _xkk = "pre" if _xphase == "pre" else ("post" if _xphase in ("post", "closed") else None)
+        if _xkk and _dc.get(f"{_xkk}_pct") is not None:
+            _xhp = float(_dc[f"{_xkk}_pct"]); _xhd = _dc.get(f"{_xkk}_chg")
+            _xhc = "#34d399" if _xhp > 0 else ("#f87171" if _xhp < 0 else "#b3bed0")
+            _xhlbl = "PRE&nbsp;MKT" if _xkk == "pre" else "AFTER&nbsp;HRS"
+            _xhsign = "+" if _xhp >= 0 else ""
+            _xhsub = (f'{"+" if (_xhd or 0) >= 0 else "-"}${abs(_xhd):,.2f}'
+                      if _xhd is not None else '')
+            _seg_xh = (
+                f'<div style="flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.05);">'
+                f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;letter-spacing:.08em;margin-bottom:2px;">{_xhlbl}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_xhc};">{_xhsign}{_xhp:.2f}%</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;">{_xhsub}</div></div>'
+            )
+        _segments = [_seg_since, _seg_today] + ([_seg_xh] if _seg_xh else [])
         _since_html = ""
         if _segments:
             _since_html = (
@@ -9312,6 +9451,47 @@ def page_model_portfolio():
     else:
         _day_color, _day_val, _day_sub = "#9fabc0", "—", "no data"
 
+    # Portfolio extended-hours move — value-weighted $ summed across holdings,
+    # shown as its own summary card in the live session only (pre before open,
+    # after-hours after close; nothing extra during regular trading).
+    _mp_phase = _market_phase()
+    _mp_xk = "pre" if _mp_phase == "pre" else ("post" if _mp_phase in ("post", "closed") else None)
+    _xh_card = ""
+    if _mp_xk:
+        _xh_dollar = 0.0; _xh_have = False
+        for _xh_h in holdings:
+            _xh_dc = _mp_day_change.get(_xh_h["ticker"]) or {}
+            _xh_ep = _xh_h.get("entry_price")
+            if not _xh_ep or _xh_ep <= 0:
+                continue
+            _xh_c = _xh_dc.get(f"{_mp_xk}_chg")
+            if _xh_c is not None:
+                _xh_dollar += (_xh_h.get("pos_size", 2000) / _xh_ep) * float(_xh_c)
+                _xh_have = True
+        if _xh_have and portfolio_value:
+            _xh_pct = _xh_dollar / portfolio_value * 100
+            _xh_col = "#34d399" if _xh_pct > 0 else ("#f87171" if _xh_pct < 0 else "#b3bed0")
+            _xh_s   = "+" if _xh_pct >= 0 else ""
+            _xh_lbl = "PRE MKT" if _mp_xk == "pre" else "AFTER HRS"
+            # SPY's extended-hours move for a side-by-side compare in the same box
+            _spy_xh  = _fetch_extended_hours_map(["SPY"]).get("SPY", {})
+            _spy_pct = _spy_xh.get(f"{_mp_xk}_pct")
+            _spy_line = ""
+            if _spy_pct is not None:
+                _spy_pct = float(_spy_pct)
+                _spy_col = "#34d399" if _spy_pct > 0 else ("#f87171" if _spy_pct < 0 else "#8896ac")
+                _spy_s   = "+" if _spy_pct >= 0 else ""
+                _spy_line = (
+                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;margin-top:3px;">'
+                    f'SPY&nbsp;<span style="color:{_spy_col};">{_spy_s}{_spy_pct:.2f}%</span></div>'
+                )
+            _xh_card = (
+                f'<div style="{ss}"><div style="{ls}">{_xh_lbl}</div>'
+                f'<div style="font-size:18px;font-weight:700;color:{_xh_col};">{_xh_s}{_xh_pct:.2f}%</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;margin-top:2px;">{_xh_s}${_xh_dollar:,.0f}</div>'
+                f'{_spy_line}</div>'
+            )
+
     st.markdown(f"""
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:20px;">
       <div style="{ss}"><div style="{ls}">PORTFOLIO VALUE</div>
@@ -9319,6 +9499,7 @@ def page_model_portfolio():
       <div style="{ss}"><div style="{ls}">TODAY</div>
         <div style="font-size:18px;font-weight:700;color:{_day_color};">{_day_val}</div>
         <div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;margin-top:2px;">{_day_sub}</div></div>
+      {_xh_card}
       <div style="{ss}"><div style="{ls}">$ CHANGE</div>
         <div style="font-size:18px;font-weight:700;color:{ret_color};">{pnl_sign}${port_pnl:,.0f}</div></div>
       <div style="{ss}"><div style="{ls}">% RETURN</div>
