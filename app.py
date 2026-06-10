@@ -9473,10 +9473,23 @@ def page_model_portfolio():
             _xh_col = "#34d399" if _xh_pct > 0 else ("#f87171" if _xh_pct < 0 else "#b3bed0")
             _xh_s   = "+" if _xh_pct >= 0 else ""
             _xh_lbl = "PRE MKT" if _mp_xk == "pre" else "AFTER HRS"
+            # SPY's extended-hours move for a side-by-side compare in the same box
+            _spy_xh  = _fetch_extended_hours_map(["SPY"]).get("SPY", {})
+            _spy_pct = _spy_xh.get(f"{_mp_xk}_pct")
+            _spy_line = ""
+            if _spy_pct is not None:
+                _spy_pct = float(_spy_pct)
+                _spy_col = "#34d399" if _spy_pct > 0 else ("#f87171" if _spy_pct < 0 else "#8896ac")
+                _spy_s   = "+" if _spy_pct >= 0 else ""
+                _spy_line = (
+                    f'<div style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;margin-top:3px;">'
+                    f'SPY&nbsp;<span style="color:{_spy_col};">{_spy_s}{_spy_pct:.2f}%</span></div>'
+                )
             _xh_card = (
                 f'<div style="{ss}"><div style="{ls}">{_xh_lbl}</div>'
                 f'<div style="font-size:18px;font-weight:700;color:{_xh_col};">{_xh_s}{_xh_pct:.2f}%</div>'
-                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;margin-top:2px;">{_xh_s}${_xh_dollar:,.0f}</div></div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;margin-top:2px;">{_xh_s}${_xh_dollar:,.0f}</div>'
+                f'{_spy_line}</div>'
             )
 
     st.markdown(f"""
