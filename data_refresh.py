@@ -859,6 +859,41 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
 
         scores.sort(key=lambda x: x["composite"], reverse=True)
 
+        # ── Publish-health gate (pre-overlay, pre-write) ──────────────────
+        # When the price-history (or fundamentals) fetch fails, score_stock
+        # returns NEUTRAL 50 pillars even though the static composite survives.
+        # Publishing that resets the entire screener to 50s and zeroes the macro
+        # column (the 2026-06 reset). The older gate in update_model_portfolio
+        # misses this because it also requires composite==50, which a static
+        # composite is not — so detect the neutral-PILLAR signature directly
+        # here and refuse to overwrite the last good batch.
+        def _neutral_pillars(r):
+            try:
+                return all(
+                    abs(float(r.get(k, 50) or 50) - 50.0) < 0.01
+                    for k in ("momentum", "quality", "volume", "value", "sentiment")
+                )
+            except Exception:
+                return False
+        _n_sc  = len(scores)
+        _n_neu = sum(1 for r in scores if _neutral_pillars(r))
+        if _n_sc < 100 or (_n_sc and _n_neu / _n_sc > 0.40):
+            log.error(
+                f"ABORT publish — degraded scoring run: {_n_neu}/{_n_sc} rows "
+                f"have an all-neutral (50) pillar set (price histories fetched "
+                f"for {len(price_histories)}/{len(tickers)}). signal_log, "
+                f"macro_state and the model portfolio are left untouched; the "
+                f"last good batch stays live."
+            )
+            return {
+                "success": False, "degraded": True,
+                "neutral_pillars": _n_neu, "scored": _n_sc,
+                "history_coverage": len(price_histories), "total": len(tickers),
+                "live_count": len(tickers) - len(static_used),
+                "static_count": len(static_used),
+                "reason": "neutral_pillar_fallback",
+            }
+
         # Apply live macro overlay
         macro = fetch_macro_overlay(use_live_feeds=True)
         _write_macro_state(macro)
