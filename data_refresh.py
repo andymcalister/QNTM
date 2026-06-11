@@ -1011,6 +1011,22 @@ def run_intraday_refresh(tickers: list = None) -> dict:
         return {"success": False, "error": "No Supabase connection"}
 
     today = date.today().isoformat()
+    # Only refresh prices on tickers that ALREADY have a scored row for today.
+    # Upserting a bare {ticker, signal_date, price} for a ticker with no scored
+    # row INSERTs a new row with NULL composite/pillars — which is exactly what
+    # reset the screener to base 50s (the 2026-06 null-composite rows). If the
+    # nightly scored batch hasn't published for today, write nothing and let the
+    # last good batch stand.
+    try:
+        _ex = sb.table("signal_log").select("ticker") \
+            .eq("signal_date", today).not_.is_("composite", "null").execute()
+        scored_today = {r["ticker"] for r in (_ex.data or [])}
+    except Exception:
+        scored_today = set()
+    if not scored_today:
+        log.warning("Intraday refresh: no scored rows for today — skipping price "
+                    "writes so no null-score rows are created.")
+        return {"success": True, "updated": 0, "reason": "no_scored_batch_today"}
     updated = 0
     failed  = 0
 
@@ -1052,6 +1068,7 @@ def run_intraday_refresh(tickers: list = None) -> dict:
                     except Exception:
                         pass
 
+            rows = [r for r in rows if r["ticker"] in scored_today]
             if rows:
                 sb.table("signal_log").upsert(
                     rows, on_conflict="ticker,signal_date"
