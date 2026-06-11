@@ -1415,6 +1415,7 @@ def _signal_log_map(tickers_key: tuple) -> dict:
                     "is_hidden_gem,hidden_gem_reason") \
             .in_("ticker", list(tickers_key)) \
             .gte("signal_date", _since) \
+            .not_.is_("composite", "null") \
             .order("signal_date", desc=True) \
             .execute()
         if not rows.data:

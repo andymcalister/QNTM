@@ -867,31 +867,49 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
         # misses this because it also requires composite==50, which a static
         # composite is not — so detect the neutral-PILLAR signature directly
         # here and refuse to overwrite the last good batch.
-        def _neutral_pillars(r):
+        def _is_bad(r):
+            # Unusable row: composite missing/NaN (serializes to NULL in
+            # signal_log) OR every pillar missing/NaN/neutral-50 (the per-ticker
+            # failure signature). NaN MUST be caught explicitly — it isn't None
+            # and isn't 50, so the old neutral-only check let it through and it
+            # wrote as NULL (the 2026-06 null-composite batches that reset the
+            # screener to base 50s).
+            import math as _math
+            c = r.get("composite")
             try:
-                return all(
-                    abs(float(r.get(k, 50) or 50) - 50.0) < 0.01
-                    for k in ("momentum", "quality", "volume", "value", "sentiment")
-                )
+                if c is None or _math.isnan(float(c)):
+                    return True
+            except (TypeError, ValueError):
+                return True
+            try:
+                bad = 0
+                for k in ("momentum", "quality", "volume", "value", "sentiment"):
+                    v = r.get(k)
+                    if v is None:
+                        bad += 1; continue
+                    fv = float(v)
+                    if _math.isnan(fv) or abs(fv - 50.0) < 0.01:
+                        bad += 1
+                return bad == 5
             except Exception:
                 return False
         _n_sc  = len(scores)
-        _n_neu = sum(1 for r in scores if _neutral_pillars(r))
+        _n_neu = sum(1 for r in scores if _is_bad(r))
         if _n_sc < 100 or (_n_sc and _n_neu / _n_sc > 0.40):
             log.error(
                 f"ABORT publish — degraded scoring run: {_n_neu}/{_n_sc} rows "
-                f"have an all-neutral (50) pillar set (price histories fetched "
-                f"for {len(price_histories)}/{len(tickers)}). signal_log, "
-                f"macro_state and the model portfolio are left untouched; the "
-                f"last good batch stays live."
+                f"have a null/NaN composite or all-neutral pillars (price "
+                f"histories fetched for {len(price_histories)}/{len(tickers)}). "
+                f"signal_log, macro_state and the model portfolio are left "
+                f"untouched; the last good batch stays live."
             )
             return {
                 "success": False, "degraded": True,
-                "neutral_pillars": _n_neu, "scored": _n_sc,
+                "bad_rows": _n_neu, "scored": _n_sc,
                 "history_coverage": len(price_histories), "total": len(tickers),
                 "live_count": len(tickers) - len(static_used),
                 "static_count": len(static_used),
-                "reason": "neutral_pillar_fallback",
+                "reason": "degraded_scores",
             }
 
         # Apply live macro overlay
