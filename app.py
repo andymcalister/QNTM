@@ -9095,14 +9095,23 @@ def _render_track_equity(_pt, positions):
                 _m_prev += _shh * float(_dcp["prev_close"])
         _spy_dc = _ldc.get("SPY") or {}
         _yday = _mseries[-2][0]
-        if (_m_now > 0 and _m_prev > 0 and _spy_dc.get("price")
+        _pv = _pt.get("model_value")
+        _day_dollar = _m_now - _m_prev      # active-book intraday $ move
+        if (_pv and _m_prev > 0 and _spy_dc.get("price")
                 and _spy_dc.get("prev_close")):
+            # Anchor QNTM to the REAL portfolio value (cash + realized + active
+            # book) so the line finishes on the headline card, then back out
+            # yesterday with the active book's intraday $ move. The bare
+            # active-book sum excludes cash/realized P&L and undershoots the card.
+            _pv = float(_pv)
+            _m_now_v  = _pv
+            _m_prev_v = _pv - _day_dollar
             _spy_ratio = float(_spy_dc["price"]) / float(_spy_dc["prev_close"])
             _spy_now   = _sseries[-1][1]
             _spy_prev  = _spy_now / _spy_ratio if _spy_ratio else _spy_now
-            _ms = [(_yday, _m_prev), (_today_iso, _m_now)]
+            _ms = [(_yday, _m_prev_v), (_today_iso, _m_now_v)]
             _ss = [(_yday, _spy_prev), (_today_iso, _spy_now)]
-            _mret = (_m_now / _m_prev - 1) * 100
+            _mret = (_day_dollar / _m_prev_v * 100) if _m_prev_v else 0.0
             _sret = (_spy_ratio - 1) * 100
         else:
             # live feed unavailable — fall back to the daily-close marks
