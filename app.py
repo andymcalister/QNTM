@@ -1395,30 +1395,56 @@ def finalize_scores_from_signal_log(results: list, macro_data: dict = None) -> l
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _signal_log_map(tickers_key: tuple) -> dict:
-    """Cached fetch of the latest signal_log row per ticker, keyed by the
-    (sorted) ticker set. signal_log only changes on the nightly + 30-min
-    intraday crons, so a short TTL removes the heavy in.(...800 tickers...)
-    round-trip that previously ran on every screener render."""
+    """Cached fetch of the best recent signal_log row per ticker, keyed by the
+    (sorted) ticker set. Returns each ticker's most recent CLEAN snapshot — one
+    with no null/sentinel-50 pillars — falling back to the newest row only when
+    no clean one exists in the lookback window. The scorer writes exactly 50.0
+    on a per-ticker data failure, so this carries forward the last good score
+    instead of surfacing a broken neutral one (the recurring '50s' problem),
+    while genuine near-50 scores (49.7, 50.3, ...) are kept as-is."""
     try:
         from data_refresh import _get_supabase
+        from datetime import date, timedelta
         sb = _get_supabase()
         if not sb or not tickers_key:
             return {}
+        _since = (date.today() - timedelta(days=21)).isoformat()
         rows = sb.table("signal_log") \
             .select("ticker,signal_date,adj_composite,composite,signal,"
                     "momentum,quality,volume,value,sentiment,price,"
                     "is_hidden_gem,hidden_gem_reason") \
             .in_("ticker", list(tickers_key)) \
+            .gte("signal_date", _since) \
             .order("signal_date", desc=True) \
             .execute()
         if not rows.data:
             return {}
-        log_map = {}
-        for row in rows.data:
+        _PILLARS = ("momentum", "quality", "volume", "value", "sentiment")
+
+        def _clean(row):
+            # Clean = no pillar missing or pinned to the exact 50.0 neutral
+            # sentinel the scorer writes when a ticker's data fetch fails.
+            for k in _PILLARS:
+                v = row.get(k)
+                if v is None:
+                    return False
+                try:
+                    if abs(float(v) - 50.0) < 0.01:
+                        return False
+                except (TypeError, ValueError):
+                    return False
+            return True
+
+        latest, clean = {}, {}
+        for row in rows.data:               # newest first
             tk = row["ticker"]
-            if tk not in log_map:   # first row per ticker == latest signal_date
-                log_map[tk] = row
-        return log_map
+            if tk not in latest:
+                latest[tk] = row
+            if tk not in clean and _clean(row):
+                clean[tk] = row
+        # Prefer the freshest clean snapshot; fall back to newest so a ticker
+        # that has only ever been neutral still appears.
+        return {tk: clean.get(tk, latest[tk]) for tk in latest}
     except Exception:
         return {}
 
@@ -9051,14 +9077,38 @@ def _render_track_equity(_pt, positions):
             _sseries.append((_today_iso, _s_live))
     _intraday = False
     if _wk == "1D" and len(_mseries) >= 2 and len(_sseries) >= 2:
-        # 1D in REAL dollars: each line starts at its OWN prior-session close (not
-        # $100K) and runs to the live mark, so it shows today's move from
-        # yesterday's finish for both QNTM and SPY — consistent with the other
-        # windows, which also show real values rather than a rebased baseline.
-        _ms = _mseries[-2:]
-        _ss = _sseries[-2:]
-        _mret = (_ms[-1][1] / _ms[0][1] - 1) * 100 if _ms[0][1] else 0.0
-        _sret = (_ss[-1][1] / _ss[0][1] - 1) * 100 if _ss[0][1] else 0.0
+        # 1D in REAL dollars from the LIVE day-change feed (same source the TODAY
+        # card uses). The daily-close ledger carries no intraday move, which is
+        # why this previously read flat 0.0%. Value-weight today's move across the
+        # book for QNTM; anchor SPY to its current benchmark level and apply SPY's
+        # live day move.
+        _ldc = _fetch_day_change_map(
+            [p["ticker"] for p in positions] + ["SPY"],
+            cache_key="_mp_daychange_cache")
+        _m_now = _m_prev = 0.0
+        for _p in positions:
+            _dcp = _ldc.get(_p["ticker"]) or {}
+            _epp = _p.get("entry_price")
+            if _epp and _epp > 0 and _dcp.get("price") and _dcp.get("prev_close"):
+                _shh = _p.get("pos_size", 2000) / _epp
+                _m_now  += _shh * float(_dcp["price"])
+                _m_prev += _shh * float(_dcp["prev_close"])
+        _spy_dc = _ldc.get("SPY") or {}
+        _yday = _mseries[-2][0]
+        if (_m_now > 0 and _m_prev > 0 and _spy_dc.get("price")
+                and _spy_dc.get("prev_close")):
+            _spy_ratio = float(_spy_dc["price"]) / float(_spy_dc["prev_close"])
+            _spy_now   = _sseries[-1][1]
+            _spy_prev  = _spy_now / _spy_ratio if _spy_ratio else _spy_now
+            _ms = [(_yday, _m_prev), (_today_iso, _m_now)]
+            _ss = [(_yday, _spy_prev), (_today_iso, _spy_now)]
+            _mret = (_m_now / _m_prev - 1) * 100
+            _sret = (_spy_ratio - 1) * 100
+        else:
+            # live feed unavailable — fall back to the daily-close marks
+            _ms, _ss = _mseries[-2:], _sseries[-2:]
+            _mret = (_ms[-1][1] / _ms[0][1] - 1) * 100 if _ms[0][1] else 0.0
+            _sret = (_ss[-1][1] / _ss[0][1] - 1) * 100 if _ss[0][1] else 0.0
         _wlabel = "since last close"
     elif _wk == "1D":
         _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
@@ -9440,10 +9490,10 @@ def page_model_portfolio():
     if _day_have and _day_prev > 0:
         _day_dollar = _day_today - _day_prev
         _day_pct    = _day_dollar / _day_prev * 100
-        # Use the shared ledger's day move for the headline % so it matches the
-        # Track Record exactly; keep the $ figure from the active-book weighting.
-        if _pt and _pt.get("day_model") is not None:
-            _day_pct = _pt["day_model"]
+        # Headline % and $ both come from the live active-book weighting so they
+        # agree with each other and with the live 1D chart. (The daily-close
+        # ledger move, _pt["day_model"], has no intraday component and would read
+        # ~0 here, so it's no longer used for the headline.)
         _day_color  = "#34d399" if _day_pct > 0 else ("#f87171" if _day_pct < 0 else "#b3bed0")
         _day_s      = "+" if _day_pct >= 0 else ""
         _day_val    = f"{_day_s}{_day_pct:.2f}%"
