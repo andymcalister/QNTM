@@ -1772,13 +1772,44 @@ def macro_regime_banner_html(macro: dict) -> str:
                            f'border-radius:3px;padding:2px 8px;font-size:13px;color:#b3bed0;margin-right:6px;">'
                            f'{nice.get(e,e.replace("_"," ").title())}</span>')
 
-    # News summary line (synthesized from the live macro scan)
-    summary_txt  = (macro.get("summary") or "").strip()
+    # News read — prefer the explanatory narrative, fall back to the one-line summary
+    import html as _html
+    summary_txt  = (macro.get("narrative") or macro.get("summary") or "").strip()
     summary_html = ""
     if summary_txt:
-        import html as _html
         summary_html = (f'<div style="font-size:13px;color:#cbd5e1;margin-top:6px;line-height:1.5;">'
                         f'<span style="color:#9fabc0;">News read:</span> {_html.escape(summary_txt)}</div>')
+
+    # Factor breakdown — how each active driver moved the regime score
+    drivers = macro.get("drivers", [])
+    breakdown_html = ""
+    if drivers:
+        rows = ""
+        for d in drivers[:6]:
+            c = d.get("contribution", 0.0) or 0.0
+            if c < 0:   c_col, arrow = "#f87171", "&#9660;"
+            elif c > 0: c_col, arrow = "#34d399", "&#9650;"
+            else:       c_col, arrow = "#9fabc0", "&ndash;"
+            sig = d.get("signals", 0)
+            rows += (f'<div style="display:flex;align-items:center;justify-content:space-between;'
+                     f'gap:10px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
+                     f'<span style="color:#cbd5e1;font-size:13px;">{_html.escape(str(d.get("label","")))}'
+                     f'<span style="color:#6b7686;font-size:12px;"> &middot; {sig} signal{"s" if sig != 1 else ""}</span>'
+                     f'</span>'
+                     f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{c_col};">'
+                     f'{arrow} {c:+.2f}</span></div>')
+        net = macro.get("regime_score", 0.0) or 0.0
+        breakdown_html = (
+            f'<div style="margin-top:8px;background:rgba(0,0,0,.15);border-radius:6px;padding:8px 11px;">'
+            f'<div style="font-size:12px;color:#9fabc0;letter-spacing:.06em;margin-bottom:4px;">'
+            f'WHAT&#39;S MOVING THE REGIME</div>'
+            f'{rows}'
+            f'<div style="display:flex;justify-content:space-between;margin-top:5px;padding-top:5px;'
+            f'border-top:1px solid rgba(255,255,255,.08);">'
+            f'<span style="color:#b3bed0;font-size:13px;">Net regime score</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{color};">'
+            f'{net:+.2f} &#8594; {macro_w}% macro weight</span></div></div>')
+    drivers_or_chips = breakdown_html if breakdown_html else f'<div style="margin-top:6px;">{events_html}</div>'
 
     # Source badge
     if macro.get("live"):
@@ -1814,7 +1845,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         f'{src_badge}</div>'
         f'<div style="font-size:14px;color:#b3bed0;margin-top:2px;">{desc}</div>'
         f'{summary_html}'
-        f'<div style="margin-top:6px;">{events_html}</div>'
+        f'{drivers_or_chips}'
         f'</div></div>'
         f'<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">'
 

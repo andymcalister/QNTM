@@ -441,10 +441,14 @@ EVENT_KEYWORDS = {
     "fed_hawkish":     ["rate hike","hawkish fed","inflation concern","higher for longer"],
     "fed_dovish":      ["rate cut","fed cuts","dovish","fed pivot","rate reduction"],
     "recession_signal":["recession","gdp contraction","economic slowdown","yield curve invert"],
-    "war_escalation":  ["military strike","airstrike","missile attack","invasion",
-                        "conflict escalates","escalates strikes","launches strikes","war erupts"],
-    "war_deescalation":["ceasefire","peace deal","peace agreement","truce",
-                        "war ends","ends war","de-escalation","peace talks"],
+    "war_escalation":  ["airstrike","air strike","missile strike","missile attack",
+                        "military strike","drone strike","shelling","bombard","invasion",
+                        "invade","ground offensive","armed conflict","conflict escalates",
+                        "launches strikes","strikes on","war erupts","nuclear strike",
+                        "retaliatory strike","strait of hormuz","hormuz"],
+    "war_deescalation":["ceasefire","cease-fire","peace deal","peace agreement",
+                        "peace talks","peace accord","truce","war ends","ends war",
+                        "de-escalation","de-escalate","hostilities end","withdraw troops"],
     "chip_export_ban": ["chip export","semiconductor ban","nvidia export","export control semiconductor"],
     "oil_spike":       ["oil spike","crude surge","opec cut","oil price jump","brent surge"],
 }
@@ -563,6 +567,38 @@ EVENT_LABELS = {
 }
 
 
+# Directional classification — shared by the regime score and the per-driver
+# breakdown so the parts always sum to the whole and can never disagree.
+RISK_OFF_EVENTS = {"tariff_broad","war_escalation","recession_signal",
+                   "chip_export_ban","oil_spike","fed_hawkish"}
+RISK_ON_EVENTS  = {"tariff_relief","fed_dovish","war_deescalation"}
+
+
+def _build_drivers(active_events: list, event_scores: dict) -> list:
+    """Per-driver breakdown showing how each active factor moved the regime
+    score. Uses the same weight/sign math as the risk_score loop, so the
+    contributions sum to the regime score."""
+    drivers = []
+    for e in (active_events or []):
+        raw = float((event_scores or {}).get(e, 1.0) or 1.0)
+        w   = min(raw, 5.0)
+        if e in RISK_OFF_EVENTS:
+            contrib, stance = -round(w * 0.15, 3), "risk-off"
+        elif e in RISK_ON_EVENTS:
+            contrib, stance = round(w * 0.15, 3), "risk-on"
+        else:
+            contrib, stance = 0.0, "neutral"
+        drivers.append({
+            "event":        e,
+            "label":        EVENT_LABELS.get(e, e.replace("_", " ").title()),
+            "stance":       stance,
+            "signals":      int(raw),
+            "contribution": contrib,
+        })
+    drivers.sort(key=lambda d: abs(d["contribution"]), reverse=True)
+    return drivers
+
+
 def _macro_event_labels(active_events: list) -> list:
     return [EVENT_LABELS.get(e, e.replace("_", " ").title()) for e in (active_events or [])]
 
@@ -582,6 +618,43 @@ def _macro_summary(regime_label: str, event_labels: list, vix, oil, n_headlines:
     else:
         s += ". Estimated regime — live feeds unavailable."
     return s
+
+
+def _macro_narrative(regime_label: str, risk_score: float, drivers: list,
+                     vix, oil) -> str:
+    """Plain-English explanation of how the active factors compose the regime
+    score — shown to users so the macro read is transparent, not a black box."""
+    label = (regime_label or "NEUTRAL").replace("_", " ").title()
+    if not drivers:
+        body = ("No macro drivers are active right now, so the overlay sits at "
+                "baseline and the 5-pillar quant factors carry the score.")
+    else:
+        offs = [d for d in drivers if d["stance"] == "risk-off"]
+        ons  = [d for d in drivers if d["stance"] == "risk-on"]
+        segs = []
+        if offs:
+            if len(offs) == 1:
+                segs.append(f"{offs[0]['label']} is pushing the regime risk-off")
+            else:
+                segs.append(f"{offs[0]['label']} is the dominant risk-off driver, "
+                            f"alongside {', '.join(d['label'] for d in offs[1:])}")
+        if ons:
+            verb = "partly offset by" if offs else "tilting the regime risk-on via"
+            segs.append(f"{verb} {', '.join(d['label'] for d in ons)}")
+        body = "; ".join(segs) + "."
+        body = body[0].upper() + body[1:]
+    ctx = ""
+    if vix is not None:
+        if vix >= 25:
+            ctx = f" Market volatility is elevated (VIX {vix:.1f}), confirming the risk-off read."
+        elif vix < 20 and risk_score <= -0.4:
+            ctx = (f" This read is news-driven — market volatility itself is still "
+                   f"contained (VIX {vix:.1f}), so the overlay is leading price rather "
+                   f"than following it.")
+        else:
+            ctx = f" Market volatility is moderate (VIX {vix:.1f})."
+    oil_ctx = f" WTI crude ${oil:.0f}." if oil is not None else ""
+    return f"{label} (regime score {risk_score:+.2f}). {body}{ctx}{oil_ctx}"
 
 
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
@@ -605,35 +678,37 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
 
         headlines = []
 
-        # ── Source 1: Yahoo Finance RSS ───────────────────────────────────────
-        YF_FEEDS = [
-            "https://finance.yahoo.com/rss/headline",
-            "https://finance.yahoo.com/news/rssindex",
+        # ── News feeds: markets + macro + world for a full picture ────────────
+        # (url, cap). Market feeds catch Fed/tariff/market-stress; world feeds
+        # catch the geopolitics the markets-only feeds miss entirely. Dead or
+        # blank feeds are skipped silently so one bad source never breaks the
+        # pass, and identical stories carried by multiple feeds are de-duped.
+        NEWS_FEEDS = [
+            # markets
+            ("https://finance.yahoo.com/news/rssindex", 25),
+            ("https://feeds.a.dj.com/rss/RSSMarketsMain.xml", 20),        # WSJ markets
+            ("https://www.cnbc.com/id/100003114/device/rss/rss.html", 20),
+            # macro / policy
+            ("https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en", 20),
+            ("https://www.federalreserve.gov/feeds/press_all.xml", 15),
+            # world / geopolitics
+            ("https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en", 20),
+            ("https://feeds.bbci.co.uk/news/world/rss.xml", 20),
+            ("https://www.aljazeera.com/xml/rss/all.xml", 20),
+            ("https://feeds.npr.org/1001/rss.xml", 15),
         ]
-        for url in YF_FEEDS:
+        _seen = set()
+        for url, cap in NEWS_FEEDS:
             try:
                 feed = feedparser.parse(url)
-                for entry in (feed.entries or [])[:30]:
-                    text = (entry.get("title","") + " " + entry.get("summary","")).lower()
-                    if text.strip():
+                for entry in (feed.entries or [])[:cap]:
+                    text = (entry.get("title","") + " " + entry.get("summary","")).lower().strip()
+                    if text and text not in _seen:
+                        _seen.add(text)
                         headlines.append(text)
             except Exception:
                 pass
 
-        # ── Source 2: FRED RSS (Fed press releases) ───────────────────────────
-        FRED_FEEDS = [
-            "https://www.federalreserve.gov/feeds/press_all.xml",
-            "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",  # WSJ markets
-        ]
-        for url in FRED_FEEDS:
-            try:
-                feed = feedparser.parse(url)
-                for entry in (feed.entries or [])[:20]:
-                    text = (entry.get("title","") + " " + entry.get("summary","")).lower()
-                    if text.strip():
-                        headlines.append(text)
-            except Exception:
-                pass
 
         # ── Source 3: VIX for regime classification ───────────────────────────
         vix_level = None
@@ -703,8 +778,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                     active_events.append(e)
 
         # ── Regime classification ─────────────────────────────────────────────
-        RISK_OFF_EVENTS = {"tariff_broad","war_escalation","recession_signal","chip_export_ban","oil_spike","fed_hawkish"}
-        RISK_ON_EVENTS  = {"tariff_relief","fed_dovish","war_deescalation"}
+        # ── Regime classification (RISK_OFF_EVENTS/RISK_ON_EVENTS are module-level) ──
 
         risk_score = 0.0
         for e in active_events:
@@ -750,6 +824,8 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
 
         _ev_labels_live = _macro_event_labels(active_events)
         _summary_live   = _macro_summary(regime_label, _ev_labels_live, vix_level, oil_price, n_headlines, True)
+        _drivers_live   = _build_drivers(active_events, event_scores)
+        _narrative_live = _macro_narrative(regime_label, risk_score, _drivers_live, vix_level, oil_price)
 
         return {
             "regime":          regime_label,
@@ -764,6 +840,8 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "live":            True,
             "event_labels":    _ev_labels_live,
             "summary":         _summary_live,
+            "drivers":         _drivers_live,
+            "narrative":       _narrative_live,
         }
 
     except Exception as e:
@@ -793,6 +871,10 @@ def _build_overlay_from_regime(regime: dict) -> dict:
         "live":            False,
         "event_labels":    _ev_labels,
         "summary":         _macro_summary(_rg_label, _ev_labels, None, None, 0, False),
+        "drivers":         _build_drivers(regime.get("active_events", []), {}),
+        "narrative":       _macro_narrative(_rg_label, regime.get("score", 0.0),
+                                            _build_drivers(regime.get("active_events", []), {}),
+                                            None, None),
     }
 
 
