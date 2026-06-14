@@ -441,7 +441,10 @@ EVENT_KEYWORDS = {
     "fed_hawkish":     ["rate hike","hawkish fed","inflation concern","higher for longer"],
     "fed_dovish":      ["rate cut","fed cuts","dovish","fed pivot","rate reduction"],
     "recession_signal":["recession","gdp contraction","economic slowdown","yield curve invert"],
-    "war_escalation":  ["war","military strike","invasion","escalation","conflict escalates"],
+    "war_escalation":  ["military strike","airstrike","missile attack","invasion",
+                        "conflict escalates","escalates strikes","launches strikes","war erupts"],
+    "war_deescalation":["ceasefire","peace deal","peace agreement","truce",
+                        "war ends","ends war","de-escalation","peace talks"],
     "chip_export_ban": ["chip export","semiconductor ban","nvidia export","export control semiconductor"],
     "oil_spike":       ["oil spike","crude surge","opec cut","oil price jump","brent surge"],
 }
@@ -490,6 +493,19 @@ MACRO_EVENT_INFO = {
         ),
         "impact":  "Bearish: Consumer Discretionary, Tech, Financials",
         "bullish": "Bullish: Energy, Defense (RTX, LMT), Materials",
+    },
+    "war_deescalation": {
+        "label":   "Ceasefire / De-escalation",
+        "summary": "Diplomatic de-escalation or ceasefire reduces geopolitical risk",
+        "detail":  (
+            "A ceasefire, truce, or peace agreement lowers the geopolitical risk premium: "
+            "the oil supply-disruption bid unwinds, the equity risk-off bid fades, and the "
+            "cyclical and discretionary names penalised under war escalation tend to recover. "
+            "Energy and defense, which benefited from the conflict premium, typically give "
+            "back relative gains as that premium deflates."
+        ),
+        "impact":  "Fading: Energy and defense conflict premium",
+        "bullish": "Bullish: Consumer Discretionary, Technology, broad risk assets",
     },
     "oil_spike": {
         "label":   "Oil Price Spike",
@@ -541,6 +557,7 @@ EVENT_LABELS = {
     "fed_dovish":       "Fed Dovish",
     "recession_signal": "Recession Signal",
     "war_escalation":   "War Escalation",
+    "war_deescalation": "Ceasefire / De-escalation",
     "chip_export_ban":  "Chip Export Ban",
     "oil_spike":        "Oil Spike",
 }
@@ -640,8 +657,12 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
 
         # ── Keyword event detection ───────────────────────────────────────────
         event_scores = defaultdict(float)
+        _deesc_kws = EVENT_KEYWORDS["war_deescalation"]
         for event_type, keywords in EVENT_KEYWORDS.items():
             for headline in headlines:
+                # A ceasefire/peace headline must not also be counted as escalation
+                if event_type == "war_escalation" and any(d in headline for d in _deesc_kws):
+                    continue
                 for kw in keywords:
                     if kw in headline:
                         event_scores[event_type] += 1.0
@@ -672,15 +693,18 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         # ── Select active events (threshold: ≥2 signals) ─────────────────────
         active_events = [e for e, s in event_scores.items() if s >= 2.0]
 
-        # Always include at least the hardcoded known active events as baseline
-        # (ensures model isn't blank when feeds return sparse results)
-        for e in _CURRENT_REGIME["active_events"]:
-            if e not in active_events:
-                active_events.append(e)
+        # Fall back to the hardcoded baseline ONLY when the live feed returned
+        # nothing. Previously this ran unconditionally, which pinned
+        # tariff_broad/war_escalation on every run regardless of the news — so
+        # the regime could never de-escalate even after the headlines cleared.
+        if not headlines:
+            for e in _CURRENT_REGIME["active_events"]:
+                if e not in active_events:
+                    active_events.append(e)
 
         # ── Regime classification ─────────────────────────────────────────────
         RISK_OFF_EVENTS = {"tariff_broad","war_escalation","recession_signal","chip_export_ban","oil_spike","fed_hawkish"}
-        RISK_ON_EVENTS  = {"tariff_relief","fed_dovish"}
+        RISK_ON_EVENTS  = {"tariff_relief","fed_dovish","war_deescalation"}
 
         risk_score = 0.0
         for e in active_events:
