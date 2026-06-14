@@ -433,6 +433,24 @@ SECTOR_EVENT_MAP = {
     "oil_spike":       {"Technology":-0.3,"Consumer Discretionary":-0.4,"Industrials":-0.3,
                         "Materials":+0.2,"Energy":+0.7,"Financials":-0.1,"Healthcare":-0.1,
                         "Consumer Staples":-0.2,"Comm Services":-0.2,"Real Estate":-0.1,"Utilities":+0.1},
+    "fed_cut_expected":{"Technology":+0.5,"Consumer Discretionary":+0.4,"Industrials":+0.3,
+                        "Materials":+0.2,"Energy":+0.1,"Financials":-0.2,"Healthcare":+0.2,
+                        "Consumer Staples":+0.1,"Comm Services":+0.3,"Real Estate":+0.6,"Utilities":+0.5},
+    "fed_hike_expected":{"Technology":-0.5,"Consumer Discretionary":-0.4,"Industrials":-0.2,
+                        "Materials":-0.2,"Energy":+0.1,"Financials":+0.3,"Healthcare":-0.1,
+                        "Consumer Staples":-0.1,"Comm Services":-0.3,"Real Estate":-0.6,"Utilities":-0.5},
+    "inflation_cool":  {"Technology":+0.4,"Consumer Discretionary":+0.4,"Industrials":+0.3,
+                        "Materials":+0.1,"Energy":-0.1,"Financials":-0.1,"Healthcare":+0.2,
+                        "Consumer Staples":+0.1,"Comm Services":+0.3,"Real Estate":+0.5,"Utilities":+0.4},
+    "inflation_hot":   {"Technology":-0.5,"Consumer Discretionary":-0.4,"Industrials":-0.2,
+                        "Materials":+0.3,"Energy":+0.3,"Financials":+0.2,"Healthcare":-0.1,
+                        "Consumer Staples":-0.1,"Comm Services":-0.3,"Real Estate":-0.5,"Utilities":-0.3},
+    "jobs_weak":       {"Technology":-0.3,"Consumer Discretionary":-0.5,"Industrials":-0.4,
+                        "Materials":-0.3,"Energy":-0.2,"Financials":-0.4,"Healthcare":+0.2,
+                        "Consumer Staples":+0.3,"Comm Services":-0.2,"Real Estate":-0.2,"Utilities":+0.2},
+    "jobs_strong":     {"Technology":+0.2,"Consumer Discretionary":+0.3,"Industrials":+0.3,
+                        "Materials":+0.2,"Energy":+0.1,"Financials":+0.3,"Healthcare":0.0,
+                        "Consumer Staples":-0.1,"Comm Services":+0.1,"Real Estate":+0.1,"Utilities":-0.1},
 }
 
 EVENT_KEYWORDS = {
@@ -452,6 +470,94 @@ EVENT_KEYWORDS = {
     "chip_export_ban": ["chip export","semiconductor ban","nvidia export","export control semiconductor"],
     "oil_spike":       ["oil spike","crude surge","opec cut","oil price jump","brent surge"],
 }
+
+# ── Forward-looking expectations (Tier-1 headline proxy) ─────────────────────
+# Markets price expectations, so the overlay reads what's being *reported to
+# come*, not just what already broke. This is a HEADLINE PROXY for consensus —
+# the credible version reads CME FedWatch (rate-move probabilities) + an
+# economic calendar (consensus vs actual). Kept behind one function so a data
+# feed can replace it without touching the regime logic.
+ANTICIPATION_CUES = ["expected to","expectation","forecast","economists expect",
+    "economists forecast","analysts expect","likely to","ahead of","odds of",
+    "priced in","pricing in","bets on","betting on","anticipat","projected",
+    "poised to","set to","consensus","fedwatch","fed watch","traders expect",
+    "markets expect","probability of","odds favor","odds favour","seen cutting",
+    "seen raising","seen holding"]
+
+_FED_CONTEXT = ["fed","fomc","powell","interest rate","rate decision","central bank"]
+_DIR_CUT  = ["rate cut","cut rates","cutting rates","lower rates","rate reduction",
+             "reduce rates","ease rates","easing cycle","cuts rates","dovish"]
+_DIR_HIKE = ["rate hike","hike rates","raise rates","raising rates","higher for longer",
+             "tighten","tightening","hikes rates","another hike","hawkish"]
+_DIR_HOLD = ["hold rates","rates steady","keep rates","rates unchanged","pause",
+             "stand pat","no change","leave rates","on hold","steady rates",
+             "hold steady"]
+
+_JOBS_CTX    = ["payroll","jobs report","jobless claims","unemployment","nonfarm",
+                "labor market","employment report","hiring"]
+_JOBS_WEAK   = ["layoff","job cuts","jobless claims rose","jobless claims jump",
+                "rising unemployment","unemployment rose","unemployment climbed",
+                "payrolls miss","weak jobs","jobs miss","hiring slow","labor market cool",
+                "jobs disappoint","fewer jobs"]
+_JOBS_STRONG = ["payrolls beat","strong jobs","jobs beat","robust hiring","hiring surge",
+                "unemployment fell","blowout jobs","jobs surge","jobs surprise","hot jobs"]
+
+_INFL_HOT  = ["inflation rose","inflation accelerat","hot inflation","cpi rose",
+              "cpi jump","prices rose","inflation higher","sticky inflation",
+              "inflation surprise","reinflation","inflation heats","inflation pick"]
+_INFL_COOL = ["inflation cool","inflation eas","disinflation","cpi fell","cpi eas",
+              "prices fell","inflation slow","softer inflation","inflation lower",
+              "cooling inflation","inflation fell","inflation retreat"]
+
+
+def _detect_anticipation(headlines):
+    """Forward-looking expectations from the balance of reporting. Returns
+    (scores, meta): scores merge into event_scores and flow through the regime
+    math like any other event; meta carries the Fed consensus split for the
+    narrative. Headline proxy — swap for CME FedWatch + economic-calendar data
+    later behind this same call without touching anything downstream."""
+    scores, meta = {}, {}
+
+    # ── Fed rate path: tally forward-looking calls, take the majority ────────
+    cut = hold = hike = 0
+    for h in headlines:
+        if not any(c in h for c in ANTICIPATION_CUES):
+            continue
+        if not any(f in h for f in _FED_CONTEXT):
+            continue
+        if   any(d in h for d in _DIR_HOLD): hold += 1
+        elif any(d in h for d in _DIR_CUT):  cut  += 1
+        elif any(d in h for d in _DIR_HIKE): hike += 1
+    total = cut + hold + hike
+    if total >= 2:
+        winner, n = max((("fed_cut_expected", cut),
+                         ("fed_hold_expected", hold),
+                         ("fed_hike_expected", hike)), key=lambda kv: kv[1])
+        share = n / total
+        # weight 2..5, scaled by how lopsided the consensus is (29/30 ≈ max)
+        scores[winner] = round(2.0 + 3.0 * share, 2)
+        meta["fed_consensus"] = {
+            "cut": cut, "hold": hold, "hike": hike, "total": total,
+            "lean": winner.replace("fed_", "").replace("_expected", ""),
+            "share": round(share, 2),
+        }
+
+    # ── Jobs / labor (actual print or reported expectation) ──────────────────
+    jw = sum(1 for h in headlines if any(t in h for t in _JOBS_CTX)
+             and any(w in h for w in _JOBS_WEAK))
+    js = sum(1 for h in headlines if any(t in h for t in _JOBS_CTX)
+             and any(w in h for w in _JOBS_STRONG))
+    if jw >= 2: scores["jobs_weak"]   = float(min(jw, 5))
+    if js >= 2: scores["jobs_strong"] = float(min(js, 5))
+
+    # ── Inflation prints / expectations ──────────────────────────────────────
+    ih = sum(1 for h in headlines if any(w in h for w in _INFL_HOT))
+    ic = sum(1 for h in headlines if any(w in h for w in _INFL_COOL))
+    if ih >= 2: scores["inflation_hot"]  = float(min(ih, 5))
+    if ic >= 2: scores["inflation_cool"] = float(min(ic, 5))
+
+    return scores, meta
+
 
 # Current estimated regime (updated daily in production via RSS; estimated here)
 # Based on 2025H1 tariff environment
@@ -551,6 +657,85 @@ MACRO_EVENT_INFO = {
         "impact":  "Bullish: Growth tech, REITs, Utilities, Emerging Markets",
         "bullish": "Most risk assets benefit in the first 6-12 months",
     },
+    "fed_cut_expected": {
+        "label":   "Rate Cut Expected",
+        "summary": "Reporting/markets leaning toward a Fed rate cut",
+        "detail":  (
+            "The balance of forward-looking coverage points to the Fed easing. Anticipated "
+            "cuts lower the discount rate on future earnings ahead of the actual decision, "
+            "so rate-sensitive and long-duration assets tend to firm up before the meeting. "
+            "This is a headline-derived read of consensus, not a forecast."
+        ),
+        "impact":  "Fading: cash/defensive premium",
+        "bullish": "Bullish: Growth tech, REITs, Utilities",
+    },
+    "fed_hold_expected": {
+        "label":   "Rate Hold Expected",
+        "summary": "Reporting/markets leaning toward the Fed holding rates",
+        "detail":  (
+            "Forward-looking coverage points to no change in policy. A confident hold means "
+            "low policy uncertainty — broadly neutral for the regime, neither easing tailwind "
+            "nor tightening drag. Headline-derived read of consensus, not a forecast."
+        ),
+        "impact":  "Neutral for risk",
+        "bullish": "Stability: low policy uncertainty",
+    },
+    "fed_hike_expected": {
+        "label":   "Rate Hike Expected",
+        "summary": "Reporting/markets leaning toward a Fed rate hike",
+        "detail":  (
+            "The balance of forward-looking coverage points to tighter policy. Anticipated "
+            "hikes lift the discount rate on future earnings ahead of the decision, pressuring "
+            "high-multiple growth, REITs and utilities while supporting bank margins. "
+            "Headline-derived read of consensus, not a forecast."
+        ),
+        "impact":  "Bearish: Growth tech, REITs, Utilities",
+        "bullish": "Bullish: Financials",
+    },
+    "jobs_strong": {
+        "label":   "Strong Jobs Data",
+        "summary": "Labor market running hot (beat/low unemployment)",
+        "detail":  (
+            "Strong employment data signals a resilient economy, supportive of cyclicals and "
+            "credit-sensitive sectors. The cross-current is that hot labor data can keep the "
+            "Fed tighter for longer, capping rate-sensitive names."
+        ),
+        "impact":  "Mixed: rate-sensitive sectors",
+        "bullish": "Bullish: Financials, Industrials, Consumer Discretionary",
+    },
+    "jobs_weak": {
+        "label":   "Weak Jobs Data",
+        "summary": "Labor market softening (misses, rising unemployment, layoffs)",
+        "detail":  (
+            "Weakening employment raises recession risk and pressures cyclicals, financials "
+            "and consumer discretionary. It can pull forward rate-cut expectations, but the "
+            "growth scare typically dominates in the near term — a risk-off signal."
+        ),
+        "impact":  "Bearish: Consumer Discretionary, Financials, Industrials",
+        "bullish": "Defensive: Consumer Staples, Healthcare, Utilities",
+    },
+    "inflation_hot": {
+        "label":   "Inflation Rising",
+        "summary": "Inflation prints/expectations running hotter",
+        "detail":  (
+            "Hotter inflation pushes bond yields and the discount rate higher and complicates "
+            "Fed easing, pressuring long-duration growth, REITs and utilities. Energy and "
+            "materials often benefit as the commodity complex firms."
+        ),
+        "impact":  "Bearish: Growth tech, REITs, Utilities",
+        "bullish": "Bullish: Energy, Materials, Financials",
+    },
+    "inflation_cool": {
+        "label":   "Inflation Cooling",
+        "summary": "Inflation prints/expectations easing (disinflation)",
+        "detail":  (
+            "Cooling inflation lowers the discount rate on future earnings and opens room for "
+            "the Fed to ease, expanding multiples across equities — particularly growth and "
+            "long-duration assets. Broadly risk-on."
+        ),
+        "impact":  "Fading: inflation hedges",
+        "bullish": "Bullish: Growth tech, REITs, Consumer Discretionary",
+    },
 }
 
 
@@ -564,14 +749,23 @@ EVENT_LABELS = {
     "war_deescalation": "Ceasefire / De-escalation",
     "chip_export_ban":  "Chip Export Ban",
     "oil_spike":        "Oil Spike",
+    "fed_cut_expected":  "Rate Cut Expected",
+    "fed_hold_expected": "Rate Hold Expected",
+    "fed_hike_expected": "Rate Hike Expected",
+    "jobs_strong":       "Strong Jobs Data",
+    "jobs_weak":         "Weak Jobs Data",
+    "inflation_hot":     "Inflation Rising",
+    "inflation_cool":    "Inflation Cooling",
 }
 
 
 # Directional classification — shared by the regime score and the per-driver
 # breakdown so the parts always sum to the whole and can never disagree.
 RISK_OFF_EVENTS = {"tariff_broad","war_escalation","recession_signal",
-                   "chip_export_ban","oil_spike","fed_hawkish"}
-RISK_ON_EVENTS  = {"tariff_relief","fed_dovish","war_deescalation"}
+                   "chip_export_ban","oil_spike","fed_hawkish",
+                   "fed_hike_expected","jobs_weak","inflation_hot"}
+RISK_ON_EVENTS  = {"tariff_relief","fed_dovish","war_deescalation",
+                   "fed_cut_expected","jobs_strong","inflation_cool"}
 
 
 def _build_drivers(active_events: list, event_scores: dict) -> list:
@@ -621,7 +815,7 @@ def _macro_summary(regime_label: str, event_labels: list, vix, oil, n_headlines:
 
 
 def _macro_narrative(regime_label: str, risk_score: float, drivers: list,
-                     vix, oil) -> str:
+                     vix, oil, consensus=None) -> str:
     """Plain-English explanation of how the active factors compose the regime
     score — shown to users so the macro read is transparent, not a black box."""
     label = (regime_label or "NEUTRAL").replace("_", " ").title()
@@ -631,6 +825,8 @@ def _macro_narrative(regime_label: str, risk_score: float, drivers: list,
     else:
         offs = [d for d in drivers if d["stance"] == "risk-off"]
         ons  = [d for d in drivers if d["stance"] == "risk-on"]
+        neu  = [d for d in drivers if d["stance"] == "neutral"
+                and not d["event"].startswith("fed_")]
         segs = []
         if offs:
             if len(offs) == 1:
@@ -641,8 +837,17 @@ def _macro_narrative(regime_label: str, risk_score: float, drivers: list,
         if ons:
             verb = "partly offset by" if offs else "tilting the regime risk-on via"
             segs.append(f"{verb} {', '.join(d['label'] for d in ons)}")
+        if neu:
+            segs.append("with reporting also pricing in "
+                        + ", ".join(d['label'].lower() for d in neu) + " (neutral for risk)")
         body = "; ".join(segs) + "."
         body = body[0].upper() + body[1:]
+    cons = ""
+    if consensus and consensus.get("total"):
+        verb = {"cut": "a rate cut", "hold": "a rate hold",
+                "hike": "a rate hike"}.get(consensus.get("lean"), "a rate hold")
+        cons = (f" Forward-looking reporting leans {int(consensus['share']*100)}% toward "
+                f"{verb} ({consensus['total']} calls scanned).")
     ctx = ""
     if vix is not None:
         if vix >= 25:
@@ -654,7 +859,7 @@ def _macro_narrative(regime_label: str, risk_score: float, drivers: list,
         else:
             ctx = f" Market volatility is moderate (VIX {vix:.1f})."
     oil_ctx = f" WTI crude ${oil:.0f}." if oil is not None else ""
-    return f"{label} (regime score {risk_score:+.2f}). {body}{ctx}{oil_ctx}"
+    return f"{label} (regime score {risk_score:+.2f}). {body}{cons}{ctx}{oil_ctx}"
 
 
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
@@ -765,6 +970,14 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                 # Low oil = bearish demand signal (recession territory)
                 event_scores["recession_signal"] += 1.0
 
+        # ── Forward-looking expectations (Tier-1 headline proxy) ─────────────
+        # Markets price what's coming. Merge the anticipation read into
+        # event_scores so it flows through the regime math like any other event.
+        _antic_scores, _antic_meta = _detect_anticipation(headlines)
+        for _k, _v in _antic_scores.items():
+            event_scores[_k] += _v
+        fed_consensus = _antic_meta.get("fed_consensus")
+
         # ── Select active events (threshold: ≥2 signals) ─────────────────────
         active_events = [e for e, s in event_scores.items() if s >= 2.0]
 
@@ -825,7 +1038,8 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         _ev_labels_live = _macro_event_labels(active_events)
         _summary_live   = _macro_summary(regime_label, _ev_labels_live, vix_level, oil_price, n_headlines, True)
         _drivers_live   = _build_drivers(active_events, event_scores)
-        _narrative_live = _macro_narrative(regime_label, risk_score, _drivers_live, vix_level, oil_price)
+        _narrative_live = _macro_narrative(regime_label, risk_score, _drivers_live,
+                                            vix_level, oil_price, fed_consensus)
 
         return {
             "regime":          regime_label,
@@ -842,6 +1056,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "summary":         _summary_live,
             "drivers":         _drivers_live,
             "narrative":       _narrative_live,
+            "fed_consensus":   fed_consensus,
         }
 
     except Exception as e:
@@ -875,6 +1090,7 @@ def _build_overlay_from_regime(regime: dict) -> dict:
         "narrative":       _macro_narrative(_rg_label, regime.get("score", 0.0),
                                             _build_drivers(regime.get("active_events", []), {}),
                                             None, None),
+        "fed_consensus":   None,
     }
 
 
