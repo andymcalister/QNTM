@@ -1737,7 +1737,8 @@ def _live_macro() -> dict:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 18) -> list:
+def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 18,
+                       collapse_macro: bool = True) -> list:
     """Day-over-day conviction movers for the hero feed. For each ticker pulls its
     two most recent CLEAN scored rows (distinct dates) and reports prev->now
     adj_composite plus what drove the move: the macro overlay (if the regime
@@ -1808,7 +1809,13 @@ def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int =
             if abs(dd) > abs(drv_pd):
                 drv_p, drv_pd = p, dd
 
-        if abs(macro_contrib) >= 2 and abs(macro_contrib) > abs(comp_delta):
+        # "Macro-only" = the name's own factors barely moved but the overlay
+        # shifted its score (the regime-flip band). Otherwise it's a real quant
+        # story, attributed to its biggest-moving pillar even if macro also helped.
+        macro_only = abs(comp_delta) < 2 and abs(macro_contrib) >= 2
+        if not macro_only and drv_p and abs(drv_pd) >= 2:
+            driver, ddelta = _PLAB[drv_p], round(drv_pd, 1)
+        elif macro_only:
             driver, ddelta = "Macro overlay", round(macro_contrib, 1)
         elif drv_p and abs(drv_pd) >= 2:
             driver, ddelta = _PLAB[drv_p], round(drv_pd, 1)
@@ -1819,11 +1826,26 @@ def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int =
             return "HIGH" if v >= 60 else ("MOD" if v >= 45 else "LOW")
 
         movers.append({"ticker": tk, "now": a_now, "prev": a_prev, "delta": delta,
+                       "quant_delta": round(comp_delta, 1), "macro_only": macro_only,
                        "now_tier": _tier(a_now), "prev_tier": _tier(a_prev),
                        "driver": driver, "driver_delta": ddelta})
 
-    movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
-    return movers[:top_n]
+    # Lead with name-specific (quant) movers so a uniform macro-shift band never
+    # dominates the feed; collapse that band into one labelled summary entry.
+    quant = sorted([m for m in movers if not m["macro_only"]],
+                   key=lambda m: abs(m["quant_delta"]), reverse=True)
+    macro = sorted([m for m in movers if m["macro_only"]],
+                   key=lambda m: abs(m["delta"]), reverse=True)
+    if collapse_macro and len(macro) >= 3:
+        ups   = [m for m in macro if m["delta"] > 0]
+        downs = [m for m in macro if m["delta"] < 0]
+        grp = ups if len(ups) >= len(downs) else downs
+        deltas = [m["delta"] for m in grp]
+        out = quant[:top_n]
+        out.append({"kind": "macro_summary", "count": len(grp),
+                    "up": grp[0]["delta"] > 0, "lo": min(deltas), "hi": max(deltas)})
+        return out
+    return (quant + macro)[:top_n]
 
 
 def _hero_card_html(macro: dict, results: list, movers: list = None,
@@ -1845,6 +1867,24 @@ def _hero_card_html(macro: dict, results: list, movers: list = None,
     _TIER_COL = {"HIGH": "#34d399", "MOD": "#fbbf24", "LOW": "#f87171"}
 
     def _chip(m):
+        if m.get("kind") == "macro_summary":
+            up  = m["up"]
+            col = "#34d399" if up else "#f87171"
+            arr = "&#9650;" if up else "&#9660;"
+            lo, hi = int(round(m["lo"])), int(round(m["hi"]))
+            rng = f'{arr}{abs(lo)}' if lo == hi else f'{arr}{abs(lo)}&ndash;{abs(hi)}'
+            return (
+                f'<span style="display:inline-flex;flex-direction:column;gap:4px;'
+                f'padding:8px 13px;margin:0 9px 9px 0;background:rgba(212,168,67,.06);'
+                f'border:1px solid rgba(212,168,67,.28);border-radius:10px;'
+                f'white-space:nowrap;vertical-align:top;">'
+                f'<span style="display:flex;align-items:center;gap:7px;">'
+                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;'
+                f'font-weight:600;">MACRO REGIME SHIFT</span></span>'
+                f'<span style="display:flex;align-items:center;gap:8px;">'
+                f'<span style="font-size:12px;color:#b3bed0;">{m["count"]} names moved together</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{col};">{rng}'
+                f'</span></span></span>')
         up  = m["delta"] >= 0
         col = "#34d399" if up else "#f87171"
         arr = "&#9650;" if up else "&#9660;"
@@ -5988,7 +6028,7 @@ def page_screener():
     # ── Login hero: regime + watchlist movers + universe conviction changes ────
     _hero_movers = _conviction_movers(tuple(sorted({r["ticker"] for r in results}))) if results else []
     _wl_tks = sorted({w["ticker"] for w in get_watchlist(uid())}) if uid() else []
-    _wl_movers = _conviction_movers(tuple(_wl_tks), top_n=12) if _wl_tks else []
+    _wl_movers = _conviction_movers(tuple(_wl_tks), top_n=12, collapse_macro=False) if _wl_tks else []
     st.markdown(_hero_card_html(macro, results, _hero_movers, _wl_movers, bool(_wl_tks)),
                 unsafe_allow_html=True)
 
