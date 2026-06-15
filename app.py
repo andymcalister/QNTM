@@ -1737,14 +1737,17 @@ def _live_macro() -> dict:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 18,
-                       collapse_macro: bool = True) -> list:
-    """Day-over-day conviction movers for the hero feed. For each ticker pulls its
-    two most recent CLEAN scored rows (distinct dates) and reports prev->now
-    adj_composite plus what drove the move: the macro overlay (if the regime
-    shift moved the name more than its own factors did) or the single pillar that
-    moved most. Research framing only — score deltas and factor attribution, no
-    returns. Cached 5 min; one batched signal_log read."""
+def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 24,
+                       collapse_macro: bool = True, compare_days: int = 1) -> list:
+    """Day-over-day conviction movers for the hero feed — the 'what's new today'
+    surface. Compares each ticker's latest CLEAN scored row against the most recent
+    clean row at least `compare_days` day(s) earlier (default: the prior scored
+    session). Includes small moves (>=1 point) on purpose: a +1/-2 shift in
+    conviction is meaningful and gives a reason to check back daily. Reports
+    prev->now adj_composite plus what drove it — the pillar that moved most, or the
+    macro overlay when the regime shift dominated the move (those uniform-band
+    names collapse into one labelled chip so they never flood the feed). Research
+    framing only; cached 5 min; one batched signal_log read."""
     try:
         from data_refresh import _get_supabase
         from datetime import date, timedelta
@@ -1773,27 +1776,47 @@ def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int =
         except (TypeError, ValueError):
             return None
 
+    from datetime import date as _date
+
+    def _pd(s):
+        try:
+            return _date.fromisoformat(s)
+        except (TypeError, ValueError):
+            return None
+
     by = {}
     for r in rows:                       # already date-desc
         by.setdefault(r["ticker"], []).append(r)
 
     movers = []
     for tk, rs in by.items():
-        seen, picked = [], []
+        # distinct scored dates, newest first
+        distinct, seen = [], set()
         for r in rs:
             d = r.get("signal_date")
-            if d not in seen:
-                seen.append(d); picked.append(r)
-            if len(picked) == 2:
-                break
-        if len(picked) < 2:
+            if d and d not in seen:
+                seen.add(d); distinct.append(r)
+        if len(distinct) < 2:
             continue
-        now, prev = picked[0], picked[1]
+        now = distinct[0]
+        nd = _pd(now.get("signal_date"))
+        # prev = newest row at least compare_days older than now; else oldest we have
+        prev = None
+        if nd:
+            for r in distinct[1:]:
+                rd = _pd(r.get("signal_date"))
+                if rd and (nd - rd).days >= compare_days:
+                    prev = r
+                    break
+        if prev is None:
+            prev = distinct[-1]
+        if prev.get("signal_date") == now.get("signal_date"):
+            continue
         a_now, a_prev = _f(now, "adj_composite"), _f(prev, "adj_composite")
         if a_now is None or a_prev is None:
             continue
         delta = round(a_now - a_prev, 1)
-        if abs(delta) < 2.0:             # only real movers
+        if abs(round(delta)) < 1:        # include small but real moves (+/-1)
             continue
 
         c_now, c_prev = _f(now, "composite"), _f(prev, "composite")
@@ -1812,10 +1835,11 @@ def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int =
         # "Macro-only" = the name's own factors barely moved but the overlay
         # shifted its score (the regime-flip band). Otherwise it's a real quant
         # story, attributed to its biggest-moving pillar even if macro also helped.
-        macro_only = abs(comp_delta) < 2 and abs(macro_contrib) >= 2
-        if not macro_only and drv_p and abs(drv_pd) >= 2:
-            driver, ddelta = _PLAB[drv_p], round(drv_pd, 1)
-        elif macro_only:
+        # "Macro-driven" = the overlay shift dominated the move (regime days);
+        # otherwise it's the name's own factors. Macro-driven names fold into one
+        # collapsed chip so they never flood the daily feed of small quant moves.
+        macro_only = abs(macro_contrib) >= 2 and abs(macro_contrib) > abs(comp_delta)
+        if macro_only:
             driver, ddelta = "Macro overlay", round(macro_contrib, 1)
         elif drv_p and abs(drv_pd) >= 2:
             driver, ddelta = _PLAB[drv_p], round(drv_pd, 1)
@@ -1947,7 +1971,7 @@ def _hero_card_html(macro: dict, results: list, movers: list = None,
         chips = "".join(_chip(m) for m in movers)
         dur = max(24, len(movers) * 4)
         sections += (
-            _label("TODAY&#39;S BIGGEST CONVICTION CHANGES", "since last scored")
+            _label("TODAY&#39;S CONVICTION MOVES", "since last scored")
             + f'<div class="qntm-mv-wrap" style="width:100%;margin-bottom:4px;'
             f'-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);'
             f'mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);">'
@@ -2258,16 +2282,34 @@ def _whats_changed_html(ticker: str, now_sig_date: str = "") -> str:
     except Exception:
         return ""
 
-    seen, picked = [], []
+    from datetime import date as _date
+
+    def _pd(s):
+        try:
+            return _date.fromisoformat(s)
+        except (TypeError, ValueError):
+            return None
+
+    distinct, seen = [], set()
     for rr in rows:
         d = rr.get("signal_date")
-        if d not in seen:
-            seen.append(d); picked.append(rr)
-        if len(picked) == 2:
-            break
-    if len(picked) < 2:
+        if d and d not in seen:
+            seen.add(d); distinct.append(rr)
+    if len(distinct) < 2:
         return ""
-    now, prev = picked[0], picked[1]
+    now = distinct[0]
+    nd = _pd(now.get("signal_date"))
+    prev = None
+    if nd:
+        for rr in distinct[1:]:
+            rd = _pd(rr.get("signal_date"))
+            if rd and (nd - rd).days >= 1:    # prior scored session
+                prev = rr
+                break
+    if prev is None:
+        prev = distinct[-1]
+    if prev.get("signal_date") == now.get("signal_date"):
+        return ""
 
     def _f(x, k):
         try:
