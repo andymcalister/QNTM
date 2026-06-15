@@ -1737,7 +1737,7 @@ def _live_macro() -> dict:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 14) -> list:
+def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 18) -> list:
     """Day-over-day conviction movers for the hero feed. For each ticker pulls its
     two most recent CLEAN scored rows (distinct dates) and reports prev->now
     adj_composite plus what drove the move: the macro overlay (if the regime
@@ -1815,7 +1815,11 @@ def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int =
         else:
             driver, ddelta = None, 0.0
 
+        def _tier(v):
+            return "HIGH" if v >= 60 else ("MOD" if v >= 45 else "LOW")
+
         movers.append({"ticker": tk, "now": a_now, "prev": a_prev, "delta": delta,
+                       "now_tier": _tier(a_now), "prev_tier": _tier(a_prev),
                        "driver": driver, "driver_delta": ddelta})
 
     movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
@@ -1838,31 +1842,53 @@ def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
     else:                                       rcol = "#9fabc0"
 
     if movers:
+        _TIER_COL = {"HIGH": "#34d399", "MOD": "#fbbf24", "LOW": "#f87171"}
         chips = ""
         for m in movers:
-            up  = m["delta"] >= 0
-            col = "#34d399" if up else "#f87171"
-            arr = "&#9650;" if up else "&#9660;"
+            up   = m["delta"] >= 0
+            col  = "#34d399" if up else "#f87171"
+            arr  = "&#9650;" if up else "&#9660;"
+            nt   = m.get("now_tier", "MOD")
+            pt   = m.get("prev_tier", nt)
+            ntc  = _TIER_COL.get(nt, "#8896ac")
+            crossed = nt != pt
+            # tier badge: arrow only when the name actually crossed a tier line
+            if crossed:
+                tarr = "&#9650;" if (up) else "&#9660;"
+                tier_badge = (f'<span style="font-family:DM Mono,monospace;font-size:11px;'
+                              f'color:{ntc};font-weight:600;border:1px solid {ntc}55;'
+                              f'border-radius:5px;padding:1px 6px;">{tarr} {nt}</span>')
+            else:
+                tier_badge = (f'<span style="font-family:DM Mono,monospace;font-size:11px;'
+                              f'color:{ntc};opacity:.85;">{nt}</span>')
             drv = ""
             if m.get("driver"):
                 dd = m["driver_delta"]
                 drv = (f'<span style="font-size:11px;color:#6b7686;">&middot; '
                        f'{_h.escape(str(m["driver"]))} {"+" if dd >= 0 else ""}{dd:.0f}</span>')
+            ci = get_company_info(m["ticker"]) or {}
+            nm = _h.escape(str(ci.get("name", "") or "")[:22])
             chips += (
-                f'<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 13px;'
-                f'margin-right:9px;background:rgba(255,255,255,.025);'
-                f'border:1px solid rgba(255,255,255,.07);border-radius:999px;white-space:nowrap;">'
+                f'<span style="display:inline-flex;flex-direction:column;gap:4px;'
+                f'padding:8px 13px;margin-right:9px;background:rgba(255,255,255,.025);'
+                f'border:1px solid rgba(255,255,255,.07);border-radius:10px;'
+                f'white-space:nowrap;vertical-align:top;">'
+                f'<span style="display:flex;align-items:center;gap:7px;">'
                 f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#e7ecf3;'
                 f'font-weight:600;">{_h.escape(str(m["ticker"]))}</span>'
+                f'<span style="font-size:11px;color:#6b7686;max-width:130px;overflow:hidden;'
+                f'text-overflow:ellipsis;">{nm}</span></span>'
+                f'<span style="display:flex;align-items:center;gap:8px;">'
                 f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;">'
-                f'{m["prev"]:.0f}&#8594;{m["now"]:.0f}</span>'
+                f'{m["prev"]:.0f}&#8594;<span style="color:{ntc};font-weight:600;">{m["now"]:.0f}</span></span>'
                 f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{col};">'
-                f'{arr}{abs(m["delta"]):.0f}</span>{drv}</span>')
+                f'{arr}{abs(m["delta"]):.0f}</span>'
+                f'{tier_badge}{drv}</span></span>')
         dur = max(24, len(movers) * 4)
         body = (
             f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;'
             f'letter-spacing:.06em;margin-bottom:8px;">CONVICTION MOVERS '
-            f'<span style="color:#6b7686;">&middot; since last scored</span></div>'
+            f'<span style="color:#6b7686;">&middot; biggest moves since last scored</span></div>'
             f'<div class="qntm-mv-wrap" style="width:100%;margin-bottom:4px;'
             f'-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);'
             f'mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);">'
