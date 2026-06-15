@@ -1736,11 +1736,98 @@ def _live_macro() -> dict:
         return {}
 
 
-def _hero_card_html(macro: dict, results: list) -> str:
-    """Login hero: leads with today's macro regime, the top conviction names, and
-    the conviction-change alert hook + getting-started nudge. Research framing
-    only — conviction labels/scores, no performance or benchmark claims (those
-    stay gated)."""
+@st.cache_data(ttl=300, show_spinner=False)
+def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int = 14) -> list:
+    """Day-over-day conviction movers for the hero feed. For each ticker pulls its
+    two most recent CLEAN scored rows (distinct dates) and reports prev->now
+    adj_composite plus what drove the move: the macro overlay (if the regime
+    shift moved the name more than its own factors did) or the single pillar that
+    moved most. Research framing only — score deltas and factor attribution, no
+    returns. Cached 5 min; one batched signal_log read."""
+    try:
+        from data_refresh import _get_supabase
+        from datetime import date, timedelta
+        sb = _get_supabase()
+        if not sb or not tickers_key:
+            return []
+        since = (date.today() - timedelta(days=lookback_days)).isoformat()
+        rows = (sb.table("signal_log")
+                .select("ticker,signal_date,adj_composite,composite,"
+                        "momentum,quality,volume,value,sentiment")
+                .in_("ticker", list(tickers_key))
+                .gte("signal_date", since)
+                .not_.is_("composite", "null")
+                .order("signal_date", desc=True)
+                .execute()).data or []
+    except Exception:
+        return []
+
+    _PILL = ("momentum", "quality", "volume", "value", "sentiment")
+    _PLAB = {"momentum": "Momentum", "quality": "Quality", "volume": "Volume",
+             "value": "Value", "sentiment": "Sentiment"}
+
+    def _f(row, k):
+        try:
+            return float(row.get(k))
+        except (TypeError, ValueError):
+            return None
+
+    by = {}
+    for r in rows:                       # already date-desc
+        by.setdefault(r["ticker"], []).append(r)
+
+    movers = []
+    for tk, rs in by.items():
+        seen, picked = [], []
+        for r in rs:
+            d = r.get("signal_date")
+            if d not in seen:
+                seen.append(d); picked.append(r)
+            if len(picked) == 2:
+                break
+        if len(picked) < 2:
+            continue
+        now, prev = picked[0], picked[1]
+        a_now, a_prev = _f(now, "adj_composite"), _f(prev, "adj_composite")
+        if a_now is None or a_prev is None:
+            continue
+        delta = round(a_now - a_prev, 1)
+        if abs(delta) < 2.0:             # only real movers
+            continue
+
+        c_now, c_prev = _f(now, "composite"), _f(prev, "composite")
+        comp_delta = (c_now - c_prev) if (c_now is not None and c_prev is not None) else 0.0
+        macro_contrib = delta - comp_delta
+
+        drv_p, drv_pd = None, 0.0
+        for p in _PILL:
+            pn, pp = _f(now, p), _f(prev, p)
+            if pn is None or pp is None:
+                continue
+            dd = pn - pp
+            if abs(dd) > abs(drv_pd):
+                drv_p, drv_pd = p, dd
+
+        if abs(macro_contrib) >= 2 and abs(macro_contrib) > abs(comp_delta):
+            driver, ddelta = "Macro overlay", round(macro_contrib, 1)
+        elif drv_p and abs(drv_pd) >= 2:
+            driver, ddelta = _PLAB[drv_p], round(drv_pd, 1)
+        else:
+            driver, ddelta = None, 0.0
+
+        movers.append({"ticker": tk, "now": a_now, "prev": a_prev, "delta": delta,
+                       "driver": driver, "driver_delta": ddelta})
+
+    movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
+    return movers[:top_n]
+
+
+def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
+    """Login hero: today's macro regime, a scrolling conviction-movers feed
+    (prev->now score + what drove the change), and the conviction-change alert
+    hook. Falls back to top-conviction cards when no movers are available.
+    Research framing only — conviction scores and factor attribution, no
+    performance/benchmark claims (those stay gated)."""
     import html as _h
     regime = (macro or {}).get("regime", "NEUTRAL") or "NEUTRAL"
     rlab = regime.replace("_", " ").title()
@@ -1750,30 +1837,66 @@ def _hero_card_html(macro: dict, results: list) -> str:
     elif "RISK_ON" in ru or "RISK ON" in ru or "BULL" in ru: rcol = "#34d399"
     else:                                       rcol = "#9fabc0"
 
-    top = sorted([r for r in (results or []) if r.get("adj_action", r.get("action")) == "BUY"],
-                 key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)[:3]
-    picks = ""
-    for r in top:
-        score = r.get("adj_composite", r.get("composite", 0)) or 0
-        if   score >= 60: lbl, lc = "High",     "#34d399"
-        elif score >= 45: lbl, lc = "Moderate", "#fbbf24"
-        else:             lbl, lc = "Low",      "#f87171"
-        ci = get_company_info(r["ticker"]) or {}
-        nm = _h.escape(str(ci.get("name", r["ticker"]))[:26])
-        picks += (
-            f'<div style="flex:1;min-width:118px;background:rgba(255,255,255,.02);'
-            f'border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 12px;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#e7ecf3;'
-            f'font-weight:600;">{_h.escape(str(r["ticker"]))}</div>'
-            f'<div style="font-size:11px;color:#6b7686;margin:2px 0 6px;white-space:nowrap;'
-            f'overflow:hidden;text-overflow:ellipsis;">{nm}</div>'
-            f'<div style="display:flex;align-items:center;gap:6px;">'
-            f'<span style="font-size:11px;color:{lc};font-weight:600;">{lbl} conviction</span>'
-            f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;">{score:.0f}</span>'
-            f'</div></div>')
-    if not picks:
-        picks = ('<div style="font-size:12px;color:#6b7686;">Run the screener to surface '
-                 'today\'s highest-conviction names.</div>')
+    if movers:
+        chips = ""
+        for m in movers:
+            up  = m["delta"] >= 0
+            col = "#34d399" if up else "#f87171"
+            arr = "&#9650;" if up else "&#9660;"
+            drv = ""
+            if m.get("driver"):
+                dd = m["driver_delta"]
+                drv = (f'<span style="font-size:11px;color:#6b7686;">&middot; '
+                       f'{_h.escape(str(m["driver"]))} {"+" if dd >= 0 else ""}{dd:.0f}</span>')
+            chips += (
+                f'<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 13px;'
+                f'margin-right:9px;background:rgba(255,255,255,.025);'
+                f'border:1px solid rgba(255,255,255,.07);border-radius:999px;white-space:nowrap;">'
+                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#e7ecf3;'
+                f'font-weight:600;">{_h.escape(str(m["ticker"]))}</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;">'
+                f'{m["prev"]:.0f}&#8594;{m["now"]:.0f}</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{col};">'
+                f'{arr}{abs(m["delta"]):.0f}</span>{drv}</span>')
+        dur = max(24, len(movers) * 4)
+        body = (
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;'
+            f'letter-spacing:.06em;margin-bottom:8px;">CONVICTION MOVERS '
+            f'<span style="color:#6b7686;">&middot; since last scored</span></div>'
+            f'<div class="qntm-mv-wrap" style="overflow:hidden;width:100%;margin-bottom:4px;'
+            f'-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);'
+            f'mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);">'
+            f'<div class="qntm-mv" style="display:inline-flex;'
+            f'animation:qntm-mv-scroll {dur}s linear infinite;">{chips}{chips}</div></div>'
+            f'<style>@keyframes qntm-mv-scroll{{from{{transform:translateX(0)}}'
+            f'to{{transform:translateX(-50%)}}}}'
+            f'.qntm-mv-wrap:hover .qntm-mv{{animation-play-state:paused}}</style>')
+    else:
+        top = sorted([r for r in (results or []) if r.get("adj_action", r.get("action")) == "BUY"],
+                     key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)[:3]
+        cards = ""
+        for r in top:
+            score = r.get("adj_composite", r.get("composite", 0)) or 0
+            if   score >= 60: lbl, lc = "High",     "#34d399"
+            elif score >= 45: lbl, lc = "Moderate", "#fbbf24"
+            else:             lbl, lc = "Low",      "#f87171"
+            ci = get_company_info(r["ticker"]) or {}
+            nm = _h.escape(str(ci.get("name", r["ticker"]))[:26])
+            cards += (
+                f'<div style="flex:1;min-width:118px;background:rgba(255,255,255,.02);'
+                f'border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#e7ecf3;'
+                f'font-weight:600;">{_h.escape(str(r["ticker"]))}</div>'
+                f'<div style="font-size:11px;color:#6b7686;margin:2px 0 6px;white-space:nowrap;'
+                f'overflow:hidden;text-overflow:ellipsis;">{nm}</div>'
+                f'<div style="display:flex;align-items:center;gap:6px;">'
+                f'<span style="font-size:11px;color:{lc};font-weight:600;">{lbl} conviction</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;">{score:.0f}</span>'
+                f'</div></div>')
+        if not cards:
+            cards = ('<div style="font-size:12px;color:#6b7686;">Run the screener to surface '
+                     'today\'s movers.</div>')
+        body = f'<div style="display:flex;gap:10px;flex-wrap:wrap;">{cards}</div>'
 
     return (
         f'<div style="background:linear-gradient(180deg,rgba(212,168,67,.06),rgba(0,0,0,0));'
@@ -1784,9 +1907,10 @@ def _hero_card_html(macro: dict, results: list) -> str:
         f'color:#9fabc0;text-transform:uppercase;">Today at a glance</span>'
         f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{rcol};">'
         f'&#9679; Macro regime: {_h.escape(rlab)}</span></div>'
-        f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">{picks}</div>'
+        f'{body}'
         f'<div style="display:flex;align-items:center;justify-content:space-between;'
-        f'flex-wrap:wrap;gap:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);">'
+        f'flex-wrap:wrap;gap:10px;padding-top:12px;margin-top:12px;'
+        f'border-top:1px solid rgba(255,255,255,.06);">'
         f'<span style="font-size:12px;color:#b3bed0;">&#9889; Conviction-change alerts flag the '
         f'moment a name shifts tier (Pro).</span>'
         f'<span style="font-size:12px;color:#6b7686;">New here? Open any stock for its '
@@ -5692,8 +5816,9 @@ def page_screener():
         unsafe_allow_html=True
     )
 
-    # ── Login hero: regime + top conviction + the conviction-change hook ───────
-    st.markdown(_hero_card_html(macro, results), unsafe_allow_html=True)
+    # ── Login hero: regime + scrolling conviction movers + the alert hook ──────
+    _hero_movers = _conviction_movers(tuple(sorted({r["ticker"] for r in results}))) if results else []
+    st.markdown(_hero_card_html(macro, results, _hero_movers), unsafe_allow_html=True)
 
     # ── Macro Regime Banner ────────────────────────────────────────────────────
     from model_engine import MACRO_EVENT_INFO
