@@ -188,15 +188,14 @@ def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
     """
     regime = (macro_data or {}).get("regime", "NEUTRAL") if macro_data else "NEUTRAL"
 
-    # Tighten threshold in risk-off environments
+    # Gems are a high bar always; tighten further in risk-off so only the
+    # highest-conviction names surface. (Previously this LOOSENED in risk-on,
+    # which inflated the list exactly when macro dampening eased — backwards for
+    # a curated 'hidden gems' shortlist.)
     if regime in ("RISK_OFF", "HIGH VOLATILITY"):
         threshold_composite = 67
         threshold_quality   = 58
         threshold_momentum  = 62
-    elif regime in ("RISK_ON", "MILDLY BULLISH"):
-        threshold_composite = 60
-        threshold_quality   = 53
-        threshold_momentum  = 56
     else:
         threshold_composite = 62
         threshold_quality   = 55
@@ -302,9 +301,10 @@ def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
         s["gem_adj_score"] = adj
         gems.append(s)
 
-    # Sort by adj_composite descending
+    # Sort by adj_composite descending, then cap — 'hidden gems' is a curated
+    # shortlist, not a screen. Keeping it tight preserves the signal value.
     gems.sort(key=lambda x: float(x.get("adj_composite") or x.get("composite") or 0), reverse=True)
-    return gems
+    return gems[:12]
 
 
 # ── LIVE PRICE FETCH ──────────────────────────────────────────────────────────
