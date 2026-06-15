@@ -1031,6 +1031,16 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         # ── Select active events (threshold: ≥2 signals) ─────────────────────
         active_events = [e for e, s in event_scores.items() if s >= 2.0]
 
+        # A netted conflict is a residual, so it can land below the generic
+        # threshold even when the conflict is a live, market-moving story.
+        # If either side had real signal pre-net, surface the NET direction
+        # (down to a small floor) rather than dropping the conflict to silence —
+        # a fresh ceasefire lean should read risk-on, not disappear.
+        if max(_esc, _deesc) >= 2.0:
+            _winner = "war_deescalation" if _deesc >= _esc else "war_escalation"
+            if event_scores.get(_winner, 0.0) >= 0.5 and _winner not in active_events:
+                active_events.append(_winner)
+
         # Fall back to the hardcoded baseline ONLY when the live feed returned
         # nothing. Previously this ran unconditionally, which pinned
         # tariff_broad/war_escalation on every run regardless of the news — so
@@ -1111,6 +1121,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "drivers":         _drivers_live,
             "narrative":       _narrative_live,
             "fed_consensus":   fed_consensus,
+            "conflict_scan":   {"escalation": round(_esc, 2), "deescalation": round(_deesc, 2)},
         }
 
     except Exception as e:
