@@ -1012,6 +1012,22 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             event_scores[_k] += _v
         fed_consensus = _antic_meta.get("fed_consensus")
 
+        # ── Net the conflict pair ────────────────────────────────────────────
+        # Escalation and de-escalation are opposite directions of ONE story.
+        # Scored independently they each saturate the ±0.75 cap and cancel,
+        # discarding which side the (recency-weighted) news actually favours.
+        # Net them so the fresher/heavier side leads and the offset is real,
+        # not a wash — the loser's score collapses to the margin, not to max.
+        _esc   = event_scores.get("war_escalation", 0.0)
+        _deesc = event_scores.get("war_deescalation", 0.0)
+        if _esc and _deesc:
+            if _deesc >= _esc:
+                event_scores["war_deescalation"] = _deesc - _esc
+                event_scores["war_escalation"]   = 0.0
+            else:
+                event_scores["war_escalation"]   = _esc - _deesc
+                event_scores["war_deescalation"] = 0.0
+
         # ── Select active events (threshold: ≥2 signals) ─────────────────────
         active_events = [e for e, s in event_scores.items() if s >= 2.0]
 
