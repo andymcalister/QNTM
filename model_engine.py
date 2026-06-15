@@ -529,13 +529,17 @@ def _detect_anticipation(headlines):
         elif any(d in h for d in _DIR_CUT):  cut  += 1
         elif any(d in h for d in _DIR_HIKE): hike += 1
     total = cut + hold + hike
-    if total >= 2:
+    # Require a real cluster of forward-looking calls — a 2-headline "consensus"
+    # is noise, not signal. Weight then reflects BOTH how lopsided the split is
+    # AND how many calls support it (conviction), so a thin read can never reach
+    # max dampening: e.g. 2 hawkish headlines no longer read as "100% hike".
+    if total >= 4:
         winner, n = max((("fed_cut_expected", cut),
                          ("fed_hold_expected", hold),
                          ("fed_hike_expected", hike)), key=lambda kv: kv[1])
         share = n / total
-        # weight 2..5, scaled by how lopsided the consensus is (29/30 ≈ max)
-        scores[winner] = round(2.0 + 3.0 * share, 2)
+        conviction = min(1.0, total / 12.0)        # ~12+ calls = full confidence
+        scores[winner] = round((2.0 + 3.0 * share) * conviction, 2)
         meta["fed_consensus"] = {
             "cut": cut, "hold": hold, "hike": hike, "total": total,
             "lean": winner.replace("fed_", "").replace("_expected", ""),
@@ -768,10 +772,12 @@ RISK_ON_EVENTS  = {"tariff_relief","fed_dovish","war_deescalation",
                    "fed_cut_expected","jobs_strong","inflation_cool"}
 
 
-def _build_drivers(active_events: list, event_scores: dict) -> list:
+def _build_drivers(active_events: list, event_scores: dict, event_counts: dict = None) -> list:
     """Per-driver breakdown showing how each active factor moved the regime
     score. Uses the same weight/sign math as the risk_score loop, so the
-    contributions sum to the regime score."""
+    contributions sum to the regime score. `event_scores` is recency-weighted
+    (drives contribution); `event_counts` is the raw headline tally (drives the
+    'N signals' display) — falls back to the weighted value when unavailable."""
     drivers = []
     for e in (active_events or []):
         raw = float((event_scores or {}).get(e, 1.0) or 1.0)
@@ -782,11 +788,15 @@ def _build_drivers(active_events: list, event_scores: dict) -> list:
             contrib, stance = round(w * 0.15, 3), "risk-on"
         else:
             contrib, stance = 0.0, "neutral"
+        if event_counts and e in event_counts:
+            n_sig = int(event_counts[e])
+        else:
+            n_sig = int(round(raw))
         drivers.append({
             "event":        e,
             "label":        EVENT_LABELS.get(e, e.replace("_", " ").title()),
             "stance":       stance,
-            "signals":      int(raw),
+            "signals":      n_sig,
             "contribution": contrib,
         })
     drivers.sort(key=lambda d: abs(d["contribution"]), reverse=True)
@@ -862,6 +872,23 @@ def _macro_narrative(regime_label: str, risk_score: float, drivers: list,
     return f"{label} (regime score {risk_score:+.2f}). {body}{cons}{ctx}{oil_ctx}"
 
 
+def _headline_recency_weight(entry) -> float:
+    """Weight a headline by how fresh it is, so the newest development leads the
+    regime read (e.g. yesterday's peace MOU outweighs last week's strikes).
+    Exponential decay, ~3-day half-life, floored at 0.15 so older items still
+    count a little; undated entries get a neutral 0.7. Returns a multiplier in
+    [0.15, 1.0] applied to that headline's contribution to its event score."""
+    import time, calendar
+    t = entry.get("published_parsed") or entry.get("updated_parsed")
+    if not t:
+        return 0.7
+    try:
+        age_days = max(0.0, (time.time() - calendar.timegm(t)) / 86400.0)
+        return max(0.15, min(1.0, 0.5 ** (age_days / 3.0)))
+    except Exception:
+        return 0.7
+
+
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
     Fetch macro regime and sector overlays from live data sources.
@@ -903,6 +930,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             ("https://feeds.npr.org/1001/rss.xml", 15),
         ]
         _seen = set()
+        _hl_w = {}                       # headline text -> recency weight
         for url, cap in NEWS_FEEDS:
             try:
                 feed = feedparser.parse(url)
@@ -911,6 +939,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                     if text and text not in _seen:
                         _seen.add(text)
                         headlines.append(text)
+                        _hl_w[text] = _headline_recency_weight(entry)
             except Exception:
                 pass
 
@@ -935,8 +964,12 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         except Exception:
             pass
 
-        # ── Keyword event detection ───────────────────────────────────────────
+        # ── Keyword event detection (recency-weighted) ───────────────────────
+        # event_scores = recency-weighted sum (drives the regime math, so fresh
+        # news outweighs stale); event_counts = raw headline tally (for the
+        # "N signals" display, which should stay an honest integer count).
         event_scores = defaultdict(float)
+        event_counts = defaultdict(int)
         _deesc_kws = EVENT_KEYWORDS["war_deescalation"]
         for event_type, keywords in EVENT_KEYWORDS.items():
             for headline in headlines:
@@ -945,7 +978,8 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                     continue
                 for kw in keywords:
                     if kw in headline:
-                        event_scores[event_type] += 1.0
+                        event_scores[event_type] += _hl_w.get(headline, 0.7)
+                        event_counts[event_type] += 1
                         break  # one hit per headline per event
 
         # ── VIX-based event injection ─────────────────────────────────────────
@@ -1016,7 +1050,11 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         elif risk_score >=  0.1: regime_label = "MILDLY BULLISH"
         elif risk_score >= -0.1: regime_label = "NEUTRAL"
         elif risk_score >= -0.4: regime_label = "RISK_OFF"
-        else:                     regime_label = "HIGH VOLATILITY"
+        elif vix_level is not None and vix_level >= 22:
+            regime_label = "HIGH VOLATILITY"     # news risk-off AND market vol confirms
+        else:
+            regime_label = "RISK_OFF"            # deep news risk-off, but VIX still calm —
+                                                 # a news-led read, not a volatility spike
 
         # ── Build sector overlays ─────────────────────────────────────────────
         sector_overlays = defaultdict(float)
@@ -1037,7 +1075,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
 
         _ev_labels_live = _macro_event_labels(active_events)
         _summary_live   = _macro_summary(regime_label, _ev_labels_live, vix_level, oil_price, n_headlines, True)
-        _drivers_live   = _build_drivers(active_events, event_scores)
+        _drivers_live   = _build_drivers(active_events, event_scores, event_counts)
         _narrative_live = _macro_narrative(regime_label, risk_score, _drivers_live,
                                             vix_level, oil_price, fed_consensus)
 
