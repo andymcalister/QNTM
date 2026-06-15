@@ -1736,6 +1736,63 @@ def _live_macro() -> dict:
         return {}
 
 
+def _hero_card_html(macro: dict, results: list) -> str:
+    """Login hero: leads with today's macro regime, the top conviction names, and
+    the conviction-change alert hook + getting-started nudge. Research framing
+    only — conviction labels/scores, no performance or benchmark claims (those
+    stay gated)."""
+    import html as _h
+    regime = (macro or {}).get("regime", "NEUTRAL") or "NEUTRAL"
+    rlab = regime.replace("_", " ").title()
+    ru = regime.upper()
+    if   "HIGH VOL" in ru:                      rcol = "#fb923c"
+    elif "RISK_OFF" in ru or "RISK OFF" in ru:  rcol = "#fbbf24"
+    elif "RISK_ON" in ru or "RISK ON" in ru or "BULL" in ru: rcol = "#34d399"
+    else:                                       rcol = "#9fabc0"
+
+    top = sorted([r for r in (results or []) if r.get("adj_action", r.get("action")) == "BUY"],
+                 key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)[:3]
+    picks = ""
+    for r in top:
+        score = r.get("adj_composite", r.get("composite", 0)) or 0
+        if   score >= 60: lbl, lc = "High",     "#34d399"
+        elif score >= 45: lbl, lc = "Moderate", "#fbbf24"
+        else:             lbl, lc = "Low",      "#f87171"
+        ci = get_company_info(r["ticker"]) or {}
+        nm = _h.escape(str(ci.get("name", r["ticker"]))[:26])
+        picks += (
+            f'<div style="flex:1;min-width:118px;background:rgba(255,255,255,.02);'
+            f'border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 12px;">'
+            f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#e7ecf3;'
+            f'font-weight:600;">{_h.escape(str(r["ticker"]))}</div>'
+            f'<div style="font-size:11px;color:#6b7686;margin:2px 0 6px;white-space:nowrap;'
+            f'overflow:hidden;text-overflow:ellipsis;">{nm}</div>'
+            f'<div style="display:flex;align-items:center;gap:6px;">'
+            f'<span style="font-size:11px;color:{lc};font-weight:600;">{lbl} conviction</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;">{score:.0f}</span>'
+            f'</div></div>')
+    if not picks:
+        picks = ('<div style="font-size:12px;color:#6b7686;">Run the screener to surface '
+                 'today\'s highest-conviction names.</div>')
+
+    return (
+        f'<div style="background:linear-gradient(180deg,rgba(212,168,67,.06),rgba(0,0,0,0));'
+        f'border:1px solid rgba(212,168,67,.18);border-radius:12px;padding:16px 18px;margin-bottom:14px;">'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;'
+        f'flex-wrap:wrap;gap:8px;margin-bottom:12px;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:12px;letter-spacing:.14em;'
+        f'color:#9fabc0;text-transform:uppercase;">Today at a glance</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{rcol};">'
+        f'&#9679; Macro regime: {_h.escape(rlab)}</span></div>'
+        f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">{picks}</div>'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;'
+        f'flex-wrap:wrap;gap:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);">'
+        f'<span style="font-size:12px;color:#b3bed0;">&#9889; Conviction-change alerts flag the '
+        f'moment a name shifts tier (Pro).</span>'
+        f'<span style="font-size:12px;color:#6b7686;">New here? Open any stock for its '
+        f'plain-English rationale and 5-pillar breakdown.</span></div></div>')
+
+
 def macro_regime_banner_html(macro: dict) -> str:
     """Renders the macro regime banner with live stats from macro_data."""
     regime    = macro.get("regime","NEUTRAL")
@@ -5634,6 +5691,9 @@ def page_screener():
         f'</span></div>',
         unsafe_allow_html=True
     )
+
+    # ── Login hero: regime + top conviction + the conviction-change hook ───────
+    st.markdown(_hero_card_html(macro, results), unsafe_allow_html=True)
 
     # ── Macro Regime Banner ────────────────────────────────────────────────────
     from model_engine import MACRO_EVENT_INFO
