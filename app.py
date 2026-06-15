@@ -1863,14 +1863,32 @@ def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
             f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;'
             f'letter-spacing:.06em;margin-bottom:8px;">CONVICTION MOVERS '
             f'<span style="color:#6b7686;">&middot; since last scored</span></div>'
-            f'<div class="qntm-mv-wrap" style="overflow:hidden;width:100%;margin-bottom:4px;'
+            f'<div class="qntm-mv-wrap" style="width:100%;margin-bottom:4px;'
             f'-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);'
             f'mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);">'
-            f'<div class="qntm-mv" style="display:inline-flex;'
-            f'animation:qntm-mv-scroll {dur}s linear infinite;">{chips}{chips}</div></div>'
+            f'<div class="qntm-mv" style="display:inline-flex;">'
+            f'<span class="qntm-mv-set" style="display:inline-flex;">{chips}</span>'
+            f'<span class="qntm-mv-set qntm-mv-dup" aria-hidden="true" '
+            f'style="display:inline-flex;">{chips}</span></div></div>'
             f'<style>@keyframes qntm-mv-scroll{{from{{transform:translateX(0)}}'
             f'to{{transform:translateX(-50%)}}}}'
-            f'.qntm-mv-wrap:hover .qntm-mv{{animation-play-state:paused}}</style>')
+            # base (touch / no-hover): native swipeable strip, single set, no auto-scroll
+            f'.qntm-mv-wrap{{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;'
+            f'scrollbar-width:none;}}'
+            f'.qntm-mv-wrap::-webkit-scrollbar{{display:none;}}'
+            f'.qntm-mv-dup{{display:none;}}'
+            # real-hover devices (desktop): auto-scroll marquee, pause on hover
+            f'@media (hover:hover) and (pointer:fine){{'
+            f'.qntm-mv-wrap{{overflow:hidden;}}'
+            f'.qntm-mv-dup{{display:inline-flex;}}'
+            f'.qntm-mv{{animation:qntm-mv-scroll {dur}s linear infinite;}}'
+            f'.qntm-mv-wrap:hover .qntm-mv{{animation-play-state:paused;}}}}'
+            # accessibility: respect reduced-motion -> swipe strip, no animation
+            f'@media (prefers-reduced-motion:reduce){{'
+            f'.qntm-mv{{animation:none!important;}}'
+            f'.qntm-mv-wrap{{overflow-x:auto;}}'
+            f'.qntm-mv-dup{{display:none;}}}}'
+            f'</style>')
     else:
         top = sorted([r for r in (results or []) if r.get("adj_action", r.get("action")) == "BUY"],
                      key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)[:3]
