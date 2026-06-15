@@ -1826,12 +1826,13 @@ def _conviction_movers(tickers_key: tuple, lookback_days: int = 10, top_n: int =
     return movers[:top_n]
 
 
-def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
-    """Login hero: today's macro regime, a scrolling conviction-movers feed
-    (prev->now score + what drove the change), and the conviction-change alert
-    hook. Falls back to top-conviction cards when no movers are available.
-    Research framing only — conviction scores and factor attribution, no
-    performance/benchmark claims (those stay gated)."""
+def _hero_card_html(macro: dict, results: list, movers: list = None,
+                    wl_movers: list = None, has_watchlist: bool = False) -> str:
+    """Login hero: today's macro regime, then 'What changed' -- a personal
+    watchlist-movers row (when signed in) above the universe's biggest conviction
+    changes -- plus the conviction-change alert hook. Falls back to top-conviction
+    cards when no movers exist. Research framing only: conviction scores and
+    factor attribution, no performance/benchmark claims (those stay gated)."""
     import html as _h
     regime = (macro or {}).get("regime", "NEUTRAL") or "NEUTRAL"
     rlab = regime.replace("_", " ").title()
@@ -1841,55 +1842,73 @@ def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
     elif "RISK_ON" in ru or "RISK ON" in ru or "BULL" in ru: rcol = "#34d399"
     else:                                       rcol = "#9fabc0"
 
+    _TIER_COL = {"HIGH": "#34d399", "MOD": "#fbbf24", "LOW": "#f87171"}
+
+    def _chip(m):
+        up  = m["delta"] >= 0
+        col = "#34d399" if up else "#f87171"
+        arr = "&#9650;" if up else "&#9660;"
+        nt  = m.get("now_tier", "MOD")
+        pt  = m.get("prev_tier", nt)
+        ntc = _TIER_COL.get(nt, "#8896ac")
+        if nt != pt:                      # crossed a tier line -> emphasise
+            tarr = "&#9650;" if up else "&#9660;"
+            tier_badge = (f'<span style="font-family:DM Mono,monospace;font-size:11px;'
+                          f'color:{ntc};font-weight:600;border:1px solid {ntc}55;'
+                          f'border-radius:5px;padding:1px 6px;">{tarr} {nt}</span>')
+        else:
+            tier_badge = (f'<span style="font-family:DM Mono,monospace;font-size:11px;'
+                          f'color:{ntc};opacity:.85;">{nt}</span>')
+        drv = ""
+        if m.get("driver"):
+            dd = m["driver_delta"]
+            drv = (f'<span style="font-size:11px;color:#6b7686;">&middot; '
+                   f'{_h.escape(str(m["driver"]))} {"+" if dd >= 0 else ""}{dd:.0f}</span>')
+        ci = get_company_info(m["ticker"]) or {}
+        nm = _h.escape(str(ci.get("name", "") or "")[:22])
+        return (
+            f'<span style="display:inline-flex;flex-direction:column;gap:4px;'
+            f'padding:8px 13px;margin:0 9px 9px 0;background:rgba(255,255,255,.025);'
+            f'border:1px solid rgba(255,255,255,.07);border-radius:10px;'
+            f'white-space:nowrap;vertical-align:top;">'
+            f'<span style="display:flex;align-items:center;gap:7px;">'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#e7ecf3;'
+            f'font-weight:600;">{_h.escape(str(m["ticker"]))}</span>'
+            f'<span style="font-size:11px;color:#6b7686;max-width:130px;overflow:hidden;'
+            f'text-overflow:ellipsis;">{nm}</span></span>'
+            f'<span style="display:flex;align-items:center;gap:8px;">'
+            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;">'
+            f'{m["prev"]:.0f}&#8594;<span style="color:{ntc};font-weight:600;">{m["now"]:.0f}</span></span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{col};">'
+            f'{arr}{abs(m["delta"]):.0f}</span>{tier_badge}{drv}</span></span>')
+
+    def _label(text, qualifier=""):
+        q = (f'<span style="color:#6b7686;">&middot; {qualifier}</span>') if qualifier else ""
+        return (f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;'
+                f'letter-spacing:.06em;margin-bottom:8px;">{text} {q}</div>')
+
+    sections = ""
+
+    # ── Personal: watchlist movers (only when signed in with a list) ──────────
+    if has_watchlist:
+        if wl_movers:
+            wl_chips = "".join(_chip(m) for m in wl_movers)
+            sections += (
+                _label("ON YOUR WATCHLIST", f"{len(wl_movers)} changed")
+                + f'<div style="display:flex;flex-wrap:wrap;margin-bottom:14px;">{wl_chips}</div>')
+        else:
+            sections += (
+                _label("ON YOUR WATCHLIST")
+                + '<div style="font-size:12px;color:#6b7686;margin-bottom:14px;">'
+                  'No conviction changes on your watchlist since last scored.</div>')
+
+    # ── Universe: biggest conviction changes (scrolling feed) ─────────────────
     if movers:
-        _TIER_COL = {"HIGH": "#34d399", "MOD": "#fbbf24", "LOW": "#f87171"}
-        chips = ""
-        for m in movers:
-            up   = m["delta"] >= 0
-            col  = "#34d399" if up else "#f87171"
-            arr  = "&#9650;" if up else "&#9660;"
-            nt   = m.get("now_tier", "MOD")
-            pt   = m.get("prev_tier", nt)
-            ntc  = _TIER_COL.get(nt, "#8896ac")
-            crossed = nt != pt
-            # tier badge: arrow only when the name actually crossed a tier line
-            if crossed:
-                tarr = "&#9650;" if (up) else "&#9660;"
-                tier_badge = (f'<span style="font-family:DM Mono,monospace;font-size:11px;'
-                              f'color:{ntc};font-weight:600;border:1px solid {ntc}55;'
-                              f'border-radius:5px;padding:1px 6px;">{tarr} {nt}</span>')
-            else:
-                tier_badge = (f'<span style="font-family:DM Mono,monospace;font-size:11px;'
-                              f'color:{ntc};opacity:.85;">{nt}</span>')
-            drv = ""
-            if m.get("driver"):
-                dd = m["driver_delta"]
-                drv = (f'<span style="font-size:11px;color:#6b7686;">&middot; '
-                       f'{_h.escape(str(m["driver"]))} {"+" if dd >= 0 else ""}{dd:.0f}</span>')
-            ci = get_company_info(m["ticker"]) or {}
-            nm = _h.escape(str(ci.get("name", "") or "")[:22])
-            chips += (
-                f'<span style="display:inline-flex;flex-direction:column;gap:4px;'
-                f'padding:8px 13px;margin-right:9px;background:rgba(255,255,255,.025);'
-                f'border:1px solid rgba(255,255,255,.07);border-radius:10px;'
-                f'white-space:nowrap;vertical-align:top;">'
-                f'<span style="display:flex;align-items:center;gap:7px;">'
-                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#e7ecf3;'
-                f'font-weight:600;">{_h.escape(str(m["ticker"]))}</span>'
-                f'<span style="font-size:11px;color:#6b7686;max-width:130px;overflow:hidden;'
-                f'text-overflow:ellipsis;">{nm}</span></span>'
-                f'<span style="display:flex;align-items:center;gap:8px;">'
-                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:#8896ac;">'
-                f'{m["prev"]:.0f}&#8594;<span style="color:{ntc};font-weight:600;">{m["now"]:.0f}</span></span>'
-                f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{col};">'
-                f'{arr}{abs(m["delta"]):.0f}</span>'
-                f'{tier_badge}{drv}</span></span>')
+        chips = "".join(_chip(m) for m in movers)
         dur = max(24, len(movers) * 4)
-        body = (
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#9fabc0;'
-            f'letter-spacing:.06em;margin-bottom:8px;">CONVICTION MOVERS '
-            f'<span style="color:#6b7686;">&middot; biggest moves since last scored</span></div>'
-            f'<div class="qntm-mv-wrap" style="width:100%;margin-bottom:4px;'
+        sections += (
+            _label("TODAY&#39;S BIGGEST CONVICTION CHANGES", "since last scored")
+            + f'<div class="qntm-mv-wrap" style="width:100%;margin-bottom:4px;'
             f'-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);'
             f'mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);">'
             f'<div class="qntm-mv" style="display:inline-flex;">'
@@ -1898,24 +1917,22 @@ def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
             f'style="display:inline-flex;">{chips}</span></div></div>'
             f'<style>@keyframes qntm-mv-scroll{{from{{transform:translateX(0)}}'
             f'to{{transform:translateX(-50%)}}}}'
-            # base (touch / no-hover): native swipeable strip, single set, no auto-scroll
             f'.qntm-mv-wrap{{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;'
             f'scrollbar-width:none;}}'
             f'.qntm-mv-wrap::-webkit-scrollbar{{display:none;}}'
             f'.qntm-mv-dup{{display:none;}}'
-            # real-hover devices (desktop): auto-scroll marquee, pause on hover
             f'@media (hover:hover) and (pointer:fine){{'
             f'.qntm-mv-wrap{{overflow:hidden;}}'
             f'.qntm-mv-dup{{display:inline-flex;}}'
             f'.qntm-mv{{animation:qntm-mv-scroll {dur}s linear infinite;}}'
             f'.qntm-mv-wrap:hover .qntm-mv{{animation-play-state:paused;}}}}'
-            # accessibility: respect reduced-motion -> swipe strip, no animation
             f'@media (prefers-reduced-motion:reduce){{'
             f'.qntm-mv{{animation:none!important;}}'
             f'.qntm-mv-wrap{{overflow-x:auto;}}'
             f'.qntm-mv-dup{{display:none;}}}}'
             f'</style>')
-    else:
+    elif not has_watchlist:
+        # No movers and no personal row -> fall back to top conviction names
         top = sorted([r for r in (results or []) if r.get("adj_action", r.get("action")) == "BUY"],
                      key=lambda x: x.get("adj_composite", x.get("composite", 0)), reverse=True)[:3]
         cards = ""
@@ -1940,7 +1957,7 @@ def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
         if not cards:
             cards = ('<div style="font-size:12px;color:#6b7686;">Run the screener to surface '
                      'today\'s movers.</div>')
-        body = f'<div style="display:flex;gap:10px;flex-wrap:wrap;">{cards}</div>'
+        sections += f'<div style="display:flex;gap:10px;flex-wrap:wrap;">{cards}</div>'
 
     return (
         f'<div style="background:linear-gradient(180deg,rgba(212,168,67,.06),rgba(0,0,0,0));'
@@ -1951,7 +1968,7 @@ def _hero_card_html(macro: dict, results: list, movers: list = None) -> str:
         f'color:#9fabc0;text-transform:uppercase;">Today at a glance</span>'
         f'<span style="font-family:DM Mono,monospace;font-size:12px;color:{rcol};">'
         f'&#9679; Macro regime: {_h.escape(rlab)}</span></div>'
-        f'{body}'
+        f'{sections}'
         f'<div style="display:flex;align-items:center;justify-content:space-between;'
         f'flex-wrap:wrap;gap:10px;padding-top:12px;margin-top:12px;'
         f'border-top:1px solid rgba(255,255,255,.06);">'
@@ -2174,6 +2191,111 @@ def _build_why_html(r: dict) -> str:
     )
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _whats_changed_html(ticker: str, now_sig_date: str = "") -> str:
+    """Detail-page 'WHAT'S CHANGED' box: per-pillar deltas and the macro-overlay
+    delta between this ticker's two most recent CLEAN scored days. Factual model
+    deltas only — no interpretation, no performance claims. Returns '' when there
+    is no prior scored day to compare against. Cached per (ticker, date); only
+    called on the single search/detail view, never per list card."""
+    if not ticker:
+        return ""
+    try:
+        from data_refresh import _get_supabase
+        from datetime import date, timedelta
+        sb = _get_supabase()
+        if not sb:
+            return ""
+        since = (date.today() - timedelta(days=21)).isoformat()
+        rows = (sb.table("signal_log")
+                .select("signal_date,adj_composite,composite,"
+                        "momentum,quality,volume,value,sentiment")
+                .eq("ticker", ticker)
+                .gte("signal_date", since)
+                .not_.is_("composite", "null")
+                .order("signal_date", desc=True)
+                .execute()).data or []
+    except Exception:
+        return ""
+
+    seen, picked = [], []
+    for rr in rows:
+        d = rr.get("signal_date")
+        if d not in seen:
+            seen.append(d); picked.append(rr)
+        if len(picked) == 2:
+            break
+    if len(picked) < 2:
+        return ""
+    now, prev = picked[0], picked[1]
+
+    def _f(x, k):
+        try:
+            return float(x.get(k))
+        except (TypeError, ValueError):
+            return None
+
+    parts = []
+    for key, lab in (("momentum", "Momentum"), ("quality", "Quality"),
+                     ("volume", "Volume"), ("value", "Value"), ("sentiment", "Sentiment")):
+        pn, pp = _f(now, key), _f(prev, key)
+        if pn is None or pp is None:
+            continue
+        dd = round(pn - pp)
+        if abs(dd) < 1:
+            continue
+        c = "#34d399" if dd > 0 else "#f87171"
+        a = "&#9650;" if dd > 0 else "&#9660;"
+        parts.append(
+            f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:16px;">'
+            f'<span style="font-size:13px;color:#b3bed0;">{lab}</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{c};">'
+            f'{a}{abs(int(dd))}</span></span>')
+
+    a_now, c_now = _f(now, "adj_composite"), _f(now, "composite")
+    a_prev, c_prev = _f(prev, "adj_composite"), _f(prev, "composite")
+    if None not in (a_now, c_now, a_prev, c_prev):
+        md = round((a_now - c_now) - (a_prev - c_prev))
+        if abs(md) >= 1:
+            c = "#34d399" if md > 0 else "#f97316"
+            a = "&#9650;" if md > 0 else "&#9660;"
+            parts.append(
+                f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:16px;">'
+                f'<span style="font-size:13px;color:#b3bed0;">Macro overlay</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{c};">'
+                f'{a}{abs(int(md))}</span></span>')
+        else:
+            parts.append('<span style="font-size:13px;color:#6b7686;margin-right:16px;">'
+                         'Macro overlay unchanged</span>')
+
+    overall = ""
+    if a_now is not None and a_prev is not None and abs(round(a_now - a_prev)) >= 1:
+        c = "#34d399" if a_now > a_prev else "#f87171"
+        overall = (f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">'
+                   f'Score {a_prev:.0f}&#8594;'
+                   f'<span style="color:{c};font-weight:600;">{a_now:.0f}</span></span>')
+
+    pdate = prev.get("signal_date", "last scored")
+    has_pillar_move = any("Momentum" in p or "Quality" in p or "Volume" in p
+                          or "Value" in p or "Sentiment" in p for p in parts)
+    if not has_pillar_move and not overall:
+        return (
+            f'<div style="font-size:13px;line-height:1.6;padding:8px 10px;margin-top:8px;'
+            f'background:rgba(255,255,255,.02);border-radius:4px;'
+            f'border-left:2px solid rgba(255,255,255,.08);">'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
+            f'letter-spacing:.08em;">WHAT&#39;S CHANGED &middot; </span>'
+            f'<span style="color:#6b7686;">Holding steady since {pdate} '
+            f'&mdash; no pillar moved a point.</span></div>')
+    return (
+        f'<div style="font-size:13px;line-height:1.7;padding:8px 10px;margin-top:8px;'
+        f'background:rgba(255,255,255,.02);border-radius:4px;'
+        f'border-left:2px solid rgba(52,211,153,.18);">'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
+        f'letter-spacing:.08em;">WHAT&#39;S CHANGED &middot; since {pdate} </span>'
+        f'{overall}<div style="margin-top:6px;">{"".join(parts)}</div></div>')
+
+
 # ── Shared iframe tail for batch card pages ───────────────────────────────────
 # Style + click-to-expand + dynamic resize logic. Used wherever multiple cards
 # are rendered into a single st.components.v1.html iframe (screener, watchlist,
@@ -2390,7 +2512,7 @@ def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set 
     )
 
 
-def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False, wl_btn: str = "", as_details: bool = False) -> str:
+def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, card_id: str = None, rank: int = 0, suppress_wl_btn: bool = False, wl_btn: str = "", as_details: bool = False, extra_detail: str = "") -> str:
     """
     Collapsed card using radio-button CSS hack for one-at-a-time expand.
     All cards share radio group "qntm_card" — checking one unchecks others.
@@ -2527,6 +2649,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'{_ordinal(_pct_rank)}</div></div>'
         f'</div>'
         + why_html
+        + extra_detail
         + _wl_btn_html
         + f'</div>'
     )
@@ -3327,7 +3450,8 @@ def _render_stock_result(ticker: str, nav: str = "screener", wl_actions: bool = 
                 # pct_rank intentionally not set here — factor_panel_html ranks
                 # this card against the full universe via _pct_rank_of().
                 ci = get_company_info(resolved_tk)
-                _html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
+                _html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True,
+                                          extra_detail=_whats_changed_html(resolved_tk, sr.get("signal_date", "")))
                 _html = _html.replace('class="qcard-detail" style="display:none;',
                                       'class="qcard-detail" style="display:block;')
                 st.markdown(_html, unsafe_allow_html=True)
@@ -5689,7 +5813,8 @@ def page_screener():
                     # this card against the full universe via _pct_rank_of().
                     ci = get_company_info(resolved_tk)
                     # Show search result pre-expanded — always one card, no toggle needed
-                    _sr_html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True)
+                    _sr_html = factor_panel_html(sr, False, company_info=ci, suppress_wl_btn=True,
+                                                 extra_detail=_whats_changed_html(resolved_tk, sr.get("signal_date", "")))
                     # Force detail open
                     _sr_html = _sr_html.replace('class="qcard-detail" style="display:none;', 'class="qcard-detail" style="display:block;')
                     st.markdown(_sr_html, unsafe_allow_html=True)
@@ -5860,9 +5985,12 @@ def page_screener():
         unsafe_allow_html=True
     )
 
-    # ── Login hero: regime + scrolling conviction movers + the alert hook ──────
+    # ── Login hero: regime + watchlist movers + universe conviction changes ────
     _hero_movers = _conviction_movers(tuple(sorted({r["ticker"] for r in results}))) if results else []
-    st.markdown(_hero_card_html(macro, results, _hero_movers), unsafe_allow_html=True)
+    _wl_tks = sorted({w["ticker"] for w in get_watchlist(uid())}) if uid() else []
+    _wl_movers = _conviction_movers(tuple(_wl_tks), top_n=12) if _wl_tks else []
+    st.markdown(_hero_card_html(macro, results, _hero_movers, _wl_movers, bool(_wl_tks)),
+                unsafe_allow_html=True)
 
     # ── Macro Regime Banner ────────────────────────────────────────────────────
     from model_engine import MACRO_EVENT_INFO
