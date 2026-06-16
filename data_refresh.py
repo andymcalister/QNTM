@@ -625,20 +625,37 @@ def update_model_portfolio(scored_list: list) -> None:
             )
             return
 
-        # ── Step 1: Exit positions whose OWN factors have collapsed ───────────
-        #    Exit on the QUANT composite (the five-pillar score), NOT the
-        #    macro-adjusted score. A market-wide / sector macro swing must never
-        #    force-sell a fundamentally-intact holding — this matches the stated
-        #    rule that positions are never force-exited for sector reasons, and
-        #    fixes the macro overlay leaking into exits.
+        # ── Step 1: Exit positions whose conviction has collapsed ─────────────
+        #    Exit on the macro-adjusted blend (adj_composite) — the published
+        #    conviction score — so a sustained macro/sector headwind that drags a
+        #    holding below 45 takes us out, by design.
+        #
+        #    SAFETY: only let the macro drive exits when the macro pass is healthy.
+        #    The empty-overlay failure mode zeroes macro_overlay on every name; a
+        #    bad-overlay run could instead tank adj_composite and force-sell good
+        #    holdings (the June-6 incident class). If the overlay looks inactive
+        #    this run, fall back to the macro-neutral composite so a degraded macro
+        #    can NEVER trigger an exit. The run-health gate above already aborts the
+        #    fully-degraded (neutral-50) case; this covers the empty/partial case,
+        #    and the circuit breaker below still caps any one-run exit cluster.
+        _n = len(scored_list) or 1
+        _macro_live = (sum(1 for r in scored_list
+                           if abs(float(r.get("macro_overlay", 0) or 0)) > 0.01) / _n) > 0.5
+        _exit_field = "adj_composite" if _macro_live else "composite"
+        if not _macro_live:
+            log.warning(
+                "[MODEL PORTFOLIO] macro overlay inactive this run (macro_overlay ~0 "
+                "across the universe) — exiting on raw composite, not the blend, so a "
+                "degraded macro can't force-sell holdings. Fix the overlay and re-run."
+            )
         exit_candidates = []
         for pos in active:
             sc = score_map.get(pos["ticker"])
             if not sc:
                 continue
-            quant = float(sc.get("composite", 50) or 50)
-            if quant < EXIT_SCORE:
-                exit_candidates.append((pos, quant, sc))
+            gate = float(sc.get(_exit_field, sc.get("composite", 50)) or 50)
+            if gate < EXIT_SCORE:
+                exit_candidates.append((pos, gate, sc))
 
         # ── Circuit breaker — a one-run cluster of exits is a data/model artifact,
         #    not real conviction collapse. Refuse to act and alert instead.
@@ -652,13 +669,13 @@ def update_model_portfolio(scored_list: list) -> None:
             return
 
         exited = []
-        for pos, quant, sc in exit_candidates:
+        for pos, gate, sc in exit_candidates:
             tk = pos["ticker"]
             sb.table("model_portfolio_positions").update({
                 "is_active":   False,
                 "exit_date":   today,
                 "exit_price":  sc.get("price"),
-                "exit_score":  round(quant, 1),
+                "exit_score":  round(gate, 1),
                 "exit_reason": "SELL_SIGNAL",
             }).eq("id", pos["id"]).execute()
             exited.append(tk)
@@ -666,7 +683,7 @@ def update_model_portfolio(scored_list: list) -> None:
             # Reduce sector count for exited position
             sec = _SECTORS.get(tk, "Unknown")
             sector_counts[sec] = max(0, sector_counts.get(sec, 1) - 1)
-            log.info(f"[MODEL PORTFOLIO] EXIT {tk} quant={quant:.1f} — conviction collapsed")
+            log.info(f"[MODEL PORTFOLIO] EXIT {tk} {_exit_field}={gate:.1f} — conviction collapsed")
 
         # ── Step 2: Fill open slots up to TARGET ─────────────────────────────
         slots_needed = TARGET - len(active_tickers)
