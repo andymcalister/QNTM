@@ -10528,6 +10528,17 @@ def page_platform():
           </div>
         </div>
         """, unsafe_allow_html=True)
+    # ── "What's New" popup — fire once per session for logged-in users who have
+    # changelog entries newer than their last acknowledgement. Purely cosmetic,
+    # so any failure is swallowed rather than breaking the platform render.
+    if not st.session_state.get("_changelog_checked"):
+        st.session_state["_changelog_checked"] = True
+        try:
+            from changelog import maybe_show_whats_new
+            maybe_show_whats_new()
+        except Exception:
+            pass
+
     nav_map.get(_cur_nav, page_screener)()
 
     # ── One-at-a-time card collapse script ──────────────────────────────────
