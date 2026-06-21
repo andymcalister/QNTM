@@ -160,6 +160,11 @@ def score_stock(ticker: str, price_history: list = None,
         "value":round(value,1),          "sentiment":round(sentiment,1),
         "signal":sig,
         "price": f.get("price"),
+        # Market-cap bucket ('large'/'mid'/'small'/None) surfaced from the merged
+        # fundamentals so it can be persisted to signal_log and reach the
+        # render-time hidden-gem size filter. None when neither live nor static
+        # fundamentals carried a cap for this ticker.
+        "mktcap": f.get("mktcap"),
         # `action` is an INTERNAL enum (BUY/SELL/HOLD) consumed by
         # apply_macro_overlay / portfolio logic — never shown to users, always
         # converted to HIGH/MODERATE/LOW at display time. Do not surface raw.
@@ -230,6 +235,20 @@ def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
         live_f   = s.get("live_fundamentals") or {}
         static_f = FUNDAMENTALS.get(tk, {})
         f = {**static_f, **live_f}
+
+        # Real size gate — hidden gems are under-followed mid/small caps, not
+        # large-caps. The 30-name mega_caps blocklist above is NOT a size filter;
+        # this is. Market cap now travels on the score row itself: the nightly
+        # run writes signal_log.mktcap (score_stock emits the _mktcap_bucket
+        # value) and load_cached_scores attaches it to `s`, so the cap is present
+        # at render time for every scored name — not just the ~528 with a static
+        # fundamentals record. `f` is the in-process fallback for live scans.
+        # FAIL-CLOSED: keep ONLY explicit 'mid'/'small'. 'large' AND unknown/None
+        # are both excluded, so a large-cap with no cap on file (a Russell-tail
+        # name yfinance returned no marketCap for) can never leak in as a gem.
+        mktcap = s.get("mktcap") or f.get("mktcap")
+        if mktcap not in ("mid", "small"):
+            continue
 
         reasons = []
 

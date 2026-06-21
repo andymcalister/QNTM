@@ -380,6 +380,7 @@ def write_signal_snapshot(scored_list: list) -> bool:
             "macro_overlay": s.get("macro_overlay"),
             "adj_composite": s.get("adj_composite"),
             "price":         s.get("price"),
+            "mktcap":        s.get("mktcap"),   # size bucket for the gem gate
             "is_hidden_gem": s.get("is_hidden_gem", False),
             "hidden_gem_reason": (
                 ", ".join(s.get("gem_reasons", [])) if s.get("gem_reasons") else None
@@ -441,6 +442,13 @@ def publish_signal_batch(scored_list: list, signal_date: str = None) -> Optional
             "macro_overlay": s.get("macro_overlay"),
             "adj_composite": s.get("adj_composite"),
             "price":         s.get("price"),
+            # Keep in sync with write_signal_snapshot. NOTE: this atomic path
+            # writes via the publish_signal_batch Postgres RPC — for mktcap to
+            # land, add the column to that function's INSERT in
+            # migrations/atomic_publishing.sql before switching the live path
+            # over to this writer. (Dormant today; run_refresh uses
+            # write_signal_snapshot, which already persists mktcap.)
+            "mktcap":        s.get("mktcap"),
             "is_hidden_gem": s.get("is_hidden_gem", False),
             "hidden_gem_reason": (
                 ", ".join(s.get("gem_reasons", [])) if s.get("gem_reasons") else None
@@ -538,6 +546,7 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
                 "macro_overlay": float(row["macro_overlay"] or 0),
                 "adj_composite": float(row["adj_composite"] or 50),
                 "price":         float(row["price"]) if row.get("price") else None,
+                "mktcap":        row.get("mktcap"),   # size bucket for the gem gate
                 "is_hidden_gem": row.get("is_hidden_gem", False),
                 "has_live_price": True,
             })
