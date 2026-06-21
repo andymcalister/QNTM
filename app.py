@@ -2644,6 +2644,19 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     action_label = "High Conviction" if act=="BUY" else ("Low Conviction" if act=="SELL" else "Moderate")
     action_arrow = "▲" if act=="BUY" else ("▼" if act=="SELL" else "→")
     gem_badge    = " 💎" if is_gem else ""
+    # Market-cap category badge — neutral metadata styling (intentionally NOT a
+    # conviction colour, so it reads as an attribute, not a signal). Shown on the
+    # collapsed summary of every card. Sourced from signal_log.mktcap on the
+    # score row; omitted when the row carries no cap (a context that didn't load
+    # it), so this never prints "Unknown".
+    _cap_raw    = str(r.get("mktcap") or "").strip().lower()
+    _CAP_LABELS = {"large": "LARGE CAP", "mid": "MID CAP", "small": "SMALL CAP"}
+    cap_badge   = (
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:600;'
+        f'letter-spacing:.08em;color:#8896ac;background:rgba(136,150,172,.10);'
+        f'border:1px solid rgba(136,150,172,.20);border-radius:5px;padding:1px 7px;'
+        f'white-space:nowrap;flex-shrink:0;">{_CAP_LABELS[_cap_raw]}</span>'
+    ) if _cap_raw in _CAP_LABELS else ""
     delta_c      = "#34d399" if delta >= 0 else "#f87171"
     delta_str    = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
 
@@ -2755,6 +2768,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
             f'<div style="display:flex;align-items:center;gap:6px;">'
             f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
             f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
+            + cap_badge
             + (f'<span style="font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;'
                f'white-space:nowrap;">{name_display}</span>' if name_display else "")
             + f'</div>'
@@ -2791,6 +2805,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="display:flex;align-items:center;gap:6px;">'
         f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
         f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
+        + cap_badge
         + (f'<span style="font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;'
            f'white-space:nowrap;">{name_display}</span>' if name_display else "")
         + f'</div>'
