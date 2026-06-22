@@ -9644,47 +9644,23 @@ def _render_track_equity(_pt, positions):
         else:
             _sseries.append((_today_iso, _s_live))
     _intraday = False
-    _intra_series = _intraday_track_series(_pt, positions) if _wk == "1D" else None
-    if _intra_series:
-        # Same-day (or any-day) intraday curve by 15-min bar — plots a time-of-day
-        # axis, so it draws even when the daily ledger has only one dated mark.
-        _ms, _ss, _mret, _sret, _wlabel = _intra_series
+    if _wk == "1D":
+        # Day view driven by the SAME _pt values the headline cards display, so the
+        # chart's endpoint and % reconcile exactly with the table: the model line
+        # runs from the $100K cost basis to the live portfolio value; SPY runs from
+        # $100K to its equivalent return over the same period. The intraday open is
+        # deliberately NOT used as the baseline — a same-day cohort gaps up at the
+        # open, and measuring from 9:30 would hide that gain and contradict the
+        # cards. The multi-day windows below take over as the daily ledger accrues.
+        BASE = 100000.0
+        _mv = float(_pt.get("model_value") or BASE)
+        _mr = float(_pt.get("model_ret") or 0.0)
+        _sr = float(_pt.get("spy_ret") or 0.0)
+        _ms = [("entry", BASE), ("now", _mv)]
+        _ss = [("entry", BASE), ("now", BASE * (1 + _sr / 100.0))]
+        _mret, _sret = _mr, _sr
         _intraday = True
-    elif _wk == "1D":
-        # Same-day move from the LIVE day-change feed — the exact source the
-        # headline cards use, so the chart always agrees with them and renders
-        # even on day one (no dependency on a multi-day daily ledger). Both lines
-        # start at $100K at the prior close and move by today's % change.
-        _ldc = _fetch_day_change_map(
-            [p["ticker"] for p in positions] + ["SPY"],
-            cache_key="_mp_daychange_cache")
-        _m_now = _m_prev = 0.0
-        for _p in positions:
-            _dcp = _ldc.get(_p["ticker"]) or {}
-            _epp = _p.get("entry_price")
-            if _epp and float(_epp) > 0 and _dcp.get("price") and _dcp.get("prev_close"):
-                _shh = (_p.get("pos_size") or 2000) / float(_epp)
-                _m_now  += _shh * float(_dcp["price"])
-                _m_prev += _shh * float(_dcp["prev_close"])
-        _spy_dc = _ldc.get("SPY") or {}
-        if _m_prev > 0 and _spy_dc.get("price") and _spy_dc.get("prev_close"):
-            BASE = 100000.0
-            _spy_ratio = float(_spy_dc["price"]) / float(_spy_dc["prev_close"])
-            _ms = [("prev close", BASE), ("now", BASE * _m_now / _m_prev)]
-            _ss = [("prev close", BASE), ("now", BASE * _spy_ratio)]
-            _mret = (_m_now / _m_prev - 1) * 100
-            _sret = (_spy_ratio - 1) * 100
-            _intraday = True
-            _wlabel = "today vs prev close"
-        elif len(_mseries) >= 2 and len(_sseries) >= 2:
-            # live feed unavailable — fall back to the last two daily-close marks
-            _ms, _ss = _mseries[-2:], _sseries[-2:]
-            _mret = (_ms[-1][1] / _ms[0][1] - 1) * 100 if _ms[0][1] else 0.0
-            _sret = (_ss[-1][1] / _ss[0][1] - 1) * 100 if _ss[0][1] else 0.0
-            _wlabel = "since last close"
-        else:
-            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-                _mseries, _sseries, "1D")
+        _wlabel = "since entry"
     else:
         _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
             _mseries, _sseries, _wk)
