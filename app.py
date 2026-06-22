@@ -10240,6 +10240,13 @@ def page_model_portfolio():
                                       props={"ticker": tk})
                 except Exception:
                     pass
+                # A fragment rerun does NOT reset _run_cache the way main() does,
+                # so bust the watchlist memo here or the re-read below stays stale
+                # and the button label won't flip.
+                try:
+                    st.session_state.get("_run_cache", {}).pop(f"wl:{uid()}", None)
+                except Exception:
+                    pass
                 st.rerun(scope="fragment")
     _mp_holdings()
 
