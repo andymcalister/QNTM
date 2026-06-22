@@ -7132,7 +7132,59 @@ def _track_record_data(sb):
         spy_close = close["SPY"]
         dates = [d.date().isoformat() for d in close.index]
         if len(dates) < 2:
-            return None
+            # Same-day cohort (inception == today): the daily ledger needs two
+            # sessions to replay, so instead of bailing (which blanks the cards'
+            # SPY and the whole chart), build a minimal point-in-time result from
+            # the latest vs prior close. The full daily ledger takes over
+            # automatically once a second session is recorded.
+            import datetime as _dt
+            _td = _dt.date.today().isoformat()
+            try:
+                _rec = yf.download(_strip_delisted(tickers) + ["SPY"], period="5d",
+                                   progress=False, auto_adjust=True)
+                _rc = _rec["Close"].ffill()
+            except Exception:
+                _rc = None
+
+            def _cur(tk):
+                try:    return float(_rc[tk].iloc[-1])
+                except Exception: return None
+
+            def _prev(tk):
+                try:    return float(_rc[tk].iloc[-2])
+                except Exception: return None
+
+            n_pos = len(positions)
+            cash  = 100000.0 - n_pos * POS_SIZE
+            cur_val, pm = cash, {}
+            for p in positions:
+                ep = p.get("entry_price")
+                cp = _cur(p["ticker"]) or (float(ep) if ep else None)
+                if ep and float(ep) > 0 and cp:
+                    cur_val += (POS_SIZE / float(ep)) * cp
+                    pm[p["ticker"]] = {_td: cp}
+            model_ret = (cur_val / 100000.0 - 1) * 100
+            _sc, _sp = _cur("SPY"), _prev("SPY")
+            spy_ret  = ((_sc / _sp - 1) * 100) if (_sc and _sp) else 0.0
+            spy_val  = 100000.0 * (1 + spy_ret / 100.0)
+            _sect = {}
+            for p in positions:
+                if p.get("is_active"):
+                    _s = _SEC.get(p["ticker"], "Unknown")
+                    _sect[_s] = _sect.get(_s, 0) + 1
+            return {
+                "inception": inception,
+                "model_series": [(inception, 100000.0), (_td, cur_val)],
+                "spy_series":   [(inception, 100000.0), (_td, spy_val)],
+                "model_ret": model_ret, "spy_ret": spy_ret,
+                "day_model": model_ret, "day_spy": spy_ret,
+                "model_value": cur_val, "spy_value": spy_val,
+                "exits": [], "basis": 100000.0,
+                "sector_counts": sorted(_sect.items(), key=lambda x: x[1], reverse=True),
+                "price_map": pm, "spy_map": ({_td: _sc} if _sc else {}),
+                "n_active": sum(1 for p in positions if p.get("is_active")),
+                "n_exited": 0, "n_sessions": 1,
+            }
 
         price_map = {}
         for tk in tickers:
