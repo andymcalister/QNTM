@@ -11,6 +11,11 @@ import json
 
 # ── UNIVERSE DATA — S&P 500 + Russell 1000 (~846 tickers) ───────────────────
 from universe_data import SECTORS, FUNDAMENTALS
+try:
+    # Small-cap names (top of Russell 2000) explicitly added as gem material.
+    from universe_data import SMALL_MID_POOL
+except Exception:
+    SMALL_MID_POOL = set()   # older universe_data.py with no gem layer
 
 
 # ── SCORING ENGINE ────────────────────────────────────────────────────────────
@@ -237,17 +242,17 @@ def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
         f = {**static_f, **live_f}
 
         # Real size gate — hidden gems are under-followed mid/small caps, not
-        # large-caps. The 30-name mega_caps blocklist above is NOT a size filter;
-        # this is. Market cap now travels on the score row itself: the nightly
-        # run writes signal_log.mktcap (score_stock emits the _mktcap_bucket
-        # value) and load_cached_scores attaches it to `s`, so the cap is present
-        # at render time for every scored name — not just the ~528 with a static
-        # fundamentals record. `f` is the in-process fallback for live scans.
-        # FAIL-CLOSED: keep ONLY explicit 'mid'/'small'. 'large' AND unknown/None
-        # are both excluded, so a large-cap with no cap on file (a Russell-tail
-        # name yfinance returned no marketCap for) can never leak in as a gem.
+        # large-caps. Market cap rides on the score row (signal_log.mktcap, set by
+        # the nightly run) with `f` as the in-process fallback. FAIL-CLOSED:
+        #   • explicit 'large'           → never a gem
+        #   • explicit 'mid'/'small'     → eligible
+        #   • unknown/None cap           → eligible ONLY if the ticker is in
+        #     SMALL_MID_POOL (a name we KNOW is small-cap from Russell 2000
+        #     membership), so a genuine small-cap isn't lost to a yfinance gap.
         mktcap = s.get("mktcap") or f.get("mktcap")
-        if mktcap not in ("mid", "small"):
+        if mktcap == "large":
+            continue
+        if mktcap not in ("mid", "small") and tk not in SMALL_MID_POOL:
             continue
 
         reasons = []

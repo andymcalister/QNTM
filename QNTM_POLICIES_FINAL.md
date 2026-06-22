@@ -13,7 +13,7 @@
 
 ## 1. Who We Are and What We Do
 
-QNTM is a quantitative research platform operated by QNTM LLC, a California limited liability company. We score stocks using a five-factor model, apply a live macro regime overlay, and surface conviction signals. Everything we produce is algorithmic research — not investment advice.
+QNTM is a quantitative research platform operated by QNTM LLC, a California limited liability company. We score stocks using a five-factor model, apply a live macro regime overlay, and surface conviction signals. Our scoring universe is approximately 1,400 US equities — the Russell 1000 plus a selection of the largest Russell 2000 small-caps. Everything we produce is algorithmic research — not investment advice.
 
 ## 2. Agreement
 
@@ -339,7 +339,7 @@ The Model Portfolio shown in QNTM is a hypothetical illustration of how the mode
 
 ## Past Performance
 
-QNTM does not currently publish a historical backtest. The only performance we show is the live Model Portfolio, which is marked daily on the model's rules-based signals from its inception date forward. It is a hypothetical illustration (see Model Portfolio above) and does not account for all real-world costs, taxes, or execution constraints. A live track record is short by nature, and past model performance is not a guarantee of future results.
+QNTM does not currently publish a historical backtest. The only performance we show is the live Model Portfolio, which is marked daily on the model's rules-based signals from its inception date forward. It is a hypothetical illustration (see Model Portfolio above) and does not account for all real-world costs, taxes, or execution constraints. A live track record is short by nature, and past model performance is not a guarantee of future results. On June 21, 2026, the scoring universe was expanded (from approximately 830 names to approximately 1,400) to add the Russell 1000 plus selected Russell 2000 small-caps. The Model Portfolio and its track record are not restated to reflect this change retroactively; the broader universe applies to selections from the expansion date forward, as positions turn over.
 
 ## You Can Lose Money
 
@@ -414,3 +414,5 @@ The following items were intentionally left for your judgment. They are flagged 
 10. **State securities regulator notice/exemption.** QNTM does not currently provide personalized advice and so should not require investment adviser registration in California. As subscriber volume grows, please advise whether ongoing publication of model outputs to paid subscribers brings the platform under any state-level publisher carve-out or registration requirement.
 
 11. **Email communications & CAN-SPAM.** The platform now sends (a) account/security emails (email verification, password reset, billing notices) to all users, and (b) optional, opt-in signal-alert emails. Transactional/relationship emails are generally exempt from CAN-SPAM's commercial-message requirements; the signal-alert email is closer to a commercial/relationship message, so it includes a working opt-out (Account → Notifications) and, per CAN-SPAM, a physical postal address in its footer. **Please confirm (i) the mailing address used in the alert-email footer, (ii) whether the alert email's classification and disclosures are adequate, and (iii) the wording of the alert-email copy itself, which is action-adjacent — it tells a subscriber a specific security they hold/watch has moved to LOW conviction.** The opt-in is off by default and is described in the Privacy Policy (Email Communications) and Terms §5.
+
+12. **Universe expansion & Model Portfolio treatment.** On June 21, 2026, the scoring universe was expanded from approximately 830 names to approximately 1,400 — the Russell 1000 plus a top slice of the Russell 2000 small-caps (the small-cap layer feeds the Hidden Gems screen). We are treating this as a *forward* methodology change: the live Model Portfolio and its track record are **not** restated retroactively — the wider opportunity set applies only from the expansion date forward, with the portfolio migrating into it as positions turn over. We deliberately did **not** reconstruct a hypothetical history on the larger universe, to avoid converting the live track record into a hindsight-constructed backtest (consistent with the "no historical backtest" position above). **Please confirm (i) this forward-not-retroactive treatment is appropriate and the disclosure wording (Investment Disclaimer, Model Portfolio section) is adequate, and (ii) the in-app methodology copy describing the expansion (the "The Universe" section of the Methodology page) is acceptable as written.**
