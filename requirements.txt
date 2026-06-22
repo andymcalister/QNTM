@@ -14,3 +14,4 @@ supabase>=2.3.0
 cryptography>=41.0.0
 stripe>=7.0.0
 sendgrid>=6.11,<7
+posthog>=3.0.0
