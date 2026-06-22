@@ -168,6 +168,7 @@ from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
 
 # ── SIGNED JWT HELPERS ────────────────────────────────────────────────────────
 import hmac, hashlib, base64, json as _json, time as _time
+import analytics
 
 def _jwt_secret() -> str:
     """Use ENCRYPTION_KEY as JWT signing secret, fall back to a fixed dev key."""
@@ -3630,6 +3631,12 @@ def _render_checkout_button(url: str):
     <a target=_top> and window.top.location are blocked). Renders inside a
     components.v1.html iframe."""
     _safe = (url or "").replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        if not st.session_state.get("_checkout_evt_sent"):
+            st.session_state["_checkout_evt_sent"] = True
+            analytics.capture("stripe_checkout_started", user=st.session_state.get("user"))
+    except Exception:
+        pass
     qntm_html(
         f'''<div style="font-family:Syne,sans-serif;">
         <button id="qntm-checkout-btn" style="width:100%;box-sizing:border-box;
@@ -5133,6 +5140,11 @@ def page_auth():
                     with st.spinner("Creating account..."):
                         res = register_user(rg_email, rg_pass, rg_name)
                     if res["success"]:
+                        try:
+                            analytics.capture("signup_completed", distinct_id=rg_email,
+                                              props={"plan": "pro" if st.session_state.get("auto_upgrade") else "free"})
+                        except Exception:
+                            pass
                         # Fire off the email-confirmation link (soft gate)
                         try:
                             request_email_verification(rg_email)
@@ -5453,6 +5465,11 @@ def platform_nav():
         ("account",         "⚙️", "Account"),
         ("methodology",     "📖", "How It Works"),
     ]
+    try:
+        if analytics.is_admin():
+            nav_items.append(("analytics", "📊", "Analytics"))
+    except Exception:
+        pass
     cur_em    = next((e for k,e,l in nav_items if k==cur_nav), "📊")
     cur_label = next((l for k,e,l in nav_items if k==cur_nav), "Screener")
 
@@ -10554,7 +10571,28 @@ def page_platform():
         except Exception:
             pass
 
-    nav_map.get(_cur_nav, page_screener)()
+    # ── Analytics: one-per-navigation view events + admin-only dashboard ──────
+    _prev_nav = st.session_state.get("_last_nav")
+    if _cur_nav != _prev_nav:
+        st.session_state["_last_nav"] = _cur_nav
+        _view_evt = {"gems": "hidden_gems_viewed",
+                     "simulator": "simulator_viewed"}.get(_cur_nav)
+        if _view_evt:
+            try:
+                analytics.capture(_view_evt, user=st.session_state.get("user"))
+            except Exception:
+                pass
+    if _cur_nav == "analytics":
+        try:
+            if analytics.is_admin():
+                analytics.render_analytics_dashboard()
+            else:
+                st.session_state.nav = "screener"
+                st.rerun()
+        except Exception:
+            page_screener()
+    else:
+        nav_map.get(_cur_nav, page_screener)()
 
     # ── One-at-a-time card collapse script ──────────────────────────────────
     st.markdown("""
@@ -10657,6 +10695,12 @@ def page_upgrade():
     # a platform sub-page, so the next rerun (e.g. checking the consent box) would
     # dispatch to page_platform and fall through to the screener.
     st.session_state.page = "upgrade"
+    try:
+        if not st.session_state.get("_pricing_evt_sent"):
+            st.session_state["_pricing_evt_sent"] = True
+            analytics.capture("pricing_viewed", user=st.session_state.get("user"))
+    except Exception:
+        pass
     # Clear any stale checkout URL/error from a previous visit, once per page entry
     # (guarded so we don't wipe a URL created during this visit's reruns).
     if st.session_state.get("_checkout_page") != "upgrade":
@@ -10977,6 +11021,18 @@ def main():
     # Fresh per-run read caches (deduped within one render; re-read after any rerun)
     st.session_state["_db_run_cache"] = {}
     st.session_state["_run_cache"] = {}
+
+    # ── Analytics: capture UTM + site_visit (once/session), and login_completed
+    # on the logged-in transition. Register does NOT auto-login, so this fires
+    # only on real sign-ins (incl. MFA/recovery), never on signup. All wrapped.
+    try:
+        analytics.init_session()
+        if (st.session_state.get("logged_in") and st.session_state.get("user")
+                and not st.session_state.get("_login_evt_sent")):
+            st.session_state["_login_evt_sent"] = True
+            analytics.capture("login_completed", user=st.session_state.get("user"))
+    except Exception:
+        pass
     # ── Legal page via footer links ───────────────────────────────────────────
     if st.query_params.get("legal") in ("privacy","terms","billing","cookies","disclaimer"):
         st.session_state.legal_doc = st.query_params.get("legal")
@@ -10990,6 +11046,10 @@ def main():
     if st.query_params.get("nav") == "register":
         st.session_state.auth_tab = "register"
         st.session_state.page = "auth"
+        try:
+            analytics.capture("signup_started")
+        except Exception:
+            pass
         # Carry the "I want Pro" intent through to post-registration. The
         # Founding/Pro CTAs append &plan=pro to the register URL; setting
         # auto_upgrade=True here makes register_user() then call upgrade_plan()
@@ -11111,6 +11171,10 @@ def main():
             ok = upgrade_plan(uid(), "pro")
             if ok and st.session_state.get("user"):
                 st.session_state.user["plan"] = "pro"
+                try:
+                    analytics.capture("founder_membership_claimed", user=st.session_state.get("user"))
+                except Exception:
+                    pass
                 # Founder claim overrides any prior paid+canceled cycle: wipe the
                 # stale Stripe/cancellation state so the billing reconciler doesn't
                 # see a canceled subscription on the next load and downgrade this
@@ -11263,9 +11327,19 @@ def main():
                     _add_px = None
             add_to_watchlist(uid(), _wl_ticker, _add_px)
             st.session_state.pop("_wl_daychange_cache", None)
+            try:
+                analytics.capture("watchlist_added", user=st.session_state.get("user"),
+                                  props={"ticker": _wl_ticker})
+            except Exception:
+                pass
         elif _wl_action == "remove":
             remove_from_watchlist(uid(), _wl_ticker)
             st.session_state.pop("_wl_daychange_cache", None)
+            try:
+                analytics.capture("watchlist_removed", user=st.session_state.get("user"),
+                                  props={"ticker": _wl_ticker})
+            except Exception:
+                pass
         st.query_params.pop("wl_action", None)
         st.query_params.pop("wl_ticker", None)
     _port_action = st.query_params.get("port_action", "")
@@ -11279,7 +11353,7 @@ def main():
         st.session_state.port_period = _port_period
         st.query_params.pop("port_period", None)
     _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
-                   "model_portfolio","alerts","account","methodology"}
+                   "model_portfolio","alerts","account","methodology","analytics"}
     _qnav = st.query_params.get("qnav","")
     if _qnav in _VALID_TABS:
         st.session_state.nav  = _qnav
@@ -11299,7 +11373,7 @@ def main():
     # ── Reconnect recovery: restore nav from _n param ───────────────────────
     _saved_nav = st.query_params.get("_n", "")
     _VALID_TABS = {"screener","watchlist","gems","backtest","portfolio","simulator",
-                   "model_portfolio","alerts","account","methodology"}
+                   "model_portfolio","alerts","account","methodology","analytics"}
     if _saved_nav in _VALID_TABS and not st.session_state.get("_show_landing"):
         _cur = st.session_state.get("nav", "screener")
         if _cur == "screener" and _saved_nav != "screener":
