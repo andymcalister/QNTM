@@ -176,6 +176,7 @@ def _rows_to_records(rows: list):
             unmapped[gics] = unmapped.get(gics, 0) + 1
             continue  # don't pollute the universe with an Unknown sector
         norm = tk.upper().replace(".", "-").strip()
+        norm = norm.split()[0] if norm.split() else norm   # drop stray ' US' exchange suffix
         norm = TICKER_FIXUPS.get(norm, norm)   # iShares concat → yfinance hyphen
         if norm in seen:
             continue

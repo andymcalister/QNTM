@@ -95,31 +95,31 @@ def _universe_rank_dist_cached():
     percentile lookup hits Supabase at most once per window instead of once per
     session. Returns a list of floats (possibly empty). Never raises."""
     try:
-        from data_refresh import _get_supabase
+        from data_refresh import _get_supabase, _fetch_all_rows
         sb = _get_supabase()
         if not sb:
             return []
-        resp = (sb.table("signal_log")
-                .select("adj_composite,composite,signal_date")
-                .order("signal_date", desc=True)
-                .limit(2000)
-                .execute())
-        rows = resp.data or []
+        # Latest signal_date, then ALL of that day's rows (paginated) so the
+        # percentile base is the full universe, not just the first ~1,000.
+        _latest = (sb.table("signal_log").select("signal_date")
+                   .order("signal_date", desc=True).limit(1).execute())
+        if not _latest.data:
+            return []
+        _ld = _latest.data[0].get("signal_date")
+        rows = _fetch_all_rows(lambda: sb.table("signal_log")
+                               .select("adj_composite,composite")
+                               .eq("signal_date", _ld))
         dist = []
-        if rows:
-            _ld = rows[0].get("signal_date")
-            for x in rows:
-                if x.get("signal_date") != _ld:
-                    continue
-                v = x.get("adj_composite")
-                if v is None:
-                    v = x.get("composite")
-                if v is None:
-                    continue
-                try:
-                    dist.append(float(v))
-                except (TypeError, ValueError):
-                    continue
+        for x in rows:
+            v = x.get("adj_composite")
+            if v is None:
+                v = x.get("composite")
+            if v is None:
+                continue
+            try:
+                dist.append(float(v))
+            except (TypeError, ValueError):
+                continue
         return dist
     except Exception:
         return []
@@ -1403,22 +1403,24 @@ def _signal_log_map(tickers_key: tuple) -> dict:
     instead of surfacing a broken neutral one (the recurring '50s' problem),
     while genuine near-50 scores (49.7, 50.3, ...) are kept as-is."""
     try:
-        from data_refresh import _get_supabase
+        from data_refresh import _get_supabase, _fetch_all_rows
         from datetime import date, timedelta
         sb = _get_supabase()
         if not sb or not tickers_key:
             return {}
-        _since = (date.today() - timedelta(days=21)).isoformat()
-        rows = sb.table("signal_log") \
+        _since = (date.today() - timedelta(days=3)).isoformat()
+        _wanted = set(tickers_key)
+        # signal_log ~= the universe; pull the last few days in full (paginated so
+        # the ~1,000-row cap can't truncate it now that the universe is >1,000),
+        # then keep only the requested tickers.
+        rows_data = _fetch_all_rows(lambda: sb.table("signal_log")
             .select("ticker,signal_date,adj_composite,composite,signal,"
                     "momentum,quality,volume,value,sentiment,price,"
-                    "is_hidden_gem,hidden_gem_reason") \
-            .in_("ticker", list(tickers_key)) \
-            .gte("signal_date", _since) \
-            .not_.is_("composite", "null") \
-            .order("signal_date", desc=True) \
-            .execute()
-        if not rows.data:
+                    "is_hidden_gem,hidden_gem_reason")
+            .gte("signal_date", _since)
+            .not_.is_("composite", "null")
+            .order("signal_date", desc=True))
+        if not rows_data:
             return {}
         _PILLARS = ("momentum", "quality", "volume", "value", "sentiment")
 
@@ -1437,8 +1439,10 @@ def _signal_log_map(tickers_key: tuple) -> dict:
             return True
 
         latest, clean = {}, {}
-        for row in rows.data:               # newest first
+        for row in rows_data:               # newest first
             tk = row["ticker"]
+            if tk not in _wanted:
+                continue
             if tk not in latest:
                 latest[tk] = row
             if tk not in clean and _clean(row):
