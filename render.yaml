@@ -54,30 +54,6 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.9"
 
-  # ── Hourly FULL re-score (cached fundamentals + fresh prices) ───────────────
-  # Re-scores composite / pillars / conviction for the WHOLE universe and
-  # rebalances the model portfolio, once an hour during US market hours. Uses
-  # last night's cached fundamentals (no per-ticker re-fetch), so it stays light
-  # — runs data_refresh.py with RESCORE_RUN=true. This makes metrics, not just
-  # prices, move through the day. Self-contained on Render: with this here you do
-  # NOT need a cron-job.org re-score job or a `rescore` input in nightly_refresh.yml.
-  # The :05 offset keeps it clear of the alerts cron (:00/:30) and the 15-min
-  # GitHub-Actions price pass (:00/:15/:30/:45). 14:00–21:00 UTC covers the
-  # session year-round (EST + EDT), Mon–Fri.
-  # REMEMBER: attach the same secrets.toml Secret File to THIS service too.
-  - type: cron
-    name: qntm-hourly-rescore
-    runtime: python
-    plan: starter            # cached-fundamentals re-score finishes in a few minutes
-    region: oregon
-    branch: main
-    schedule: "5 14-21 * * 1-5"
-    buildCommand: pip install -r requirements.txt
-    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && RESCORE_RUN=true python data_refresh.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.9"
-
 # ── Optional: a separate dev service tracking the `dev` branch ───────────────
 # Uncomment to mirror your dev/prod split on Render (adds another $7/mo).
 # Or keep dev on Streamlit Cloud and only move prod — your call.

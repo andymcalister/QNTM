@@ -57,12 +57,18 @@ def _get_supabase():
         url = os.getenv("SUPABASE_URL", "")
         key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY", "")
 
-        # Try Streamlit secrets when running inside Streamlit
-        if not url:
+        # Fall back to Streamlit secrets ONLY for whichever piece is still missing.
+        # Critically, do NOT re-read the key from secrets if an env key was already
+        # provided — otherwise exporting SUPABASE_SERVICE_KEY without SUPABASE_URL
+        # silently clobbers it with the anon key in secrets.toml and every write
+        # RLS-fails while the run still reports success.
+        if not url or not key:
             try:
                 import streamlit as st
-                url = st.secrets.get("SUPABASE_URL", "")
-                key = st.secrets.get("SUPABASE_SERVICE_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
+                if not url:
+                    url = st.secrets.get("SUPABASE_URL", "")
+                if not key:
+                    key = st.secrets.get("SUPABASE_SERVICE_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
             except Exception:
                 pass
 
@@ -485,6 +491,23 @@ def publish_signal_batch(scored_list: list, signal_date: str = None) -> Optional
 
 # ── SUPABASE CACHE: READ ──────────────────────────────────────────────────────
 
+def _fetch_all_rows(build_query, page_size: int = 1000) -> list:
+    """Fetch EVERY row from a Supabase query, paging around the API's default
+    row cap (hosted Supabase truncates an un-ranged .select() at ~1000 rows —
+    which silently broke full-universe reads once the universe passed 1,000).
+    `build_query` is a callable returning a FRESH query builder WITHOUT .range();
+    it's re-invoked per page. Returns the concatenated list of row dicts."""
+    rows, offset = [], 0
+    while True:
+        resp = build_query().range(offset, offset + page_size - 1).execute()
+        batch = resp.data or []
+        rows.extend(batch)
+        if len(batch) < page_size:
+            break
+        offset += page_size
+    return rows
+
+
 def load_cached_fundamentals(max_age_hours: int = STALE_HOURS) -> dict:
     """
     Load today's fundamentals from Supabase fundamentals_cache.
@@ -496,12 +519,12 @@ def load_cached_fundamentals(max_age_hours: int = STALE_HOURS) -> dict:
 
     try:
         cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
-        resp   = sb.table(FUNDAMENTALS_TABLE).select(
+        rows = _fetch_all_rows(lambda: sb.table(FUNDAMENTALS_TABLE).select(
             "ticker,fundamentals,refreshed_at"
-        ).gte("refreshed_at", cutoff).execute()
+        ).gte("refreshed_at", cutoff))
 
         result = {}
-        for row in (resp.data or []):
+        for row in rows:
             ticker = row["ticker"]
             try:
                 result[ticker] = json.loads(row["fundamentals"])
@@ -527,12 +550,12 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
     try:
         today  = date.today().isoformat()
         cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
-        resp   = sb.table(SIGNAL_TABLE).select("*").eq(
+        _rows  = _fetch_all_rows(lambda: sb.table(SIGNAL_TABLE).select("*").eq(
             "signal_date", today
-        ).gte("created_at", cutoff).execute()
+        ).gte("created_at", cutoff))
 
         scores = []
-        for row in (resp.data or []):
+        for row in _rows:
             scores.append({
                 "ticker":        row["ticker"],
                 "sector":        row.get("sector", "Unknown"),

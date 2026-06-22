@@ -621,7 +621,7 @@ SECTORS = {
     "HLNE": "Financials",
     "HLT": "Consumer Discretionary",
     "HOG": "Consumer Discretionary",
-    "HOLX US": "Healthcare",
+    "HOLX": "Healthcare",
     "HOMB": "Financials",
     "HON": "Industrials",
     "HOOD": "Financials",
