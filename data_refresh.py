@@ -619,9 +619,14 @@ def update_model_portfolio(scored_list: list) -> None:
         score_map = {r["ticker"]: r for r in scored_list}
 
         # ── Load active positions ─────────────────────────────────────────────
+        try:
+            from model_engine import MODEL_EPOCH as _EPOCH
+        except Exception:
+            _EPOCH = "live"
         active_resp = sb.table("model_portfolio_positions") \
             .select("id,ticker,entry_date,entry_price,entry_score") \
             .eq("is_active", True) \
+            .eq("epoch", _EPOCH) \
             .execute()
         active         = active_resp.data or []
         active_tickers = {p["ticker"] for p in active}
@@ -756,6 +761,7 @@ def update_model_portfolio(scored_list: list) -> None:
                 "entry_score":   round(adj, 1),
                 "position_size": POS_SIZE,
                 "is_active":     True,
+                "epoch":         _EPOCH,
             }).execute()
             sector_counts[sec] = sector_counts.get(sec, 0) + 1
             active_tickers.add(tk)

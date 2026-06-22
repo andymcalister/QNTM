@@ -164,7 +164,8 @@ def _ordinal(n) -> str:
 
 from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
                            ENTRY_THRESHOLD, EXIT_THRESHOLD, SECTORS,
-                           fetch_macro_overlay, apply_macro_overlay)
+                           fetch_macro_overlay, apply_macro_overlay,
+                           MODEL_EPOCH, MODEL_INCEPTION)
 
 # ── SIGNED JWT HELPERS ────────────────────────────────────────────────────────
 import hmac, hashlib, base64, json as _json, time as _time
@@ -7099,6 +7100,7 @@ def _track_record_data(sb):
             _SEC = {}
 
         resp = sb.table("model_portfolio_positions").select("*") \
+            .eq("epoch", MODEL_EPOCH) \
             .order("entry_date", desc=False).execute()
         rows = resp.data or []
         if not rows:
@@ -9704,6 +9706,7 @@ def page_model_portfolio():
             resp = sb.table("model_portfolio_positions") \
                 .select("*") \
                 .eq("is_active", True) \
+                .eq("epoch", MODEL_EPOCH) \
                 .order("entry_date", desc=False) \
                 .execute()
             raw_positions = resp.data or []
@@ -9881,7 +9884,7 @@ def page_model_portfolio():
     try:
         _ex = sb.table("model_portfolio_positions") \
             .select("ticker,entry_date,exit_date,entry_price,position_size,exit_price") \
-            .eq("is_active", False).execute()
+            .eq("is_active", False).eq("epoch", MODEL_EPOCH).execute()
         _seen = {}
         for _r in (_ex.data or []):
             _k = (_r.get("ticker"), str(_r.get("entry_date") or "")[:10], str(_r.get("exit_date") or "")[:10])
@@ -9913,7 +9916,7 @@ def page_model_portfolio():
             st.session_state._mp_spy = None  # fetch deferred
         spy_hist = st.session_state._mp_spy
         if spy_hist is None:
-            spy_hist = yf.download("SPY", start="2026-05-19", progress=False, auto_adjust=True)
+            spy_hist = yf.download("SPY", start=MODEL_INCEPTION, progress=False, auto_adjust=True)
             st.session_state._mp_spy = spy_hist
         if not spy_hist.empty:
             spy_close = spy_hist["Close"]
@@ -9958,7 +9961,7 @@ def page_model_portfolio():
     # ── Methodology banner ────────────────────────────────────────────────────
     # Dynamic entry dates from positions
     _entry_dates = sorted(set(str(p.get('entry_date',''))[:10] for p in positions if p.get('entry_date')))
-    _start_date  = _entry_dates[0] if _entry_dates else '2026-05-19'
+    _start_date  = _entry_dates[0] if _entry_dates else MODEL_INCEPTION
     _end_date    = _entry_dates[-1] if _entry_dates else '2026-05-25'
     st.markdown(
         '<div style="background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.15);'
@@ -10296,6 +10299,7 @@ def page_model_portfolio():
             exits = sb.table("model_portfolio_positions") \
                 .select("ticker,entry_date,entry_price,exit_date,exit_price,exit_score,exit_reason") \
                 .eq("is_active", False) \
+                .eq("epoch", MODEL_EPOCH) \
                 .order("exit_date", desc=True) \
                 .limit(20) \
                 .execute()

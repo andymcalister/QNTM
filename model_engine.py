@@ -38,6 +38,16 @@ MOM_EXIT             = 30
 MIN_POSITIONS        = 15   # floor: always hold at least this many positions
 DYNAMIC_THRESHOLD_HI = 65   # raise bar when >30 stocks score ≥60 (signal dilution)
 
+# ── Model-portfolio epoch ───────────────────────────────────────────────────
+# The track record is partitioned into epochs via the model_portfolio_positions
+# .epoch column. The cron and the public Track Record page operate only on
+# MODEL_EPOCH, so the live record runs forward from MODEL_INCEPTION. Earlier
+# cohorts (e.g. 'inception') stay in the table, sealed and dated, as an internal
+# point-in-time reference — never deleted, just not shown live. To roll a new
+# epoch later, freeze the current one and bump these two constants together.
+MODEL_EPOCH     = "live"
+MODEL_INCEPTION = "2026-06-22"
+
 def pf(v, lo, hi):
     if v is None: return 50.0
     try: return max(0.0, min(100.0, (float(v)-lo)/(hi-lo)*100))
