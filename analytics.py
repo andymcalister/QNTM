@@ -37,9 +37,13 @@ UTM_KEYS = ("utm_source", "utm_medium", "utm_campaign")
 # Short shareable ref codes -> full UTM sets. Lets you share a clean
 # qntm.live/?ref=x instead of a long ?utm_source=...&utm_medium=... string, and
 # change a campaign's meaning in one place. Add new codes here as needed.
+#   ?ref=x        -> profile link  (X bio / "website" field)
+#   ?ref=post     -> a feed post
+#   ?ref=comment  -> a reply under a larger account
 REF_CODES = {
-    "x":        {"utm_source": "x", "utm_medium": "profile", "utm_campaign": "organic"},
-    "x-post":   {"utm_source": "x", "utm_medium": "post",    "utm_campaign": "organic"},
+    "x":       {"utm_source": "x", "utm_medium": "profile", "utm_campaign": "organic"},
+    "post":    {"utm_source": "x", "utm_medium": "post",    "utm_campaign": "organic"},
+    "comment": {"utm_source": "x", "utm_medium": "comment", "utm_campaign": "organic"},
 }
 
 
