@@ -10139,12 +10139,18 @@ def page_model_portfolio():
 
     # Render positions as collapsed cards with P&L data
     from model_engine import SECTORS as _MP_SECTORS
-    _mp_prog = st.progress(0, text="Building positions...")
-    _mp_html = ""
-    _mp_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
-    _mp_uid = (st.session_state.user or {}).get("id", "")
-    _mp_pln = (st.session_state.user or {}).get("plan", "free")
     _mp_sorted = sorted(holdings, key=lambda x: x["pnl_pct"], reverse=True)
+    # Style the native, fragment-scoped watchlist toggles to match the card ghost
+    # links (full-width gold). Targets every st.button keyed mpwl_<ticker>.
+    st.markdown(
+        "<style>div[class*='st-key-mpwl_'] button{width:100%;"
+        "background:rgba(212,168,67,.08);border:1px solid rgba(212,168,67,.3);"
+        "border-radius:6px;color:#d4a843;font-family:Syne,sans-serif;font-size:13px;"
+        "font-weight:700;letter-spacing:.04em;text-transform:uppercase;"
+        "padding:8px;margin:2px 0 14px;}"
+        "div[class*='st-key-mpwl_'] button:hover{background:rgba(212,168,67,.16);"
+        "border-color:rgba(212,168,67,.5);}</style>",
+        unsafe_allow_html=True)
     # Fetch today's price change once for all positions so the collapsed cards
     # can show entry date + intraday % without expanding (cached in session
     # by sorted ticker set; identical to the watchlist pattern).
@@ -10159,77 +10165,83 @@ def page_model_portfolio():
     _mp_trail = _trail_start(30)
     _mp_mini_pm, _mp_mini_sm = _mini_price_data(
         tuple(sorted({h["ticker"] for h in _mp_sorted})), _mp_trail)
-    for _mp_i, h in enumerate(_mp_sorted):
-        tk    = h["ticker"]
-        score = h["current_score"]
-        sc    = dict(score_map.get(tk, {}) or {})
-        # Preserve quant composite and macro delta so the MACRO box reflects the
-        # real overlay impact (matches screener). If we only have adj, leave the
-        # signal_log score_delta in place; otherwise recompute.
-        _quant = float(sc.get("composite", score) or score)
-        sc["ticker"]        = tk
-        sc["adj_composite"] = score
-        sc["composite"]     = _quant
-        sc["adj_action"]    = "BUY" if score >= 60 else ("SELL" if score < 45 else "HOLD")
-        sc["momentum"]      = h["momentum"]
-        sc["quality"]       = h["quality"]
-        sc["volume"]        = h["volume"]
-        sc["value"]         = h["value"]
-        sc["sentiment"]     = h["sentiment"]
-        sc["price"]         = h["current_price"]
-        sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
-        sc["signal_date"]   = str(h["entry_date"])[:10]
-        # Always recompute macro impact from adj_composite − composite; signal_log
-        # does not persist score_delta as a column.
-        sc["score_delta"] = round(score - _quant, 1)
-        # RANK is computed by factor_panel_html against the full universe via the
-        # shared _pct_rank_of() helper (sc["adj_composite"] is the displayed
-        # conviction), so no per-card stamp is needed here.
-        _ci_cache_mp = st.session_state.get("company_info_cache", {})
-        ci = _ci_cache_mp.get(tk)
-        # Build card + P&L strip
-        _mpbtn = _card_action_button(tk, "watchlist", "model_portfolio", _mp_wl_now, _mp_uid, _mp_pln)
-        # Inject P&L row into the detail section
-        _ep   = h.get('entry_price')
-        _cp   = h.get('current_price')
-        _pct  = h.get('pnl_pct', 0)
-        _pnl  = h.get('pnl', 0)
-        _edate= str(h.get('entry_date',''))[:10]
-        _rc   = '#34d399' if _pct >= 0 else '#f87171'
-        _sg   = '+' if _pct >= 0 else ''
-        _ep_str = f'${_ep:,.2f}' if _ep else '—'
-        _cp_str = f'${_cp:,.2f}' if _cp else '—'
-        _pnl_str = f'{_sg}${abs(_pnl):,.0f}' if _ep and _cp else '—'
-        _pct_str = f'{_sg}{_pct:.2f}%' if _ep and _cp else '—'
-        _pnl_html = (
-            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
-            f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
-            f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
-            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_edate}</div></div>'
-            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_ep_str}</div></div>'
-            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">{_cp_str}</div></div>'
-            f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div>'
-            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{_rc};">{_pnl_str}</div></div>'
-            f'</div>'
-        )
-        # Render card (no iframe): P&L strip + watchlist button inside detail.
-        sc["_summary_meta_html"] = _build_summary_meta_html(
-            entry_date=h.get("entry_date"),
-            day_change_entry=_mp_day_change.get(tk),
-        )
-        sc["_mini_chart_html"] = _build_mini_chart_html(
-            tk, _mp_trail, _mp_mini_pm, _mp_mini_sm, since_label="vs SPY · 20d")
-        st.markdown(
-            factor_panel_html(sc, tk in port_gem_tickers, company_info=ci,
-                              wl_btn=(_pnl_html + _mpbtn), as_details=True),
-            unsafe_allow_html=True,
-        )
-        _mp_prog.progress(int((_mp_i+1)/len(_mp_sorted)*100), text=f"Loading {_mp_i+1}/{len(_mp_sorted)} positions...")
-    _mp_prog.empty()
+    @st.fragment
+    def _mp_holdings():
+        # Isolated in a fragment so the watchlist toggle under each card reruns
+        # ONLY this list — no URL navigation, no full-page reload, no main() re-run.
+        # Watchlist membership is re-read each run so the label flips immediately.
+        _wl_set = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+        for _mp_i, h in enumerate(_mp_sorted):
+            tk    = h["ticker"]
+            score = h["current_score"]
+            sc    = dict(score_map.get(tk, {}) or {})
+            _quant = float(sc.get("composite", score) or score)
+            sc["ticker"]        = tk
+            sc["adj_composite"] = score
+            sc["composite"]     = _quant
+            sc["adj_action"]    = "BUY" if score >= 60 else ("SELL" if score < 45 else "HOLD")
+            sc["momentum"]      = h["momentum"]
+            sc["quality"]       = h["quality"]
+            sc["volume"]        = h["volume"]
+            sc["value"]         = h["value"]
+            sc["sentiment"]     = h["sentiment"]
+            sc["price"]         = h["current_price"]
+            sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
+            sc["signal_date"]   = str(h["entry_date"])[:10]
+            sc["score_delta"]   = round(score - _quant, 1)
+            _ci_cache_mp = st.session_state.get("company_info_cache", {})
+            ci = _ci_cache_mp.get(tk)
+            _ep, _cp = h.get('entry_price'), h.get('current_price')
+            _pct, _pnl = h.get('pnl_pct', 0), h.get('pnl', 0)
+            _edate = str(h.get('entry_date',''))[:10]
+            _rc = '#34d399' if _pct >= 0 else '#f87171'
+            _sg = '+' if _pct >= 0 else ''
+            _ep_str = f'${_ep:,.2f}' if _ep else '—'
+            _cp_str = f'${_cp:,.2f}' if _cp else '—'
+            _pnl_str = f'{_sg}${abs(_pnl):,.0f}' if _ep and _cp else '—'
+            _pct_str = f'{_sg}{_pct:.2f}%' if _ep and _cp else '—'
+            _pnl_html = (
+                f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'
+                f'margin:8px 20px 4px;padding:10px;background:rgba(255,255,255,.02);'
+                f'border:1px solid rgba(255,255,255,.05);border-radius:6px;">'
+                f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY DATE</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_edate}</div></div>'
+                f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">ENTRY PRICE</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;">{_ep_str}</div></div>'
+                f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">CURRENT</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;">{_cp_str}</div></div>'
+                f'<div><div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:3px;">RETURN</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:{_rc};">{_pct_str}</div>'
+                f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{_rc};">{_pnl_str}</div></div>'
+                f'</div>'
+            )
+            sc["_summary_meta_html"] = _build_summary_meta_html(
+                entry_date=h.get("entry_date"),
+                day_change_entry=_mp_day_change.get(tk),
+            )
+            sc["_mini_chart_html"] = _build_mini_chart_html(
+                tk, _mp_trail, _mp_mini_pm, _mp_mini_sm, since_label="vs SPY · 20d")
+            st.markdown(
+                factor_panel_html(sc, tk in port_gem_tickers, company_info=ci,
+                                  wl_btn=_pnl_html, as_details=True),
+                unsafe_allow_html=True,
+            )
+            _in_wl = tk in _wl_set
+            if st.button(("\u2715 Remove from Watchlist" if _in_wl else "\u2606 Add to Watchlist"),
+                         key=f"mpwl_{tk}", use_container_width=True):
+                if _in_wl:
+                    remove_from_watchlist(uid(), tk)
+                    _evt = "watchlist_removed"
+                else:
+                    add_to_watchlist(uid(), tk, h.get("current_price"))
+                    _evt = "watchlist_added"
+                try:
+                    analytics.capture(_evt, user=st.session_state.get("user"),
+                                      props={"ticker": tk})
+                except Exception:
+                    pass
+                st.rerun(scope="fragment")
+    _mp_holdings()
 
     # ── Sector concentration + closed positions — folded in from Track Record ─
     if _pt and _pt.get("sector_counts"):
