@@ -605,9 +605,10 @@ def update_model_portfolio(scored_list: list) -> None:
         return
 
     try:
-        from universe_data import SECTORS as _SECTORS
+        from universe_data import SECTORS as _SECTORS, sector_of as _sector_of
     except Exception:
         _SECTORS = {}
+        def _sector_of(t): return "Unknown"
 
     try:
         today     = date.today().isoformat()
@@ -628,7 +629,7 @@ def update_model_portfolio(scored_list: list) -> None:
         # ── Build current sector counts from active positions ─────────────────
         sector_counts: dict = {}
         for p in active:
-            sec = _SECTORS.get(p["ticker"], "Unknown")
+            sec = _sector_of(p["ticker"])
             sector_counts[sec] = sector_counts.get(sec, 0) + 1
 
         # ── Run-health gate — never act on a degraded/garbage scoring run ─────
@@ -713,7 +714,7 @@ def update_model_portfolio(scored_list: list) -> None:
             exited.append(tk)
             active_tickers.discard(tk)
             # Reduce sector count for exited position
-            sec = _SECTORS.get(tk, "Unknown")
+            sec = _sector_of(tk)
             sector_counts[sec] = max(0, sector_counts.get(sec, 1) - 1)
             log.info(f"[MODEL PORTFOLIO] EXIT {tk} {_exit_field}={gate:.1f} — conviction collapsed")
 
@@ -740,7 +741,7 @@ def update_model_portfolio(scored_list: list) -> None:
             if len(entered) >= slots_needed:
                 break
             tk  = r["ticker"]
-            sec = _SECTORS.get(tk, "Unknown")
+            sec = _sector_of(tk)
 
             # Enforce 30% sector cap on new entries only
             if sector_counts.get(sec, 0) >= SECT_CAP:

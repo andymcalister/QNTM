@@ -2419,3 +2419,27 @@ FUNDAMENTALS = {
     "CHD":  _f(18, 14,4,  8,  28, 1.2,22,100,4.2,"mid"),
     "SFM":  _f(22, 4, 12, 22, 22, 2.2,22,100,4.2,"mid")
 }
+
+
+# ── Held-but-dropped sector overrides ──────────────────────────────────────────
+# Positions the model portfolio still holds that fell out of the SCREENING universe
+# (the SECTORS map) when it was rebuilt to Russell 1000 + top-400 Russell 2000.
+# These names are intentionally NOT in SECTORS (so they aren't screened/scored), but
+# the 30% sector cap and the app's concentration view still need a real sector for
+# them while they remain held. sector_of() consults this only as a fallback, so the
+# moment a name rejoins SECTORS (e.g. the June 26 Russell reconstitution rebuild) the
+# override is ignored. Sectors below are the pre-expansion universe values.
+HELD_SECTOR_OVERRIDES = {
+    "ACDC": "Energy", "ALTO": "Energy", "CRGY": "Energy", "CTRA": "Energy", "KOS": "Energy",
+    "AEM": "Materials", "AG": "Materials", "KGC": "Materials", "PAAS": "Materials", "SQM": "Materials",
+    "CBL": "Real Estate", "OOMA": "Comm Services", "PGNY": "Healthcare",
+    "SENEA": "Consumer Staples", "WEYS": "Consumer Staples", "STX": "Technology",
+}
+
+
+def sector_of(ticker: str) -> str:
+    """Resolve a ticker's sector for portfolio accounting (cap math, concentration
+    display). Screening universe (SECTORS) wins; held-but-dropped names fall back to
+    HELD_SECTOR_OVERRIDES; everything else is 'Unknown'. Use this anywhere a held
+    position's sector is needed so an out-of-universe holding isn't mis-bucketed."""
+    return SECTORS.get(ticker) or HELD_SECTOR_OVERRIDES.get(ticker, "Unknown")
