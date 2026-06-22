@@ -34,6 +34,14 @@ log = logging.getLogger("qntm.analytics")
 EVENTS_TABLE = "qntm_events"
 UTM_KEYS = ("utm_source", "utm_medium", "utm_campaign")
 
+# Short shareable ref codes -> full UTM sets. Lets you share a clean
+# qntm.live/?ref=x instead of a long ?utm_source=...&utm_medium=... string, and
+# change a campaign's meaning in one place. Add new codes here as needed.
+REF_CODES = {
+    "x":        {"utm_source": "x", "utm_medium": "profile", "utm_campaign": "organic"},
+    "x-post":   {"utm_source": "x", "utm_medium": "post",    "utm_campaign": "organic"},
+}
+
 
 # ── config ──────────────────────────────────────────────────────────────────
 def _cfg(key, default=""):
@@ -149,6 +157,13 @@ def init_session():
         return
     try:
         qp = st.query_params
+        # Expand a short ?ref=<code> into UTMs first; explicit utm_* params below
+        # override it, so a fully-specified link always wins.
+        ref = qp.get("ref")
+        if ref and ref in REF_CODES:
+            for k, v in REF_CODES[ref].items():
+                if not st.session_state.get(f"_{k}"):
+                    st.session_state[f"_{k}"] = v
         for k in UTM_KEYS:
             val = qp.get(k)
             if val:
