@@ -9598,12 +9598,11 @@ def _render_track_equity(_pt, positions):
         # axis, so it draws even when the daily ledger has only one dated mark.
         _ms, _ss, _mret, _sret, _wlabel = _intra_series
         _intraday = True
-    elif _wk == "1D" and len(_mseries) >= 2 and len(_sseries) >= 2:
-        # 1D in REAL dollars from the LIVE day-change feed (same source the TODAY
-        # card uses). The daily-close ledger carries no intraday move, which is
-        # why this previously read flat 0.0%. Value-weight today's move across the
-        # book for QNTM; anchor SPY to its current benchmark level and apply SPY's
-        # live day move.
+    elif _wk == "1D":
+        # Same-day move from the LIVE day-change feed — the exact source the
+        # headline cards use, so the chart always agrees with them and renders
+        # even on day one (no dependency on a multi-day daily ledger). Both lines
+        # start at $100K at the prior close and move by today's % change.
         _ldc = _fetch_day_change_map(
             [p["ticker"] for p in positions] + ["SPY"],
             cache_key="_mp_daychange_cache")
@@ -9611,39 +9610,29 @@ def _render_track_equity(_pt, positions):
         for _p in positions:
             _dcp = _ldc.get(_p["ticker"]) or {}
             _epp = _p.get("entry_price")
-            if _epp and _epp > 0 and _dcp.get("price") and _dcp.get("prev_close"):
-                _shh = _p.get("pos_size", 2000) / _epp
+            if _epp and float(_epp) > 0 and _dcp.get("price") and _dcp.get("prev_close"):
+                _shh = (_p.get("pos_size") or 2000) / float(_epp)
                 _m_now  += _shh * float(_dcp["price"])
                 _m_prev += _shh * float(_dcp["prev_close"])
         _spy_dc = _ldc.get("SPY") or {}
-        _yday = _mseries[-2][0]
-        _pv = _pt.get("model_value")
-        _day_dollar = _m_now - _m_prev      # active-book intraday $ move
-        if (_pv and _m_prev > 0 and _spy_dc.get("price")
-                and _spy_dc.get("prev_close")):
-            # Anchor QNTM to the REAL portfolio value (cash + realized + active
-            # book) so the line finishes on the headline card, then back out
-            # yesterday with the active book's intraday $ move. The bare
-            # active-book sum excludes cash/realized P&L and undershoots the card.
-            _pv = float(_pv)
-            _m_now_v  = _pv
-            _m_prev_v = _pv - _day_dollar
+        if _m_prev > 0 and _spy_dc.get("price") and _spy_dc.get("prev_close"):
+            BASE = 100000.0
             _spy_ratio = float(_spy_dc["price"]) / float(_spy_dc["prev_close"])
-            _spy_now   = _sseries[-1][1]
-            _spy_prev  = _spy_now / _spy_ratio if _spy_ratio else _spy_now
-            _ms = [(_yday, _m_prev_v), (_today_iso, _m_now_v)]
-            _ss = [(_yday, _spy_prev), (_today_iso, _spy_now)]
-            _mret = (_day_dollar / _m_prev_v * 100) if _m_prev_v else 0.0
+            _ms = [("prev close", BASE), ("now", BASE * _m_now / _m_prev)]
+            _ss = [("prev close", BASE), ("now", BASE * _spy_ratio)]
+            _mret = (_m_now / _m_prev - 1) * 100
             _sret = (_spy_ratio - 1) * 100
-        else:
-            # live feed unavailable — fall back to the daily-close marks
+            _intraday = True
+            _wlabel = "today vs prev close"
+        elif len(_mseries) >= 2 and len(_sseries) >= 2:
+            # live feed unavailable — fall back to the last two daily-close marks
             _ms, _ss = _mseries[-2:], _sseries[-2:]
             _mret = (_ms[-1][1] / _ms[0][1] - 1) * 100 if _ms[0][1] else 0.0
             _sret = (_ss[-1][1] / _ss[0][1] - 1) * 100 if _ss[0][1] else 0.0
-        _wlabel = "since last close"
-    elif _wk == "1D":
-        _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
-            _mseries, _sseries, "1D")
+            _wlabel = "since last close"
+        else:
+            _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
+                _mseries, _sseries, "1D")
     else:
         _ms, _ss, _mret, _sret, _wlabel = _window_track_series(
             _mseries, _sseries, _wk)
