@@ -283,21 +283,43 @@ def render_analytics_dashboard():
         t = _parse_ts(r.get("created_at"))
         return t is not None and t.date() == today
 
+    def _classify_source(r):
+        # utm_source wins (our ref codes all set it to 'x'); else classify the
+        # referrer; else direct. Keeps the buckets to the few that matter now.
+        s = (r.get("utm_source") or "").strip().lower()
+        if s:
+            return s
+        ref = (r.get("referrer") or "").lower()
+        if not ref or "qntm" in ref:
+            return "direct"
+        if "google" in ref:
+            return "google"
+        if "t.co" in ref or "twitter" in ref or "x.com" in ref:
+            return "x"
+        return "other"
+
     visits = [r for r in rows if r.get("event") == "site_visit"]
     signups = [r for r in rows if r.get("event") == "signup_completed"]
 
     visitors_today = len({r["distinct_id"] for r in visits if _today(r)})
     visitors_7d    = len({r["distinct_id"] for r in visits if _in7(r)})
+    x_visitors_7d  = len({r["distinct_id"] for r in visits
+                          if _in7(r) and _classify_source(r) == "x"})
     signups_today  = sum(1 for r in signups if _today(r))
     signups_7d     = sum(1 for r in signups if _in7(r))
     conv_7d        = (signups_7d / visitors_7d * 100.0) if visitors_7d else 0.0
+
+    # Acquisition first: X visitors is the channel being worked daily, so it
+    # leads — followed by the visitor->signup rate it ultimately feeds.
+    a1, a2 = st.columns(2)
+    a1.metric("X visitors (7d)", x_visitors_7d)
+    a2.metric("Visitor → signup (7d)", f"{conv_7d:.1f}%")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Visitors today", visitors_today)
     c2.metric("Visitors (7d)", visitors_7d)
     c3.metric("Signups today", signups_today)
     c4.metric("Signups (7d)", signups_7d)
-    st.metric("Visitor → signup (7d)", f"{conv_7d:.1f}%")
 
     st.divider()
 
@@ -314,17 +336,17 @@ def render_analytics_dashboard():
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.markdown("#### Top referral sources (7d)")
+        st.markdown("#### Visitors by source (7d)")
         src = {}
-        for r in rows:
+        for r in visits:
             if not _in7(r):
                 continue
-            s = (r.get("utm_source") or r.get("referrer") or "direct")
-            src[s] = src.get(s, 0) + 1
-        ranked = sorted(src.items(), key=lambda x: x[1], reverse=True)[:8]
+            src.setdefault(_classify_source(r), set()).add(r["distinct_id"])
+        ranked = sorted(((s, len(ids)) for s, ids in src.items()),
+                        key=lambda x: x[1], reverse=True)[:8]
         if ranked:
             st.dataframe({"source": [s for s, _ in ranked],
-                          "events": [c for _, c in ranked]},
+                          "visitors": [c for _, c in ranked]},
                          use_container_width=True, hide_index=True)
         else:
             st.caption("No data yet.")
