@@ -9592,7 +9592,13 @@ def _render_track_equity(_pt, positions):
         else:
             _sseries.append((_today_iso, _s_live))
     _intraday = False
-    if _wk == "1D" and len(_mseries) >= 2 and len(_sseries) >= 2:
+    _intra_series = _intraday_track_series(_pt, positions) if _wk == "1D" else None
+    if _intra_series:
+        # Same-day (or any-day) intraday curve by 15-min bar — plots a time-of-day
+        # axis, so it draws even when the daily ledger has only one dated mark.
+        _ms, _ss, _mret, _sret, _wlabel = _intra_series
+        _intraday = True
+    elif _wk == "1D" and len(_mseries) >= 2 and len(_sseries) >= 2:
         # 1D in REAL dollars from the LIVE day-change feed (same source the TODAY
         # card uses). The daily-close ledger carries no intraday move, which is
         # why this previously read flat 0.0%. Value-weight today's move across the
@@ -10129,6 +10135,13 @@ def page_model_portfolio():
         [h["ticker"] for h in _mp_sorted],
         cache_key="_mp_daychange_cache",
     )
+    # Trailing ~20-session vs-SPY mini chart for each holding. Batch-fetch the
+    # window once for all holdings (+SPY) in a single call, so a freshly seeded
+    # cohort still shows real recent history — a "since entry" window would be
+    # empty on day one. Mirrors the screener Top-10 pattern.
+    _mp_trail = _trail_start(30)
+    _mp_mini_pm, _mp_mini_sm = _mini_price_data(
+        tuple(sorted({h["ticker"] for h in _mp_sorted})), _mp_trail)
     for _mp_i, h in enumerate(_mp_sorted):
         tk    = h["ticker"]
         score = h["current_score"]
@@ -10192,8 +10205,7 @@ def page_model_portfolio():
             day_change_entry=_mp_day_change.get(tk),
         )
         sc["_mini_chart_html"] = _build_mini_chart_html(
-            tk, h.get("entry_date"),
-            (_pt or {}).get("price_map"), (_pt or {}).get("spy_map")) if _pt else ""
+            tk, _mp_trail, _mp_mini_pm, _mp_mini_sm, since_label="vs SPY · 20d")
         st.markdown(
             factor_panel_html(sc, tk in port_gem_tickers, company_info=ci,
                               wl_btn=(_pnl_html + _mpbtn), as_details=True),
