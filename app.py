@@ -9416,7 +9416,7 @@ def _window_track_series(model_series, spy_series, window_key):
     BASE = 100000.0
     if not model_series or not spy_series or len(model_series) < 2:
         return model_series, spy_series, 0.0, 0.0, "since inception"
-    days = {"1D": 1, "1W": 7, "1M": 30, "6M": 182, "1Y": 365}.get(window_key)
+    days = {"1D": 1, "1W": 7, "1M": 30, "3M": 90, "6M": 182, "1Y": 365}.get(window_key)
     first_date = model_series[0][0]
     cutoff = None
     if days is not None:
@@ -9433,7 +9433,8 @@ def _window_track_series(model_series, spy_series, window_key):
             m, s, label = model_series, spy_series, "since inception"
         else:
             label = {"1D": "past day", "1W": "past week", "1M": "past month",
-                     "6M": "past 6 months", "1Y": "past year"}.get(window_key, "window")
+                     "3M": "past 3 months", "6M": "past 6 months",
+                     "1Y": "past year"}.get(window_key, "window")
     try:
         # No rebasing — keep the real cumulative dollar values so the chart shows
         # the true divergence (both lines stay anchored to $100K at inception).
@@ -9554,9 +9555,10 @@ def _render_track_equity(_pt, positions):
     """Equity-curve window selector + chart for the track record, isolated in a
     fragment so changing the time window re-renders ONLY the chart, not the whole
     model-portfolio page. Nothing outside the chart depends on the window."""
-    _win = st.radio("Window", ["1D", "1W", "1M", "6M", "1Y", "All"],
-                    index=5, horizontal=True, key="tr_window",
-                    label_visibility="collapsed")
+    _win = st.radio("Window", ["1D", "1M", "3M", "1Y", "All"],
+                    index=0, horizontal=True, key="tr_window",
+                    label_visibility="collapsed",
+                    format_func=lambda x: "Day" if x == "1D" else x)
     _wk = "ALL" if _win == "All" else _win
     # Anchor both daily curves to the live marks (model_value / spy_ret) so the
     # chart agrees with the headline cards. Without this the series ends at the
