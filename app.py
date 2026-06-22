@@ -7072,7 +7072,12 @@ def _track_record_data(sb):
     try:
         import yfinance as yf
         try:
-            from universe_data import SECTORS as _SEC
+            from universe_data import SECTORS, HELD_SECTOR_OVERRIDES
+            # Merge held-but-dropped overrides so out-of-universe holdings (e.g.
+            # STX/CTRA, or any May-seed name not yet back in the universe) resolve
+            # to their real sector instead of "Unknown". No key overlap with
+            # SECTORS by construction, so the universe values are never shadowed.
+            _SEC = {**SECTORS, **HELD_SECTOR_OVERRIDES}
         except Exception:
             _SEC = {}
 
@@ -10228,7 +10233,7 @@ def page_model_portfolio():
     st.markdown(
         '<div style="font-size:13px;color:#8896ac;padding:6px 8px;background:#050a0f;'
         'border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;margin-bottom:8px;">'
-        '$10K/position · Equal weighted · Auto-exit score < 45</div>',
+        '$2,000/position · Equal weighted · Auto-exit score < 45</div>',
         unsafe_allow_html=True)
 
     # ── Export to Excel ───────────────────────────────────────────────────────
@@ -10309,7 +10314,7 @@ def page_model_portfolio():
     st.markdown(
         '<div style="font-size:13px;color:#8896ac;padding:16px 0;margin-top:16px;'
         'border-top:1px solid rgba(255,255,255,.05);">'
-        '⚠ Model portfolio is hypothetical. $10K equal weight per position. '
+        '⚠ Model portfolio is hypothetical. $2,000 equal weight per position. '
         'Does not account for slippage, taxes, or transaction costs. For informational purposes only.</div>',
         unsafe_allow_html=True)
 
