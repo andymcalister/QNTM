@@ -10336,7 +10336,7 @@ def page_methodology():
          "Russell 1000 core anchors the Screener and the model portfolio; the small-cap layer feeds "
          "the Hidden Gems screen with genuinely under-followed names. Scores refresh nightly, with "
          "live price updates and hourly full re-scores during market hours.\n\n"
-         f"Universe expansion (June 2026): the investable universe was widened from ~830 names to the "
+         f"Universe expansion (June 21, 2026): the investable universe was widened from ~830 names to the "
          f"current ~{_universe_n()}. This is a forward methodology change — the model portfolio and its "
          "track record are not restated retroactively. The wider opportunity set applies from the "
          "expansion date forward, and the portfolio migrates into it as positions turn over."),
