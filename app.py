@@ -83,9 +83,9 @@ def _universe_n() -> int:
     shown across the site stays accurate as the universe changes over time."""
     try:
         from model_engine import SECTORS
-        return len(SECTORS) or 846
+        return len(SECTORS) or 1400
     except Exception:
-        return 846
+        return 1400
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -4625,7 +4625,7 @@ body { background-color: #0a0b14 !important; }
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
           <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#d4a843;line-height:1;">~{_universe_n()} stocks</div>
-          <div style="font-size:13px;color:#b3bed0;margin-top:6px;">S&amp;P 500 + Russell 1000, rescored every day</div>
+          <div style="font-size:13px;color:#b3bed0;margin-top:6px;">Russell 1000 + top Russell 2000 small-caps, rescored daily</div>
         </div>
         <div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px;min-width:0;">
           <div style="font-family:Syne,sans-serif;font-size:clamp(18px,4.5vw,26px);font-weight:800;color:#34d399;line-height:1;">5-factor model</div>
@@ -5298,7 +5298,7 @@ HELP_CONTENT = {
          ("Remove anytime", "Unstar a stock to drop it from the list.")]),
     "gems": ("Hidden Gems",
         "Strong-scoring names that fly under Wall Street's radar.",
-        [("What qualifies", "High conviction plus light analyst coverage and mid-cap size — quality without the crowd."),
+        [("What qualifies", "High conviction plus light analyst coverage and mid- or small-cap size — quality without the crowd."),
          ("Since flagged", "The mini chart tracks each gem from the date the model first flagged it."),
          ("Regime-aware", "In high-volatility regimes the bar rises, so only the strongest names surface.")]),
     "portfolio": ("Your Portfolio",
@@ -6913,7 +6913,7 @@ def page_gems():
                color:#34d399;margin-bottom:12px;">Founding Member Feature</div>
           <div style="color:#9fabc0;max-width:480px;margin:0 auto;line-height:1.7;margin-bottom:24px;">
             Hidden Gem detection is free for the first 50 founding members.
-            These are mid-cap stocks with institutional-grade factor scores that
+            These are mid- and small-cap stocks with institutional-grade factor scores that
             fly under Wall Street's radar — the ones that show up before the crowd notices.
           </div>
           <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.3);
@@ -6984,7 +6984,7 @@ def page_gems():
             '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#8896ac;margin-bottom:8px;">'
             'No hidden gems today</div>'
             '<div style="font-size:13px;color:#94a3b8;max-width:320px;margin:0 auto;line-height:1.7;">'
-            'The model detected no mid-cap stocks clearing the high-conviction threshold in the current macro regime. '
+            'The model detected no mid- or small-cap stocks clearing the high-conviction threshold in the current macro regime. '
             'Check back after the next nightly scan or visit the Screener to explore all signals.'
             '</div>'
             '<div style="margin-top:20px;font-family:DM Mono,monospace;font-size:13px;color:#1e293b;letter-spacing:.08em;">'
@@ -10331,9 +10331,15 @@ def page_methodology():
          "and how it's shaping the scores. Everything below explains how those scores are built."),
 
         ("The Universe", "#34d399",
-         f"QNTM covers {_universe_n()} stocks drawn from the S&P 500 and Russell 1000, cleaned of delisted and "
-         "illiquid tickers. This represents the investable large/mid-cap US equity universe that "
-         "most retail investors already hold or consider. Scores update nightly via automated refresh."),
+         f"QNTM covers {_universe_n()} US stocks: the Russell 1000 (large- and mid-cap) plus a layer "
+         "of the largest Russell 2000 small-caps, cleaned of delisted and illiquid tickers. The "
+         "Russell 1000 core anchors the Screener and the model portfolio; the small-cap layer feeds "
+         "the Hidden Gems screen with genuinely under-followed names. Scores refresh nightly, with "
+         "live price updates and hourly full re-scores during market hours.\n\n"
+         f"Universe expansion (June 2026): the investable universe was widened from ~830 names to the "
+         f"current ~{_universe_n()}. This is a forward methodology change — the model portfolio and its "
+         "track record are not restated retroactively. The wider opportunity set applies from the "
+         "expansion date forward, and the portfolio migrates into it as positions turn over."),
 
         ("The Factor Model", "#34d399",
          "Each stock receives a composite score (0–100) built from five weighted pillars:\n\n"
@@ -10363,7 +10369,7 @@ def page_methodology():
          "Regime updates every 15 minutes during your session."),
 
         ("Hidden Gems", "#34d399",
-         "Hidden Gems are mid-cap stocks scoring above conviction threshold that fly under Wall Street's radar. "
+         "Hidden Gems are mid- and small-cap stocks scoring above conviction threshold that fly under Wall Street's radar. "
          "Detection criteria:\n\n"
          "• Not a mega-cap (excludes NVDA, AAPL, MSFT, etc.)\n"
          "• adj_composite ≥ 65 (67+ in Risk-Off regimes)\n"

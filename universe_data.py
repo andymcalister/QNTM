@@ -1,6 +1,7 @@
 """
-QNTM Universe Data — Russell 1000 + S&P 500
-~1,050 unique tickers with sector classifications and estimated fundamentals.
+QNTM Universe Data — Russell 1000 core + top Russell 2000 small-cap gem layer
+~1,400 unique tickers with sector classifications and estimated fundamentals.
+SMALL_MID_POOL marks the small-cap layer used by the Hidden Gems screen.
 
 Fundamentals key:
   roe   = Return on Equity (%)

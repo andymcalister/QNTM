@@ -768,7 +768,8 @@ def cache_is_fresh(max_age_hours: int = STALE_HOURS) -> bool:
 
 # ── MAIN REFRESH LOOP ─────────────────────────────────────────────────────────
 
-def run_refresh(tickers: list = None, force: bool = False) -> dict:
+def run_refresh(tickers: list = None, force: bool = False,
+                use_cached_fundamentals: bool = False) -> dict:
     """
     Full nightly refresh:
       1. Skip if cache is fresh and force=False
@@ -802,40 +803,54 @@ def run_refresh(tickers: list = None, force: bool = False) -> dict:
     static_used  = []
     failed       = []
 
-    for i, ticker in enumerate(tickers):
-        if i > 0 and i % 100 == 0:
-            log.info(f"Progress: {i}/{len(tickers)} ({i/len(tickers)*100:.0f}%)")
+    if use_cached_fundamentals:
+        # Hourly intraday FULL re-score: reuse last night's fundamentals from the
+        # cache (they don't move intraday) and skip the expensive per-ticker fetch
+        # loop. Everything downstream — price download, scoring, health gates,
+        # signal_log write, model-portfolio rebalance — runs exactly as nightly,
+        # but on fresh intraday prices. This is what makes conviction/metrics move
+        # through the day for the whole universe without re-pulling fundamentals.
+        live_data = load_cached_fundamentals(max_age_hours=24 * 7) or {}
+        static_used = [t for t in tickers if t not in live_data]
+        for t in static_used:
+            live_data[t] = FUNDAMENTALS.get(t, {})
+        log.info(f"Intraday full re-score: {len(tickers) - len(static_used)} tickers from "
+                 f"fundamentals cache, {len(static_used)} static fallback (no re-fetch).")
+    else:
+        for i, ticker in enumerate(tickers):
+            if i > 0 and i % 100 == 0:
+                log.info(f"Progress: {i}/{len(tickers)} ({i/len(tickers)*100:.0f}%)")
 
-        # Fetch live
-        data = fetch_ticker_fundamentals(ticker)
+            # Fetch live
+            data = fetch_ticker_fundamentals(ticker)
 
-        if data:
-            # Merge: live data takes precedence, static fills gaps
-            static = FUNDAMENTALS.get(ticker, {})
-            merged = {**static, **data}   # live overwrites static
-            live_data[ticker] = merged
-        else:
-            # Live fetch failed — use static only
-            static_used.append(ticker)
-            live_data[ticker] = FUNDAMENTALS.get(ticker, {})
+            if data:
+                # Merge: live data takes precedence, static fills gaps
+                static = FUNDAMENTALS.get(ticker, {})
+                merged = {**static, **data}   # live overwrites static
+                live_data[ticker] = merged
+            else:
+                # Live fetch failed — use static only
+                static_used.append(ticker)
+                live_data[ticker] = FUNDAMENTALS.get(ticker, {})
 
-        time.sleep(RATE_LIMIT_DELAY)
+            time.sleep(RATE_LIMIT_DELAY)
 
-    # Retry failed tickers once
-    retried = 0
-    for ticker in failed[:MAX_RETRIES * 10]:
-        data = fetch_ticker_fundamentals(ticker)
-        if data:
-            static = FUNDAMENTALS.get(ticker, {})
-            live_data[ticker] = {**static, **data}
-            static_used.remove(ticker) if ticker in static_used else None
-            retried += 1
-        time.sleep(RATE_LIMIT_DELAY * 2)
+        # Retry failed tickers once
+        retried = 0
+        for ticker in failed[:MAX_RETRIES * 10]:
+            data = fetch_ticker_fundamentals(ticker)
+            if data:
+                static = FUNDAMENTALS.get(ticker, {})
+                live_data[ticker] = {**static, **data}
+                static_used.remove(ticker) if ticker in static_used else None
+                retried += 1
+            time.sleep(RATE_LIMIT_DELAY * 2)
 
-    log.info(f"Fetch complete: {len(tickers) - len(static_used)} live, {len(static_used)} static fallback")
+        log.info(f"Fetch complete: {len(tickers) - len(static_used)} live, {len(static_used)} static fallback")
 
-    # Write fundamentals cache
-    write_fundamentals_cache(live_data)
+        # Write fundamentals cache
+        write_fundamentals_cache(live_data)
 
     # Score the universe with fresh data
     try:
@@ -1301,6 +1316,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="QNTM Nightly Data Refresh")
     parser.add_argument("--force",    action="store_true", help="Bypass freshness check")
     parser.add_argument("--intraday", action="store_true", help="Run lightweight intraday price refresh only")
+    parser.add_argument("--rescore",  action="store_true", help="Hourly intraday FULL re-score (cached fundamentals + fresh prices: re-scores composite/pillars/conviction for the whole universe and rebalances the model portfolio)")
     parser.add_argument("--macro",    action="store_true", help="Run lightweight live macro re-scan + overlay re-apply only")
     parser.add_argument("--tickers",  nargs="*",           help="Specific tickers to refresh")
     parser.add_argument("--schema",   action="store_true", help="Print schema SQL and exit")
@@ -1314,9 +1330,12 @@ if __name__ == "__main__":
     import os
     is_intraday = args.intraday or os.getenv("INTRADAY_RUN", "false").lower() == "true"
     is_macro    = args.macro    or os.getenv("MACRO_RUN",    "false").lower() == "true"
+    is_rescore  = args.rescore  or os.getenv("RESCORE_RUN",  "false").lower() == "true"
 
     if is_macro:
         result = run_macro_refresh(tickers=args.tickers)
+    elif is_rescore:
+        result = run_refresh(tickers=args.tickers, force=True, use_cached_fundamentals=True)
     elif is_intraday:
         result = run_intraday_refresh(tickers=args.tickers)
     else:
