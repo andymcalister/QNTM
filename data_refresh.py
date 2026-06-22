@@ -1082,9 +1082,9 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     # nightly scored batch hasn't published for today, write nothing and let the
     # last good batch stand.
     try:
-        _ex = sb.table("signal_log").select("ticker") \
-            .eq("signal_date", today).not_.is_("composite", "null").execute()
-        scored_today = {r["ticker"] for r in (_ex.data or [])}
+        _ex_rows = _fetch_all_rows(lambda: sb.table("signal_log").select("ticker")
+            .eq("signal_date", today).not_.is_("composite", "null"))
+        scored_today = {r["ticker"] for r in _ex_rows}
     except Exception:
         scored_today = set()
     if not scored_today:
@@ -1166,18 +1166,17 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     # This catches intraday conviction drops (exits) and new entries.
     try:
         today_str = date.today().isoformat()
-        sig_resp = sb.table("signal_log") \
-            .select("ticker,adj_composite,composite,price,momentum,quality,volume,value,sentiment") \
-            .eq("signal_date", today_str) \
-            .execute()
-        if sig_resp.data:
+        sig_rows = _fetch_all_rows(lambda: sb.table("signal_log")
+            .select("ticker,adj_composite,composite,price,momentum,quality,volume,value,sentiment")
+            .eq("signal_date", today_str))
+        if sig_rows:
             # Apply macro overlay to get fresh adj_composite scores
             try:
                 from model_engine import apply_macro_overlay, fetch_macro_overlay
                 macro = _load_macro_state() or fetch_macro_overlay(use_live_feeds=False)
-                scored_today = apply_macro_overlay(sig_resp.data, macro)
+                scored_today = apply_macro_overlay(sig_rows, macro)
             except Exception:
-                scored_today = sig_resp.data  # use raw if overlay fails
+                scored_today = sig_rows  # use raw if overlay fails
             update_model_portfolio(scored_today)
         else:
             log.info("[MODEL PORTFOLIO] No signal_log data for today — skipping intraday portfolio update")
@@ -1222,11 +1221,10 @@ def run_macro_refresh(tickers: list = None) -> dict:
 
     # 3. Load today's scores
     try:
-        resp = sb.table(SIGNAL_TABLE).select(
+        rows = _fetch_all_rows(lambda: sb.table(SIGNAL_TABLE).select(
             "ticker,composite,momentum,quality,volume,value,sentiment,"
             "signal,macro_overlay,adj_composite,price,is_hidden_gem,hidden_gem_reason"
-        ).eq("signal_date", today).execute()
-        rows = resp.data or []
+        ).eq("signal_date", today))
     except Exception as e:
         return {"success": False, "error": f"signal_log read failed: {e}",
                 "mode": "macro", "regime": macro.get("regime")}

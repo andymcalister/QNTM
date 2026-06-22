@@ -926,6 +926,57 @@ def _headline_recency_weight(entry) -> float:
         return 0.7
 
 
+def _us_cash_open(_now_et=None) -> bool:
+    """True only during US equity regular trading hours (Mon-Fri 09:30-16:00
+    ET). Outside RTH the ^VIX cash index is frozen at its last print, so the
+    overnight-futures proxy takes over. Holiday-blind on purpose: a holiday
+    reads as 'closed', which is the correct conservative behaviour — it just
+    means the overlay trusts futures instead of a stale VIX."""
+    try:
+        t = _now_et if _now_et is not None else pd.Timestamp.now(tz="America/New_York")
+    except Exception:
+        return True  # tz lookup unavailable -> assume open, defer to ^VIX (status quo)
+    if t.weekday() >= 5:
+        return False
+    open_t  = t.replace(hour=9,  minute=30, second=0, microsecond=0)
+    close_t = t.replace(hour=16, minute=0,  second=0, microsecond=0)
+    return open_t <= t <= close_t
+
+
+def _overnight_futures_risk():
+    """Risk proxy that works when the cash market (and ^VIX) is closed.
+
+    Reads the S&P 500 e-mini future (ES=F), which trades nearly 24h on Globex,
+    and returns its move from the prior settle to the latest print as a signed
+    fraction (e.g. -0.021 = S&P futures down 2.1% overnight); None on failure.
+    Negative = risk-off. This is what lets a weekend/after-hours shock reach the
+    regime before the cash VIX can — systematic and auditable, not a headline
+    override."""
+    try:
+        import yfinance as yf
+        t = yf.Ticker("ES=F")
+        last = prev = None
+        # Preferred: live last vs prior settle (captures the Sunday-night gap)
+        try:
+            fi = t.fast_info
+            last = float(fi.last_price)
+            prev = float(fi.previous_close)
+        except Exception:
+            last = prev = None
+        # Fallback: latest intraday print vs prior daily close
+        if not last or not prev:
+            intr = t.history(period="2d", interval="5m")
+            day  = t.history(period="5d", interval="1d")
+            if len(intr) and len(day) >= 2:
+                last = float(intr["Close"].iloc[-1])
+                prev = float(day["Close"].iloc[-2])
+        if not last or not prev or prev <= 0:
+            return None
+        return last / prev - 1.0
+    except Exception:
+        return None
+
+
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
     Fetch macro regime and sector overlays from live data sources.
@@ -1000,6 +1051,16 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                 oil_price = float(wti["Close"].iloc[-1])
         except Exception:
             pass
+
+        # ── Source 5: overnight futures — weekend / after-hours risk proxy ────
+        # ^VIX is frozen whenever the cash market is closed, so a shock that
+        # erupts on a weekend or overnight (a geopolitical flare gapping S&P
+        # futures down on Globex) is invisible to the VIX channel until the next
+        # cash open. When cash is shut we read ES=F and let a material gap drive
+        # the regime the way a live VIX move would.
+        es_overnight = None
+        if not _us_cash_open():
+            es_overnight = _overnight_futures_risk()
 
         # ── Keyword event detection (recency-weighted) ───────────────────────
         # event_scores = recency-weighted sum (drives the regime math, so fresh
@@ -1107,6 +1168,20 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             elif vix_level <= 15:
                 risk_score = max(risk_score, +0.2)   # push toward RISK_ON
 
+        # Overnight-futures override — fills the VIX blind spot when cash is
+        # closed. Same shape as the VIX override above (documented thresholds,
+        # no discretion); engages only while cash is shut, so during RTH the
+        # live ^VIX stays authoritative and the same move is never counted twice.
+        if es_overnight is not None:
+            if   es_overnight <= -0.030:
+                risk_score = min(risk_score, -0.6)    # ~3%+ gap down -> force RISK_OFF
+            elif es_overnight <= -0.015:
+                risk_score = min(risk_score, -0.25)   # ~1.5%+ gap down -> RISK_OFF
+            elif es_overnight <= -0.008:
+                risk_score = min(risk_score, -0.1)    # mild gap -> out of RISK_ON
+            elif es_overnight >= +0.015:
+                risk_score = max(risk_score, +0.2)    # strong positive gap -> lean RISK_ON
+
         risk_score = max(-1.0, min(1.0, risk_score))
 
         if   risk_score >=  0.3: regime_label = "RISK_ON"
@@ -1134,6 +1209,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         source_desc = f"live ({n_headlines} headlines"
         if vix_level: source_desc += f", VIX {vix_level:.1f}"
         if oil_price: source_desc += f", WTI ${oil_price:.1f}"
+        if es_overnight is not None: source_desc += f", S&P fut {es_overnight:+.1%} o/n"
         source_desc += ")"
 
         _ev_labels_live = _macro_event_labels(active_events)
@@ -1150,6 +1226,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "event_scores":    dict(event_scores),
             "vix":             vix_level,
             "oil_price":       oil_price,
+            "es_overnight":    es_overnight,
             "headlines_scanned": n_headlines,
             "source":          source_desc,
             "live":            True,
