@@ -67,7 +67,7 @@ def main(execute: bool):
 
     active = sb.table("model_portfolio_positions") \
         .select("id,ticker,entry_date,entry_price,epoch") \
-        .eq("is_active", True).execute().data or []
+        .eq("is_active", True).eq("epoch", "inception").execute().data or []
 
     if not active:
         print("No active positions — nothing to freeze. (Already sealed?)")
