@@ -10595,6 +10595,64 @@ def page_methodology():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+def _render_whats_new():
+    """Login 'What's new' banner. Shows changelog entries newer than the user's
+    stored marker; persists until dismissed, and on dismiss records the marker so
+    it won't reappear next login. Fragment-scoped so dismissing doesn't reload.
+    Never raises — any failure just means no banner."""
+    user = st.session_state.get("user") or {}
+    if not user.get("id") or user.get("id") == "demo":
+        return
+    if st.session_state.get("_wn_dismissed"):
+        return
+    try:
+        import whats_new as _wn
+        items = _wn.unseen_entries(user.get("whatsnew_seen") or "")
+    except Exception:
+        return
+    if not items:
+        return
+
+    @st.fragment
+    def _wn_banner():
+        if st.session_state.get("_wn_dismissed"):
+            return
+        _tagc = {"new": "#34d399", "improved": "#d4a843"}
+        _rows = ""
+        for e in items:
+            _c = _tagc.get(e.get("tag", "new"), "#34d399")
+            _rows += (
+                f'<div style="padding:10px 0;border-top:1px solid rgba(255,255,255,.06);">'
+                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">'
+                f'<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;'
+                f'color:{_c};border:1px solid {_c};border-radius:4px;padding:1px 6px;">{e.get("tag","new")}</span>'
+                f'<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:#e2e8f0;">{e.get("title","")}</span>'
+                f'<span style="font-size:11px;color:#8896ac;margin-left:auto;">{e.get("date","")}</span>'
+                f'</div>'
+                f'<div style="font-size:13px;color:#9fabc0;line-height:1.6;">{e.get("body","")}</div>'
+                f'</div>'
+            )
+        st.markdown(
+            f'<div style="background:linear-gradient(180deg,rgba(212,168,67,.06),rgba(13,17,23,0));'
+            f'border:1px solid rgba(212,168,67,.25);border-radius:12px;padding:14px 18px 6px;margin:0 0 14px;">'
+            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">'
+            f'<span style="font-size:16px;">\u2728</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#d4a843;'
+            f'letter-spacing:.02em;">What\'s new since you were last here</span></div>'
+            f'{_rows}</div>',
+            unsafe_allow_html=True)
+        if st.button("Got it", key="_wn_got"):
+            try:
+                _newest = _wn.latest_id()
+                update_preferences(uid(), {"whatsnew_seen": _newest})
+                st.session_state.user["whatsnew_seen"] = _newest
+            except Exception:
+                pass
+            st.session_state["_wn_dismissed"] = True
+            st.rerun(scope="fragment")
+    _wn_banner()
+
+
 def page_platform():
     # ── Accordion behavior for cards (one open at a time) ──────────────────────
     # Cards render as <details name="qntm-cards">; modern browsers make same-named
@@ -10670,6 +10728,7 @@ def page_platform():
                 st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
+    _render_whats_new()
 
 
     nav_map = {
