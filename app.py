@@ -9603,7 +9603,7 @@ def _intraday_track_series(pt, positions):
 
 
 @st.fragment
-def _render_track_equity(_pt, positions):
+def _render_track_equity(_pt, positions, day_pct=None, day_spy_pct=None):
     """Equity-curve window selector + chart for the track record, isolated in a
     fragment so changing the time window re-renders ONLY the chart, not the whole
     model-portfolio page. Nothing outside the chart depends on the window."""
@@ -9644,14 +9644,24 @@ def _render_track_equity(_pt, positions):
         else:
             _sseries.append((_today_iso, _s_live))
     _intraday = False
-    if _wk == "1D":
-        # Day view driven by the SAME _pt values the headline cards display, so the
-        # chart's endpoint and % reconcile exactly with the table: the model line
-        # runs from the $100K cost basis to the live portfolio value; SPY runs from
-        # $100K to its equivalent return over the same period. The intraday open is
-        # deliberately NOT used as the baseline — a same-day cohort gaps up at the
-        # open, and measuring from 9:30 would hide that gain and contradict the
-        # cards. The multi-day windows below take over as the daily ledger accrues.
+    if _wk == "1D" and day_pct is not None:
+        # DAY = today's move, taken from the SAME day-change weighting the TODAY
+        # card uses (passed in as day_pct), so the chart's % matches the card. The
+        # line ends on the live portfolio value, so it also matches PORTFOLIO
+        # VALUE; the start is the implied prior-close value. SPY moves from the
+        # same start by its own day %, so both lines are comparable.
+        _mv = float(_pt.get("model_value") or 100000.0)
+        _dp = float(day_pct)
+        _sp = float(day_spy_pct) if day_spy_pct is not None else 0.0
+        _start = _mv / (1 + _dp / 100.0) if _dp != -100 else _mv
+        _ms = [("prev close", _start), ("now", _mv)]
+        _ss = [("prev close", _start), ("now", _start * (1 + _sp / 100.0))]
+        _mret, _sret = _dp, _sp
+        _intraday = True
+        _wlabel = "today"
+    elif _wk == "1D":
+        # No live day-change data — fall back to cumulative since entry. (Also the
+        # day-one case, where today's move and since-entry are the same thing.)
         BASE = 100000.0
         _mv = float(_pt.get("model_value") or BASE)
         _mr = float(_pt.get("model_ret") or 0.0)
@@ -10020,7 +10030,7 @@ def page_model_portfolio():
     # set, so the per-card fetch later is a cache hit). This is the book's move
     # vs the prior session's close — live through the day, frozen at the close.
     _mp_day_change = _fetch_day_change_map(
-        [h["ticker"] for h in holdings], cache_key="_mp_daychange_cache")
+        [h["ticker"] for h in holdings] + ["SPY"], cache_key="_mp_daychange_cache")
     _day_today = _day_prev = 0.0
     _day_have = False
     _day_settled = False
@@ -10049,6 +10059,15 @@ def page_model_portfolio():
         _day_sub    = f"{_day_s}${_day_dollar:,.0f}" + (" · at close" if _day_settled else "")
     else:
         _day_color, _day_val, _day_sub = "#9fabc0", "—", "no data"
+
+    # Today's move to feed the DAY chart so it matches the TODAY card exactly:
+    # the model % is the same active-book day_pct above; SPY's day move comes from
+    # the same feed. None when there's no live data (chart falls back to cumulative).
+    _chart_day_pct = _day_pct if (_day_have and _day_prev > 0) else None
+    _spy_dcd = _mp_day_change.get("SPY") or {}
+    _chart_day_spy = (
+        (float(_spy_dcd["price"]) / float(_spy_dcd["prev_close"]) - 1) * 100
+        if _spy_dcd.get("price") and _spy_dcd.get("prev_close") else None)
 
     # Portfolio extended-hours move — value-weighted $ summed across holdings,
     # shown as its own summary card in the live session only (pre before open,
@@ -10112,7 +10131,8 @@ def page_model_portfolio():
 
     # ── Equity curve (model vs SPY) — folded in from the Track Record view ────
     if _pt:
-        _render_track_equity(_pt, positions)
+        _render_track_equity(_pt, positions, day_pct=_chart_day_pct,
+                             day_spy_pct=_chart_day_spy)
 
     # ── Holdings table ────────────────────────────────────────────────────────
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#d4a843;'
