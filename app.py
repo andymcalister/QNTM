@@ -7764,78 +7764,146 @@ def page_portfolio():
                                   _upgrade_url("Unlimited Holdings", "portfolio")),
                         unsafe_allow_html=True)
         else:
-            r1c1, r1c2, r1c3 = st.columns([2, 2, 2])
-            with r1c1:
+            @st.fragment
+            def _pf_add_form():
+                # Fragment: searching, amount/price entry, and the live preview run
+                # reload-free. Only a successful Add does a full rerun, to refresh
+                # the holdings list and totals below.
                 def _pin_portfolio_nav():
                     st.session_state.nav = "portfolio"
                     _v = st.session_state.get("p_tk", "").strip().upper()
                     st.session_state.p_sel_tk = _v if _v in SECTORS else ""
-                tk_query = st.text_input("Ticker / Company Name", key="p_tk",
-                    placeholder="🔍  Search ticker or company — NVDA, Apple…",
-                    on_change=_pin_portfolio_nav)
-            with r1c2: new_sh   = st.number_input("Shares",       key="p_sh",   min_value=0.0, step=1.0, format="%.2f", on_change=_pin_portfolio_nav)
-            with r1c3: new_cost = st.number_input("Avg Cost ($)", key="p_cost", min_value=0.0, step=0.01, format="%.2f", on_change=_pin_portfolio_nav)
 
-            # Standard ticker/company search — suggestions + conviction preview
-            _p_hold = [h.get("ticker") for h in holdings] if holdings else []
-            _p_live = (tk_query or "").strip()
-            if _p_live and not st.session_state.get("p_sel_tk"):
-                _render_suggestions(_p_live, "psug", "p_sel_tk", exclude=_p_hold)
+                # Prefill Price from the platform's last price once a ticker is
+                # picked; only set on ticker change, so a user override sticks.
+                _picked0 = st.session_state.get("p_sel_tk", "").strip().upper()
+                if _picked0 and _picked0 in SECTORS:
+                    try:
+                        _plat_px = float(score_map.get(_picked0, {}).get("price") or 0)
+                    except Exception:
+                        _plat_px = 0.0
+                    if _plat_px > 0 and st.session_state.get("p_price_for") != _picked0:
+                        st.session_state["p_price"] = round(_plat_px, 4)
+                        st.session_state["p_price_for"] = _picked0
 
-            resolved_ticker, resolved_name = "", ""
-            _p_picked = st.session_state.get("p_sel_tk", "").strip().upper()
-            if _p_picked and _p_picked in SECTORS:
-                resolved_ticker, resolved_name = _p_picked, _SEARCH_NAMES.get(_p_picked, "")
-            elif tk_query and tk_query.strip():
-                with st.spinner("Looking up...") if len(tk_query) > 2 and not tk_query.strip().isupper() else contextlib.nullcontext():
-                    resolved_ticker, resolved_name = resolve_ticker(tk_query)
+                _mode = st.radio("Add by", ["Dollars", "Shares"], key="p_mode",
+                                 horizontal=True, label_visibility="collapsed")
+                _dollars = (_mode == "Dollars")
 
-            if resolved_ticker and is_valid_universe_ticker(resolved_ticker):
-                _render_stock_result(resolved_ticker, nav="portfolio")
-            elif resolved_ticker and resolved_name and resolved_name != resolved_ticker:
-                st.markdown(
-                    f'<div style="font-size:14px;color:#34d399;margin-bottom:8px;">'
-                    f'✓ {resolved_ticker} — {resolved_name}</div>',
-                    unsafe_allow_html=True)
-            elif resolved_ticker:
-                st.markdown(
-                    f'<div style="font-size:14px;color:#b3bed0;margin-bottom:8px;">'
-                    f'Ticker: {resolved_ticker}</div>',
-                    unsafe_allow_html=True)
-
-            r2c1, r2c2 = st.columns([3, 1])
-            with r2c1: new_date = st.date_input("Entry Date", key="p_date", value=date.today())
-            with r2c2:
-                st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
-                if st.button("Add", key="p_add", use_container_width=True):
-                    new_tk = resolved_ticker or tk_query.strip().upper()
-                    if new_tk and new_sh > 0:
-                        tk_clean = new_tk.upper().strip()
-                        if not is_valid_universe_ticker(tk_clean):
-                            st.error(f"{tk_clean} is not in the QNTM universe ({_universe_n()} tickers). "
-                                     "Holdings must match a tracked ticker so the model can "
-                                     "score and price the position.")
-                        else:
-                            ok = upsert_holding(uid(), tk_clean, new_sh, new_cost, new_date)
-                            if ok:
-                                st.success(f"Added {tk_clean}")
-                                st.session_state.pop("p_sel_tk", None)
-                                # Fire notification if signal is active
-                                sc = score_map.get(tk_clean)
-                                if sc:
-                                    act = sc.get("adj_action", sc.get("action", "HOLD"))
-                                    comp = sc.get("adj_composite", sc.get("composite", 50))
-                                    if act == "SELL":
-                                        st.warning(f"⚠ Note: Model currently shows LOW conviction on {tk_clean} (score {comp:.0f})")
-                                    elif act == "BUY":
-                                        create_notification(uid(), tk_clean, "buy_signal",
-                                            f"HIGH conviction active: {tk_clean}",
-                                            f"Score {comp:.0f} — HIGH conviction")
-                                st.rerun()
-                            else:
-                                st.error("Failed to add position — check ticker and try again")
+                r1c1, r1c2, r1c3 = st.columns([2, 2, 2])
+                with r1c1:
+                    tk_query = st.text_input("Ticker / Company Name", key="p_tk",
+                        placeholder="🔍  Search ticker or company — NVDA, Apple…",
+                        on_change=_pin_portfolio_nav)
+                with r1c2:
+                    if _dollars:
+                        new_amt = st.number_input("Amount ($)", key="p_amt",
+                            min_value=0.0, step=50.0, format="%.2f",
+                            on_change=_pin_portfolio_nav)
+                        new_sh = 0.0
                     else:
-                        st.warning("Enter a ticker symbol and number of shares")
+                        new_sh = st.number_input("Shares", key="p_sh",
+                            min_value=0.0, step=1.0, format="%.4f",
+                            on_change=_pin_portfolio_nav)
+                        new_amt = 0.0
+                with r1c3:
+                    new_price = st.number_input("Price ($)", key="p_price",
+                        min_value=0.0, step=0.01, format="%.4f",
+                        help="Defaults to the platform's last price — edit to set your actual cost.",
+                        on_change=_pin_portfolio_nav)
+
+                _p_hold = [h.get("ticker") for h in holdings] if holdings else []
+                _p_live = (tk_query or "").strip()
+                if _p_live and not st.session_state.get("p_sel_tk"):
+                    _render_suggestions(_p_live, "psug", "p_sel_tk", exclude=_p_hold)
+
+                resolved_ticker, resolved_name = "", ""
+                _p_picked = st.session_state.get("p_sel_tk", "").strip().upper()
+                if _p_picked and _p_picked in SECTORS:
+                    resolved_ticker, resolved_name = _p_picked, _SEARCH_NAMES.get(_p_picked, "")
+                elif tk_query and tk_query.strip():
+                    with st.spinner("Looking up...") if len(tk_query) > 2 and not tk_query.strip().isupper() else contextlib.nullcontext():
+                        resolved_ticker, resolved_name = resolve_ticker(tk_query)
+
+                if resolved_ticker and is_valid_universe_ticker(resolved_ticker):
+                    _render_stock_result(resolved_ticker, nav="portfolio")
+                elif resolved_ticker and resolved_name and resolved_name != resolved_ticker:
+                    st.markdown(
+                        f'<div style="font-size:14px;color:#34d399;margin-bottom:8px;">'
+                        f'✓ {resolved_ticker} — {resolved_name}</div>',
+                        unsafe_allow_html=True)
+                elif resolved_ticker:
+                    st.markdown(
+                        f'<div style="font-size:14px;color:#b3bed0;margin-bottom:8px;">'
+                        f'Ticker: {resolved_ticker}</div>',
+                        unsafe_allow_html=True)
+
+                # Live preview of the resulting position, in whichever mode is active.
+                _pv_px = new_price if (new_price and new_price > 0) else (
+                    float(score_map.get(resolved_ticker, {}).get("price") or 0) if resolved_ticker else 0.0)
+                if _pv_px and _pv_px > 0:
+                    if _dollars and new_amt > 0:
+                        st.markdown(
+                            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
+                            f'margin:2px 0 10px;">≈ {new_amt/_pv_px:,.4f} shares @ ${_pv_px:,.2f} '
+                            f'· ${new_amt:,.0f} invested</div>',
+                            unsafe_allow_html=True)
+                    elif (not _dollars) and new_sh > 0:
+                        st.markdown(
+                            f'<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
+                            f'margin:2px 0 10px;">≈ ${new_sh*_pv_px:,.2f} invested '
+                            f'· {new_sh:,.4f} sh @ ${_pv_px:,.2f}</div>',
+                            unsafe_allow_html=True)
+
+                r2c1, r2c2 = st.columns([3, 1])
+                with r2c1:
+                    new_date = st.date_input("Entry Date", key="p_date", value=date.today())
+                with r2c2:
+                    st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
+                    if st.button("Add", key="p_add", use_container_width=True):
+                        new_tk = (resolved_ticker or tk_query.strip().upper())
+                        _add_px = new_price if (new_price and new_price > 0) else 0.0
+                        if not _add_px and new_tk:
+                            try:
+                                _add_px = float(score_map.get(new_tk.upper().strip(), {}).get("price") or 0)
+                            except Exception:
+                                _add_px = 0.0
+                        # Resolve share count from the active mode.
+                        if _dollars:
+                            _shares = (new_amt / _add_px) if (new_amt > 0 and _add_px > 0) else 0.0
+                        else:
+                            _shares = new_sh
+                        if new_tk and _shares > 0 and _add_px > 0:
+                            tk_clean = new_tk.upper().strip()
+                            if not is_valid_universe_ticker(tk_clean):
+                                st.error(f"{tk_clean} is not in the QNTM universe ({_universe_n()} tickers). "
+                                         "Holdings must match a tracked ticker so the model can "
+                                         "score and price the position.")
+                            else:
+                                ok = upsert_holding(uid(), tk_clean, _shares, _add_px, new_date)
+                                if ok:
+                                    _inv = _shares * _add_px
+                                    st.success(f"Added {tk_clean} — {_shares:,.4f} sh @ "
+                                               f"${_add_px:,.2f} (${_inv:,.0f})")
+                                    st.session_state.pop("p_sel_tk", None)
+                                    st.session_state.pop("p_price_for", None)
+                                    sc = score_map.get(tk_clean)
+                                    if sc:
+                                        act = sc.get("adj_action", sc.get("action", "HOLD"))
+                                        comp = sc.get("adj_composite", sc.get("composite", 50))
+                                        if act == "SELL":
+                                            st.warning(f"⚠ Note: Model currently shows LOW conviction on {tk_clean} (score {comp:.0f})")
+                                        elif act == "BUY":
+                                            create_notification(uid(), tk_clean, "buy_signal",
+                                                f"HIGH conviction active: {tk_clean}",
+                                                f"Score {comp:.0f} — HIGH conviction")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to add position — check ticker and try again")
+                        else:
+                            st.warning("Enter a ticker, a price, and "
+                                       + ("a dollar amount." if _dollars else "a share quantity."))
+            _pf_add_form()
 
     # ── Empty state ────────────────────────────────────────────────────────────
     if not holdings:
