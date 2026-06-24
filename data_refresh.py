@@ -420,7 +420,12 @@ def update_benchmark_price() -> bool:
         dl = yf.download("SPY", period="5d", auto_adjust=True, progress=False)
         if dl is None or dl.empty or "Close" not in dl:
             return False
-        close = dl["Close"].ffill()
+        close = dl["Close"]
+        # Newer yfinance returns Close as a one-column DataFrame for a single
+        # ticker; collapse to a Series so iloc[-1] is a scalar.
+        if hasattr(close, "columns"):
+            close = close["SPY"] if "SPY" in close.columns else close.iloc[:, 0]
+        close = close.ffill()
         px = float(close.iloc[-1])
         if px != px or px <= 0:
             return False
