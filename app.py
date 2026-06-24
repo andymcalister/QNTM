@@ -177,7 +177,7 @@ import analytics
 # Streamlit Cloud / local that env var is absent, so it falls back to APP_BUILD.
 # Lets us read which code an instance is actually running at a glance, instead
 # of inferring it from the numbers.
-APP_BUILD = "2026-06-24.mp-shared-cache"
+APP_BUILD = "2026-06-24.stored-only"
 
 def _build_tag() -> str:
     _sha = (os.environ.get("RENDER_GIT_COMMIT") or "").strip()
@@ -3279,39 +3279,11 @@ def _stored_day_change_map(tickers):
             earlier = [x for x in m if x <= d]
             return m[max(earlier)] if earlier else None
 
-        if _market_phase() == "regular":
-            # Live current price vs the most recent settled close — one small
-            # quote fetch, history stays stored. Require quotes for every
-            # non-delisted name (else the fetch failed -> full yfinance); delisted
-            # names fall back to their last stored value.
-            live = _live_quotes(list(want))
-            expected = set(_strip_delisted(list(want)))
-            if not live or not all(tk in live for tk in expected):
-                return {}
-            priors = [d for d in union if d < today_str]
-            if not priors:
-                return {}
-            d_prev = priors[-1]
-            d_last_stored = union[-1]
-            out = {}
-            for tk in want:
-                cur = live.get(tk)
-                if cur is None:
-                    cur = _pon(prices[tk], d_last_stored)   # delisted: last known
-                prev = _pon(prices[tk], d_prev)
-                if cur is None or prev is None:
-                    return {}
-                out[tk] = {
-                    "price": cur, "prev_close": prev,
-                    "chg_pct": ((cur - prev) / prev * 100) if prev else None,
-                    "chg_dollar": (cur - prev),
-                    "settled": False, "market_closed": False,
-                    "last_bar_date": today_str,
-                }
-            return out
-
-        # Closed / pre / post: current and prev both from stored settled closes,
-        # anchored to one common date pair so model and SPY align.
+        # Stored-only: current = today's stored row (kept fresh by the intraday
+        # price cron), prev = the most recent settled session before it. No live
+        # quote fetch on the request path, so every read is a fast Supabase read;
+        # price lag is bounded by the cron cadence. Anchored to one common date
+        # pair so model and SPY align.
         d_latest = min(max(prices[tk].keys()) for tk in want)
         priors = [d for d in union if d < d_latest]
         if not priors:
@@ -7309,27 +7281,10 @@ def _stored_close_frame(sb, tickers, inception):
         for col, m in cols.items():
             frame[col] = [m.get(d) for d in dates]
         frame = frame.ffill()
-        if _market_phase() == "regular":
-            # Stored history + a live "today" point: one small quote fetch keeps
-            # the curve live during trading without re-pulling full history.
-            # Require quotes for every non-delisted name; delisted names keep
-            # their last stored value (forward-filled onto today).
-            need = set(list(tickers) + ["SPY"])
-            live = _live_quotes(list(need))
-            expected = set(_strip_delisted(list(need)))
-            if not live or not all(t in live for t in expected):
-                return None   # quote fetch failed -> full live fallback
-            import datetime as _dt2
-            try:
-                from zoneinfo import ZoneInfo
-                _td = _dt2.datetime.now(ZoneInfo("America/New_York")).date()
-            except Exception:
-                _td = _dt2.date.today()
-            _tdts = pd.to_datetime(_td.isoformat())
-            for t in need:
-                if t in live:
-                    frame.loc[_tdts, t] = live[t]
-            frame = frame.sort_index().ffill()   # carry delisted last value to today
+        # Stored-only: the frame already includes today's row (signal_log +
+        # benchmark_price are kept fresh by the intraday price cron), so the
+        # curve ends on today's stored mark with no live quote fetch on the
+        # request path.
         return frame
     except Exception:
         return None
