@@ -7077,6 +7077,44 @@ def page_gems():
 # ══════════════════════════════════════════════════════════════════════════════
 # BACKTEST PAGE
 # ══════════════════════════════════════════════════════════════════════════════
+def _stored_close_frame(sb, tickers, inception):
+    """Build the daily-close price frame for the equity curve from data already
+    in Supabase — held-ticker prices from signal_log, SPY from benchmark_price —
+    so the Model Portfolio page needs no live yfinance pull. Returns a forward-
+    filled DataFrame (index = trading days, columns = SPY + held tickers) or None
+    when stored coverage is insufficient (caller then falls back to yfinance).
+    The downstream ledger replay is identical regardless of source."""
+    try:
+        import pandas as pd
+        from data_refresh import _fetch_all_rows
+        # SPY benchmark is the date spine.
+        brows = _fetch_all_rows(lambda: sb.table("benchmark_price")
+                                .select("d,close").gte("d", inception)
+                                .order("d", desc=False))
+        spy = {str(r["d"])[:10]: float(r["close"]) for r in (brows or [])
+               if r.get("close") is not None}
+        if len(spy) < 2:
+            return None
+        dates = sorted(spy.keys())
+        # Held-ticker daily closes (signal_log is keyed ticker,signal_date).
+        srows = _fetch_all_rows(lambda: sb.table("signal_log")
+                                .select("ticker,signal_date,price")
+                                .in_("ticker", list(tickers))
+                                .gte("signal_date", inception))
+        cols = {"SPY": spy}
+        for r in (srows or []):
+            tk = r.get("ticker"); pv = r.get("price")
+            d = str(r.get("signal_date") or "")[:10]
+            if tk and pv is not None and len(d) == 10:
+                cols.setdefault(tk, {})[d] = float(pv)
+        frame = pd.DataFrame(index=pd.to_datetime(dates))
+        for col, m in cols.items():
+            frame[col] = [m.get(d) for d in dates]
+        return frame.ffill()
+    except Exception:
+        return None
+
+
 def _track_record_data(sb):
     """Build the live Model Portfolio equity curve vs SPY from real data.
 
@@ -7121,14 +7159,20 @@ def _track_record_data(sb):
         # reconcile (signal_log can lag a session behind when the batch gate is
         # holding). Forward-filled across any gaps; SPY index is the date axis.
         tickers = sorted({p["ticker"] for p in positions})
-        dl = yf.download(_strip_delisted(tickers) + ["SPY"], start=inception,
-                         progress=False, auto_adjust=True)
-        if dl.empty:
-            return None
-        close = dl["Close"]
-        if not hasattr(close, "columns") or "SPY" not in close.columns:
-            return None
-        close = close.ffill()
+        # Prefer the stored price history (signal_log + benchmark_price) so the
+        # page does no live network pull. Fall back to a live yfinance download
+        # only when stored coverage is insufficient (e.g. brand-new cohort before
+        # benchmark_price has two sessions). Downstream replay is identical.
+        close = _stored_close_frame(sb, tickers, inception)
+        if close is None:
+            dl = yf.download(_strip_delisted(tickers) + ["SPY"], start=inception,
+                             progress=False, auto_adjust=True)
+            if dl.empty:
+                return None
+            close = dl["Close"]
+            if not hasattr(close, "columns") or "SPY" not in close.columns:
+                return None
+            close = close.ffill()
         spy_close = close["SPY"]
         dates = [d.date().isoformat() for d in close.index]
         if len(dates) < 2:
