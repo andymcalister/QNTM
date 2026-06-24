@@ -177,7 +177,7 @@ import analytics
 # Streamlit Cloud / local that env var is absent, so it falls back to APP_BUILD.
 # Lets us read which code an instance is actually running at a glance, instead
 # of inferring it from the numbers.
-APP_BUILD = "2026-06-24.daychg-anchor"
+APP_BUILD = "2026-06-24.spy-daybasis"
 
 def _build_tag() -> str:
     _sha = (os.environ.get("RENDER_GIT_COMMIT") or "").strip()
@@ -9979,17 +9979,20 @@ def _render_track_equity(_pt, positions, day_pct=None, day_spy_pct=None):
             _sseries.append((_today_iso, _s_live))
     _intraday = False
     if _wk == "1D" and day_pct is not None:
-        # DAY = today's move, taken from the SAME day-change weighting the TODAY
-        # card uses (passed in as day_pct), so the chart's % matches the card. The
-        # line ends on the live portfolio value, so it also matches PORTFOLIO
-        # VALUE; the start is the implied prior-close value. SPY moves from the
-        # same start by its own day %, so both lines are comparable.
+        # DAY = today's move. The model line runs prev-close -> live value, so it
+        # ends on PORTFOLIO VALUE. SPY is drawn on its REAL cumulative dollar
+        # basis (same as every other window and the % vs SPY card) — NOT rebased
+        # to the model's start. A SPY that's down since inception therefore stays
+        # BELOW the model here too, instead of floating above $100K. Today's move
+        # for each line shows as its slope / endpoint %, not as an inflated level.
         _mv = float(_pt.get("model_value") or 100000.0)
         _dp = float(day_pct)
         _sp = float(day_spy_pct) if day_spy_pct is not None else 0.0
-        _start = _mv / (1 + _dp / 100.0) if _dp != -100 else _mv
-        _ms = [("prev close", _start), ("now", _mv)]
-        _ss = [("prev close", _start), ("now", _start * (1 + _sp / 100.0))]
+        _m_start = _mv / (1 + _dp / 100.0) if _dp != -100 else _mv
+        _spy_now = 100000.0 * (1 + float(_pt.get("spy_ret") or 0.0) / 100.0)
+        _s_start = _spy_now / (1 + _sp / 100.0) if _sp != -100 else _spy_now
+        _ms = [("prev close", _m_start), ("now", _mv)]
+        _ss = [("prev close", _s_start), ("now", _spy_now)]
         _mret, _sret = _dp, _sp
         _intraday = True
         _wlabel = "today"
