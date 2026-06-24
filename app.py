@@ -7710,6 +7710,7 @@ def _tr_line_chart_svg(model_series, spy_series, intraday=False):
     def _pct(v): return (v[-1] / v[0] - 1) * 100 if v and v[0] else 0.0
     def _pcol(x): return "#34d399" if x >= 0 else "#f87171"
     m_pct, s_pct = _pct(m_vals), _pct(s_vals)
+    _pd = 2 if intraday else 1  # DAY window: 2 decimals so it matches the TODAY card
     # start-point dots + value labels (left)
     sx = X(0)
     smy, ssy = Y(m_vals[0]), Y(s_vals[0])
@@ -7732,9 +7733,9 @@ def _tr_line_chart_svg(model_series, spy_series, intraday=False):
     p.append(f'<circle cx="{ex:.1f}" cy="{sy:.1f}" r="3" fill="#7c8aa0"/>')
     p.append(f'<circle cx="{ex:.1f}" cy="{my:.1f}" r="3.5" fill="#d4a843"/>')
     p.append(f'<text x="{ex+8:.1f}" y="{ls+3:.1f}" font-family="DM Mono,monospace" font-size="10" fill="#b3bed0">{fmtk(s_vals[-1])}</text>')
-    p.append(f'<text x="{ex+8:.1f}" y="{ls+15:.1f}" font-family="DM Mono,monospace" font-size="9" fill="{_pcol(s_pct)}">{s_pct:+.1f}%</text>')
+    p.append(f'<text x="{ex+8:.1f}" y="{ls+15:.1f}" font-family="DM Mono,monospace" font-size="9" fill="{_pcol(s_pct)}">{s_pct:+.{_pd}f}%</text>')
     p.append(f'<text x="{ex+8:.1f}" y="{lm+3.5:.1f}" font-family="DM Mono,monospace" font-size="11" font-weight="700" fill="#d4a843">{fmtk(m_vals[-1])}</text>')
-    p.append(f'<text x="{ex+8:.1f}" y="{lm+15.5:.1f}" font-family="DM Mono,monospace" font-size="9" fill="{_pcol(m_pct)}">{m_pct:+.1f}%</text>')
+    p.append(f'<text x="{ex+8:.1f}" y="{lm+15.5:.1f}" font-family="DM Mono,monospace" font-size="9" fill="{_pcol(m_pct)}">{m_pct:+.{_pd}f}%</text>')
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">' + "".join(p) + '</svg>'
 
 
@@ -9998,12 +9999,16 @@ def _render_track_equity(_pt, positions, day_pct=None, day_spy_pct=None):
     if _eqchart:
         _vs = _mret - _sret
         _vs_color = "#34d399" if _vs >= 0 else "#f87171"
+        _pd = 2 if _intraday else 1  # DAY window: match the 2dp TODAY card
+        # On the DAY window the vs-SPY here is today's race, not the cumulative
+        # "% vs SPY" card — tag it so the two don't read as contradictory.
+        _vs_tag = f" {_wlabel}" if _wk == "1D" else ""
         st.markdown(f"""
         <div style="background:#0a0b14;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:16px 16px 10px;margin-bottom:20px;">
           <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-family:DM Mono,monospace;font-size:13px;">
-            <span style="color:#d4a843;">\u2014 QNTM Model {_mret:+.1f}%</span>
-            <span style="color:#7c8aa0;">\u2014 SPY {_sret:+.1f}%</span>
-            <span style="color:{_vs_color};">vs SPY {_vs:+.1f}%</span>
+            <span style="color:#d4a843;">\u2014 QNTM Model {_mret:+.{_pd}f}%</span>
+            <span style="color:#7c8aa0;">\u2014 SPY {_sret:+.{_pd}f}%</span>
+            <span style="color:{_vs_color};">vs SPY {_vs:+.{_pd}f}%{_vs_tag}</span>
             <span style="color:#8896ac;margin-left:auto;">{_wlabel}</span>
           </div>
           {_eqchart}
