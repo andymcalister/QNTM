@@ -3183,7 +3183,7 @@ def _stored_day_change_map(tickers):
     want = {t for t in (tickers or []) if t}
     if not want:
         return {}
-    if _market_phase() == "open":
+    if _market_phase() == "regular":
         return {}   # live intraday prices needed while trading; use yfinance
     try:
         from data_refresh import _get_supabase, _fetch_all_rows
@@ -7200,7 +7200,7 @@ def _stored_close_frame(sb, tickers, inception):
     filled DataFrame (index = trading days, columns = SPY + held tickers) or None
     when stored coverage is insufficient (caller then falls back to yfinance).
     The downstream ledger replay is identical regardless of source."""
-    if _market_phase() == "open":
+    if _market_phase() == "regular":
         return None   # use live prices for today's point while the market trades
     try:
         import pandas as pd
