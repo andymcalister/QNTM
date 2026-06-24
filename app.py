@@ -177,7 +177,7 @@ import analytics
 # Streamlit Cloud / local that env var is absent, so it falls back to APP_BUILD.
 # Lets us read which code an instance is actually running at a glance, instead
 # of inferring it from the numbers.
-APP_BUILD = "2026-06-24.stored-only"
+APP_BUILD = "2026-06-24.price-freshness"
 
 def _build_tag() -> str:
     _sha = (os.environ.get("RENDER_GIT_COMMIT") or "").strip()
@@ -10000,6 +10000,35 @@ def _render_track_equity(_pt, positions, day_pct=None, day_spy_pct=None):
         """, unsafe_allow_html=True)
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def _prices_as_of():
+    """How fresh the stored intraday prices are: the latest benchmark_price
+    .updated_at (SPY is rewritten every intraday cron cycle). In stored-only mode
+    this is the true age of the live numbers and doubles as a cron heartbeat.
+    Returns (local 'HH:MM TZ' string, minutes_old) or (None, None)."""
+    try:
+        from data_refresh import _get_supabase
+        from datetime import datetime as _dt, timezone as _tz
+        sb = _get_supabase()
+        if not sb:
+            return None, None
+        resp = sb.table("benchmark_price").select("updated_at").not_.is_(
+            "updated_at", "null").order("updated_at", desc=True).limit(1).execute()
+        if not (resp.data and resp.data[0].get("updated_at")):
+            return None, None
+        raw = str(resp.data[0]["updated_at"]).replace("Z", "+00:00")
+        dt_utc = _dt.fromisoformat(raw).astimezone(_tz.utc)
+        mins = int((_dt.now(_tz.utc) - dt_utc).total_seconds() // 60)
+        try:
+            from zoneinfo import ZoneInfo
+            loc = dt_utc.astimezone(ZoneInfo("America/Los_Angeles"))
+            return loc.strftime("%H:%M %Z"), mins
+        except Exception:
+            return dt_utc.strftime("%H:%M UTC"), mins
+    except Exception:
+        return None, None
+
+
 def page_model_portfolio():
     _pin_nav("model_portfolio")
     # Model portfolio: HIGH conviction positions, exits at score < 45
@@ -10449,6 +10478,19 @@ def page_model_portfolio():
         <div style="font-size:18px;font-weight:700;color:{vs_color};">{vs_sign}{vs_spy_pct:.1f}%</div></div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Price-freshness indicator — true age of the stored intraday marks driving
+    # the live numbers (benchmark_price.updated_at). Amber if it's gone stale
+    # during regular trading, which means the intraday price cron is lagging.
+    _pao, _pao_min = _prices_as_of()
+    if _pao:
+        _stale = (_market_phase() == "regular" and _pao_min is not None and _pao_min > 20)
+        _pao_col = "#f59e0b" if _stale else "#8896ac"
+        _pao_note = " \u00b7 stale, refresh cron may be lagging" if _stale else ""
+        st.markdown(
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{_pao_col};'
+            f'margin:-12px 0 18px 2px;">prices as of {_pao}{_pao_note}</div>',
+            unsafe_allow_html=True)
 
     # ── Equity curve (model vs SPY) — folded in from the Track Record view ────
     if _pt:
