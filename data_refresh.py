@@ -1302,6 +1302,48 @@ def run_macro_refresh(tickers: list = None) -> dict:
 
     # 1-2. Live scan + persist (do this even if there are no scores yet to adjust)
     macro = fetch_macro_overlay(use_live_feeds=True)
+
+    # ── Degraded-overlay guard ────────────────────────────────────────────────
+    # A single macro pass overwrites adj_composite/macro_overlay for the ENTIRE
+    # universe. If a transient feed dip (RSS timeout, thin scan) yields an empty
+    # overlay, writing its zeros silently kills the macro tilt on ~1,400 names —
+    # which is exactly how the 2026-06-24 zeroing went unnoticed until a stock
+    # card read MACRO +0.0. Distinguish two empty-overlay cases:
+    #   (a) genuinely quiet macro — healthy headline sample, nothing clears the
+    #       activation bar. Empty overlay is CORRECT; just surface the transition
+    #       loudly so a flat overlay is never a silent surprise again.
+    #   (b) degraded feed — suspiciously thin scan produced the empty overlay.
+    #       HOLD last-good macro_state and skip the rescore so a hiccup can't
+    #       zero the universe. A sustained quiet market still zeroes via case (a)
+    #       once the scan is healthy.
+    _new_overlays = macro.get("sector_overlays") or {}
+    _new_active   = any(abs(float(v or 0)) > 1e-9 for v in _new_overlays.values())
+    if not _new_active:
+        _prior          = _load_macro_state() or {}
+        _prior_overlays = _prior.get("sector_overlays") or {}
+        _prior_active   = any(abs(float(v or 0)) > 1e-9 for v in _prior_overlays.values())
+        _scanned        = int(macro.get("headlines_scanned") or 0)
+        _MIN_HEALTHY_SCAN = 25   # a normal live scan is ~100+; below this the feed is suspect
+        if _prior_active and _scanned < _MIN_HEALTHY_SCAN:
+            log.error(
+                f"[MACRO] degraded-feed guard TRIPPED — new overlay empty on only "
+                f"{_scanned} headlines while the stored overlay is active. Holding "
+                f"last-good macro_state and SKIPPING the signal_log rescore so a feed "
+                f"hiccup can't zero the universe overlay. Investigate the feed; re-run "
+                f"a full refresh once it recovers."
+            )
+            duration = round(time.time() - start, 1)
+            return {"success": True, "mode": "macro", "held_last_good": True,
+                    "regime": _prior.get("regime"), "headlines_scanned": _scanned,
+                    "updated": 0, "duration_s": duration}
+        elif _prior_active:
+            log.warning(
+                f"[MACRO] overlay went FLAT this cycle — {_scanned} headlines scanned, "
+                f"no event cleared the activation bar, so the universe overlay is being "
+                f"reset to neutral (macro tilt OFF until an event re-activates). Expected "
+                f"on a quiet news day; if unexpected, check the activation thresholds in "
+                f"fetch_macro_overlay (CONFLICT_RESCUE_GATE / the >=2.0 generic gate)."
+            )
     _write_macro_state(macro)
 
     # 3. Load today's scores

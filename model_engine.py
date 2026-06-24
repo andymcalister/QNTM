@@ -1144,7 +1144,18 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         # If either side had real signal pre-net, surface the NET direction
         # (down to a small floor) rather than dropping the conflict to silence —
         # a fresh ceasefire lean should read risk-on, not disappear.
-        if max(_esc, _deesc) >= 2.0:
+        #
+        # The pre-net gate here is intentionally LOWER than the generic 2.0
+        # activation threshold: the whole point of this block is to catch
+        # conflicts whose NETTED residual lands under 2.0. Gating it at 2.0 (the
+        # original value) defeated that purpose — a live de-escalation lean that
+        # peaked at ~1.7 raw (≈2-3 corroborating headlines) was dropped entirely,
+        # zeroing the overlay across the whole universe even with 130 headlines
+        # scanned. CONFLICT_RESCUE_GATE requires more than a single stray headline
+        # (so noise still can't trip it) while still surfacing a real residual.
+        # The inner >= 0.5 floor on the netted winner is the second guard.
+        CONFLICT_RESCUE_GATE = 1.0
+        if max(_esc, _deesc) >= CONFLICT_RESCUE_GATE:
             _winner = "war_deescalation" if _deesc >= _esc else "war_escalation"
             if event_scores.get(_winner, 0.0) >= 0.5 and _winner not in active_events:
                 active_events.append(_winner)
