@@ -2677,7 +2677,23 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'white-space:nowrap;flex-shrink:0;">{_CAP_LABELS[_cap_raw]}</span>'
     ) if _cap_raw in _CAP_LABELS else ""
     delta_c      = "#34d399" if delta >= 0 else "#f87171"
-    delta_str    = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
+    delta_str    = f"+{delta:.2f}" if delta >= 0 else f"{delta:.2f}"
+    # A bald "+0.0" in green reads as "macro broken/off" even when the sector
+    # overlay is live — the per-name point impact is just small (the overlay is
+    # a gentle tilt, especially in RISK_ON where it's down-weighted to 15%).
+    # Distinguish three states honestly:
+    #   • impact >= 0.005  -> signed 2dp, green/red (a real tilt)
+    #   • impact ~0, overlay ACTIVE on this row -> muted "≈0" (on, negligible)
+    #   • impact ~0, no overlay on this row      -> muted "—" (macro genuinely off)
+    try:
+        _ov_tilt = float(r.get("macro_overlay") or 0.0)
+    except Exception:
+        _ov_tilt = 0.0
+    if abs(delta) < 0.005:
+        if abs(_ov_tilt) > 1e-9:
+            delta_str, delta_c = "≈0", "#8896ac"
+        else:
+            delta_str, delta_c = "—", "#8896ac"
 
     ci_name      = (company_info or {}).get("name", "")
     name_display = ci_name if (ci_name and ci_name != r["ticker"]) else ""
