@@ -177,7 +177,7 @@ import analytics
 # Streamlit Cloud / local that env var is absent, so it falls back to APP_BUILD.
 # Lets us read which code an instance is actually running at a glance, instead
 # of inferring it from the numbers.
-APP_BUILD = "2026-06-24.spy-daybasis"
+APP_BUILD = "2026-06-24.mp-shared-cache"
 
 def _build_tag() -> str:
     _sha = (os.environ.get("RENDER_GIT_COMMIT") or "").strip()
@@ -7752,18 +7752,31 @@ def _tr_line_chart_svg(model_series, spy_series, intraday=False):
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block;">' + "".join(p) + '</svg>'
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _track_record_cached():
+    """Process-wide cache of the model-portfolio ledger. The portfolio is
+    identical for every user, so this computes ONCE per TTL for the whole server
+    (shared across all sessions and reruns) instead of once per session — first
+    hit per window pays, everyone else is instant, and it cuts yfinance calls.
+    Raises on an empty result so a transient miss is NOT cached as 'no data'
+    (st.cache_data does not store a value when the call raises)."""
+    from data_refresh import _get_supabase
+    sb = _get_supabase()
+    pt = _track_record_data(sb) if sb else None
+    if not pt:
+        raise RuntimeError("track-record unavailable")
+    return pt
+
+
 def _portfolio_truth(sb, ttl=300):
     """Single source of truth for portfolio totals, shared by the Model
-    Portfolio and Track Record pages so they report identical numbers. Caches
-    the computed ledger in session_state for `ttl` seconds (one yfinance pull
-    per window). Returns the _track_record_data dict, or None on failure."""
-    import time as _t
+    Portfolio and Track Record pages so they report identical numbers. Backed by
+    a process-wide cache (see _track_record_cached) so all users and reruns share
+    one computation. On a transient miss, tries once uncached, then gives up to
+    the page's honest fallback. `ttl` is retained for signature compatibility;
+    the effective TTL now lives on the cache decorator."""
     try:
-        age = _t.time() - st.session_state.get("_pt_at", 0)
-        if age > ttl or not st.session_state.get("_pt_cache"):
-            st.session_state._pt_cache = _track_record_data(sb)
-            st.session_state._pt_at    = _t.time()
-        return st.session_state._pt_cache
+        return _track_record_cached()
     except Exception:
         try:
             return _track_record_data(sb)
@@ -10065,8 +10078,15 @@ def page_model_portfolio():
             unsafe_allow_html=True)
         if st.button("↻ Refresh", key="tr_refresh", use_container_width=True,
                      help="Re-pull the latest prices and re-mark the equity curve now"):
-            st.session_state.pop("_pt_cache", None)
-            st.session_state.pop("_pt_at", None)
+            # Clear the process-wide ledger cache so the next render recomputes.
+            try:
+                _track_record_cached.clear()
+            except Exception:
+                pass
+            try:
+                _LIVE_QUOTE_CACHE.clear()
+            except Exception:
+                pass
             try:
                 _mini_price_data.clear()
             except Exception:
