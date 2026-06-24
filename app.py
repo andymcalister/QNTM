@@ -3184,6 +3184,7 @@ def _stored_day_change_map(tickers):
     if not want:
         return {}
     if _market_phase() == "regular":
+        st.session_state["_dbg_dc"] = "live(regular)"
         return {}   # live intraday prices needed while trading; use yfinance
     try:
         from data_refresh import _get_supabase, _fetch_all_rows
@@ -3250,6 +3251,7 @@ def _stored_day_change_map(tickers):
                 "market_closed": settled,
                 "last_bar_date": d_latest,
             }
+        st.session_state["_dbg_dc"] = "stored"
         return out
     except Exception:
         return {}
@@ -7201,6 +7203,7 @@ def _stored_close_frame(sb, tickers, inception):
     when stored coverage is insufficient (caller then falls back to yfinance).
     The downstream ledger replay is identical regardless of source."""
     if _market_phase() == "regular":
+        st.session_state["_dbg_curve"] = "live(regular)"
         return None   # use live prices for today's point while the market trades
     try:
         import pandas as pd
@@ -7228,6 +7231,7 @@ def _stored_close_frame(sb, tickers, inception):
         frame = pd.DataFrame(index=pd.to_datetime(dates))
         for col, m in cols.items():
             frame[col] = [m.get(d) for d in dates]
+        st.session_state["_dbg_curve"] = "stored"
         return frame.ffill()
     except Exception:
         return None
@@ -10264,6 +10268,17 @@ def page_model_portfolio():
     # vs the prior session's close — live through the day, frozen at the close.
     _mp_day_change = _fetch_day_change_map(
         [h["ticker"] for h in holdings] + ["SPY"], cache_key="_mp_daychange_cache")
+    try:
+        from zoneinfo import ZoneInfo as _ZI
+        _dbg_et = datetime.datetime.now(_ZI("America/New_York")).strftime("%H:%M")
+    except Exception:
+        _dbg_et = "?"
+    st.caption(
+        f"🔧 debug · phase={_market_phase()} · ET={_dbg_et} · "
+        f"curve={st.session_state.get('_dbg_curve','?')} · "
+        f"daychange={st.session_state.get('_dbg_dc','?')} · "
+        f"pt={'set' if _pt else 'NONE'} · "
+        f"spy_dc={ (_mp_day_change.get('SPY') or {}).get('chg_pct') }")
     _day_today = _day_prev = 0.0
     _day_have = False
     _day_settled = False
