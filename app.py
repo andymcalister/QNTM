@@ -9510,7 +9510,8 @@ def page_account():
 
             st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
             if st.button("Save Notification Preferences", key="save_prefs"):
-                new_prefs = {"email": e_on, "signals": s_on, "alerts": a_on,
+                new_prefs = {**(user.get("notifications") or {}),
+                             "email": e_on, "signals": s_on, "alerts": a_on,
                              "low_alert_email": le_on}
                 if update_preferences(uid(), {"notifications": new_prefs}):
                     st.session_state.user["notifications"] = new_prefs
@@ -10597,9 +10598,9 @@ def page_methodology():
 
 def _render_whats_new():
     """Login 'What's new' banner. Shows changelog entries newer than the user's
-    stored marker; persists until dismissed, and on dismiss records the marker so
-    it won't reappear next login. Fragment-scoped so dismissing doesn't reload.
-    Never raises — any failure just means no banner."""
+    stored marker. Dismisses when the user presses 'Got it' OR navigates to a
+    different tab; either way it records the marker so it won't reappear next
+    login. Fragment-scoped so dismissing doesn't reload. Never raises."""
     user = st.session_state.get("user") or {}
     if not user.get("id") or user.get("id") == "demo":
         return
@@ -10607,10 +10608,31 @@ def _render_whats_new():
         return
     try:
         import whats_new as _wn
-        items = _wn.unseen_entries(user.get("whatsnew_seen") or "")
+        _seen = (user.get("notifications") or {}).get("whatsnew_seen") or ""
+        items = _wn.unseen_entries(_seen)
     except Exception:
         return
     if not items:
+        return
+
+    def _mark_seen():
+        try:
+            _newest = _wn.latest_id()
+            _np = dict(st.session_state.user.get("notifications") or {})
+            _np["whatsnew_seen"] = _newest
+            update_preferences(uid(), {"notifications": _np})
+            st.session_state.user["notifications"] = _np
+        except Exception:
+            pass
+        st.session_state["_wn_dismissed"] = True
+
+    # Auto-dismiss on navigation: if the active tab differs from the one the
+    # banner first appeared on, treat it as seen and don't render.
+    _cur_nav = st.session_state.get("nav", "")
+    if "_wn_shown_on" not in st.session_state:
+        st.session_state["_wn_shown_on"] = _cur_nav
+    elif st.session_state["_wn_shown_on"] != _cur_nav:
+        _mark_seen()
         return
 
     @st.fragment
@@ -10642,13 +10664,7 @@ def _render_whats_new():
             f'{_rows}</div>',
             unsafe_allow_html=True)
         if st.button("Got it", key="_wn_got"):
-            try:
-                _newest = _wn.latest_id()
-                update_preferences(uid(), {"whatsnew_seen": _newest})
-                st.session_state.user["whatsnew_seen"] = _newest
-            except Exception:
-                pass
-            st.session_state["_wn_dismissed"] = True
+            _mark_seen()
             st.rerun(scope="fragment")
     _wn_banner()
 
