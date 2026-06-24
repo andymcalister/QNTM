@@ -3120,7 +3120,7 @@ def _fetch_extended_hours_map(tickers: list, cache_key: str = "_xh_cache") -> di
         import datetime as _d
         from zoneinfo import ZoneInfo
         ET = ZoneInfo("America/New_York")
-        df = yf.download(_strip_delisted(tickers), period="2d", interval="1m",
+        df = yf.download(_strip_delisted(tickers), period="2d", interval="5m",
                          prepost=True, progress=False, threads=True)
         if df is None or df.empty or "Close" not in df:
             cache[key] = out
@@ -3213,20 +3213,40 @@ def _stored_day_change_map(tickers):
                   if r.get("close") is not None}
             if sd:
                 prices["SPY"] = sd
+        # Common date axis: anchor EVERY ticker (stocks + SPY) to the SAME two
+        # sessions, so the model and SPY day-moves are computed over identical
+        # dates. d_latest = the latest date all requested series reach (SPY can
+        # lag signal_log by a session until its cron writes today's close), and
+        # d_prev = the prior available session. Prices forward-filled.
+        if any(not prices.get(tk) for tk in want):
+            return {}
+        d_latest = min(max(prices[tk].keys()) for tk in want)
+        union = sorted({d for tk in want for d in prices[tk].keys()})
+        priors = [d for d in union if d < d_latest]
+        if not priors:
+            return {}
+        d_prev = priors[-1]
+
+        def _pon(m, d):
+            if d in m:
+                return m[d]
+            earlier = [x for x in m if x <= d]
+            return m[max(earlier)] if earlier else None
+
         out = {}
+        settled = (d_latest != today_str)
         for tk in want:
-            m = prices.get(tk) or {}
-            ds = sorted(m.keys())
-            if len(ds) < 2:
-                return {}   # incomplete coverage -> caller uses yfinance for all
-            cur, prev, last_bar = m[ds[-1]], m[ds[-2]], ds[-1]
+            m = prices[tk]
+            cur, prev = _pon(m, d_latest), _pon(m, d_prev)
+            if cur is None or prev is None:
+                return {}
             out[tk] = {
                 "price": cur, "prev_close": prev,
                 "chg_pct": ((cur - prev) / prev * 100) if prev else None,
                 "chg_dollar": (cur - prev),
-                "settled": (last_bar != today_str),
-                "market_closed": (last_bar != today_str),
-                "last_bar_date": last_bar,
+                "settled": settled,
+                "market_closed": settled,
+                "last_bar_date": d_latest,
             }
         return out
     except Exception:
@@ -10239,8 +10259,7 @@ def page_model_portfolio():
     # set, so the per-card fetch later is a cache hit). This is the book's move
     # vs the prior session's close — live through the day, frozen at the close.
     _mp_day_change = _fetch_day_change_map(
-        [h["ticker"] for h in holdings] + ["SPY"], cache_key="_mp_daychange_cache",
-        include_extended=False)
+        [h["ticker"] for h in holdings] + ["SPY"], cache_key="_mp_daychange_cache")
     _day_today = _day_prev = 0.0
     _day_have = False
     _day_settled = False
@@ -10385,7 +10404,7 @@ def page_model_portfolio():
     # can show entry date + intraday % without expanding (cached in session
     # by sorted ticker set; identical to the watchlist pattern).
     _mp_day_change = _fetch_day_change_map(
-        [h["ticker"] for h in _mp_sorted],
+        [h["ticker"] for h in _mp_sorted] + ["SPY"],
         cache_key="_mp_daychange_cache",
         include_extended=False,
     )
