@@ -3174,6 +3174,47 @@ def _fetch_extended_hours_map(tickers: list, cache_key: str = "_xh_cache") -> di
     return out
 
 
+_LIVE_QUOTE_CACHE = {}   # module-level, shared across sessions: {key: (quotes, ts)}
+
+
+def _live_quotes(tickers):
+    """One bounded live current-price fetch (today's last trade) for `tickers`,
+    shared across sessions via a short module-level TTL cache. Returns
+    {ticker: price}. Lets the page stay live during market hours with a single
+    small download instead of re-pulling full history. {} on failure, so the
+    caller falls back to the full live path."""
+    import time as _t2
+    want = sorted({t for t in (tickers or []) if t})
+    if not want:
+        return {}
+    key = ",".join(want)
+    ent = _LIVE_QUOTE_CACHE.get(key)
+    if ent and (_t2.time() - ent[1] < 45):
+        return ent[0]
+    out = {}
+    try:
+        import yfinance as yf
+        df = yf.download(_strip_delisted(want), period="1d",
+                         auto_adjust=True, progress=False, threads=True)
+        if df is not None and not df.empty and "Close" in df:
+            close = df["Close"]
+            if hasattr(close, "columns"):
+                for tk in want:
+                    if tk in close.columns:
+                        v = close[tk].dropna()
+                        if not v.empty:
+                            out[tk] = float(v.iloc[-1])
+            else:
+                v = close.dropna()
+                if not v.empty and len(want) == 1:
+                    out[want[0]] = float(v.iloc[-1])
+    except Exception:
+        out = {}
+    if out:
+        _LIVE_QUOTE_CACHE[key] = (out, _t2.time())
+    return out
+
+
 def _stored_day_change_map(tickers):
     """Day-change map from stored data only — signal_log prices for stocks,
     benchmark_price for SPY. Returns {ticker: {price, prev_close, chg_pct,
@@ -3183,8 +3224,6 @@ def _stored_day_change_map(tickers):
     want = {t for t in (tickers or []) if t}
     if not want:
         return {}
-    if _market_phase() == "regular":
-        return {}   # live intraday prices needed while trading; use yfinance
     try:
         from data_refresh import _get_supabase, _fetch_all_rows
         import datetime as _dt
@@ -3215,19 +3254,11 @@ def _stored_day_change_map(tickers):
                   if r.get("close") is not None}
             if sd:
                 prices["SPY"] = sd
-        # Common date axis: anchor EVERY ticker (stocks + SPY) to the SAME two
-        # sessions, so the model and SPY day-moves are computed over identical
-        # dates. d_latest = the latest date all requested series reach (SPY can
-        # lag signal_log by a session until its cron writes today's close), and
-        # d_prev = the prior available session. Prices forward-filled.
+        # Common axis. d_prev is the latest SETTLED session (strictly before
+        # today); _pon forward-fills a ticker that's missing an exact date.
         if any(not prices.get(tk) for tk in want):
             return {}
-        d_latest = min(max(prices[tk].keys()) for tk in want)
         union = sorted({d for tk in want for d in prices[tk].keys()})
-        priors = [d for d in union if d < d_latest]
-        if not priors:
-            return {}
-        d_prev = priors[-1]
 
         def _pon(m, d):
             if d in m:
@@ -3235,6 +3266,44 @@ def _stored_day_change_map(tickers):
             earlier = [x for x in m if x <= d]
             return m[max(earlier)] if earlier else None
 
+        if _market_phase() == "regular":
+            # Live current price vs the most recent settled close — one small
+            # quote fetch, history stays stored. Require quotes for every
+            # non-delisted name (else the fetch failed -> full yfinance); delisted
+            # names fall back to their last stored value.
+            live = _live_quotes(list(want))
+            expected = set(_strip_delisted(list(want)))
+            if not live or not all(tk in live for tk in expected):
+                return {}
+            priors = [d for d in union if d < today_str]
+            if not priors:
+                return {}
+            d_prev = priors[-1]
+            d_last_stored = union[-1]
+            out = {}
+            for tk in want:
+                cur = live.get(tk)
+                if cur is None:
+                    cur = _pon(prices[tk], d_last_stored)   # delisted: last known
+                prev = _pon(prices[tk], d_prev)
+                if cur is None or prev is None:
+                    return {}
+                out[tk] = {
+                    "price": cur, "prev_close": prev,
+                    "chg_pct": ((cur - prev) / prev * 100) if prev else None,
+                    "chg_dollar": (cur - prev),
+                    "settled": False, "market_closed": False,
+                    "last_bar_date": today_str,
+                }
+            return out
+
+        # Closed / pre / post: current and prev both from stored settled closes,
+        # anchored to one common date pair so model and SPY align.
+        d_latest = min(max(prices[tk].keys()) for tk in want)
+        priors = [d for d in union if d < d_latest]
+        if not priors:
+            return {}
+        d_prev = priors[-1]
         out = {}
         settled = (d_latest != today_str)
         for tk in want:
@@ -7200,8 +7269,6 @@ def _stored_close_frame(sb, tickers, inception):
     filled DataFrame (index = trading days, columns = SPY + held tickers) or None
     when stored coverage is insufficient (caller then falls back to yfinance).
     The downstream ledger replay is identical regardless of source."""
-    if _market_phase() == "regular":
-        return None   # use live prices for today's point while the market trades
     try:
         import pandas as pd
         from data_refresh import _fetch_all_rows
@@ -7228,7 +7295,29 @@ def _stored_close_frame(sb, tickers, inception):
         frame = pd.DataFrame(index=pd.to_datetime(dates))
         for col, m in cols.items():
             frame[col] = [m.get(d) for d in dates]
-        return frame.ffill()
+        frame = frame.ffill()
+        if _market_phase() == "regular":
+            # Stored history + a live "today" point: one small quote fetch keeps
+            # the curve live during trading without re-pulling full history.
+            # Require quotes for every non-delisted name; delisted names keep
+            # their last stored value (forward-filled onto today).
+            need = set(list(tickers) + ["SPY"])
+            live = _live_quotes(list(need))
+            expected = set(_strip_delisted(list(need)))
+            if not live or not all(t in live for t in expected):
+                return None   # quote fetch failed -> full live fallback
+            import datetime as _dt2
+            try:
+                from zoneinfo import ZoneInfo
+                _td = _dt2.datetime.now(ZoneInfo("America/New_York")).date()
+            except Exception:
+                _td = _dt2.date.today()
+            _tdts = pd.to_datetime(_td.isoformat())
+            for t in need:
+                if t in live:
+                    frame.loc[_tdts, t] = live[t]
+            frame = frame.sort_index().ffill()   # carry delisted last value to today
+        return frame
     except Exception:
         return None
 
