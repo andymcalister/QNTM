@@ -17,7 +17,7 @@ Usage from app.py (to load cached scores):
 """
 
 import os, sys, time, json, hashlib, logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 
 # Add project root to path so universe_data imports work
@@ -417,7 +417,10 @@ def update_benchmark_price() -> bool:
         return False
     try:
         import yfinance as yf
-        dl = yf.download("SPY", period="5d", auto_adjust=True, progress=False)
+        # period="1d" tracks the live session (mirrors the app's old _live_quotes);
+        # the previous "5d" took the last DAILY bar, which yfinance serves sticky/
+        # delayed intraday and left stored SPY ~$5 under the real price all session.
+        dl = yf.download("SPY", period="1d", auto_adjust=True, progress=False)
         if dl is None or dl.empty or "Close" not in dl:
             return False
         close = dl["Close"]
@@ -430,7 +433,8 @@ def update_benchmark_price() -> bool:
         if px != px or px <= 0:
             return False
         sb.table(BENCHMARK_TABLE).upsert(
-            {"d": date.today().isoformat(), "close": px},
+            {"d": date.today().isoformat(), "close": px,
+             "updated_at": datetime.now(timezone.utc).isoformat()},
             on_conflict="d"
         ).execute()
         log.info(f"benchmark_price: SPY {px:.2f} @ {date.today().isoformat()}")
@@ -1144,7 +1148,7 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     for i in range(0, len(tickers), chunk_size):
         chunk = tickers[i:i + chunk_size]
         try:
-            hist = yf.download(chunk, period="2d", auto_adjust=True, progress=False, threads=True)
+            hist = yf.download(chunk, period="1d", auto_adjust=True, progress=False, threads=True)
             if hist.empty:
                 log.warning(f"Intraday batch {i}: empty response from yfinance")
                 continue
