@@ -92,12 +92,13 @@ def main():
             if market_is_open():
                 held = held_tickers()
                 if held:
-                    # run_intraday_refresh writes held-name prices to signal_log
-                    # AND refreshes SPY benchmark_price (with updated_at) at the
-                    # end — exactly what the Model Portfolio reads in stored-only
-                    # mode. It self-skips names not scored for today, so an early
-                    # pre-batch cycle is a harmless no-op.
-                    res = run_intraday_refresh(tickers=held)
+                    # run_intraday_refresh(prices_only=True) writes held-name
+                    # prices to signal_log AND refreshes SPY benchmark_price (with
+                    # updated_at) — but SKIPS exits/entries. The worker's job is
+                    # freshness, not trading; portfolio decisions stay on the
+                    # nightly / macro cadence. It self-skips names not scored for
+                    # today, so an early pre-batch cycle is a harmless no-op.
+                    res = run_intraday_refresh(tickers=held, prices_only=True)
                     log.info("refreshed %d held + SPY -> %s", len(held), res)
                 else:
                     log.warning("no held tickers resolved; skipping cycle")

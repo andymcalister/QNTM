@@ -1104,12 +1104,18 @@ CREATE POLICY "Macro state public read" ON public.macro_state
 
 # ── INTRADAY PRICE REFRESH ────────────────────────────────────────────────────
 
-def run_intraday_refresh(tickers: list = None) -> dict:
+def run_intraday_refresh(tickers: list = None, prices_only: bool = False) -> dict:
     """
     Lightweight intraday refresh — updates price + momentum scores only.
     Runs every 15 minutes during US market hours (9:30 AM–4:45 PM ET, Mon–Fri).
     Skips fundamental re-fetch and full model re-score to stay within rate limits.
     Writes updated price to signal_log for today's date (upserts).
+
+    prices_only=True refreshes prices + the SPY benchmark but SKIPS portfolio
+    maintenance (exits/entries). Use it for the always-on freshness worker: it
+    keeps stored prices current every ~90s without letting the model trade on
+    intraday noise. Exit/entry decisions belong on a deliberate cadence (nightly
+    full run / 30-min macro pass), matching the published conviction discipline.
     """
     import yfinance as yf
     from universe_data import SECTORS
@@ -1217,24 +1223,50 @@ def run_intraday_refresh(tickers: list = None) -> dict:
     # ── Model portfolio maintenance (exits + fills) ───────────────────────────
     # Load today's scored universe from signal_log and run portfolio logic.
     # This catches intraday conviction drops (exits) and new entries.
-    try:
-        today_str = date.today().isoformat()
-        sig_rows = _fetch_all_rows(lambda: sb.table("signal_log")
-            .select("ticker,adj_composite,composite,price,momentum,quality,volume,value,sentiment")
-            .eq("signal_date", today_str))
-        if sig_rows:
-            # Apply macro overlay to get fresh adj_composite scores
-            try:
-                from model_engine import apply_macro_overlay, fetch_macro_overlay
-                macro = _load_macro_state() or fetch_macro_overlay(use_live_feeds=False)
-                scored_today = apply_macro_overlay(sig_rows, macro)
-            except Exception:
-                scored_today = sig_rows  # use raw if overlay fails
-            update_model_portfolio(scored_today)
-        else:
-            log.info("[MODEL PORTFOLIO] No signal_log data for today — skipping intraday portfolio update")
-    except Exception as e:
-        log.warning(f"[MODEL PORTFOLIO] Intraday update failed: {e}")
+    # SKIPPED when prices_only=True (the freshness worker) so the model doesn't
+    # trade on intraday noise — exits/entries stay on the nightly / macro cadence.
+    if prices_only:
+        log.info("[MODEL PORTFOLIO] prices_only — skipping intraday exits/entries")
+    else:
+        try:
+            today_str = date.today().isoformat()
+            sig_rows = _fetch_all_rows(lambda: sb.table("signal_log")
+                .select("ticker,adj_composite,composite,price,momentum,quality,volume,value,sentiment")
+                .eq("signal_date", today_str))
+            if sig_rows:
+                # Apply macro overlay to get fresh adj_composite scores.
+                try:
+                    from model_engine import apply_macro_overlay, fetch_macro_overlay
+                    macro = _load_macro_state() or fetch_macro_overlay(use_live_feeds=False)
+                    # Sector is NOT stored in signal_log; attach it from the
+                    # canonical universe_data.SECTORS map (same source score_stock
+                    # uses) BEFORE applying the overlay. Without this every row is
+                    # "Unknown", sector_overlays misses on all of them, and
+                    # macro_overlay collapses to 0.0 across the entire universe —
+                    # which trips the "macro overlay inactive" guard in
+                    # update_model_portfolio and drops the macro tilt from intraday
+                    # decisions. Mirrors run_macro_refresh step 4. Skip
+                    # null-composite rows so a missed nightly can't fabricate
+                    # overlays (the 2026-06-06 incident class).
+                    try:
+                        from universe_data import SECTORS as _SECTORS
+                    except Exception:
+                        _SECTORS = {}
+                    scored_rows = []
+                    for r in sig_rows:
+                        if r.get("composite") is None:
+                            continue
+                        r["sector"]    = _SECTORS.get(r["ticker"], "Unknown")
+                        r["composite"] = float(r["composite"])
+                        scored_rows.append(r)
+                    scored_today = apply_macro_overlay(scored_rows, macro)
+                except Exception:
+                    scored_today = sig_rows  # use raw if overlay fails
+                update_model_portfolio(scored_today)
+            else:
+                log.info("[MODEL PORTFOLIO] No signal_log data for today — skipping intraday portfolio update")
+        except Exception as e:
+            log.warning(f"[MODEL PORTFOLIO] Intraday update failed: {e}")
 
     if updated == 0 and failed == len(tickers):
         return {"success": False, "error": f"All {failed} batches failed", "updated": 0, "duration_s": duration}
