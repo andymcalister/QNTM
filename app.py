@@ -171,6 +171,19 @@ from model_engine import (run_full_scan, detect_hidden_gems, BACKTEST_DATA,
 import hmac, hashlib, base64, json as _json, time as _time
 import analytics
 
+# ── Build stamp ─────────────────────────────────────────────────────────────
+# Bump APP_BUILD on every deploy-relevant change. The displayed tag prefers the
+# real deployed commit (Render sets RENDER_GIT_COMMIT automatically); on
+# Streamlit Cloud / local that env var is absent, so it falls back to APP_BUILD.
+# Lets us read which code an instance is actually running at a glance, instead
+# of inferring it from the numbers.
+APP_BUILD = "2026-06-24.daychg-anchor"
+
+def _build_tag() -> str:
+    _sha = (os.environ.get("RENDER_GIT_COMMIT") or "").strip()
+    return f"{APP_BUILD} \u00b7 {_sha[:7]}" if _sha else f"{APP_BUILD} \u00b7 local"
+
+
 def _jwt_secret() -> str:
     """Use ENCRYPTION_KEY as JWT signing secret, fall back to a fixed dev key."""
     try:
@@ -10341,7 +10354,10 @@ def page_model_portfolio():
         '<strong style="color:#cbd5e1;">Exit discipline:</strong> Positions exit when conviction '
         'drops below <strong style="color:#f87171;">45</strong>. Capital redeploys into next '
         'highest conviction signal. No discretionary overrides.'
-        '</div></div>',
+        '</div>'
+        f'<div style="font-family:DM Mono,monospace;font-size:10px;color:#4b5563;'
+        f'letter-spacing:.08em;margin-top:10px;">build {_build_tag()}</div>'
+        '</div>',
         unsafe_allow_html=True
     )
 
