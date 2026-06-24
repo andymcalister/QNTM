@@ -52,6 +52,31 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.9"
 
+  # ── Intraday price worker (Model Portfolio freshness) ──────────────────────
+  # ALWAYS-ON background worker (not a cron): loops every ~90s during US market
+  # hours and refreshes ONLY the held model-portfolio names + SPY into Supabase
+  # (signal_log + benchmark_price). The app reads stored prices only, so this is
+  # what keeps the Model Portfolio's "today" numbers fresh without any live
+  # yfinance on the request path. Self-gates to 9:30 AM–4:00 PM ET and idles
+  # cheaply otherwise. Deliberately NOT a cron: GitHub Actions / cron schedules
+  # were unreliable and left stored prices stale mid-session; an always-on loop
+  # doesn't depend on any external scheduler. The full-universe refresh stays on
+  # its existing ~15-min job for the screener — this only covers the ~50 names
+  # that drive the Model Portfolio.
+  # REMEMBER: attach the same secrets.toml Secret File to THIS service too
+  # (Environment → Secret Files), or it can't get SUPABASE_SERVICE_KEY.
+  - type: worker
+    name: qntm-intraday-prices
+    runtime: python
+    plan: starter            # always-on; smallest plan is plenty for one loop
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python intraday_worker.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
 # ── Optional: a separate dev service tracking the `dev` branch ───────────────
 # Uncomment to mirror your dev/prod split on Render (adds another $7/mo).
 # Or keep dev on Streamlit Cloud and only move prod — your call.
