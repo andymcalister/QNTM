@@ -37,6 +37,7 @@ MAX_RETRIES        = 2      # retry failed tickers once
 STALE_HOURS        = 20     # treat cache as stale after this many hours
 FUNDAMENTALS_TABLE = "fundamentals_cache"   # new table (see schema addition below)
 SIGNAL_TABLE       = "signal_log"
+BENCHMARK_TABLE    = "benchmark_price"      # SPY daily close for the Model Portfolio equity curve
 MACRO_STATE_TABLE  = "macro_state"          # single-row live macro overlay (see schema below)
 
 
@@ -403,6 +404,34 @@ def write_signal_snapshot(scored_list: list) -> bool:
         return True
     except Exception as e:
         log.error(f"Signal snapshot write failed: {e}")
+        return False
+
+
+def update_benchmark_price() -> bool:
+    """Append/refresh today's SPY close to benchmark_price so the Model Portfolio
+    equity curve can be rebuilt entirely from stored data — no live SPY pull on
+    the page. One cheap fetch, off the request path. Non-critical: on failure the
+    page simply falls back to its live SPY download."""
+    sb = _get_supabase()
+    if not sb:
+        return False
+    try:
+        import yfinance as yf
+        dl = yf.download("SPY", period="5d", auto_adjust=True, progress=False)
+        if dl is None or dl.empty or "Close" not in dl:
+            return False
+        close = dl["Close"].ffill()
+        px = float(close.iloc[-1])
+        if px != px or px <= 0:
+            return False
+        sb.table(BENCHMARK_TABLE).upsert(
+            {"d": date.today().isoformat(), "close": px},
+            on_conflict="d"
+        ).execute()
+        log.info(f"benchmark_price: SPY {px:.2f} @ {date.today().isoformat()}")
+        return True
+    except Exception as e:
+        log.error(f"benchmark_price update failed: {e}")
         return False
 
 
@@ -994,6 +1023,10 @@ def run_refresh(tickers: list = None, force: bool = False,
         # Update model portfolio positions
         update_model_portfolio(scored)
 
+        # SPY benchmark close for the Model Portfolio equity curve (stored so the
+        # page rebuilds the curve from Supabase, no live pull).
+        update_benchmark_price()
+
         duration = round(time.time() - start, 1)
         log.info(f"Refresh complete in {duration}s")
 
@@ -1155,6 +1188,10 @@ def run_intraday_refresh(tickers: list = None) -> dict:
 
     duration = round(time.time() - start, 1)
     log.info(f"Intraday refresh complete: {updated} prices updated in {duration}s")
+
+    # Keep the SPY benchmark close fresh intraday too, so the stored equity curve
+    # tracks during market hours.
+    update_benchmark_price()
 
     # Touch fundamentals_cache.refreshed_at so the app pill shows intraday time
     if sb and updated > 0:
