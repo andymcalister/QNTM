@@ -3174,7 +3174,88 @@ def _fetch_extended_hours_map(tickers: list, cache_key: str = "_xh_cache") -> di
     return out
 
 
-def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
+def _stored_day_change_map(tickers):
+    """Day-change map from stored data only — signal_log prices for stocks,
+    benchmark_price for SPY. Returns {ticker: {price, prev_close, chg_pct,
+    chg_dollar, settled, market_closed, last_bar_date}}. Returns {} unless EVERY
+    requested ticker has >=2 stored sessions, so the caller falls back cleanly to
+    yfinance on partial coverage rather than showing a mixed/stale set."""
+    want = {t for t in (tickers or []) if t}
+    if not want:
+        return {}
+    try:
+        from data_refresh import _get_supabase, _fetch_all_rows
+        import datetime as _dt
+        sb2 = _get_supabase()
+        if not sb2:
+            return {}
+        try:
+            from zoneinfo import ZoneInfo
+            today_str = _dt.datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        except Exception:
+            today_str = _dt.date.today().isoformat()
+        start = (_dt.date.today() - _dt.timedelta(days=12)).isoformat()
+        prices = {}
+        non_spy = [t for t in want if t != "SPY"]
+        if non_spy:
+            srows = _fetch_all_rows(lambda: sb2.table("signal_log")
+                                    .select("ticker,signal_date,price")
+                                    .in_("ticker", non_spy).gte("signal_date", start))
+            for r in (srows or []):
+                tk = r.get("ticker"); pv = r.get("price")
+                d = str(r.get("signal_date") or "")[:10]
+                if tk and pv is not None and len(d) == 10:
+                    prices.setdefault(tk, {})[d] = float(pv)
+        if "SPY" in want:
+            brows = _fetch_all_rows(lambda: sb2.table("benchmark_price")
+                                    .select("d,close").gte("d", start).order("d", desc=False))
+            sd = {str(r["d"])[:10]: float(r["close"]) for r in (brows or [])
+                  if r.get("close") is not None}
+            if sd:
+                prices["SPY"] = sd
+        out = {}
+        for tk in want:
+            m = prices.get(tk) or {}
+            ds = sorted(m.keys())
+            if len(ds) < 2:
+                return {}   # incomplete coverage -> caller uses yfinance for all
+            cur, prev, last_bar = m[ds[-1]], m[ds[-2]], ds[-1]
+            out[tk] = {
+                "price": cur, "prev_close": prev,
+                "chg_pct": ((cur - prev) / prev * 100) if prev else None,
+                "chg_dollar": (cur - prev),
+                "settled": (last_bar != today_str),
+                "market_closed": (last_bar != today_str),
+                "last_bar_date": last_bar,
+            }
+        return out
+    except Exception:
+        return {}
+
+
+def _stored_spy_hist(start):
+    """SPY daily-close history from benchmark_price as a DataFrame with a 'Close'
+    column (DatetimeIndex), matching the shape the caller expects from a yfinance
+    download. None when benchmark_price has no rows (caller falls back to live)."""
+    try:
+        import pandas as pd
+        from data_refresh import _get_supabase, _fetch_all_rows
+        sb2 = _get_supabase()
+        if not sb2:
+            return None
+        rows = _fetch_all_rows(lambda: sb2.table("benchmark_price").select("d,close")
+                               .gte("d", start).order("d", desc=False))
+        rows = [r for r in (rows or []) if r.get("close") is not None]
+        if not rows:
+            return None
+        idx = pd.to_datetime([str(r["d"])[:10] for r in rows])
+        return pd.DataFrame({"Close": [float(r["close"]) for r in rows]}, index=idx)
+    except Exception:
+        return None
+
+
+def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache",
+                          include_extended: bool = True) -> dict:
     """Return {ticker: {chg_pct, chg_dollar, price, prev_close, settled, last_bar_date}}
     for `tickers`. Cached in st.session_state[cache_key] by sorted ticker set so
     a navigation away and back doesn't re-hit yfinance.
@@ -3187,9 +3268,22 @@ def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
     if not tickers:
         return {}
     cache = st.session_state.setdefault(cache_key, {})
-    key = ",".join(sorted(set(tickers)))
+    key = ",".join(sorted(set(tickers))) + ("" if include_extended else "|noext")
     if key in cache:
         return cache[key]
+    # Stored-first: build from signal_log + benchmark_price with no live pull.
+    # Falls through to the yfinance path below only on partial stored coverage.
+    _stored = _stored_day_change_map(tickers)
+    if _stored:
+        if include_extended and _market_phase() in ("pre", "post", "closed"):
+            try:
+                for _tk, _e in _fetch_extended_hours_map(tickers).items():
+                    if _tk in _stored:
+                        _stored[_tk].update(_e)
+            except Exception:
+                pass
+        cache[key] = _stored
+        return _stored
     out = {}
     try:
         import yfinance as yf
@@ -3239,7 +3333,7 @@ def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache") -> dict:
     # Extended-hours overlay — only outside regular trading, since during the
     # session the move is already reflected in chg_pct. Merged onto existing
     # entries so callers can read pre_pct/pre_chg/post_pct/post_chg.
-    if _market_phase() in ("pre", "post", "closed"):
+    if include_extended and _market_phase() in ("pre", "post", "closed"):
         try:
             for _tk, _e in _fetch_extended_hours_map(tickers).items():
                 if _tk in out:
@@ -10064,7 +10158,9 @@ def page_model_portfolio():
             st.session_state._mp_spy = None  # fetch deferred
         spy_hist = st.session_state._mp_spy
         if spy_hist is None:
-            spy_hist = yf.download("SPY", start=MODEL_INCEPTION, progress=False, auto_adjust=True)
+            spy_hist = _stored_spy_hist(MODEL_INCEPTION)
+            if spy_hist is None:
+                spy_hist = yf.download("SPY", start=MODEL_INCEPTION, progress=False, auto_adjust=True)
             st.session_state._mp_spy = spy_hist
         if not spy_hist.empty:
             spy_close = spy_hist["Close"]
@@ -10143,7 +10239,8 @@ def page_model_portfolio():
     # set, so the per-card fetch later is a cache hit). This is the book's move
     # vs the prior session's close — live through the day, frozen at the close.
     _mp_day_change = _fetch_day_change_map(
-        [h["ticker"] for h in holdings] + ["SPY"], cache_key="_mp_daychange_cache")
+        [h["ticker"] for h in holdings] + ["SPY"], cache_key="_mp_daychange_cache",
+        include_extended=False)
     _day_today = _day_prev = 0.0
     _day_have = False
     _day_settled = False
@@ -10290,6 +10387,7 @@ def page_model_portfolio():
     _mp_day_change = _fetch_day_change_map(
         [h["ticker"] for h in _mp_sorted],
         cache_key="_mp_daychange_cache",
+        include_extended=False,
     )
     # Trailing ~20-session vs-SPY mini chart for each holding. Batch-fetch the
     # window once for all holdings (+SPY) in a single call, so a freshly seeded
