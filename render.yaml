@@ -54,30 +54,44 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.9"
 
-  # ── Intraday price worker (Model Portfolio freshness) ──────────────────────
-  # ALWAYS-ON background worker (not a cron): loops every ~90s during US market
-  # hours and refreshes ONLY the held model-portfolio names + SPY into Supabase
-  # (signal_log + benchmark_price). The app reads stored prices only, so this is
-  # what keeps the Model Portfolio's "today" numbers fresh without any live
-  # yfinance on the request path. Self-gates to 9:30 AM–4:00 PM ET and idles
-  # cheaply otherwise. Deliberately NOT a cron: GitHub Actions / cron schedules
-  # were unreliable and left stored prices stale mid-session; an always-on loop
-  # doesn't depend on any external scheduler. The full-universe refresh stays on
-  # its existing ~15-min job for the screener — this only covers the ~50 names
-  # that drive the Model Portfolio.
-  # REMEMBER: attach the same secrets.toml Secret File to THIS service too
-  # (Environment → Secret Files), or it can't get SUPABASE_SERVICE_KEY.
-  - type: worker
-    name: qntm-intraday-prices
+  # ── User-defined price / value-position / conviction alerts ─────────────────
+  # Evaluates the price_alerts table and fans out hits to in-app + email + SMS.
+  # Reads the live signal_log snapshot (price updated by the intraday cron) and
+  # recomputes value_position from the current price, so the valuation-range
+  # alerts track intraday. Per-alert `armed` gate prevents 30-min spam. No-ops
+  # cheaply when no alerts are active. Needs the same secrets.toml Secret File,
+  # plus TWILIO_* secrets for SMS (email works with the existing SENDGRID_*).
+  - type: cron
+    name: qntm-price-alerts
     runtime: python
-    plan: starter            # always-on; smallest plan is plenty for one loop
+    plan: starter
     region: oregon
     branch: main
+    schedule: "*/30 13-21 * * 1-5"
     buildCommand: pip install -r requirements.txt
-    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python intraday_worker.py
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python alerts_engine.py
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
+
+  # ── Weekly digest email ─────────────────────────────────────────────────────
+  # Saturday ~9am ET recap: SPY for the week, biggest movers on the user's lists,
+  # watchlist + portfolio weekly moves (and model-vs-SPY when DIGEST_PERFORMANCE=1
+  # and the performance language has cleared compliance). Uses the existing
+  # SENDGRID_* config. Same secrets.toml Secret File required.
+  - type: cron
+    name: qntm-weekly-digest
+    runtime: python
+    plan: starter
+    region: oregon
+    branch: main
+    schedule: "0 14 * * 6"
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python weekly_digest.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
 
 # ── Optional: a separate dev service tracking the `dev` branch ───────────────
 # Uncomment to mirror your dev/prod split on Render (adds another $7/mo).
