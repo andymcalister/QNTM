@@ -1431,7 +1431,8 @@ def _signal_log_map(tickers_key: tuple) -> dict:
         rows_data = _fetch_all_rows(lambda: sb.table("signal_log")
             .select("ticker,signal_date,adj_composite,composite,signal,"
                     "momentum,quality,volume,value,sentiment,price,"
-                    "is_hidden_gem,hidden_gem_reason")
+                    "is_hidden_gem,hidden_gem_reason,"
+                    "val_low,val_high,value_position,val_basis")
             .gte("signal_date", _since)
             .not_.is_("composite", "null")
             .order("signal_date", desc=True))
@@ -2734,6 +2735,53 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     if weak: driver += f" — watch {weak[0]}"
 
     why_html   = _build_why_html(r)
+
+    # ── QNTM Valuation Range → "Value Position" bar ────────────────────────────
+    # Descriptive valuation context (not a target/forecast): a green(low)→red(high)
+    # track with a marker at today's value_position, low/high range $ as end labels.
+    _vr_low, _vr_high = r.get("val_low"), r.get("val_high")
+    _vr_pos, _vr_basis = r.get("value_position"), (r.get("val_basis") or "na")
+    _valrange_html = ""
+    if _vr_basis != "na" and _vr_low is not None and _vr_high is not None:
+        # Marker tracks the LIVE price (worker keeps signal_log.price fresh ~90s)
+        # against last night's band; fall back to the stored value_position.
+        _pos = None
+        try:
+            _lo, _hi = float(_vr_low), float(_vr_high)
+            _pr = float(r.get("price")) if r.get("price") else None
+            if _pr is not None and _hi > _lo:
+                _pos = max(0.0, min(100.0, (_pr - _lo) / (_hi - _lo) * 100.0))
+            elif _vr_pos is not None:
+                _pos = max(0.0, min(100.0, float(_vr_pos)))
+        except (TypeError, ValueError):
+            _pos = max(0.0, min(100.0, float(_vr_pos))) if _vr_pos is not None else None
+        if _pos is not None:
+            if   _pos <= 20: _zone, _zc = "Lower range",     "#34d399"
+            elif _pos <= 40: _zone, _zc = "Lower-mid range", "#86efac"
+            elif _pos <= 60: _zone, _zc = "Mid range",       "#fbbf24"
+            elif _pos <= 80: _zone, _zc = "Upper-mid range", "#fb923c"
+            else:            _zone, _zc = "Upper range",      "#f87171"
+            _basis_note = "" if _vr_basis == "valuation" else " · technical range"
+            _cur = f'${r["price"]:,.2f}' if r.get("price") else "—"
+            _valrange_html = (
+                f'<div style="margin-top:14px;padding-top:12px;'
+                f'border-top:1px solid rgba(255,255,255,.04);">'
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'margin-bottom:7px;">'
+                f'<span style="font-size:13px;color:#8896ac;letter-spacing:.06em;">VALUE POSITION</span>'
+                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_zc};'
+                f'font-weight:700;">{_pos:.0f}% · {_zone}</span></div>'
+                f'<div style="position:relative;height:8px;border-radius:5px;'
+                f'background:linear-gradient(90deg,#34d399 0%,#fbbf24 50%,#f87171 100%);">'
+                f'<div style="position:absolute;top:-3px;left:calc({_pos:.1f}% - 2px);'
+                f'width:4px;height:14px;border-radius:2px;background:#e8edf4;'
+                f'box-shadow:0 0 4px rgba(0,0,0,.6);"></div></div>'
+                f'<div style="display:flex;justify-content:space-between;margin-top:5px;'
+                f'font-family:DM Mono,monospace;font-size:12px;color:#7e8aa0;">'
+                f'<span>${_vr_low:,.2f}</span>'
+                f'<span style="color:#9fabc0;">{_cur} now{_basis_note}</span>'
+                f'<span>${_vr_high:,.2f}</span></div></div>'
+            )
     price_html = ""
     if r.get("price"):
         price_html = (
@@ -2778,6 +2826,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#b3bed0;">'
         f'{_ordinal(_pct_rank)}</div></div>'
         f'</div>'
+        + _valrange_html
         + why_html
         + extra_detail
         + _wl_btn_html
@@ -3518,7 +3567,8 @@ def _preview_score(ticker: str):
             return None
         resp = (sb.table("signal_log")
                 .select("ticker,adj_composite,composite,price,signal,"
-                        "momentum,quality,volume,value,sentiment,signal_date")
+                        "momentum,quality,volume,value,sentiment,signal_date,"
+                        "val_low,val_high,value_position,val_basis")
                 .eq("ticker", ticker)
                 .order("signal_date", desc=True)
                 .limit(1)
@@ -4540,7 +4590,7 @@ body { background-color: #0a0b14 !important; }
         _top5 = []
         if _sb2:
             _r5 = _sb2.table("signal_log") \
-                .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
+                .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date,val_low,val_high,value_position,val_basis") \
                 .gte("adj_composite", 60) \
                 .order("signal_date", desc=True) \
                 .order("adj_composite", desc=True) \
@@ -6726,7 +6776,7 @@ def page_watchlist():
             if sb:
                 tickers = [w["ticker"] for w in watchlist]
                 resp = sb.table("signal_log") \
-                    .select("ticker,adj_composite,composite,price,signal,momentum,quality,volume,value,sentiment") \
+                    .select("ticker,adj_composite,composite,price,signal,momentum,quality,volume,value,sentiment,val_low,val_high,value_position,val_basis") \
                     .in_("ticker", tickers) \
                     .order("signal_date", desc=True) \
                     .limit(len(tickers) * 3) \
