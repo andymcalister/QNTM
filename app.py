@@ -1081,6 +1081,21 @@ if _tz_name_param:
     st.session_state.tz_name = _tz_name_param
     st.query_params.pop("_tzname", None)
 
+# ── Digest email click tracking ───────────────────────────────────────────────
+# The weekly digest "Open QNTM" button links to /?src=digest&du=<uid>. Log one
+# engagement event per click (fires for logged-out opens too), then strip the
+# params so it captures once and the URL stays clean. 'du' (digest user) is used
+# instead of 'uid' to avoid colliding with the signed session-restore token.
+if st.query_params.get("src") == "digest":
+    _du = st.query_params.get("du", "")
+    try:
+        analytics.capture("digest_click", distinct_id=(_du or None),
+                          props={"campaign": "weekly_recap", "clicked_uid": _du})
+    except Exception:
+        pass
+    st.query_params.pop("src", None)
+    st.query_params.pop("du", None)
+
 # Timezone detector — write _tz/_tzname to URL via JS so Python can read them.
 # Gate on session_state: if we don't have a tz_offset yet, inject the JS.
 # Once injected, the JS replaces the URL with _tz params; Python reads them on

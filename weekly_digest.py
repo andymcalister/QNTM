@@ -624,8 +624,11 @@ def turnover_html(entries, exits):
     return _section("Model changes this week", inner)
 
 
-def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy):
+def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, uid=None):
     base = _app_url()
+    # Tracked CTA: /?src=digest&du=<uid> lets the app log a 'digest_click' event
+    # per recipient (see app.py). Falls back to the plain app URL if no uid.
+    cta = f"{base}/?src=digest&du={uid}" if uid else f"{base}/"
 
     def _rows(tickers):
         return sorted([(t, prices[t]["pct"]) for t in tickers if t in prices],
@@ -698,7 +701,7 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy):
         'Q<span style="color:#15a97a;">NTM</span> <span style="font-size:14px;font-weight:600;'
         'color:#888;">· Weekly recap</span></div>'
         + "".join(parts)
-        + f'<p style="margin:24px 0;"><a href="{base}/" style="display:inline-block;background:#15a97a;'
+        + f'<p style="margin:24px 0;"><a href="{cta}" style="display:inline-block;background:#15a97a;'
         'color:#fff;text-decoration:none;padding:12px 26px;border-radius:8px;font-weight:700;'
         'font-size:15px;">Open QNTM</a></p>'
         '<p style="font-size:12px;color:#999;line-height:1.6;">Weekly moves are price changes over '
@@ -781,9 +784,10 @@ def run(only_email=None):
     sent = 0
     for uid, email in recips.items():
         wl, ho = per_user[uid]
-        html = build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy)
+        html = build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, uid=uid)
         res = send_email(email, "Your QNTM weekly recap", html,
-                         text="Your QNTM weekly recap is ready. Open QNTM: " + _app_url() + "/")
+                         text="Your QNTM weekly recap is ready. Open QNTM: "
+                              + _app_url() + f"/?src=digest&du={uid}")
         if res.get("success"):
             sent += 1
     log.info("done: %d recipients, %d emails sent", len(recips), sent)

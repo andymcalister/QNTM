@@ -366,5 +366,55 @@ def render_analytics_dashboard():
         else:
             st.caption("No data yet.")
 
+    st.divider()
+    st.markdown("#### 📧 Weekly digest engagement")
+    clicks = [r for r in rows if r.get("event") == "digest_click"]
+    if not clicks:
+        st.caption("No digest clicks recorded yet. The 'Open QNTM' button is tracked "
+                   "from the next send onward.")
+    else:
+        clicks_7d = [r for r in clicks if _in7(r)]
+        uniq_30 = {r.get("distinct_id") for r in clicks if r.get("distinct_id")}
+        uniq_7 = {r.get("distinct_id") for r in clicks_7d if r.get("distinct_id")}
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("Clicks (7d)", len(clicks_7d))
+        d2.metric("Unique clickers (7d)", len(uniq_7))
+        d3.metric("Clicks (30d)", len(clicks))
+        d4.metric("Unique clickers (30d)", len(uniq_30))
+
+        # Most-recent click per account + total count, mapped uid -> email.
+        latest, counts = {}, {}
+        for r in clicks:
+            did = r.get("distinct_id")
+            if not did:
+                continue
+            counts[did] = counts.get(did, 0) + 1
+            t = _parse_ts(r.get("created_at"))
+            if t and (did not in latest or t > latest[did]):
+                latest[did] = t
+        email_by_uid = {}
+        try:
+            from db import decrypt_field
+            ids = list(latest.keys())
+            if ids:
+                urows = (sb.table("users").select("id,email_encrypted")
+                         .in_("id", ids).execute().data) or []
+                for ur in urows:
+                    try:
+                        email_by_uid[ur["id"]] = decrypt_field(ur.get("email_encrypted", "")) or ur["id"]
+                    except Exception:
+                        email_by_uid[ur["id"]] = ur["id"]
+        except Exception:
+            pass
+        ordered = sorted(latest.items(), key=lambda kv: kv[1], reverse=True)[:50]
+        if ordered:
+            st.dataframe(
+                {"user": [email_by_uid.get(did, did) for did, _ in ordered],
+                 "clicks": [counts.get(did, 0) for did, _ in ordered],
+                 "last clicked": [t.strftime("%b %d %H:%M UTC") for _, t in ordered]},
+                use_container_width=True, hide_index=True)
+        st.caption("Who opened the weekly recap email via the in-email button. Counts "
+                   "include repeat opens; 'unique clickers' dedupes by account.")
+
     st.caption("Source: Supabase qntm_events mirror (last 30 days). "
                "Full funnels and retention live in PostHog.")
