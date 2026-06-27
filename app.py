@@ -10277,16 +10277,35 @@ def page_account():
     with tab_notifs:
         st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
         if not plan_limit(plan, "notifications"):
+            # The weekly digest is a FREE feature — every plan can opt in/out of it.
+            # The richer notification controls (in-app signal & macro alerts,
+            # low-conviction emails, price/value alert delivery) below the divider
+            # remain Pro / Founding Member.
+            prefs = user.get("notifications") or {}
+            fe_on = st.toggle("Email signal summaries (weekly digest)",
+                              value=prefs.get("email", True), key="pref_email_free")
+            st.caption("One email on Saturday recapping the week across your watchlist and the "
+                       "broader market. About once a week. On by default \u2014 turn it off here anytime.")
+            if st.button("Save", key="save_prefs_free"):
+                new_prefs = {**(user.get("notifications") or {}), "email": fe_on}
+                if update_preferences(uid(), {"notifications": new_prefs}):
+                    st.session_state.user["notifications"] = new_prefs
+                    st.success("Preferences saved")
+                else:
+                    st.error("Save failed \u2014 try again")
+            st.markdown('<div style="height:10px;border-top:1px solid rgba(255,255,255,.06);'
+                        'margin:14px 0 12px;"></div>', unsafe_allow_html=True)
             st.markdown("""
             <div style="background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);
                  border-radius:6px;padding:14px 18px;font-size:13px;color:#fbbf24;margin-bottom:16px;">
-              Notification preferences require a Pro or Founding Member plan.
+              In-app signal &amp; macro alerts, low-conviction emails, and price / value alert
+              delivery are part of Pro or Founding Member.
             </div>
             """, unsafe_allow_html=True)
         else:
             prefs = user.get("notifications") or {}
             e_on = st.toggle("Email signal summaries (weekly digest)",
-                             value=prefs.get("email", False), key="pref_email")
+                             value=prefs.get("email", True), key="pref_email")
             st.caption("One email on Saturday recapping the week across your watchlist and the "
                        "broader market. About once a week.")
             s_on = st.toggle("In-app signal change alerts",
