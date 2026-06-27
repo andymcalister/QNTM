@@ -189,6 +189,133 @@ def score_stock(ticker: str, price_history: list = None,
     }
 
 
+# ── QNTM VALUATION RANGE  (a.k.a. "Value Position") ───────────────────────────
+# DESCRIPTIVE valuation context — explicitly NOT a price target, forecast, or
+# expected return. It states where today's price sits relative to a peer-relative
+# valuation band derived from QNTM's own data. Anchor = sector-median forward
+# earnings multiple, tilted up for quality/momentum so a deserved-premium name is
+# not flagged "expensive" purely for trading above its sector. Width = the name's
+# own realized volatility, floored/capped, then clamped inside an extended
+# 52-week envelope. `val_basis` records how each band was derived, for disclosure.
+#
+# Tunable knobs (kept here so the methodology is one place, not buried):
+VR_VOL_FLOOR     = 0.08   # min half-band (±8%) even for placid names
+VR_VOL_CAP       = 0.35   # max half-band (±35%) for very volatile names
+VR_VOL_HORIZON   = 0.50   # scales annualized sigma toward a ~quarterly expected move
+VR_QUALITY_TILT  = 0.20   # how much quality (0-100) lifts/cuts the fair multiple
+VR_MOMENTUM_TILT = 0.10   # how much momentum (0-100) lifts/cuts the fair multiple
+VR_PREM_MIN      = 0.70   # premium factor floor
+VR_PREM_MAX      = 1.40   # premium factor cap
+VR_ENV_LOW       = 0.60   # low bound never below 0.60 x 52-week low
+VR_ENV_HIGH      = 1.50   # high bound never above 1.50 x 52-week high
+
+
+def _realized_sigma(price_history: list):
+    """Annualized realized volatility from daily closes. None if too little data."""
+    if not price_history or len(price_history) < 20:
+        return None
+    rets = [(price_history[i] / price_history[i-1] - 1)
+            for i in range(1, len(price_history))
+            if price_history[i-1]]
+    if len(rets) < 15:
+        return None
+    import statistics
+    window = rets[-126:] if len(rets) >= 126 else rets
+    return statistics.pstdev(window) * (252 ** 0.5)
+
+
+def sector_fair_multiples(rows: list) -> dict:
+    """
+    Median forward P/E per sector across names with a sane positive fpe.
+    Expects each row to carry `_fpe` (raw forward P/E) and `sector`.
+    """
+    import statistics
+    buckets = {}
+    for r in rows:
+        sec = r.get("sector", "Unknown")
+        try:
+            fpe = float(r.get("_fpe"))
+        except (TypeError, ValueError):
+            continue
+        if 0 < fpe <= 200:            # drop negative-earnings / nonsense multiples
+            buckets.setdefault(sec, []).append(fpe)
+    return {sec: statistics.median(v) for sec, v in buckets.items() if v}
+
+
+def compute_valuation_band(price, fpe, sector_fair_fpe, quality, momentum,
+                           price_history=None, w52_hi=None, w52_lo=None) -> dict:
+    """
+    Returns {val_low, val_high, value_position, val_basis}.
+      val_basis = 'valuation'  peer-relative forward-earnings band
+                  'technical'  vol band around recent avg price (no usable fpe)
+                  'na'         insufficient data
+    All outputs are descriptive valuation context, never a forecast.
+    """
+    out = {"val_low": None, "val_high": None, "value_position": None, "val_basis": "na"}
+    try:
+        price = float(price)
+    except (TypeError, ValueError):
+        return out
+    if not price or price <= 0:
+        return out
+
+    # ---- half-band width from realized volatility ----
+    sigma = _realized_sigma(price_history or [])
+    if sigma is not None:
+        half = min(VR_VOL_CAP, max(VR_VOL_FLOOR, sigma * VR_VOL_HORIZON))
+    else:
+        half = VR_VOL_FLOOR * 1.5    # no history → modest default band
+
+    # ---- anchor ----
+    try:
+        fpe_f = float(fpe)
+    except (TypeError, ValueError):
+        fpe_f = None
+
+    if fpe_f and fpe_f > 0 and sector_fair_fpe and sector_fair_fpe > 0:
+        q = (float(quality or 50) - 50.0) / 50.0       # -1..+1
+        m = (float(momentum or 50) - 50.0) / 50.0
+        prem = 1.0 + VR_QUALITY_TILT * q + VR_MOMENTUM_TILT * m
+        prem = max(VR_PREM_MIN, min(VR_PREM_MAX, prem))
+        anchor = price * ((sector_fair_fpe * prem) / fpe_f)
+        basis  = "valuation"
+    elif price_history and len(price_history) >= 20:
+        recent = price_history[-min(126, len(price_history)):]
+        anchor = sum(recent) / len(recent)
+        basis  = "technical"
+    else:
+        return out
+
+    low  = anchor * (1 - half)
+    high = anchor * (1 + half)
+
+    # ---- sanity envelope around the 52-week range ----
+    lo52 = hi52 = None
+    try:
+        if w52_lo is not None: lo52 = float(w52_lo)
+        if w52_hi is not None: hi52 = float(w52_hi)
+    except (TypeError, ValueError):
+        lo52 = hi52 = None
+    if (lo52 is None or hi52 is None) and price_history:
+        p52  = price_history[-min(252, len(price_history)):]
+        lo52 = min(p52); hi52 = max(p52)
+    if lo52 and hi52 and hi52 >= lo52 > 0:
+        # Clamp the ANCHOR (not the bounds) into the extended envelope, then
+        # rebuild — clamping the bounds independently can invert the band when
+        # the valuation anchor sits far outside the 52-week range.
+        anchor = max(VR_ENV_LOW * lo52, min(VR_ENV_HIGH * hi52, anchor))
+        low  = anchor * (1 - half)
+        high = anchor * (1 + half)
+
+    if high <= low:
+        return out
+
+    pos = max(0.0, min(1.0, (price - low) / (high - low))) * 100.0
+    out.update({"val_low": round(low, 2), "val_high": round(high, 2),
+                "value_position": round(pos, 1), "val_basis": basis})
+    return out
+
+
 # ── HIDDEN GEM DETECTION ──────────────────────────────────────────────────────
 def detect_hidden_gems(scores: list, macro_data: dict = None) -> list:
     """
