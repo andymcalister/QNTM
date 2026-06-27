@@ -9643,8 +9643,26 @@ def page_alerts():
         _scope_label = st.selectbox("Apply to", [lbl for _, lbl in _SCOPES], key="al_new_scope")
         _al_scope = next(s for s, lbl in _SCOPES if lbl == _scope_label)
         _al_tk = ""
+        _al_qs = ""
         if _al_scope == "ticker":
-            _al_tk = st.text_input("Ticker", key="al_new_tk", placeholder="e.g. TIGO")
+            # Resolve company names / partials to a real ticker — same shared
+            # suggestion UX as Search & Simulator. Type "Apple" or "appl" → pick AAPL.
+            _al_q = st.text_input("Ticker or company", key="al_new_tk",
+                                  placeholder="🔍  e.g. Apple, AAPL, Nvidia…")
+            _al_qs = (_al_q or "").strip()
+            _al_pick = st.session_state.get("_al_selected_tk", "")
+            if _al_qs and _ticker_in_universe(_al_qs.upper()):
+                # A directly-typed exact ticker counts as the selection.
+                _al_pick = _al_qs.upper()
+                st.session_state["_al_selected_tk"] = _al_pick
+            elif _al_qs and _al_qs.upper() != (_al_pick or ""):
+                # Name or partial — show clickable matches (sets _al_selected_tk).
+                _render_suggestions(_al_qs, "alsug", "_al_selected_tk")
+                _al_pick = st.session_state.get("_al_selected_tk", "")
+            if _al_pick:
+                _al_nm = (get_company_info(_al_pick) or {}).get("name", "")
+                st.caption(f"✓ {_al_pick}" + (f" · {_al_nm}" if _al_nm and _al_nm != _al_pick else ""))
+            _al_tk = _al_pick or ""
         _al_kind_label = st.selectbox("Trigger", [lbl for _, lbl in ALERT_KINDS], key="al_new_kind")
         _al_kind = next(k for k, lbl in ALERT_KINDS if lbl == _al_kind_label)
         _al_th = None
@@ -9658,12 +9676,19 @@ def page_alerts():
         st.caption(_ALERT_HELP.get(_al_kind, "") + _scope_note)
         if st.button("Create alert", key="al_create", type="primary"):
             _tk = (_al_tk or "").upper().strip()
+            # Forgiving resolve — if nothing was picked but a name/partial was typed
+            # (e.g. "apple", "appl"), resolve it to a real ticker before validating.
+            if _al_scope == "ticker" and not _tk and _al_qs:
+                _rt, _ = resolve_ticker(_al_qs)
+                if _rt and _ticker_in_universe(_rt.upper()):
+                    _tk = _rt.upper()
             _is_price = _al_kind in ("price_below", "price_above")
             if _al_scope != "ticker" and _is_price:
                 st.error("Price alerts apply to a single ticker — pick 'This ticker', "
                          "or choose a value/conviction trigger for a collection.")
             elif _al_scope == "ticker" and not _tk:
-                st.error("Enter a ticker.")
+                st.error("Pick a match from the suggestions, or enter a valid ticker symbol."
+                         if _al_qs else "Enter a ticker or company name.")
             elif _al_scope == "ticker" and not _ticker_in_universe(_tk):
                 st.error(f"'{_tk}' isn't in the QNTM universe. Check the symbol and try again.")
             elif _is_price and (not _al_th or _al_th <= 0):
@@ -9674,6 +9699,7 @@ def page_alerts():
                                       _al_kind, _th, scope=_al_scope):
                     _what = _tk if _al_scope == "ticker" else _scope_label.lower()
                     st.success(f"Alert set — {_what}: {_al_kind_label.lower()}.")
+                    st.session_state["_al_selected_tk"] = ""
                     st.rerun()
                 else:
                     st.error("Could not create alert — try again.")
