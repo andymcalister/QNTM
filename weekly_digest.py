@@ -624,6 +624,131 @@ def turnover_html(entries, exits):
     return _section("Model changes this week", inner)
 
 
+def _include_opportunity() -> bool:
+    # Default ON. Set DIGEST_OPPORTUNITY=0 (or false/no/off) to suppress the
+    # "Opportunity of the week" section (a named high-conviction/cheap stock).
+    val = _cfg("DIGEST_OPPORTUNITY")
+    if val is None:
+        return True
+    return str(val).strip().lower() not in ("0", "false", "no", "off")
+
+
+def _headline_sentence(spy, wl_rows, ho_rows, prices):
+    """One-line narrative lede: macro regime + sector leadership (or SPY).
+    Gives the email a story before the statistics. Returns '' if nothing to say."""
+    bits = []
+    try:
+        from data_refresh import _load_macro_state
+        rg = str((_load_macro_state() or {}).get("regime") or "NEUTRAL").upper()
+        rw = {"RISK_ON": "a risk-on", "RISK_OFF": "a risk-off"}.get(rg, "a neutral")
+        bits.append(f"QNTM&rsquo;s overlay reads {rw} backdrop")
+    except Exception:
+        pass
+    tickers = [t for t, _ in wl_rows] + [t for t, _ in ho_rows]
+    perf = _sector_perf(tickers, prices, min_names=2) if prices else []
+    if len(perf) >= 2 and (perf[0][1] - perf[-1][1]) >= 1.0:
+        bits.append(f"{perf[0][0]} outperformed while {perf[-1][0]} lagged across your names")
+    elif spy is not None:
+        bits.append(f"the S&amp;P 500 {'rose' if spy >= 0 else 'fell'} {_fmt(spy).lstrip('+')}")
+    if not bits:
+        return ""
+    sentence = bits[0] if len(bits) == 1 else bits[0] + ", " + " and ".join(bits[1:])
+    sentence = sentence[0].upper() + sentence[1:]
+    return ('<p style="font-size:15px;color:#0a0b14;line-height:1.55;margin:16px 0 2px;'
+            'font-weight:700;border-left:3px solid #15a97a;padding-left:12px;">'
+            'This week in one sentence: ' + sentence + '.</p>')
+
+
+def opportunity_of_week(sb, uid=None):
+    """Highest-conviction name trading cheapest in its valuation range, from the
+    latest signal_log day — a reason to come back into the app. Impersonal research
+    signal, not a recommendation. Returns '' if nothing qualifies."""
+    base = _app_url()
+    try:
+        latest = (sb.table("signal_log").select("signal_date")
+                  .order("signal_date", desc=True).limit(1).execute().data or [])
+        if not latest:
+            return ""
+        sd = latest[0]["signal_date"]
+        rows = (sb.table("signal_log")
+                .select("ticker,adj_composite,composite,value_position,val_basis,signal")
+                .eq("signal_date", sd).execute().data or [])
+    except Exception:
+        return ""
+    best, best_score = None, -1.0
+    for r in rows:
+        conv = float(r.get("adj_composite") or r.get("composite") or 0)
+        if conv < 60 or (r.get("val_basis") or "na") == "na":
+            continue
+        try:
+            vp = float(r.get("value_position"))
+        except (TypeError, ValueError):
+            continue
+        if vp > 40:           # must be genuinely cheap to be an "opportunity"
+            continue
+        blend = 0.65 * conv + 0.35 * (100.0 - vp)
+        if blend > best_score:
+            best, best_score = r, blend
+    if not best:
+        return ""
+    tk = best["ticker"]
+    conv = float(best.get("adj_composite") or best.get("composite") or 0)
+    vp = float(best.get("value_position"))
+    sig = (best.get("signal") or "HIGH").upper()
+    sub = "near lower range" if vp <= 25 else "lower half of range"
+    link = (f"{base}/?src=digest&du={uid}&sq={tk}" if uid else f"{base}/?sq={tk}")
+    card = (
+        '<div style="border:1px solid #d7ece3;background:#f4fbf8;border-radius:10px;'
+        'padding:16px 18px;margin:6px 0;">'
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
+        f'<span style="font-size:20px;font-weight:800;color:#0a0b14;">{tk}</span>'
+        f'<span style="font-size:12px;font-weight:700;color:#15a97a;'
+        f'letter-spacing:.04em;">{sig} CONVICTION</span></div>'
+        '<div style="display:flex;gap:28px;margin:12px 0 6px;">'
+        '<div><div style="font-size:11px;color:#888;text-transform:uppercase;'
+        'letter-spacing:.05em;">Conviction</div>'
+        f'<div style="font-size:22px;font-weight:800;color:#15a97a;">{conv:.0f}</div></div>'
+        '<div><div style="font-size:11px;color:#888;text-transform:uppercase;'
+        'letter-spacing:.05em;">Value position</div>'
+        f'<div style="font-size:22px;font-weight:800;color:#15a97a;">{vp:.0f}%</div>'
+        f'<div style="font-size:11px;color:#888;">{sub}</div></div>'
+        '</div>'
+        f'<a href="{link}" style="font-size:13px;font-weight:700;color:#15a97a;'
+        'text-decoration:none;">Read why &rarr;</a>'
+        '</div>'
+        '<p style="font-size:11px;color:#999;margin:6px 0 0;line-height:1.5;">'
+        'The highest-conviction name currently trading cheapest in its valuation '
+        'range. An impersonal research signal, not a recommendation or personalized '
+        'advice.</p>')
+    return _section("Opportunity of the week", card)
+
+
+def _whats_new_section(limit=3):
+    """Recent product updates, pulled from the same source as the in-app popup
+    so there's one changelog to maintain."""
+    try:
+        from whats_new import WHATS_NEW
+    except Exception:
+        return ""
+    entries = sorted(WHATS_NEW, key=lambda e: e.get("id", ""), reverse=True)[:limit]
+    if not entries:
+        return ""
+    items = []
+    for e in entries:
+        tag = (e.get("tag") or "new").lower()
+        tag_col = "#15a97a" if tag == "new" else "#b88600"
+        tag_bg = "#e7f7f1" if tag == "new" else "#fbf3dc"
+        items.append(
+            '<div style="margin:0 0 12px;">'
+            f'<span style="font-size:10px;font-weight:800;letter-spacing:.06em;'
+            f'text-transform:uppercase;color:{tag_col};background:{tag_bg};'
+            f'border-radius:4px;padding:1px 6px;">{tag}</span> '
+            f'<span style="font-size:14px;font-weight:700;color:#0a0b14;">{e.get("title","")}</span>'
+            f'<div style="font-size:13px;color:#555;line-height:1.6;margin-top:3px;">'
+            f'{e.get("body","")}</div></div>')
+    return _section("New in QNTM", "".join(items))
+
+
 def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, uid=None):
     base = _app_url()
     # Tracked CTA: /?src=digest&du=<uid> lets the app log a 'digest_click' event
@@ -640,6 +765,9 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, 
                     key=lambda x: x[1], reverse=True)
 
     parts = []
+    headline = _headline_sentence(spy, wl_rows, ho_rows, prices)
+    if headline:
+        parts.append(headline)
     commentary = _commentary(spy, model_ret, wl_rows, ho_rows, movers, prices=prices)
     if commentary:
         parts.append(commentary)
@@ -691,9 +819,18 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, 
     if ho:
         parts.append(_section("Your portfolio", _bar_table(ho_rows)))
 
+    if _include_opportunity():
+        opp = opportunity_of_week(sb, uid=uid)
+        if opp:
+            parts.append(opp)
+
     if not parts:
         parts.append('<p style="font-size:14px;color:#333;">Add stocks to your watchlist or '
                      'portfolio to get a personalized weekly recap.</p>')
+
+    whats_new = _whats_new_section(limit=3)
+    if whats_new:
+        parts.append(whats_new)
 
     return (
         '<div style="font-family:Arial,Helvetica,sans-serif;max-width:540px;margin:0 auto;padding:24px;">'
