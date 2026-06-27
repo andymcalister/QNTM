@@ -14,8 +14,8 @@ deterministic and factual (no recommendations). Mirrors alerts_engine.py:
 service Supabase client, db.send_email, fails soft. Weekly Render cron, or
 locally for one address:  python3 weekly_digest.py you@example.com
 
-COMPLIANCE: "Model portfolio vs SPY" is a performance/benchmark statement; it is
-OMITTED unless DIGEST_PERFORMANCE=1, so the language can clear review first.
+The "Model portfolio vs SPY" performance section is ON by default. Set
+DIGEST_PERFORMANCE=0 to suppress it.
 """
 import os
 import sys
@@ -42,7 +42,12 @@ def _app_url():
 
 
 def _include_performance() -> bool:
-    return str(_cfg("DIGEST_PERFORMANCE") or "0").strip().lower() in ("1", "true", "yes")
+    # Default ON. Set DIGEST_PERFORMANCE=0 (or false/no) to suppress the
+    # model-vs-SPY performance section.
+    val = _cfg("DIGEST_PERFORMANCE")
+    if val is None:
+        return True
+    return str(val).strip().lower() not in ("0", "false", "no", "off")
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
@@ -168,7 +173,9 @@ def user_lists(sb, user_id):
               .eq("user_id", user_id).execute().data or []) if r.get("ticker")]
     except Exception:
         pass
-    return wl, ho
+    # Dedupe (duplicate watchlist_items/holdings rows shouldn't double a ticker)
+    # while preserving first-seen order.
+    return list(dict.fromkeys(wl)), list(dict.fromkeys(ho))
 
 
 # ── Rendering ─────────────────────────────────────────────────────────────────
@@ -210,7 +217,104 @@ def _section(title, inner):
             f'text-transform:uppercase;color:#15a97a;">{title}</div>{inner}')
 
 
-def _commentary(spy, model_ret, wl_rows, ho_rows, movers):
+# ── Sector & macro context (the "why") ─────────────────────────────────────────
+
+_SECTORS_CACHE = None
+
+
+def _sectors_map():
+    global _SECTORS_CACHE
+    if _SECTORS_CACHE is None:
+        try:
+            from model_engine import SECTORS
+            _SECTORS_CACHE = SECTORS or {}
+        except Exception:
+            _SECTORS_CACHE = {}
+    return _SECTORS_CACHE
+
+
+def _sector_perf(tickers, prices, min_names=2):
+    """Average weekly move per sector across the given tickers.
+    Returns [(sector, avg_pct, n)] sorted best→worst, sectors with >= min_names only."""
+    from collections import defaultdict
+    smap = _sectors_map()
+    buckets = defaultdict(list)
+    for t in set(tickers):
+        if t in prices:
+            sec = smap.get(t)
+            if sec:
+                buckets[sec].append(prices[t]["pct"])
+    out = [(sec, sum(v) / len(v), len(v)) for sec, v in buckets.items() if len(v) >= min_names]
+    out.sort(key=lambda x: x[1], reverse=True)
+    return out
+
+
+def _sector_rotation_sentence(tickers, prices):
+    """One-line leaders/laggards read across the user's own names."""
+    perf = _sector_perf(tickers, prices, min_names=2)
+    if len(perf) < 2:
+        return ""
+    lead, lag = perf[0], perf[-1]
+    if (lead[1] - lag[1]) < 1.0:   # spread too small to be a story
+        return ""
+    return (f"Across your names, <b>{lead[0]}</b> led "
+            f"(<span style='color:{_col(lead[1])};'>{_fmt(lead[1])}</span> avg) while "
+            f"<b>{lag[0]}</b> lagged "
+            f"(<span style='color:{_col(lag[1])};'>{_fmt(lag[1])}</span>).")
+
+
+def _model_driver_sentence(positions, prices):
+    """Which sectors drove the model this week (descriptive attribution)."""
+    perf = _sector_perf([p["ticker"] for p in positions], prices, min_names=2)
+    if len(perf) < 2:
+        return ""
+    lead, lag = perf[0], perf[-1]
+    return (f"Within the model, <b>{lead[0]}</b> names contributed most "
+            f"(<span style='color:{_col(lead[1])};'>{_fmt(lead[1])}</span> avg) and "
+            f"<b>{lag[0]}</b> weighed most "
+            f"(<span style='color:{_col(lag[1])};'>{_fmt(lag[1])}</span>).")
+
+
+def macro_backdrop(sb):
+    """Prose narration of QNTM's current macro overlay (regime + active events).
+    A snapshot from the macro engine — descriptive of the current backdrop, not a
+    per-day claim and not forward-looking advice. Returns '' if unavailable."""
+    try:
+        from data_refresh import _load_macro_state
+        from model_engine import MACRO_EVENT_INFO
+    except Exception:
+        return ""
+    try:
+        state = _load_macro_state() or {}
+    except Exception:
+        return ""
+    if not state:
+        return ""
+    regime = str(state.get("regime") or "NEUTRAL").upper()
+    regime_word = {"RISK_ON": "risk-on", "RISK_OFF": "risk-off"}.get(regime, "neutral")
+    events = [e for e in (state.get("active_events") or []) if e in MACRO_EVENT_INFO]
+    lead = f"QNTM&rsquo;s macro overlay reads the current backdrop as <b>{regime_word}</b>."
+    if not events:
+        body = (' No major macro events are flagged right now, so the overlay is applying '
+                'little sector tilt.')
+        return _section("Macro backdrop",
+            f'<p style="font-size:14px;color:#333;line-height:1.65;margin:0;">{lead}{body}</p>')
+    items = []
+    for e in events[:3]:
+        info = MACRO_EVENT_INFO[e]
+        impact = info.get("impact", "")
+        items.append(
+            f'<li style="margin:5px 0;"><b>{info["label"]}</b> &mdash; {info["summary"]}.'
+            + (f' <span style="color:#888;">{impact}</span>' if impact else '')
+            + '</li>')
+    return _section("Macro backdrop",
+        f'<p style="font-size:14px;color:#333;line-height:1.65;margin:0 0 8px;">{lead} '
+        'Active events shaping its sector tilts this week:</p>'
+        '<ul style="font-size:14px;color:#333;line-height:1.6;margin:0;padding-left:18px;">'
+        + "".join(items) + '</ul>')
+
+
+def _commentary(spy, model_ret, wl_rows, ho_rows, movers, prices=None):
     """Deterministic, factual recap sentences. No recommendations."""
     bits = []
     if spy is not None:
@@ -225,24 +329,292 @@ def _commentary(spy, model_ret, wl_rows, ho_rows, movers):
         if bot[1] < 0 and bot[0] != top[0]:
             bits.append(f"The weakest was <b>{bot[0]}</b> "
                         f"(<span style='color:{_col(bot[1])};'>{_fmt(bot[1])}</span>).")
+    if prices is not None:
+        tickers = [t for t, _ in wl_rows] + [t for t, _ in ho_rows]
+        rotation = _sector_rotation_sentence(tickers, prices)
+        if rotation:
+            bits.append(rotation)
     if wl_rows:
         up = sum(1 for _, p in wl_rows if p >= 0)
         bits.append(f"{up} of {len(wl_rows)} watchlist names were up.")
     if ho_rows:
         up = sum(1 for _, p in ho_rows if p >= 0)
         bits.append(f"{up} of {len(ho_rows)} of your holdings were up.")
-    if _include_performance() and model_ret is not None and spy is not None:
-        diff = model_ret - spy
-        bits.append(f"The model portfolio was "
-                    f"<b style='color:{_col(diff)};'>{_fmt(abs(diff)).lstrip('+')}</b> "
-                    f"{'ahead of' if diff >= 0 else 'behind'} SPY.")
     if not bits:
         return ""
     return ('<p style="font-size:14px;color:#333;line-height:1.65;margin:0;">'
             + " ".join(bits) + '</p>')
 
 
-def build_email_html(wl, ho, prices, model_ret, model_used, spy):
+# ── Model performance detail (all gated behind DIGEST_PERFORMANCE) ─────────────
+
+def _weekday(dstr):
+    try:
+        return datetime.strptime(str(dstr)[:10], "%Y-%m-%d").strftime("%a")
+    except Exception:
+        return str(dstr)[5:10]
+
+
+def spy_daily(sb):
+    """[(date, close)] daily SPY over the window, oldest→newest."""
+    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    try:
+        rows = (sb.table("benchmark_price").select("d,close")
+                .gte("d", since).order("d", desc=False).execute().data or [])
+    except Exception as e:
+        log.error("spy_daily failed: %s", e)
+        return []
+    out = []
+    for r in rows:
+        c = r.get("close")
+        if c is None:
+            continue
+        try:
+            out.append((str(r["d"])[:10], float(c)))
+        except (TypeError, ValueError):
+            pass
+    out.sort()
+    return out
+
+
+def model_daily_value(sb, positions):
+    """[(date, dollar_value)] for the fixed-share model basket across the window,
+    using signal_log daily prices with last-observation-carried-forward for gaps."""
+    tickers = [p["ticker"] for p in positions]
+    if not tickers:
+        return []
+    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    rows = []
+    for i in range(0, len(tickers), 300):
+        chunk = tickers[i:i + 300]
+        try:
+            rows.extend(sb.table("signal_log").select("ticker,price,signal_date")
+                        .in_("ticker", chunk).gte("signal_date", since)
+                        .order("signal_date", desc=False).execute().data or [])
+        except Exception as e:
+            log.error("model_daily price fetch failed: %s", e)
+    px, dates = {}, set()
+    for r in rows:
+        tk, p, d = r.get("ticker"), r.get("price"), r.get("signal_date")
+        if not tk or p is None or not d:
+            continue
+        try:
+            px.setdefault(tk.upper(), {})[str(d)[:10]] = float(p)
+        except (TypeError, ValueError):
+            continue
+        dates.add(str(d)[:10])
+    if not dates:
+        return []
+    dates = sorted(dates)
+    shares = {}
+    for p in positions:
+        tk, ep, ps = p["ticker"], p.get("entry_price"), p.get("position_size") or 2000.0
+        try:
+            if ep and float(ep) > 0:
+                shares[tk] = float(ps) / float(ep)
+        except (TypeError, ValueError):
+            pass
+    series, last = [], {}
+    for d in dates:
+        val, any_px = 0.0, False
+        for tk, sh in shares.items():
+            fp = px.get(tk, {})
+            price = fp.get(d, last.get(tk))
+            if price is None and fp:          # seed leading gap with first known
+                price = fp[min(fp)]
+            if price is not None:
+                last[tk] = price
+                val += sh * price
+                any_px = True
+        if any_px:
+            series.append((d, val))
+    return series
+
+
+def perf_paths(sb, positions):
+    """Aligned cumulative-% paths (model, SPY) over common trading days.
+    Returns (dates, model_cum, spy_cum) or (None, None, None)."""
+    mv, sd = model_daily_value(sb, positions), spy_daily(sb)
+    if len(mv) < 2 or len(sd) < 2:
+        return None, None, None
+    mmap, smap = dict(mv), dict(sd)
+    common = sorted(set(mmap) & set(smap))
+    if len(common) < 2 or not mmap[common[0]] or not smap[common[0]]:
+        return None, None, None
+    m0, s0 = mmap[common[0]], smap[common[0]]
+    return (common,
+            [(mmap[d] / m0 - 1.0) * 100.0 for d in common],
+            [(smap[d] / s0 - 1.0) * 100.0 for d in common])
+
+
+def _signed_col(value, maxabs, color, w=13, H=104):
+    """A single Outlook-safe vertical column (nested table, signed about a midline)."""
+    half = H // 2
+    h = int(round(min(abs(value), maxabs) / maxabs * half)) if maxabs > 0 else 0
+    if abs(value) > 0.01:
+        h = max(h, 2)
+    else:
+        h = 0
+    if value >= 0:
+        top_pad, pos, neg, bot_pad = half - h, h, 0, half
+    else:
+        top_pad, pos, neg, bot_pad = half, 0, h, half - h
+
+    def cell(px, bg=None, radius=""):
+        if px <= 0:
+            return ""
+        style = (f"height:{px}px;line-height:{px}px;font-size:0;"
+                 "mso-line-height-rule:exactly;")
+        if bg:
+            return (f'<tr><td height="{px}" width="{w}" bgcolor="{bg}" '
+                    f'style="{style}border-radius:{radius};width:{w}px;">&nbsp;</td></tr>')
+        return f'<tr><td height="{px}" style="{style}">&nbsp;</td></tr>'
+
+    return ('<table cellpadding="0" cellspacing="0" '
+            f'style="border-collapse:collapse;display:inline-block;width:{w}px;">'
+            + cell(top_pad) + cell(pos, color, "2px 2px 0 0")
+            + cell(neg, color, "0 0 2px 2px") + cell(bot_pad) + '</table>')
+
+
+def perf_chart_html(dates, model_cum, spy_cum):
+    """Grouped daily column chart: cumulative model vs SPY across the week."""
+    MODEL_C, SPY_C = "#15a97a", "#8a93a6"
+    maxabs = max([abs(v) for v in model_cum + spy_cum] + [0.5])
+    cols = []
+    for i, d in enumerate(dates):
+        cols.append(
+            '<td style="text-align:center;vertical-align:bottom;padding:0 5px;">'
+            '<table cellpadding="0" cellspacing="0" style="display:inline-block;">'
+            '<tr>'
+            f'<td style="vertical-align:bottom;">{_signed_col(model_cum[i], maxabs, MODEL_C)}</td>'
+            f'<td style="vertical-align:bottom;padding-left:2px;">'
+            f'{_signed_col(spy_cum[i], maxabs, SPY_C)}</td>'
+            '</tr></table>'
+            f'<div style="font-size:11px;color:#999;margin-top:5px;">{_weekday(d)}</div></td>')
+    legend = (
+        '<div style="font-size:12px;color:#555;margin:0 0 10px;">'
+        f'<span style="display:inline-block;width:10px;height:10px;background:{MODEL_C};'
+        'border-radius:2px;"></span> Model'
+        '<span style="display:inline-block;width:16px;"></span>'
+        f'<span style="display:inline-block;width:10px;height:10px;background:{SPY_C};'
+        'border-radius:2px;"></span> S&amp;P 500</div>')
+    caption = (f'<p style="font-size:13px;color:#333;margin:10px 0 0;">Week to date: '
+               f'<b style="color:{MODEL_C};">Model {_fmt(model_cum[-1])}</b> &nbsp;vs&nbsp; '
+               f'<b style="color:{SPY_C};">S&amp;P 500 {_fmt(spy_cum[-1])}</b>. '
+               'Bars are cumulative return from the start of the window.</p>')
+    return (legend
+            + '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+              '<tr>' + "".join(cols) + '</tr></table>' + caption)
+
+
+def model_attribution(positions, prices):
+    """Dollar-weighted contribution (pts) to the model's weekly return, by sector.
+    Returns (total_pct, [(sector, contrib_pts, n)] best→worst) or (None, [])."""
+    smap = _sectors_map()
+    base, rows = 0.0, []
+    for p in positions:
+        tk, pr, ep = p["ticker"], prices.get(p["ticker"]), p.get("entry_price")
+        ps = p.get("position_size") or 2000.0
+        if not pr or not ep:
+            continue
+        try:
+            sh = float(ps) / float(ep)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        base += sh * pr["start"]
+        rows.append((tk, sh, pr["start"], pr["end"]))
+    if base <= 0 or not rows:
+        return None, []
+    by_sec, total = {}, 0.0
+    for tk, sh, st, en in rows:
+        c = sh * (en - st) / base * 100.0
+        total += c
+        agg = by_sec.setdefault(smap.get(tk, "Other"), [0.0, 0])
+        agg[0] += c
+        agg[1] += 1
+    out = sorted(((s, v[0], v[1]) for s, v in by_sec.items()),
+                 key=lambda x: x[1], reverse=True)
+    return total, out
+
+
+def _attribution_sentence(positions, prices, spy):
+    total, secs = model_attribution(positions, prices)
+    if total is None or not secs:
+        return ""
+    lead = secs[0]
+    lead_word = "contributed most" if lead[1] >= 0 else "held up best"
+    parts = [f"<b>{lead[0]}</b> {lead_word} "
+             f"(<span style='color:{_col(lead[1])};'>{_fmt(lead[1])}</span> pts)"]
+    tail = secs[-1]
+    if tail[0] != lead[0] and tail[1] < 0:
+        parts.append(f"<b>{tail[0]}</b> weighed most "
+                     f"(<span style='color:{_col(tail[1])};'>{_fmt(tail[1])}</span> pts)")
+    sent = "Within the model this week, " + ", and ".join(parts) + "."
+    if spy is not None:
+        diff = total - spy
+        sent += (f" Net, it finished <b style='color:{_col(diff)};'>"
+                 f"{_fmt(abs(diff)).lstrip('+')}</b> "
+                 f"{'ahead of' if diff >= 0 else 'behind'} the S&amp;P.")
+    return f'<p style="font-size:14px;color:#333;line-height:1.65;margin:10px 0 0;">{sent}</p>'
+
+
+def model_turnover(sb, since_iso):
+    """(entries, exits) the model made within the window. Excludes bulk reseeds."""
+    try:
+        from model_engine import MODEL_EPOCH
+    except Exception:
+        MODEL_EPOCH = "live"
+    entries, exits = [], []
+    try:
+        for r in (sb.table("model_portfolio_positions")
+                  .select("ticker,entry_date,entry_price,entry_score")
+                  .eq("epoch", MODEL_EPOCH).gte("entry_date", since_iso)
+                  .order("entry_date", desc=True).execute().data or []):
+            if r.get("ticker"):
+                entries.append((r["ticker"].upper(), str(r.get("entry_date"))[:10],
+                                r.get("entry_price"), r.get("entry_score")))
+    except Exception as e:
+        log.error("turnover entries failed: %s", e)
+    try:
+        for r in (sb.table("model_portfolio_positions")
+                  .select("ticker,exit_date,exit_price,exit_reason")
+                  .eq("epoch", MODEL_EPOCH).gte("exit_date", since_iso)
+                  .order("exit_date", desc=True).execute().data or []):
+            if r.get("ticker") and (r.get("exit_reason") or "") != "reseeded":
+                exits.append((r["ticker"].upper(), str(r.get("exit_date"))[:10],
+                              r.get("exit_price"), r.get("exit_reason")))
+    except Exception as e:
+        log.error("turnover exits failed: %s", e)
+    return entries, exits
+
+
+def turnover_html(entries, exits):
+    if not entries and not exits:
+        return ""
+
+    def chips(items, bg, fg, sign):
+        out = []
+        for tk, d, *_ in items[:10]:
+            out.append(
+                f'<span style="display:inline-block;background:{bg};color:{fg};'
+                f'font-weight:700;font-size:13px;border-radius:5px;padding:3px 9px;'
+                f'margin:3px 6px 3px 0;">{sign}{tk} '
+                f'<span style="font-weight:400;color:#999;">{_weekday(d)}</span></span>')
+        return "".join(out)
+
+    inner = ""
+    if entries:
+        inner += ('<div style="margin:2px 0 8px;"><div style="font-size:13px;color:#555;'
+                  'font-weight:700;margin-bottom:2px;">Entered</div>'
+                  + chips(entries, "#e7f7f1", "#15a97a", "+") + '</div>')
+    if exits:
+        inner += ('<div style="margin:2px 0;"><div style="font-size:13px;color:#555;'
+                  'font-weight:700;margin-bottom:2px;">Exited</div>'
+                  + chips(exits, "#fbeaea", "#c0392b", "\u2212") + '</div>')
+    return _section("Model changes this week", inner)
+
+
+def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy):
     base = _app_url()
 
     def _rows(tickers):
@@ -255,9 +627,13 @@ def build_email_html(wl, ho, prices, model_ret, model_used, spy):
                     key=lambda x: x[1], reverse=True)
 
     parts = []
-    commentary = _commentary(spy, model_ret, wl_rows, ho_rows, movers)
+    commentary = _commentary(spy, model_ret, wl_rows, ho_rows, movers, prices=prices)
     if commentary:
         parts.append(commentary)
+
+    macro = macro_backdrop(sb)
+    if macro:
+        parts.append(macro)
 
     if movers:
         mv = movers[:3] + [m for m in movers[::-1] if m[1] < 0][:3]
@@ -266,10 +642,36 @@ def build_email_html(wl, ho, prices, model_ret, model_used, spy):
         parts.append(_section("Biggest movers on your lists", _bar_table(mv)))
 
     if _include_performance() and model_ret is not None and spy is not None:
-        parts.append(_section("Model portfolio vs SPY", _bar_table(
-            [("Model", model_ret), ("SPY", spy)])
-            + '<p style="font-size:12px;color:#888;margin:6px 0 0;">Hypothetical, '
-              f'dollar-weighted across {model_used} equal-size positions.</p>'))
+        diff = model_ret - spy
+        block = [
+            '<p style="font-size:14px;color:#333;line-height:1.65;margin:0 0 10px;">'
+            'The model portfolio is '
+            f"<b style='color:{_col(diff)};'>{_fmt(abs(diff)).lstrip('+')}</b> "
+            f"{'ahead of' if diff >= 0 else 'behind'} the S&amp;P 500 this week "
+            f"(<b style='color:{_col(model_ret)};'>{_fmt(model_ret)}</b> vs "
+            f"<b style='color:{_col(spy)};'>{_fmt(spy)}</b>)."
+            '</p>'
+        ]
+        dates, mcum, scum = perf_paths(sb, positions)
+        if dates:
+            block.append(
+                '<div style="border-top:1px solid #eee;border-bottom:1px solid #eee;'
+                'padding:14px 0;margin:8px 0;">' + perf_chart_html(dates, mcum, scum) + '</div>')
+        else:
+            block.append(_bar_table([("Model", model_ret), ("SPY", spy)]))
+        attr = _attribution_sentence(positions, prices, spy)
+        if attr:
+            block.append(attr)
+        block.append('<p style="font-size:12px;color:#888;margin:8px 0 0;">Hypothetical, '
+                     f'dollar-weighted across {model_used} equal-size positions. '
+                     'Past performance does not guarantee future results.</p>')
+        parts.append(_section("Model portfolio vs SPY", "".join(block)))
+
+        since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+        ent, ex = model_turnover(sb, since)
+        tn = turnover_html(ent, ex)
+        if tn:
+            parts.append(tn)
 
     if wl:
         parts.append(_section("Your watchlist", _bar_table(wl_rows)))
@@ -369,7 +771,7 @@ def run(only_email=None):
     sent = 0
     for uid, email in recips.items():
         wl, ho = per_user[uid]
-        html = build_email_html(wl, ho, prices, model_ret, model_used, spy)
+        html = build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy)
         res = send_email(email, "Your QNTM weekly recap", html,
                          text="Your QNTM weekly recap is ready. Open QNTM: " + _app_url() + "/")
         if res.get("success"):
