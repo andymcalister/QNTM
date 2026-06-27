@@ -2727,6 +2727,24 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     action_label = "High Conviction" if act=="BUY" else ("Low Conviction" if act=="SELL" else "Moderate")
     action_arrow = "▲" if act=="BUY" else ("▼" if act=="SELL" else "→")
     gem_badge    = " 💎" if is_gem else ""
+    # Value callout badge — only set by the screener top/bottom-10, which flags
+    # a card 'cheap' (high conviction + low in valuation range) or 'rich' (low
+    # conviction + high in range). Renders next to the cap badge in the title.
+    _vc = r.get("_value_callout")
+    if _vc == "cheap":
+        val_badge = (
+            '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;'
+            'letter-spacing:.08em;color:#34d399;background:rgba(52,211,153,.12);'
+            'border:1px solid rgba(52,211,153,.32);border-radius:5px;padding:1px 7px;'
+            'white-space:nowrap;flex-shrink:0;">◆ CHEAP</span>')
+    elif _vc == "rich":
+        val_badge = (
+            '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;'
+            'letter-spacing:.08em;color:#f87171;background:rgba(248,113,113,.12);'
+            'border:1px solid rgba(248,113,113,.32);border-radius:5px;padding:1px 7px;'
+            'white-space:nowrap;flex-shrink:0;">◆ RICH</span>')
+    else:
+        val_badge = ""
     # Market-cap category badge — neutral metadata styling (intentionally NOT a
     # conviction colour, so it reads as an attribute, not a signal). Shown on the
     # collapsed summary of every card. Sourced from signal_log.mktcap on the
@@ -2916,6 +2934,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
             f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
             f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
             + cap_badge
+            + val_badge
             + (f'<span style="font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;'
                f'white-space:nowrap;">{name_display}</span>' if name_display else "")
             + f'</div>'
@@ -2953,6 +2972,7 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;'
         f'color:#e2e8f0;white-space:nowrap;">{r["ticker"]}{gem_badge}</span>'
         + cap_badge
+            + val_badge
         + (f'<span style="font-size:13px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;'
            f'white-space:nowrap;">{name_display}</span>' if name_display else "")
         + f'</div>'
@@ -6028,6 +6048,52 @@ def _render_screener_cards(filtered, gem_tickers, filter_key):
     render_cards_batch(_fu_html)
 
 
+def _val_pos(r) -> float | None:
+    """Position of the current price within a stock's valuation range, 0-100
+    where LOW = cheap (bottom of band) and HIGH = expensive. Prefers the live
+    price against the stored band (matching the value-range bar on each card),
+    falls back to the stored value_position, and returns None when the row has
+    no usable range (val_basis 'na')."""
+    if (r.get("val_basis") or "na") == "na":
+        return None
+    lo, hi, pr = r.get("val_low"), r.get("val_high"), r.get("price")
+    try:
+        lo, hi = float(lo), float(hi)
+        if pr is not None and hi > lo:
+            return max(0.0, min(100.0, (float(pr) - lo) / (hi - lo) * 100.0))
+    except (TypeError, ValueError):
+        pass
+    vp = r.get("value_position")
+    try:
+        return max(0.0, min(100.0, float(vp))) if vp is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+# Top-10 blend: conviction stays the primary driver, valuation position adds a
+# real tilt so a high-conviction stock trading cheap in its range outranks an
+# equally-convicted but expensive one. Names with no valuation range get a
+# neutral 50 so they rank on conviction alone (neither helped nor penalised).
+_TOP10_CONV_W, _TOP10_VALUE_W = 0.65, 0.35
+
+
+def _blend_buy_score(r) -> float:
+    """Higher = stronger BUY. Rewards high conviction AND cheapness."""
+    conv = float(r.get("adj_composite", r.get("composite", 50)) or 50)
+    vp = _val_pos(r)
+    cheap = (100.0 - vp) if vp is not None else 50.0
+    return _TOP10_CONV_W * conv + _TOP10_VALUE_W * cheap
+
+
+def _blend_sell_score(r) -> float:
+    """Lower = weaker SELL (sorted ascending). Pushes low-conviction AND
+    expensive names to the top of the bottom-10."""
+    conv = float(r.get("adj_composite", r.get("composite", 50)) or 50)
+    vp = _val_pos(r)
+    rich = vp if vp is not None else 50.0
+    return _TOP10_CONV_W * conv - _TOP10_VALUE_W * rich
+
+
 def page_screener():
     _pin_nav("screener")
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
@@ -6448,9 +6514,9 @@ def page_screener():
     st.markdown(DISCLAIMER, unsafe_allow_html=True)
 
     buys_ranked  = sorted([r for r in results if r.get("adj_action",r.get("action"))=="BUY"],
-                          key=lambda x: x.get("adj_composite",x.get("composite",0)), reverse=True)
+                          key=_blend_buy_score, reverse=True)
     sells_ranked = sorted([r for r in results if r.get("adj_action",r.get("action"))=="SELL"],
-                          key=lambda x: x.get("adj_composite",x.get("composite",100)))
+                          key=_blend_sell_score)
 
     scr_tab1, scr_tab2, scr_tab3 = st.tabs(["⭐ TOP 10 SIGNALS", "🔍 FULL UNIVERSE", "📈 SECTOR BREAKDOWN"])
 
@@ -6474,13 +6540,24 @@ def page_screener():
                    f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
                    f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>')
             for r in ranked:
+                r = dict(r)  # never mutate the shared session row
                 ci     = get_company_info(r["ticker"])
                 is_gem = r["ticker"] in gem_tickers
                 # Ensure action matches list — signal_log BUY/SELL may not match adj
                 if color == "#f87171" and r.get("adj_action",r.get("action")) != "SELL":
-                    r = dict(r); r["adj_action"] = "SELL"
+                    r["adj_action"] = "SELL"
                 elif color == "#34d399" and r.get("adj_action",r.get("action")) != "BUY":
-                    r = dict(r); r["adj_action"] = "BUY"
+                    r["adj_action"] = "BUY"
+                # Call out names that are both a strong signal AND well-priced:
+                # high conviction trading cheap (buys) / low conviction trading
+                # expensive (sells). Drives the ◆ CHEAP / ◆ RICH badge.
+                _conv = float(r.get("adj_composite", r.get("composite", 50)) or 50)
+                _vp = _val_pos(r)
+                if _vp is not None:
+                    if color == "#34d399" and _conv >= 60 and _vp <= 25:
+                        r["_value_callout"] = "cheap"
+                    elif color == "#f87171" and _conv < 45 and _vp >= 75:
+                        r["_value_callout"] = "rich"
                 r["_mini_chart_html"] = _build_mini_chart_html(
                     r["ticker"], _scr_trail, _scr_pm, _scr_sm, since_label="vs SPY · 20d")
                 out += build_card_html(r, nav="screener", is_gem=is_gem,
@@ -6489,6 +6566,14 @@ def page_screener():
 
         _high_html = _conv_col("▲ HIGH CONVICTION", "#34d399", buys_ranked[:10])
         _low_html  = _conv_col("▼ LOW CONVICTION",  "#f87171", sells_ranked[:10])
+        st.markdown(
+            '<div style="font-size:12px;color:#94a3b8;line-height:1.6;margin:2px 0 10px;">'
+            'Ranked by conviction, tilted toward where price sits in each stock\'s valuation '
+            'range — so high-conviction names trading <span style="color:#34d399;">cheap</span> '
+            'rise to the top. A <span style="color:#34d399;font-weight:700;">◆ CHEAP</span> tag '
+            'flags high conviction + low in range; <span style="color:#f87171;font-weight:700;">'
+            '◆ RICH</span> flags low conviction + high in range.</div>',
+            unsafe_allow_html=True)
         st.markdown(
             '<div class="qntm-conv-grid" style="display:grid;'
             'grid-template-columns:1fr 1fr;gap:16px;align-items:start;">'
