@@ -90,6 +90,8 @@ _YFINANCE_MAP = {
     "revenueGrowth":           "rg",     # fraction → multiply by 100
     "earningsGrowth":          "eg",     # fraction → multiply by 100
     "forwardPE":               "fpe",    # raw
+    "priceToSalesTrailing12Months": "ps",   # raw — for valuation_history
+    "priceToBook":             "pb",     # raw — for valuation_history
     "shortPercentOfFloat":     "sp",     # fraction → multiply by 100
     "marketCap":               "mktcap_raw",  # raw int, converted below
     "freeCashflow":            "fcf_raw",
@@ -392,6 +394,11 @@ def write_signal_snapshot(scored_list: list) -> bool:
             "hidden_gem_reason": (
                 ", ".join(s.get("gem_reasons", [])) if s.get("gem_reasons") else None
             ),
+            # QNTM Valuation Range (descriptive valuation context, not a target)
+            "val_low":        s.get("val_low"),
+            "val_high":       s.get("val_high"),
+            "value_position": s.get("value_position"),
+            "val_basis":      s.get("val_basis"),
         })
 
     try:
@@ -404,6 +411,48 @@ def write_signal_snapshot(scored_list: list) -> bool:
         return True
     except Exception as e:
         log.error(f"Signal snapshot write failed: {e}")
+        return False
+
+
+def write_valuation_history(live_data: dict) -> bool:
+    """
+    Snapshot today's raw valuation multiples (fpe / ps / pb) per ticker into
+    valuation_history. This table accrues over time so that, after a few months,
+    each name has a real distribution of its own multiples — enabling a
+    history-percentile component in the Valuation Range anchor later (today the
+    anchor is peer-relative only, since no multiple history existed at launch).
+    Best-effort and non-fatal: a failure here never blocks the signal write.
+    """
+    sb = _get_supabase()
+    if not sb:
+        return False
+    today = date.today().isoformat()
+
+    def _num(x):
+        try:
+            x = float(x)
+            return round(x, 3) if x == x else None   # drop NaN
+        except (TypeError, ValueError):
+            return None
+
+    rows = []
+    for tk, f in (live_data or {}).items():
+        fpe, ps, pb = _num(f.get("fpe")), _num(f.get("ps")), _num(f.get("pb"))
+        if fpe is None and ps is None and pb is None:
+            continue
+        rows.append({"ticker": tk, "snapshot_date": today,
+                     "fpe": fpe, "ps": ps, "pb": pb})
+    if not rows:
+        return False
+    try:
+        for i in range(0, len(rows), BATCH_SIZE):
+            sb.table("valuation_history").upsert(
+                rows[i:i + BATCH_SIZE], on_conflict="ticker,snapshot_date"
+            ).execute()
+        log.info(f"Wrote {len(rows)} rows to valuation_history")
+        return True
+    except Exception as e:
+        log.warning(f"valuation_history write failed (non-fatal): {e}")
         return False
 
 
@@ -958,6 +1007,11 @@ def run_refresh(tickers: list = None, force: bool = False,
 
             s = score_stock(ticker, hist, live_fundamentals=f, vol_ratio=vol_ratio)
             s["has_live_price"] = len(hist) > 0
+            # Carry raw valuation inputs for the Valuation Range pass (not written
+            # to signal_log directly — consumed by compute_valuation_band below).
+            s["_fpe"]  = f.get("fpe")
+            s["_w52h"] = f.get("w52h")
+            s["_w52l"] = f.get("w52l")
             scores.append(s)
 
         # Cross-sectional percentile ranking
@@ -1026,8 +1080,37 @@ def run_refresh(tickers: list = None, force: bool = False,
         _write_macro_state(macro)
         scored = apply_macro_overlay(scores, macro)
 
+        # ── QNTM Valuation Range (Value Position) ─────────────────────────────
+        # Descriptive valuation context, computed cross-sectionally so each name's
+        # band is anchored to its sector's median forward multiple. Runs after the
+        # overlay so it rides the same dicts written to signal_log.
+        from model_engine import sector_fair_multiples, compute_valuation_band
+        _sector_fpe = sector_fair_multiples(scored)
+        _vr_n = 0
+        for s in scored:
+            band = compute_valuation_band(
+                price=s.get("price"),
+                fpe=s.get("_fpe"),
+                sector_fair_fpe=_sector_fpe.get(s.get("sector")),
+                quality=s.get("quality"),
+                momentum=s.get("momentum"),
+                price_history=price_histories.get(s["ticker"], []),
+                w52_hi=s.get("_w52h"), w52_lo=s.get("_w52l"),
+            )
+            s.update(band)
+            if band["val_basis"] != "na":
+                _vr_n += 1
+            for _k in ("_fpe", "_w52h", "_w52l"):
+                s.pop(_k, None)
+        log.info(f"Valuation Range computed for {_vr_n}/{len(scored)} names "
+                 f"({len(_sector_fpe)} sectors with a median multiple)")
+
         # Write to signal_log
         write_signal_snapshot(scored)
+
+        # Snapshot today's raw multiples so a real historical valuation range
+        # accrues over time (unlocks a history-percentile anchor component later).
+        write_valuation_history(live_data)
 
         # Update model portfolio positions
         update_model_portfolio(scored)
