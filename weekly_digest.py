@@ -666,6 +666,54 @@ def _headline_sentence(spy, wl_rows, ho_rows, prices):
             'This week in one sentence: ' + sentence + '.</p>')
 
 
+_OPP_PILLAR_LABEL = {
+    "momentum":  "price momentum",
+    "quality":   "quality fundamentals",
+    "volume":    "volume / accumulation",
+    "sentiment": "sentiment",
+}
+
+
+def _opportunity_drivers(row):
+    """Up to two strongest NON-valuation pillars (>=55), highest first, as
+    (label, score) pairs. Cheapness is carried separately by value position, so
+    the value pillar is intentionally excluded to avoid a circular 'cheap because
+    cheap' read. Purely descriptive — the model's own factor scores, not advice."""
+    pillars = []
+    for k in ("momentum", "quality", "volume", "sentiment"):
+        try:
+            v = float(row.get(k))
+        except (TypeError, ValueError):
+            continue
+        if v >= 55:
+            pillars.append((_OPP_PILLAR_LABEL[k], v))
+    pillars.sort(key=lambda kv: kv[1], reverse=True)
+    return pillars[:2]
+
+
+def _opportunity_why(tk, conv, vp, row):
+    """One factual sentence explaining why this name surfaced: its composite, the
+    pillars driving it, and where it sits in its valuation range. Impersonal."""
+    drivers = _opportunity_drivers(row)
+    _d = lambda v: "strong" if v >= 65 else "solid"
+    if len(drivers) >= 2:
+        driver = (f"led by {_d(drivers[0][1])} {drivers[0][0]} ({drivers[0][1]:.0f}) "
+                  f"and {_d(drivers[1][1])} {drivers[1][0]} ({drivers[1][1]:.0f})")
+    elif len(drivers) == 1:
+        driver = f"led by {_d(drivers[0][1])} {drivers[0][0]} ({drivers[0][1]:.0f})"
+    else:
+        driver = "supported by a balanced composite across factors"
+    if vp <= 10:
+        vp_phrase = "the very bottom of its valuation range"
+    elif vp <= 25:
+        vp_phrase = "the low end of its valuation range"
+    else:
+        vp_phrase = "the lower half of its valuation range"
+    return (f"{tk} scores {conv:.0f} on QNTM\u2019s composite, {driver}, while a value "
+            f"position of {vp:.0f}% places it at {vp_phrase}. High conviction meeting a "
+            f"low relative price is what surfaces it here.")
+
+
 def opportunity_of_week(sb, uid=None):
     """Highest-conviction name trading cheapest in its valuation range, from the
     latest signal_log day — a reason to come back into the app. Impersonal research
@@ -678,7 +726,8 @@ def opportunity_of_week(sb, uid=None):
             return ""
         sd = latest[0]["signal_date"]
         rows = (sb.table("signal_log")
-                .select("ticker,adj_composite,composite,value_position,val_basis,signal")
+                .select("ticker,adj_composite,composite,value_position,val_basis,signal,"
+                        "momentum,quality,volume,value,sentiment")
                 .eq("signal_date", sd).execute().data or [])
     except Exception:
         return ""
@@ -704,29 +753,40 @@ def opportunity_of_week(sb, uid=None):
     sig = (best.get("signal") or "HIGH").upper()
     sub = "near lower range" if vp <= 25 else "lower half of range"
     link = (f"{base}/?src=digest&du={uid}&sq={tk}" if uid else f"{base}/?sq={tk}")
+    why = _opportunity_why(tk, conv, vp, best)
     card = (
         '<div style="border:1px solid #d7ece3;background:#f4fbf8;border-radius:10px;'
         'padding:16px 18px;margin:6px 0;">'
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
-        f'<span style="font-size:20px;font-weight:800;color:#0a0b14;">{tk}</span>'
-        f'<span style="font-size:12px;font-weight:700;color:#15a97a;'
-        f'letter-spacing:.04em;">{sig} CONVICTION</span></div>'
-        '<div style="display:flex;gap:28px;margin:12px 0 6px;">'
-        '<div><div style="font-size:11px;color:#888;text-transform:uppercase;'
+        # Header (ticker + conviction badge) — table, not flex (Gmail drops flex).
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="border-collapse:collapse;"><tr>'
+        f'<td style="font-size:20px;font-weight:800;color:#0a0b14;">{tk}</td>'
+        '<td align="right" style="font-size:12px;font-weight:700;color:#15a97a;'
+        f'letter-spacing:.04em;">{sig} CONVICTION</td>'
+        '</tr></table>'
+        # Metrics — two table cells with explicit spacing (flex gap is dropped in
+        # Gmail, which ran the two labels together in the rendered email).
+        '<table role="presentation" cellpadding="0" cellspacing="0" '
+        'style="border-collapse:collapse;margin:12px 0 8px;"><tr>'
+        '<td style="padding-right:40px;vertical-align:top;">'
+        '<div style="font-size:11px;color:#888;text-transform:uppercase;'
         'letter-spacing:.05em;">Conviction</div>'
-        f'<div style="font-size:22px;font-weight:800;color:#15a97a;">{conv:.0f}</div></div>'
-        '<div><div style="font-size:11px;color:#888;text-transform:uppercase;'
+        f'<div style="font-size:22px;font-weight:800;color:#15a97a;">{conv:.0f}</div></td>'
+        '<td style="vertical-align:top;">'
+        '<div style="font-size:11px;color:#888;text-transform:uppercase;'
         'letter-spacing:.05em;">Value position</div>'
         f'<div style="font-size:22px;font-weight:800;color:#15a97a;">{vp:.0f}%</div>'
-        f'<div style="font-size:11px;color:#888;">{sub}</div></div>'
-        '</div>'
+        f'<div style="font-size:11px;color:#888;">{sub}</div></td>'
+        '</tr></table>'
+        # The actual reasoning — derived from the model's own pillar scores.
+        f'<p style="font-size:13px;color:#333;line-height:1.6;margin:2px 0 10px;">{why}</p>'
         f'<a href="{link}" style="font-size:13px;font-weight:700;color:#15a97a;'
-        'text-decoration:none;">Read why &rarr;</a>'
+        f'text-decoration:none;">See {tk} on QNTM &rarr;</a>'
         '</div>'
         '<p style="font-size:11px;color:#999;margin:6px 0 0;line-height:1.5;">'
-        'The highest-conviction name currently trading cheapest in its valuation '
-        'range. An impersonal research signal, not a recommendation or personalized '
-        'advice.</p>')
+        'Surfaced because it is the highest-conviction name currently trading cheapest '
+        'in its valuation range. An impersonal research signal, not a recommendation or '
+        'personalized advice.</p>')
     return _section("Opportunity of the week", card)
 
 

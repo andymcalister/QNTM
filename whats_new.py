@@ -38,10 +38,11 @@ WHATS_NEW = [
         "id":    "2026-06-27.2",
         "date":  "Jun 27, 2026",
         "tag":   "new",
-        "title": "Weekly recap email",
-        "body":  "Opt into a Saturday email that recaps the week across your "
+        "title": "Weekly recap email — now on by default",
+        "body":  "Every Saturday you'll get an email recapping the week across your "
                  "watchlist and the broader market, including the macro backdrop "
-                 "behind the moves. Turn it on in Account \u2192 Notifications.",
+                 "behind the moves. It's on by default \u2014 manage it or turn it "
+                 "off any time in Account \u2192 Notifications.",
     },
     {
         "id":    "2026-06-27.1",
