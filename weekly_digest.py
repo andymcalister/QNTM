@@ -377,12 +377,12 @@ def spy_daily(sb):
     return out
 
 
-def model_daily_value(sb, positions):
-    """[(date, dollar_value)] for the fixed-share model basket across the window,
-    using signal_log daily prices with last-observation-carried-forward for gaps."""
-    tickers = [p["ticker"] for p in positions]
+def _model_daily_prices(sb, tickers):
+    """{ticker: {date: price}} from signal_log over the window."""
+    px = {}
+    tickers = list({t for t in tickers if t})
     if not tickers:
-        return []
+        return px
     since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
     rows = []
     for i in range(0, len(tickers), 300):
@@ -393,7 +393,6 @@ def model_daily_value(sb, positions):
                         .order("signal_date", desc=False).execute().data or [])
         except Exception as e:
             log.error("model_daily price fetch failed: %s", e)
-    px, dates = {}, set()
     for r in rows:
         tk, p, d = r.get("ticker"), r.get("price"), r.get("signal_date")
         if not tk or p is None or not d:
@@ -402,49 +401,60 @@ def model_daily_value(sb, positions):
             px.setdefault(tk.upper(), {})[str(d)[:10]] = float(p)
         except (TypeError, ValueError):
             continue
-        dates.add(str(d)[:10])
-    if not dates:
-        return []
-    dates = sorted(dates)
-    shares = {}
-    for p in positions:
-        tk, ep, ps = p["ticker"], p.get("entry_price"), p.get("position_size") or 2000.0
-        try:
-            if ep and float(ep) > 0:
-                shares[tk] = float(ps) / float(ep)
-        except (TypeError, ValueError):
-            pass
-    series, last = [], {}
-    for d in dates:
-        val, any_px = 0.0, False
-        for tk, sh in shares.items():
-            fp = px.get(tk, {})
-            price = fp.get(d, last.get(tk))
-            if price is None and fp:          # seed leading gap with first known
-                price = fp[min(fp)]
-            if price is not None:
-                last[tk] = price
-                val += sh * price
-                any_px = True
-        if any_px:
-            series.append((d, val))
-    return series
+    return px
 
 
-def perf_paths(sb, positions):
-    """Aligned cumulative-% paths (model, SPY) over common trading days.
+def perf_paths(sb, positions, prices):
+    """Aligned cumulative-% paths (model, SPY) on SPY's trading-day axis.
+
+    The model path is anchored to the SAME basket and window-start prices that
+    model_dollar_weighted_return uses, so the chart's endpoints tie out exactly
+    to the headline numbers: model_cum[-1] == model_ret, spy_cum[-1] == spy_week.
+    Per-ticker daily prices give the intra-week shape (LOCF; pre-data held at the
+    window start so a name contributes 0% until it has data).
     Returns (dates, model_cum, spy_cum) or (None, None, None)."""
-    mv, sd = model_daily_value(sb, positions), spy_daily(sb)
-    if len(mv) < 2 or len(sd) < 2:
+    sd = spy_daily(sb)
+    if len(sd) < 2:
         return None, None, None
-    mmap, smap = dict(mv), dict(sd)
-    common = sorted(set(mmap) & set(smap))
-    if len(common) < 2 or not mmap[common[0]] or not smap[common[0]]:
+    spy_dates = [d for d, _ in sd]
+    s0 = sd[0][1]
+    if not s0:
         return None, None, None
-    m0, s0 = mmap[common[0]], smap[common[0]]
-    return (common,
-            [(mmap[d] / m0 - 1.0) * 100.0 for d in common],
-            [(smap[d] / s0 - 1.0) * 100.0 for d in common])
+    spy_cum = [(c / s0 - 1.0) * 100.0 for _, c in sd]
+
+    # Basket identical to model_dollar_weighted_return: tickers in `prices`,
+    # valid entry_price, fixed shares, anchored at prices[tk]["start"].
+    basket = []
+    for p in positions:
+        tk, ep = p["ticker"], p.get("entry_price")
+        ps, pr = p.get("position_size") or 2000.0, prices.get(p["ticker"])
+        if not pr or not ep:
+            continue
+        try:
+            sh = float(ps) / float(ep)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        basket.append((tk, sh, pr["start"]))
+    if not basket:
+        return None, None, None
+
+    px = _model_daily_prices(sb, [tk for tk, _, _ in basket])
+    v0 = sum(sh * start for _, sh, start in basket)
+    if v0 <= 0:
+        return None, None, None
+
+    last = {tk: start for tk, _, start in basket}   # pre-data anchored to start
+    model_cum = []
+    for d in spy_dates:
+        v = 0.0
+        for tk, sh, _ in basket:
+            p = px.get(tk, {}).get(d)
+            if p is not None:
+                last[tk] = p
+            v += sh * last[tk]
+        model_cum.append((v / v0 - 1.0) * 100.0)
+
+    return spy_dates, model_cum, spy_cum
 
 
 def _signed_col(value, maxabs, color, w=13, H=104):
@@ -652,7 +662,7 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy):
             f"<b style='color:{_col(spy)};'>{_fmt(spy)}</b>)."
             '</p>'
         ]
-        dates, mcum, scum = perf_paths(sb, positions)
+        dates, mcum, scum = perf_paths(sb, positions, prices)
         if dates:
             block.append(
                 '<div style="border-top:1px solid #eee;border-bottom:1px solid #eee;'
