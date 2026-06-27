@@ -319,7 +319,6 @@ section[data-testid="stMain"] > div,
 @keyframes qntmspin{to{transform:rotate(360deg)}}
 @keyframes qntmload{to{opacity:1}}
 @keyframes qntmfill{from{width:4%}to{width:93%}}
-@keyframes qntmphrase{0%{opacity:0;transform:translateY(4px)}3%{opacity:1;transform:translateY(0)}17%{opacity:1;transform:translateY(0)}20%{opacity:0;transform:translateY(-4px)}100%{opacity:0}}
 
 /* ── Collapsed card (details/summary) ── */
 details summary { list-style: none; }
@@ -12646,33 +12645,28 @@ def main():
 
     _pl = st.empty()
     import random as _rnd
-    _load_msgs = [
-        f"Scoring all {_universe_n()} tickers…",
-        "Weighing the five pillars…",
-        "Checking the macro regime…",
-        "Sorting conviction, high to low…",
-        "Stress-testing against SPY…",
-        "Sniffing out hidden gems…",
-        "Separating signal from noise…",
-        "Letting the quants argue it out…",
-        "Consulting the bulls and the bears…",
-        "Crunching factor scores…",
-        "Reading the tape…",
-        "Pricing in the macro…",
-        "Marking to market…",
-        "Doing the due diligence…",
-        "Compounding the pixels…",
-        "Waiting for the opening bell…",
+    # Educational micro-tips shown while longer pages load — a rotating "QNTM 101"
+    # the reader can actually finish in the wait, instead of fast-flipping quips.
+    # ONE tip per load (random), so it varies load-to-load; one plain sentence each.
+    _load_tips = [
+        "Conviction blends five factors \u2014 momentum, quality, volume, value and sentiment \u2014 into one 0\u2013100 score.",
+        "Momentum and quality carry the most weight; they\u2019ve been the steadiest predictors over time.",
+        "HIGH conviction means 60 or above \u2014 several factors lining up, not just one hot number.",
+        "The macro overlay tilts whole sectors up or down based on the market\u2019s risk-on / risk-off regime.",
+        "A hawkish-rate regime pressures long-duration sectors like tech and REITs, and tends to help banks.",
+        "The macro overlay leans harder when markets are volatile and steps back when trends are calm.",
+        "Value position shows where a price sits in its own valuation band \u2014 0% is the cheap end, 100% the rich end.",
+        "A high-conviction name low in its value range is strong factors meeting a low relative price.",
+        "Hidden Gems are under-followed mid- and small-caps that still score well in the model.",
+        "Conviction is recomputed daily, so a signal can shift even when the share price barely moved.",
+        "Scores are relative across the whole universe \u2014 it\u2019s a ranking, not just a price chart.",
+        "The model portfolio caps any single sector near 30%, so one sector shock can\u2019t sink the book.",
+        "QNTM blends about 75% quant factors with 25% macro overlay to set the adjusted score.",
+        "When many names score high at once, the bar to qualify rises \u2014 a guard against signal dilution.",
+        "The overlay reads live news, the VIX, oil and rate expectations to gauge the market regime.",
+        "Signals are research outputs, not advice \u2014 past model results don\u2019t guarantee future returns.",
     ]
-    _per   = 0.85                                  # seconds each phrase is shown
-    _msgs  = _rnd.sample(_load_msgs, 6)            # rotate through 6 of them
-    _cycle = round(_per * len(_msgs), 2)
-    _phrase_stack = "".join(
-        f'<div style="position:absolute;left:0;right:0;text-align:center;opacity:0;'
-        f'font-family:Inter,sans-serif;font-size:13.5px;color:#b3bed0;'
-        f'animation:qntmphrase {_cycle}s ease-in-out {round(_i*_per,2)}s infinite;">{_m}</div>'
-        for _i, _m in enumerate(_msgs)
-    )
+    _tip = _rnd.choice(_load_tips)
     _pl.markdown(
         '<div style="position:fixed;top:0;left:0;width:100%;height:100%;'
         'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;'
@@ -12680,7 +12674,12 @@ def main():
         'opacity:0;animation:qntmload .25s ease .45s forwards;">'
         '<div style="font-family:Syne,sans-serif;font-size:21px;font-weight:800;letter-spacing:.05em;'
         'color:#e2e8f0;">Q<span style="color:#34d399;">NTM</span></div>'
-        f'<div style="position:relative;height:20px;min-width:300px;max-width:90vw;">{_phrase_stack}</div>'
+        f'<div style="position:relative;max-width:380px;text-align:center;padding:0 18px;">'
+        '<div style="font-family:Inter,sans-serif;font-size:10px;font-weight:800;'
+        'letter-spacing:.12em;text-transform:uppercase;color:#34d399;opacity:.85;'
+        'margin-bottom:9px;">QNTM&nbsp;101</div>'
+        f'<div style="font-family:Inter,sans-serif;font-size:14px;line-height:1.65;'
+        f'color:#cdd6e4;">{_tip}</div></div>'
         '<div style="width:240px;height:5px;border-radius:99px;background:rgba(52,211,153,.14);'
         'overflow:hidden;">'
         '<div style="height:100%;border-radius:99px;background:linear-gradient(90deg,#34d399,#5eead4);'
