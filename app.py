@@ -9345,6 +9345,27 @@ def page_alerts():
                 'price you set, or changes conviction. Delivered in-app and by email; SMS once your '
                 'number is verified in Account.</div>', unsafe_allow_html=True)
 
+    with st.expander("How to set up alerts you'll actually want", expanded=False):
+        st.markdown(
+            "**Pick a trigger that matches a decision you'd act on:**\n\n"
+            "- **Valuation range (cheap / expensive)** \u2014 fires when a stock moves into the lower "
+            "(cheap) or upper (expensive) end of its peer valuation band. Good for *\u201ctell me when "
+            "something I follow gets cheap.\u201d*\n"
+            "- **Conviction HIGH / LOW** \u2014 fires when the model's conviction crosses into HIGH "
+            "(\u226560) or LOW (<45). Good for *\u201ctell me when the signal on a name I hold turns.\u201d*\n"
+            "- **Price above / below** \u2014 fires when a single stock crosses a price you set. The "
+            "most literal trigger, but also the noisiest if you set it close to today's price.\n"
+            "- **Hidden gem** \u2014 fires when a name becomes a flagged gem. Rare by design.\n\n"
+            "**To avoid getting spammed:**\n\n"
+            "- **Use a collection, not 50 separate tickers.** One *watchlist*, *portfolio*, or "
+            "*model* alert covers every name in it \u2014 you don't need one per stock.\n"
+            "- **Prefer valuation or conviction triggers over price.** They fire on meaningful "
+            "changes; a price alert set near the current price can fire over and over.\n"
+            "- **Each alert re-arms after it fires** \u2014 it won't repeat for the same move until the "
+            "condition resets, so you won't get the same ping twice in a row.\n"
+            "- **Choose where alerts go** in Account \u2192 Notifications: in-app is always on, email "
+            "and SMS are opt-in per channel.")
+
     # ── Quick-setup helper: one-click common alerts ────────────────────────────
     _existing = get_price_alerts(uid())
     _have = {((a.get("scope") or "ticker"), a.get("kind"),
@@ -10166,12 +10187,20 @@ def page_account():
             prefs = user.get("notifications") or {}
             e_on = st.toggle("Email signal summaries (weekly digest)",
                              value=prefs.get("email", False), key="pref_email")
+            st.caption("One email on Saturday recapping the week across your watchlist and the "
+                       "broader market. About once a week.")
             s_on = st.toggle("In-app signal change alerts",
                              value=prefs.get("signals", True), key="pref_sig")
+            st.caption("A bell notification (in-app only \u2014 no email) when a stock you follow "
+                       "changes conviction tier. How often depends on market moves.")
             a_on = st.toggle("Macro regime change alerts",
                              value=prefs.get("alerts", True), key="pref_alert")
+            st.caption("A bell notification when the overall market regime shifts (e.g. risk-on to "
+                       "risk-off). Rare \u2014 usually at most a few times a month.")
             le_on = st.toggle("Email me when a holding or watchlist stock drops to LOW conviction (intraday, checked ~every 30 min during market hours)",
                               value=prefs.get("low_alert_email", False), key="pref_low_email")
+            st.caption("At most one email per name each time it drops to LOW, during market hours. "
+                       "Off by default.")
 
             st.markdown('<div style="height:10px;border-top:1px solid rgba(255,255,255,.06);'
                         'margin:14px 0 10px;"></div>'
@@ -10182,8 +10211,12 @@ def page_account():
                         'always on.</div>', unsafe_allow_html=True)
             pae_on = st.toggle("Email me when one of my price / value alerts fires",
                                value=prefs.get("alert_email", True), key="pref_alert_email")
+            st.caption("One email each time an alert you created fires \u2014 you control the volume "
+                       "by how many alerts you set.")
             pas_on = st.toggle("Text me (SMS) when one of my price / value alerts fires",
                                value=prefs.get("alert_sms", False), key="pref_alert_sms")
+            st.caption("A text for each alert that fires \u2014 requires a verified mobile number "
+                       "below. Standard message rates apply; reply STOP anytime.")
 
             # ── Phone capture + verification (required for SMS) ─────────────────
             # Phone status is read straight from the DB (login mapping may not
@@ -11401,6 +11434,79 @@ def page_methodology():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+def _prune_orphan_watchlist_items():
+    """Once per session, drop watchlist entries whose ticker is no longer in the
+    scored universe (e.g. names removed at a Russell reconstitution). Removed
+    tickers are stashed in session_state so the login banner can name them once.
+    Idempotent — after it runs there are no orphans left, so it never repeats.
+    Strict membership only (no signal_log fallback: an orphan still HAS old
+    signal_log rows, which is exactly why it must be dropped). Never raises."""
+    user = st.session_state.get("user") or {}
+    uid_ = user.get("id")
+    if not uid_ or uid_ == "demo":
+        return
+    if st.session_state.get("_wl_pruned_checked"):
+        return
+    st.session_state["_wl_pruned_checked"] = True
+    try:
+        from universe_data import SECTORS as _UNI
+    except Exception:
+        return
+    if not _UNI:                       # never prune against an empty universe
+        return
+    try:
+        from db import get_watchlists, get_watchlist_items, remove_watchlist_item
+    except Exception:
+        return
+    removed = []
+    try:
+        for wl in (get_watchlists(uid_) or []):
+            lid = wl.get("id")
+            if not lid:
+                continue
+            for it in (get_watchlist_items(uid_, lid) or []):
+                tk = (it.get("ticker") or "").strip().upper()
+                if tk and tk not in _UNI:
+                    if remove_watchlist_item(uid_, lid, tk):
+                        removed.append(tk)
+    except Exception:
+        return
+    if removed:
+        st.session_state["_wl_pruned"] = list(dict.fromkeys(removed))
+
+
+def _render_wl_pruned_notice():
+    """One-time banner naming watchlist tickers dropped because they left the
+    scored universe. Shown until dismissed; the prune is self-clearing, so it
+    won't reappear next login. Never raises."""
+    removed = st.session_state.get("_wl_pruned")
+    if not removed:
+        return
+    try:
+        _chips = " ".join(
+            f'<span style="display:inline-block;background:rgba(212,168,67,.10);'
+            f'color:#d4a843;font-weight:700;font-size:13px;border-radius:5px;'
+            f'padding:2px 8px;margin:3px 6px 3px 0;">{t}</span>' for t in removed)
+        st.markdown(
+            f'<div style="background:linear-gradient(180deg,rgba(212,168,67,.06),rgba(13,17,23,0));'
+            f'border:1px solid rgba(212,168,67,.25);border-radius:12px;padding:14px 18px;margin:0 0 14px;">'
+            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+            f'<span style="font-size:16px;">\u26a0\ufe0f</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#d4a843;'
+            f'letter-spacing:.02em;">Removed from your watchlist</span></div>'
+            f'<div style="font-size:13px;color:#9fabc0;line-height:1.6;margin-bottom:8px;">'
+            f'These names are no longer in QNTM&rsquo;s scored universe (most recently '
+            f'updated for the June 2026 Russell reconstitution), so they&rsquo;re no longer '
+            f'tracked and we removed them from your watchlist:</div>'
+            f'<div>{_chips}</div></div>',
+            unsafe_allow_html=True)
+        if st.button("Got it", key="_wl_pruned_got"):
+            st.session_state.pop("_wl_pruned", None)
+            st.rerun()
+    except Exception:
+        st.session_state.pop("_wl_pruned", None)
+
+
 def _render_whats_new():
     """Login 'What's new' banner. Shows changelog entries newer than the user's
     stored marker. Dismisses when the user presses 'Got it' OR navigates to a
@@ -11549,7 +11655,9 @@ def page_platform():
                 st.session_state.scan_results = None
     platform_nav()
     show_onboarding()
+    _prune_orphan_watchlist_items()
     _render_whats_new()
+    _render_wl_pruned_notice()
 
 
     nav_map = {
