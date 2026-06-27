@@ -231,6 +231,37 @@ def notify(user, ticker, headline):
     return sent
 
 
+def _collection_tickers(sb, scope, user_id):
+    """Resolve the tickers a collection-scope alert covers.
+      watchlist -> the user's watchlist_items
+      portfolio -> the user's holdings
+      model     -> the active model portfolio (global, epoch-gated)"""
+    out = set()
+    try:
+        if scope == "watchlist":
+            rows = (sb.table("watchlist_items").select("ticker")
+                    .eq("user_id", user_id).execute().data or [])
+        elif scope == "portfolio":
+            rows = (sb.table("holdings").select("ticker")
+                    .eq("user_id", user_id).execute().data or [])
+        elif scope == "model":
+            try:
+                from model_engine import MODEL_EPOCH
+            except Exception:
+                MODEL_EPOCH = "live"
+            rows = (sb.table("model_portfolio").select("ticker")
+                    .eq("is_active", True).eq("epoch", MODEL_EPOCH).execute().data or [])
+        else:
+            rows = []
+        for r in rows:
+            t = (r.get("ticker") or "").upper().strip()
+            if t:
+                out.add(t)
+    except Exception as e:
+        log.error("collection resolve failed (scope=%s): %s", scope, e)
+    return out
+
+
 def run():
     try:
         from data_refresh import _get_supabase
@@ -251,15 +282,35 @@ def run():
         log.info("No active alerts — done.")
         return {"success": True, "alerts": 0}
 
-    tickers = {(a.get("ticker") or "").upper() for a in alerts if a.get("ticker")}
     uids = {a.get("user_id") for a in alerts if a.get("user_id")}
-    snaps = load_snapshots(sb, tickers)
+    ticker_alerts = [a for a in alerts if (a.get("scope") or "ticker") == "ticker"]
+    coll_alerts = [a for a in alerts if (a.get("scope") or "ticker") != "ticker"]
+
+    # Resolve collection memberships once per (scope, user). Model scope is global.
+    coll_cache = {}
+
+    def _members(scope, user_id):
+        key = (scope, "_" if scope == "model" else user_id)
+        if key not in coll_cache:
+            coll_cache[key] = _collection_tickers(sb, scope, user_id)
+        return coll_cache[key]
+
+    # Snapshot universe = every ticker any alert needs.
+    universe = {(a.get("ticker") or "").upper() for a in ticker_alerts if a.get("ticker")}
+    for a in coll_alerts:
+        universe |= _members(a.get("scope"), a.get("user_id"))
+
+    snaps = load_snapshots(sb, universe)
     users = load_users(sb, uids)
     now_iso = datetime.now(timezone.utc).isoformat()
-    log.info("%d active alerts · %d tickers · %d users", len(alerts), len(tickers), len(uids))
+    log.info("%d alerts (%d ticker, %d collection) · %d tickers · %d users",
+             len(alerts), len(ticker_alerts), len(coll_alerts), len(universe), len(uids))
 
-    updates, fires = [], []
-    for a in alerts:
+    fires = []  # (alert, ticker, headline)
+
+    # ── Ticker-scope: dedupe via price_alerts.armed ────────────────────────────
+    pa_updates = []
+    for a in ticker_alerts:
         tk = (a.get("ticker") or "").upper()
         snap = snaps.get(tk)
         if not snap:
@@ -267,36 +318,74 @@ def run():
         met, val, headline = evaluate(a.get("kind"), a.get("threshold"), snap)
         armed = bool(a.get("armed", True))
         if met and armed:
-            updates.append({"id": a["id"], "armed": False,
-                            "last_triggered_at": now_iso, "last_triggered_value": val})
-            fires.append((a, headline))
+            pa_updates.append({"id": a["id"], "armed": False,
+                               "last_triggered_at": now_iso, "last_triggered_value": val})
+            fires.append((a, tk, headline))
         elif (not met) and (not armed):
-            updates.append({"id": a["id"], "armed": True})
-        # met & not armed  -> already fired, waiting to clear (no-op)
-        # not met & armed  -> nothing to do
+            pa_updates.append({"id": a["id"], "armed": True})
 
-    # Persist state FIRST so a send failure can't double-fire next run.
-    for u in updates:
+    for u in pa_updates:
         _id = u.pop("id")
         try:
             sb.table("price_alerts").update(u).eq("id", _id).execute()
         except Exception as e:
             log.error("state update failed for alert %s: %s", _id, e)
 
+    # ── Collection-scope: dedupe via price_alert_state (alert_id, ticker) ───────
+    if coll_alerts:
+        coll_ids = [a["id"] for a in coll_alerts]
+        try:
+            st_rows = (sb.table("price_alert_state").select("*")
+                       .in_("alert_id", coll_ids).execute().data or [])
+        except Exception as e:
+            log.error("alert_state read failed: %s", e)
+            st_rows = []
+        state = {(r["alert_id"], r["ticker"]): r for r in st_rows}
+        st_upserts = []
+        fired_parents = set()
+        for a in coll_alerts:
+            for tk in _members(a.get("scope"), a.get("user_id")):
+                snap = snaps.get(tk)
+                if not snap:
+                    continue
+                met, val, headline = evaluate(a.get("kind"), a.get("threshold"), snap)
+                prev = state.get((a["id"], tk), {})
+                armed = bool(prev.get("armed", True))
+                if met and armed:
+                    st_upserts.append({"alert_id": a["id"], "ticker": tk, "armed": False,
+                                       "last_triggered_at": now_iso, "last_triggered_value": val})
+                    fires.append((a, tk, headline))
+                    fired_parents.add(a["id"])
+                elif (not met) and (not armed):
+                    st_upserts.append({"alert_id": a["id"], "ticker": tk, "armed": True})
+
+        if st_upserts:
+            try:
+                sb.table("price_alert_state").upsert(st_upserts, on_conflict="alert_id,ticker").execute()
+            except Exception as e:
+                log.error("alert_state upsert failed: %s", e)
+        # Stamp the parent row so the Alerts-page "last fired" reflects collections too.
+        for pid in fired_parents:
+            try:
+                sb.table("price_alerts").update({"last_triggered_at": now_iso}).eq("id", pid).execute()
+            except Exception:
+                pass
+
+    # ── Fan out ────────────────────────────────────────────────────────────────
     delivered = 0
-    for a, headline in fires:
+    for a, tk, headline in fires:
         u = users.get(a.get("user_id"))
         if not u:
             continue
         u = dict(u)
         u["_id"] = a["user_id"]
-        ch = notify(u, (a.get("ticker") or "").upper(), headline)
+        ch = notify(u, tk, headline)
         if ch:
             delivered += 1
-            log.info("fired %s/%s -> user %s via %s",
-                     a.get("ticker"), a.get("kind"), a.get("user_id"), ",".join(ch))
+            log.info("fired %s/%s (scope=%s) -> user %s via %s",
+                     tk, a.get("kind"), a.get("scope") or "ticker", a.get("user_id"), ",".join(ch))
 
-    log.info("done: %d active, %d fired, %d delivered", len(alerts), len(fires), delivered)
+    log.info("done: %d alerts, %d fired, %d delivered", len(alerts), len(fires), delivered)
     return {"success": True, "alerts": len(alerts), "fired": len(fires), "delivered": delivered}
 
 

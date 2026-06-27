@@ -9112,15 +9112,41 @@ _ALERT_HELP = {
 }
 
 
-def create_price_alert(user_id, ticker, kind, threshold=None) -> bool:
+def _ticker_in_universe(tk: str) -> bool:
+    """True if the ticker is part of the QNTM universe (the sector map), with a
+    signal_log fallback. Used to reject typos before an alert is created."""
+    tk = (tk or "").upper().strip()
+    if not tk:
+        return False
+    try:
+        from model_engine import SECTORS
+        if tk in SECTORS:
+            return True
+    except Exception:
+        pass
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if sb:
+            r = (sb.table("signal_log").select("ticker").eq("ticker", tk)
+                 .limit(1).execute().data or [])
+            return bool(r)
+    except Exception:
+        pass
+    return False
+
+
+def create_price_alert(user_id, ticker, kind, threshold=None, scope="ticker") -> bool:
     try:
         from data_refresh import _get_supabase
         sb = _get_supabase()
         if not sb:
             return False
         sb.table("price_alerts").insert({
-            "user_id": user_id, "ticker": (ticker or "").upper().strip(),
-            "kind": kind, "threshold": threshold, "active": True, "armed": True,
+            "user_id": user_id,
+            "ticker": (ticker or "").upper().strip() or None,
+            "kind": kind, "threshold": threshold, "scope": scope,
+            "active": True, "armed": True,
         }).execute()
         return True
     except Exception:
@@ -9147,6 +9173,10 @@ def delete_price_alert(alert_id) -> bool:
         if not sb:
             return False
         sb.table("price_alerts").delete().eq("id", alert_id).execute()
+        try:
+            sb.table("price_alert_state").delete().eq("alert_id", alert_id).execute()
+        except Exception:
+            pass  # state table is best-effort; orphan rows are harmless
         return True
     except Exception:
         return False
@@ -9316,11 +9346,14 @@ def page_alerts():
                 'number is verified in Account.</div>', unsafe_allow_html=True)
 
     with st.expander("＋ Create an alert", expanded=False):
-        _ac1, _ac2 = st.columns([1, 1.5])
-        with _ac1:
+        _SCOPES = [("ticker", "This ticker"), ("watchlist", "Any stock on my watchlist"),
+                   ("portfolio", "Any stock in my portfolio"), ("model", "Any stock in the model portfolio")]
+        _scope_label = st.selectbox("Apply to", [lbl for _, lbl in _SCOPES], key="al_new_scope")
+        _al_scope = next(s for s, lbl in _SCOPES if lbl == _scope_label)
+        _al_tk = ""
+        if _al_scope == "ticker":
             _al_tk = st.text_input("Ticker", key="al_new_tk", placeholder="e.g. TIGO")
-        with _ac2:
-            _al_kind_label = st.selectbox("Trigger", [lbl for _, lbl in ALERT_KINDS], key="al_new_kind")
+        _al_kind_label = st.selectbox("Trigger", [lbl for _, lbl in ALERT_KINDS], key="al_new_kind")
         _al_kind = next(k for k, lbl in ALERT_KINDS if lbl == _al_kind_label)
         _al_th = None
         if _al_kind in ("value_lower", "value_upper"):
@@ -9329,17 +9362,26 @@ def page_alerts():
         elif _al_kind in ("price_below", "price_above"):
             _al_th = st.number_input("Price ($)", min_value=0.0, value=0.0, step=1.0,
                                      format="%.2f", key="al_new_th_p")
-        st.caption(_ALERT_HELP.get(_al_kind, ""))
+        _scope_note = "" if _al_scope == "ticker" else " (price thresholds aren't available for collections)"
+        st.caption(_ALERT_HELP.get(_al_kind, "") + _scope_note)
         if st.button("Create alert", key="al_create", type="primary"):
             _tk = (_al_tk or "").upper().strip()
-            if not _tk:
+            _is_price = _al_kind in ("price_below", "price_above")
+            if _al_scope != "ticker" and _is_price:
+                st.error("Price alerts apply to a single ticker — pick 'This ticker', "
+                         "or choose a value/conviction trigger for a collection.")
+            elif _al_scope == "ticker" and not _tk:
                 st.error("Enter a ticker.")
-            elif _al_kind in ("price_below", "price_above") and (not _al_th or _al_th <= 0):
+            elif _al_scope == "ticker" and not _ticker_in_universe(_tk):
+                st.error(f"'{_tk}' isn't in the QNTM universe. Check the symbol and try again.")
+            elif _is_price and (not _al_th or _al_th <= 0):
                 st.error("Enter a price above 0.")
             else:
                 _th = float(_al_th) if _al_kind in ("value_lower", "value_upper", "price_below", "price_above") else None
-                if create_price_alert(uid(), _tk, _al_kind, _th):
-                    st.success(f"Alert set — {_tk}: {_al_kind_label.lower()}.")
+                if create_price_alert(uid(), _tk if _al_scope == "ticker" else None,
+                                      _al_kind, _th, scope=_al_scope):
+                    _what = _tk if _al_scope == "ticker" else _scope_label.lower()
+                    st.success(f"Alert set — {_what}: {_al_kind_label.lower()}.")
                     st.rerun()
                 else:
                     st.error("Could not create alert — try again.")
@@ -9360,11 +9402,15 @@ def page_alerts():
             _statc = "#34d399" if _act else "#8896ac"
             _state = "Active" if _act else "Paused"
             _last = str(a.get("last_triggered_at") or "")[:16].replace("T", " ")
+            _scope = a.get("scope") or "ticker"
+            _SCOPE_TITLE = {"watchlist": "My Watchlist", "portfolio": "My Portfolio",
+                            "model": "Model Portfolio"}
+            _title = a.get("ticker") if _scope == "ticker" else _SCOPE_TITLE.get(_scope, _scope)
             _r1, _r2, _r3 = st.columns([5, 1, 1])
             with _r1:
                 st.markdown(
                     '<div style="padding:8px 0;">'
-                    f'<span style="font-family:Syne,sans-serif;font-weight:800;color:#e2e8f0;">{a.get("ticker")}</span> '
+                    f'<span style="font-family:Syne,sans-serif;font-weight:800;color:#e2e8f0;">{_title}</span> '
                     f'<span style="color:#b3bed0;font-size:13px;">— {_lbl}{_thtxt}</span> '
                     f'<span style="color:{_statc};font-size:12px;font-family:DM Mono,monospace;">· {_state}</span>'
                     + (f'<span style="color:#8896ac;font-size:12px;font-family:DM Mono,monospace;"> · last fired {_last}</span>' if _last else "")
@@ -10129,7 +10175,7 @@ def page_account():
                         st.session_state.user["phone_verified"] = _ph_ok
             except Exception:
                 pass
-            if pas_on or _ph_cur:
+            if True:  # phone capture always visible so it's discoverable
                 if _ph_ok:
                     st.markdown(
                         f'<div style="font-size:13px;color:#34d399;margin:8px 0 4px;">'
@@ -10137,6 +10183,12 @@ def page_account():
                     if st.button("Change number", key="ph_change"):
                         st.session_state["_ph_changing"] = True
                 if (not _ph_ok) or st.session_state.get("_ph_changing"):
+                    st.markdown(
+                        '<div style="font-size:13px;color:#9fabc0;margin:6px 0 2px;line-height:1.6;">'
+                        'Add a mobile number to receive alert texts. By verifying, you consent to '
+                        'receive automated SMS alerts you configure from QNTM at this number. Msg &amp; '
+                        'data rates may apply; reply STOP to cancel, HELP for help.</div>',
+                        unsafe_allow_html=True)
                     _pc1, _pc2 = st.columns([2, 1])
                     with _pc1:
                         _ph_in = st.text_input("Mobile number", value=_ph_cur,
