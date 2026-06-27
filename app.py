@@ -1470,6 +1470,33 @@ def _signal_log_map(tickers_key: tuple) -> dict:
         return {}
 
 
+def _attach_value_band(rows: list) -> list:
+    """Attach val_low/val_high/value_position/val_basis to rows that lack them,
+    pulled from the latest signal_log snapshot via the cached _signal_log_map.
+    Used by live-scored card paths (e.g. single-ticker search) that build rows
+    through score_stock/apply_macro_overlay and so bypass enrich_with_signal_log.
+    Rows that already carry a band are left untouched. Best-effort; never raises."""
+    try:
+        if not rows:
+            return rows
+        need = [r for r in rows if r.get("val_basis") is None]
+        if not need:
+            return rows
+        tks = tuple(sorted({r["ticker"] for r in need if r.get("ticker")}))
+        if not tks:
+            return rows
+        m = _signal_log_map(tks)
+        for r in need:
+            db = m.get(r.get("ticker"))
+            if db:
+                for f in ("val_low", "val_high", "value_position", "val_basis"):
+                    if db.get(f) is not None:
+                        r[f] = db[f]
+    except Exception:
+        pass
+    return rows
+
+
 def enrich_with_signal_log(results: list) -> list:
     """
     Replaces model-computed scores with latest signal_log values from Supabase.
@@ -3781,6 +3808,7 @@ def _render_stock_result(ticker: str, nav: str = "screener", wl_actions: bool = 
                 scored["sector"] = SECTORS.get(resolved_tk, "Unknown")
                 macro = st.session_state.get("macro_data") or _live_macro()
                 sr = apply_macro_overlay([scored], macro)[0]
+                _attach_value_band([sr])   # band lives in signal_log, not the live score
                 if sr.get("promoted"):
                     regime = macro.get("regime", "NEUTRAL")
                     eff = 62 if regime in ("RISK_OFF", "HIGH VOLATILITY") else 60
@@ -6158,6 +6186,7 @@ def page_screener():
                     macro = st.session_state.get("macro_data") or _live_macro()
                     scored_list = apply_macro_overlay([scored], macro)
                     sr = scored_list[0]
+                    _attach_value_band([sr])   # band lives in signal_log, not the live score
                     if sr.get("promoted"):
                         from model_engine import EXIT_THRESHOLD
                         regime = macro.get("regime","NEUTRAL")
