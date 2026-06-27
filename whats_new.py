@@ -25,6 +25,34 @@ Format (newest first):
 
 WHATS_NEW = [
     {
+        "id":    "2026-06-27.3",
+        "date":  "Jun 27, 2026",
+        "tag":   "new",
+        "title": "Custom price, value & conviction alerts",
+        "body":  "Get notified when a stock hits a price you set, moves into its "
+                 "cheap or expensive valuation zone, or its conviction crosses "
+                 "high or low. Alerts arrive in-app and by email. Set them on the "
+                 "new Alerts page, or for a whole watchlist or portfolio at once.",
+    },
+    {
+        "id":    "2026-06-27.2",
+        "date":  "Jun 27, 2026",
+        "tag":   "new",
+        "title": "Weekly recap email",
+        "body":  "Opt into a Saturday email that recaps the week across your "
+                 "watchlist and the broader market, including the macro backdrop "
+                 "behind the moves. Turn it on in Account \u2192 Notifications.",
+    },
+    {
+        "id":    "2026-06-27.1",
+        "date":  "Jun 27, 2026",
+        "tag":   "improved",
+        "title": "Valuation range on every card",
+        "body":  "Each stock now shows where it trades within its peer valuation "
+                 "band \u2014 a quick read on whether it looks cheap or rich \u2014 "
+                 "across the screener, watchlist, portfolio and search.",
+    },
+    {
         "id":    "2026-06-23.2",
         "date":  "Jun 23, 2026",
         "tag":   "new",
