@@ -5215,6 +5215,45 @@ body { background-color: #0a0b14 !important; }
         </div>
       </div>"""
 
+    # ── OUTCOME FRAMING — what each tier is FOR (sits above the feature cards) ──
+    _outcomes = [
+        ("Discover ideas — Top 10, screener, conviction", "Find more — Hidden Gems + the full universe"),
+        ("Read the Saturday recap",                       "Intraday price, value &amp; conviction alerts"),
+        ("See the model\u2019s holdings",                 "Simulate &amp; stress-test your own allocations"),
+        ("Track 10 positions",                            "Track your whole portfolio, unlimited"),
+        ("You watch the market",                          "QNTM watches it for you"),
+    ]
+    _oc_rows = ""
+    for _fo, _po in _outcomes:
+        _oc_rows += (
+            '<tr>'
+            f'<td style="padding:11px 14px;font-size:13px;color:#9fabc0;border-bottom:1px solid rgba(255,255,255,.05);'
+            'vertical-align:top;width:50%;">'
+            f'<span style="color:#5b6678;">○</span>&nbsp; {_fo}</td>'
+            f'<td style="padding:11px 14px;font-size:13px;color:#e2e4f0;border-bottom:1px solid rgba(255,255,255,.05);'
+            'border-left:1px solid rgba(212,168,67,.18);vertical-align:top;width:50%;">'
+            f'<span style="color:#1D9E75;">●</span>&nbsp; {_po}</td>'
+            '</tr>'
+        )
+    _outcome_html = (
+        '<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:20px;">'
+        '<div style="max-width:760px;margin:0 auto;border:1px solid rgba(255,255,255,.08);'
+        'border-radius:10px;overflow:hidden;background:#0a0b14;">'
+        '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'
+        '<thead><tr>'
+        '<th style="padding:10px 14px;text-align:left;font-family:DM Mono,monospace;font-size:13px;'
+        'letter-spacing:.08em;color:#9fabc0;border-bottom:1px solid rgba(255,255,255,.1);">FREE · see it work</th>'
+        '<th style="padding:10px 14px;text-align:left;font-family:DM Mono,monospace;font-size:13px;'
+        'letter-spacing:.08em;color:#d4a843;border-bottom:1px solid rgba(255,255,255,.1);'
+        'border-left:1px solid rgba(212,168,67,.18);">PRO · make it routine</th>'
+        '</tr></thead>'
+        f'<tbody>{_oc_rows}</tbody></table></div>'
+        '<div style="max-width:760px;margin:8px auto 0;font-size:12px;color:#8896ac;text-align:center;">'
+        'Everything you need to trust the model is free. Pro is for when you want it working in the background.</div>'
+        '</div>'
+    )
+    st.markdown(_outcome_html, unsafe_allow_html=True)
+
     st.markdown(
         f'<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:16px;">'
         f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:760px;margin:0 auto;">'
@@ -7357,6 +7396,40 @@ def _gem_why_tags(r: dict) -> list:
     return tags[:3]
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def _gems_teaser():
+    """For the free Hidden Gems lock: today's REAL gem count + a few blurred teasers
+    (fundamental reason only, no ticker), so the gate sells current value instead of
+    a static example. Returns (count, [{reason, cap}, ...]). Best-effort; (0, []) on
+    any failure. Cheap signal_log read — no scan."""
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return 0, []
+        md = (sb.table("signal_log").select("signal_date")
+              .order("signal_date", desc=True).limit(1).execute().data)
+        if not md:
+            return 0, []
+        sd = md[0]["signal_date"]
+        rows = (sb.table("signal_log")
+                .select("ticker,hidden_gem_reason,mktcap,adj_composite")
+                .eq("signal_date", sd).eq("is_hidden_gem", True)
+                .order("adj_composite", desc=True).execute().data or [])
+        cap_lbl = {"large": "Large cap", "mid": "Mid cap", "small": "Small cap"}
+        peek = []
+        for r in rows:
+            reason = (r.get("hidden_gem_reason") or "").strip()
+            if reason:
+                peek.append({"reason": reason,
+                             "cap": cap_lbl.get(str(r.get("mktcap") or "").strip().lower(), "")})
+            if len(peek) >= 4:
+                break
+        return len(rows), peek
+    except Exception:
+        return 0, []
+
+
 def page_gems():
     _pin_nav("gems")
     page_summary(
@@ -7365,25 +7438,47 @@ def page_gems():
     )
 
     if not is_pro():
-        st.markdown("""
-        <div style="margin:0 32px;background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.2);
-             border-radius:8px;padding:28px 24px;text-align:center;">
-          <div style="font-size:48px;margin-bottom:16px;">🔒</div>
-          <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
-               color:#34d399;margin-bottom:12px;">Founding Member Feature</div>
-          <div style="color:#9fabc0;max-width:480px;margin:0 auto;line-height:1.7;margin-bottom:24px;">
-            Hidden Gem detection is free for the first 50 founding members.
-            These are mid- and small-cap stocks with institutional-grade factor scores that
-            fly under Wall Street's radar — the ones that show up before the crowd notices.
-          </div>
-          <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.3);
-               border-radius:6px;padding:16px 24px;display:inline-block;margin-bottom:24px;">
-            <div style="font-family:'DM Mono',monospace;font-size:13px;color:#34d399;">
-              🎯 Preview: CELH — Revenue +62% YoY · Earnings +148% · Beat 4/4 quarters
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        _gem_n, _gem_peek = _gems_teaser()
+        if _gem_n and _gem_peek:
+            # Live tease: today's real gem count + blurred names with real reasons.
+            _peek_rows = ""
+            for p in _gem_peek:
+                _cap = (f'<span style="color:#8896ac;font-size:11px;white-space:nowrap;"> · {p["cap"]}</span>'
+                        if p["cap"] else "")
+                _peek_rows += (
+                    '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;'
+                    'background:rgba(52,211,153,.05);border:1px solid rgba(52,211,153,.14);'
+                    'border-radius:6px;margin-bottom:6px;text-align:left;">'
+                    '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px;color:#e2e8f0;'
+                    'filter:blur(5px);-webkit-filter:blur(5px);user-select:none;flex-shrink:0;">XXXX</span>'
+                    f'<span style="font-size:12px;color:#b3bed0;line-height:1.4;">{p["reason"]}{_cap}</span></div>'
+                )
+            _gem_inner = (
+                f'<div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#34d399;'
+                f'margin-bottom:8px;">{_gem_n} hidden {"gem" if _gem_n == 1 else "gems"} live right now</div>'
+                '<div style="color:#9fabc0;max-width:480px;margin:0 auto 18px;line-height:1.7;">'
+                'Mid- and small-cap names clearing the high-conviction threshold that fly under Wall '
+                'Street\u2019s radar. Here\u2019s a peek at today\u2019s list \u2014 unlock to see the '
+                'names, scores and full rationale.</div>'
+                f'<div style="max-width:420px;margin:0 auto;">{_peek_rows}</div>'
+            )
+        else:
+            # Fallback when the teaser can't load (e.g. no gems today / read failed).
+            _gem_inner = (
+                '<div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#34d399;'
+                'margin-bottom:12px;">Founding Member Feature</div>'
+                '<div style="color:#9fabc0;max-width:480px;margin:0 auto;line-height:1.7;">'
+                'Hidden Gem detection is free for the first 50 founding members. These are mid- and '
+                'small-cap stocks with institutional-grade factor scores that fly under Wall Street\u2019s '
+                'radar \u2014 the ones that show up before the crowd notices.</div>'
+            )
+        st.markdown(
+            '<div style="margin:0 32px;background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.2);'
+            'border-radius:8px;padding:28px 24px;text-align:center;">'
+            '<div style="font-size:48px;margin-bottom:16px;">🔒</div>'
+            + _gem_inner +
+            '</div>',
+            unsafe_allow_html=True)
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Join Founding Members — Unlock Now", _upgrade_url("Hidden Gems", "gems")), unsafe_allow_html=True)
         else:
