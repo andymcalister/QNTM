@@ -72,6 +72,24 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.9"
 
+  # ── Weekly digest email ─────────────────────────────────────────────────────
+  # Saturday ~9am ET recap: SPY for the week, biggest movers on the user's lists,
+  # watchlist + portfolio weekly moves (and model-vs-SPY when DIGEST_PERFORMANCE=1
+  # and the performance language has cleared compliance). Uses the existing
+  # SENDGRID_* config. Same secrets.toml Secret File required.
+  - type: cron
+    name: qntm-weekly-digest
+    runtime: python
+    plan: starter
+    region: oregon
+    branch: main
+    schedule: "0 14 * * 6"
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python weekly_digest.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
 
 # ── Optional: a separate dev service tracking the `dev` branch ───────────────
 # Uncomment to mirror your dev/prod split on Render (adds another $7/mo).
