@@ -1491,7 +1491,8 @@ def enrich_with_signal_log(results: list) -> list:
                 # Always use DB scores — they come from the nightly cron
                 for field in ["adj_composite","composite","momentum","quality",
                                "volume","value","sentiment","price","signal_date",
-                               "is_hidden_gem","hidden_gem_reason"]:
+                               "is_hidden_gem","hidden_gem_reason",
+                               "val_low","val_high","value_position","val_basis"]:
                     if db.get(field) is not None:
                         r[field] = db[field]
                 if db.get("signal_date"):
