@@ -1405,6 +1405,12 @@ def finalize_scores_from_signal_log(results: list, macro_data: dict = None) -> l
             s["adj_action"] = "BUY"
             s["promoted"]   = True
 
+    # Standard card field set for every finalize-based surface (screener, gems,
+    # portfolio, simulator pre-load): ensure sector, cap bucket and the valuation
+    # band are present. Fill-if-missing and the signal_log fetch is already cached
+    # from enrich, so this is a no-op cost on the hot screener path.
+    hydrate_card_rows(results)
+
     return results
 
 
@@ -1430,7 +1436,7 @@ def _signal_log_map(tickers_key: tuple) -> dict:
         # then keep only the requested tickers.
         rows_data = _fetch_all_rows(lambda: sb.table("signal_log")
             .select("ticker,signal_date,adj_composite,composite,signal,"
-                    "momentum,quality,volume,value,sentiment,price,"
+                    "momentum,quality,volume,value,sentiment,price,mktcap,"
                     "is_hidden_gem,hidden_gem_reason,"
                     "val_low,val_high,value_position,val_basis")
             .gte("signal_date", _since)
@@ -1470,28 +1476,42 @@ def _signal_log_map(tickers_key: tuple) -> dict:
         return {}
 
 
-def _attach_value_band(rows: list) -> list:
-    """Attach val_low/val_high/value_position/val_basis to rows that lack them,
-    pulled from the latest signal_log snapshot via the cached _signal_log_map.
-    Used by live-scored card paths (e.g. single-ticker search) that build rows
-    through score_stock/apply_macro_overlay and so bypass enrich_with_signal_log.
-    Rows that already carry a band are left untouched. Best-effort; never raises."""
+def hydrate_card_rows(rows: list) -> list:
+    """Canonical card-row standardizer — the single contract for every expanded
+    stock card in the app (screener, watchlist, portfolio, model portfolio,
+    simulator, search). Guarantees each row carries the full display field set:
+    sector, market-cap bucket (cap badge), the valuation band (val_low/val_high/
+    value_position/val_basis), pillars, composite/adj_composite, price and
+    signal_date — by FILLING ANY MISSING field from the latest signal_log
+    snapshot (cached via _signal_log_map) and the in-memory sector map.
+
+    Fill-if-absent only: values already present on the row (a surface's live
+    price, entry context, recomputed action) are never overwritten, so live and
+    position data survive. Best-effort; never raises. Call once per surface on
+    the assembled row list (not per card) to keep it to a single cached fetch."""
     try:
         if not rows:
             return rows
-        need = [r for r in rows if r.get("val_basis") is None]
-        if not need:
-            return rows
-        tks = tuple(sorted({r["ticker"] for r in need if r.get("ticker")}))
-        if not tks:
-            return rows
-        m = _signal_log_map(tks)
-        for r in need:
-            db = m.get(r.get("ticker"))
-            if db:
-                for f in ("val_low", "val_high", "value_position", "val_basis"):
-                    if db.get(f) is not None:
-                        r[f] = db[f]
+        try:
+            from model_engine import SECTORS as _SEC
+        except Exception:
+            _SEC = {}
+        tks = tuple(sorted({r["ticker"] for r in rows if r.get("ticker")}))
+        m = _signal_log_map(tks) if tks else {}
+        _FILL = ("adj_composite", "composite", "momentum", "quality", "volume",
+                 "value", "sentiment", "price", "signal_date", "is_hidden_gem",
+                 "hidden_gem_reason", "mktcap",
+                 "val_low", "val_high", "value_position", "val_basis")
+        for r in rows:
+            tk = r.get("ticker")
+            db = m.get(tk, {}) if tk else {}
+            for f in _FILL:
+                if r.get(f) is None and db.get(f) is not None:
+                    r[f] = db[f]
+            if not r.get("sector") and tk:
+                _s = _SEC.get(tk)
+                if _s:
+                    r["sector"] = _s
     except Exception:
         pass
     return rows
@@ -1518,7 +1538,7 @@ def enrich_with_signal_log(results: list) -> list:
                 # Always use DB scores — they come from the nightly cron
                 for field in ["adj_composite","composite","momentum","quality",
                                "volume","value","sentiment","price","signal_date",
-                               "is_hidden_gem","hidden_gem_reason",
+                               "is_hidden_gem","hidden_gem_reason","mktcap",
                                "val_low","val_high","value_position","val_basis"]:
                     if db.get(field) is not None:
                         r[field] = db[field]
@@ -3808,7 +3828,7 @@ def _render_stock_result(ticker: str, nav: str = "screener", wl_actions: bool = 
                 scored["sector"] = SECTORS.get(resolved_tk, "Unknown")
                 macro = st.session_state.get("macro_data") or _live_macro()
                 sr = apply_macro_overlay([scored], macro)[0]
-                _attach_value_band([sr])   # band lives in signal_log, not the live score
+                hydrate_card_rows([sr])   # standard card fields: sector, cap, band
                 if sr.get("promoted"):
                     regime = macro.get("regime", "NEUTRAL")
                     eff = 62 if regime in ("RISK_OFF", "HIGH VOLATILITY") else 60
@@ -6186,7 +6206,7 @@ def page_screener():
                     macro = st.session_state.get("macro_data") or _live_macro()
                     scored_list = apply_macro_overlay([scored], macro)
                     sr = scored_list[0]
-                    _attach_value_band([sr])   # band lives in signal_log, not the live score
+                    hydrate_card_rows([sr])   # standard card fields: sector, cap, band
                     if sr.get("promoted"):
                         from model_engine import EXIT_THRESHOLD
                         regime = macro.get("regime","NEUTRAL")
@@ -7059,6 +7079,10 @@ def page_watchlist():
         else:
             sc = {"ticker":tk,"adj_action":"N/A","adj_composite":0,"composite":0,
                   "momentum":0,"quality":0,"volume":0,"value":0,"sentiment":0,"score_delta":0}
+        # Standard card field set: stamp sector (signal_log carries no sector
+        # column) so the meta line reads "$price · date · Sector" like the screener.
+        sc["ticker"] = tk
+        sc["sector"] = sc.get("sector") or _WL_SECTORS.get(tk, "")
         ci = get_company_info(tk)
         # ── P&L strip: always two columns (SINCE ADDED + TODAY) for a uniform
         #    layout across every card; missing data shows "—" rather than
@@ -8619,7 +8643,7 @@ def page_simulator():
                 _sb = _sim_sb()
                 if _sb:
                     _resp = _sb.table("signal_log") \
-                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
+                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date,mktcap,val_low,val_high,value_position,val_basis") \
                         .order("signal_date", desc=True) \
                         .limit(5000) \
                         .execute()
@@ -8671,7 +8695,9 @@ def page_simulator():
 
     if "sim_profile" not in st.session_state:
         st.session_state.sim_profile = "MEDIUM"
-    if "sim_selected" not in st.session_state or st.session_state.get("sim_profile_applied") != st.session_state.sim_profile:
+    if ("sim_selected" not in st.session_state
+            or st.session_state.get("sim_profile_applied") != st.session_state.sim_profile
+            or (not st.session_state.get("sim_selected") and all_buys)):
         st.session_state.sim_selected = profile_tickers(st.session_state.sim_profile)
         st.session_state.sim_weights  = {}
         st.session_state.sim_profile_applied = st.session_state.sim_profile
@@ -10218,7 +10244,7 @@ def page_model_portfolio():
     if sb:
         try:
             tickers = [p["ticker"] for p in positions]
-            sig_resp = sb.table("signal_log")                 .select("ticker,price,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,is_hidden_gem")                 .in_("ticker", tickers)                 .order("signal_date", desc=True)                 .limit(len(tickers) * 3)                 .execute()
+            sig_resp = sb.table("signal_log")                 .select("ticker,price,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,is_hidden_gem,mktcap,val_low,val_high,value_position,val_basis")                 .in_("ticker", tickers)                 .order("signal_date", desc=True)                 .limit(len(tickers) * 3)                 .execute()
             # Take most recent row per ticker
             seen = set()
             for row in (sig_resp.data or []):
@@ -10228,7 +10254,7 @@ def page_model_portfolio():
                     # Merge into score_map — signal_log wins over stale session state
                     if tk not in score_map:
                         score_map[tk] = {}
-                    for field in ["price","adj_composite","composite","signal","momentum","quality","volume","value","sentiment","is_hidden_gem","hidden_gem_reason"]:
+                    for field in ["price","adj_composite","composite","signal","momentum","quality","volume","value","sentiment","is_hidden_gem","hidden_gem_reason","mktcap","val_low","val_high","value_position","val_basis"]:
                         if row.get(field) is not None:
                             score_map[tk][field] = row[field]
         except Exception:
@@ -11727,7 +11753,7 @@ def main():
                 _sb2 = _sim_sb2()
                 if _sb2:
                     _resp2 = _sb2.table("signal_log") \
-                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date") \
+                        .select("ticker,adj_composite,composite,signal,momentum,quality,volume,value,sentiment,price,signal_date,mktcap,val_low,val_high,value_position,val_basis") \
                         .order("signal_date", desc=True) \
                         .limit(5000) \
                         .execute()
