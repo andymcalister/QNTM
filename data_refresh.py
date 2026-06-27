@@ -431,7 +431,11 @@ def write_valuation_history(live_data: dict) -> bool:
     def _num(x):
         try:
             x = float(x)
-            return round(x, 3) if x == x else None   # drop NaN
+            # Reject NaN (x != x) AND infinities — neither is JSON-compliant and
+            # yfinance returns inf for some multiples (e.g. div-by-zero book value).
+            if x != x or x in (float("inf"), float("-inf")):
+                return None
+            return round(x, 3)
         except (TypeError, ValueError):
             return None
 
@@ -669,6 +673,43 @@ def load_cached_scores(max_age_hours: int = STALE_HOURS) -> list:
         return []
 
 
+def _entry_val_pos(r):
+    """Position of price within a stock's valuation range, 0-100 (low = cheap).
+    Prefers live price vs the stored band; falls back to stored value_position;
+    None when the row carries no usable range (val_basis 'na')."""
+    if (r.get("val_basis") or "na") == "na":
+        return None
+    lo, hi, pr = r.get("val_low"), r.get("val_high"), r.get("price")
+    try:
+        lo, hi = float(lo), float(hi)
+        if pr is not None and hi > lo:
+            return max(0.0, min(100.0, (float(pr) - lo) / (hi - lo) * 100.0))
+    except (TypeError, ValueError):
+        pass
+    vp = r.get("value_position")
+    try:
+        return max(0.0, min(100.0, float(vp))) if vp is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+# Model-portfolio entry blend — mirrors the screener Top-10 logic: conviction is
+# the primary driver, valuation position adds a real tilt. When a slot opens we
+# fill it with the highest-conviction stock that is ALSO trading cheap in its
+# range, rather than the highest raw score regardless of price. The High
+# Conviction gate (>=60) is unchanged — the blend only reorders WITHIN the
+# eligible pool. Names with no valuation range get a neutral 50.
+_ENTRY_CONV_W, _ENTRY_VALUE_W = 0.65, 0.35
+
+
+def _entry_blend_score(r):
+    """Higher = better model-portfolio entrant: high conviction AND cheap."""
+    conv = float(r.get("adj_composite", r.get("composite", 0)) or 0)
+    vp = _entry_val_pos(r)
+    cheap = (100.0 - vp) if vp is not None else 50.0
+    return _ENTRY_CONV_W * conv + _ENTRY_VALUE_W * cheap
+
+
 def update_model_portfolio(scored_list: list) -> None:
     """
     Model portfolio maintenance — runs nightly AND intraday.
@@ -817,13 +858,16 @@ def update_model_portfolio(scored_list: list) -> None:
                      f"{len(exited)} exited this run")
             return
 
-        # Rank all High Conviction stocks not already held
+        # Rank High Conviction stocks (>=60) not already held by the blend:
+        # conviction primary, valuation position as the tie-breaking tilt — so an
+        # opening slot is filled by the highest-conviction name trading cheapest
+        # in its range, not just the top raw score.
         candidates = sorted(
             [r for r in scored_list
              if float(r.get("adj_composite", r.get("composite", 0)) or 0) >= 60
              and r["ticker"] not in active_tickers
              and r.get("price")],
-            key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0),
+            key=_entry_blend_score,
             reverse=True
         )
 
@@ -853,7 +897,10 @@ def update_model_portfolio(scored_list: list) -> None:
             sector_counts[sec] = sector_counts.get(sec, 0) + 1
             active_tickers.add(tk)
             entered.append(tk)
-            log.info(f"[MODEL PORTFOLIO] ENTER {tk} ({sec}) @ ${r.get('price')} score={adj:.1f}")
+            _vp_log = _entry_val_pos(r)
+            _vp_str = "n/a" if _vp_log is None else f"{_vp_log:.0f}"
+            log.info(f"[MODEL PORTFOLIO] ENTER {tk} ({sec}) @ ${r.get('price')} "
+                     f"score={adj:.1f} val_pos={_vp_str} blend={_entry_blend_score(r):.1f}")
 
         remaining_open = slots_needed - len(entered)
         log.info(
