@@ -4984,7 +4984,7 @@ body { background-color: #0a0b14 !important; }
         Five pillars.<br><span style="color:#d4a843;">One conviction score.</span>
       </h2>
       <p style="color:#b3bed0;max-width:520px;margin-bottom:36px;line-height:1.7;">
-        36 factors scored weekly across 5 research-backed pillars — plus a 75/25 macro overlay.
+        36 factors scored daily across 5 research-backed pillars — plus a 75/25 macro overlay.
         The model tells you exactly what to enter, maintain, or exit. And why.
       </p>
     </div>
@@ -5031,6 +5031,45 @@ body { background-color: #0a0b14 !important; }
         unsafe_allow_html=True)
 
 
+    # ── BEYOND THE SCORE — newer capabilities, compact ────────────────────────
+    _beyond = [
+        ("Valuation range", "#34d399", "Every card shows where the price sits in its own value band — cheap or rich at a glance.", "Free"),
+        ("Weekly recap", "#34d399", "A Saturday email on your watchlist and the macro backdrop behind the week's moves.", "Free"),
+        ("Custom alerts", "#d4a843", "Price, valuation and conviction alerts — per stock, or a whole watchlist at once.", "Pro"),
+        ("Hidden Gems", "#d4a843", "Under-followed mid- and small-caps the model rates highly, surfaced fresh each scan.", "Pro"),
+    ]
+    _beyond_html = ""
+    for _bt, _bc, _bd, _btier in _beyond:
+        _tier_col = "#34d399" if _btier == "Free" else "#d4a843"
+        _beyond_html += (
+            f'<div style="background:#0e0f1a;border:1px solid rgba(255,255,255,.07);'
+            f'border-radius:8px;padding:16px 14px;min-width:0;">'
+            f'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">'
+            f'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:{_bc};">{_bt}</div>'
+            f'<span style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;letter-spacing:.08em;'
+            f'color:{_tier_col};border:1px solid {_tier_col}55;border-radius:4px;padding:1px 6px;">{_btier.upper()}</span>'
+            f'</div>'
+            f'<div style="font-size:13px;color:#b3bed0;line-height:1.6;">{_bd}</div>'
+            f'</div>'
+        )
+    st.markdown("""
+    <div class="land-divider" style="margin-top:16px;"></div>
+    <div class="land-section">
+      <div style="font-family:'DM Mono',monospace;font-size:13px;color:#d4a843;letter-spacing:.2em;margin-bottom:14px;">&mdash; BEYOND THE SCORE</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,42px);font-weight:800;
+           color:#fff;margin-bottom:10px;line-height:1.1;">
+        More than a screener.<br><span style="color:#d4a843;">A research routine.</span>
+      </h2>
+      <p style="color:#9fabc0;margin-bottom:24px;font-size:13px;">
+        The score is the start. Valuation context, a weekly recap, and alerts keep you on the names that matter &mdash; much of it free.
+      </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="width:100%;box-sizing:border-box;padding:0 16px;margin-bottom:24px;">'
+        f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">{_beyond_html}</div></div>',
+        unsafe_allow_html=True)
+
     # ── COMPETITOR MATRIX ─────────────────────────────────────────────────────
     st.markdown("""
     <div class="land-divider" style="margin-top:16px;"></div>
@@ -5049,27 +5088,34 @@ body { background-color: #0a0b14 !important; }
         if v == 0:  return '<span style="color:#E24B4A;font-size:15px;">&#10007;</span>'
         return '<span style="color:#f59e0b;font-size:13px;">partial</span>'
 
+    # QNTM split into Free vs Pro so the free tier's value shows against paid
+    # competitors. Free-column values come straight from the plan limits; existing
+    # competitor columns are unchanged (verified June 2026). NOTE: competitor cells
+    # on the three newer rows (valuation range, weekly recap, custom alerts) are
+    # estimates — verify before relying on them publicly.
     matrix_rows = [
-        ("Price / mo*",                  ["$29","$17","$25","$21","$30","$2,665"]),
-        ("Quant factor model",           [1, 0, 1, "p", "p", 1]),
-        ("Live macro regime overlay",    [1, 0, 0, 0, 0, 1]),
-        ("Multi-factor conviction score",[1, 0, 1, "p", "p", 1]),
-        ("Plain-English signal rationale",[1, 0, "p", "p", "p", 0]),
-        ("Hidden-gem detection",         [1, "p", 0, 0, 0, 0]),
-        ("Portfolio simulator",          [1, 0, 0, "p", "p", 1]),
-        ("Live model portfolio",         [1, "p", "p", 0, 0, 0]),
-        ("Daily signal refresh",         [1, 0, 1, "p", "p", 1]),
-        ("Full-universe screener",       [1, 0, 1, 1, 1, 1]),
-        ("Free tier",                    [1, 0, "p", "p", "p", 0]),
-        ("Mobile optimized",             [1, 1, 1, 1, 1, "p"]),
+        ("Price / mo*",                    ["$0","$29","$17","$25","$21","$30","$2,665"]),
+        ("Quant factor model",             [1, 1, 0, 1, "p", "p", 1]),
+        ("Live macro regime overlay",      [1, 1, 0, 0, 0, 0, 1]),
+        ("Multi-factor conviction score",  [1, 1, 0, 1, "p", "p", 1]),
+        ("Plain-English signal rationale", [1, 1, 0, "p", "p", "p", 0]),
+        ("Valuation range on every card",  [1, 1, 0, "p", 1, "p", 1]),
+        ("Weekly recap email",             [1, 1, 1, 1, "p", "p", 0]),
+        ("Live model portfolio",           [1, 1, "p", "p", 0, 0, 0]),
+        ("Daily signal refresh",           [1, 1, 0, 1, "p", "p", 1]),
+        ("Full-universe screener",         ["p", 1, 0, 1, 1, 1, 1]),
+        ("Hidden-gem detection",           [0, 1, "p", 0, 0, 0, 0]),
+        ("Portfolio simulator",            [0, 1, 0, 0, "p", "p", 1]),
+        ("Custom price & conviction alerts",[0, 1, 0, 1, "p", 1, 1]),
+        ("Mobile optimized",               [1, 1, 1, 1, 1, 1, "p"]),
     ]
 
-    cols_h = ["", "QNTM", "Motley Fool", "Seeking Alpha", "Morningstar", "TipRanks", "Bloomberg"]
-    col_w  = ["35%", "11%", "11%", "11%", "11%", "11%", "10%"]
+    cols_h = ["", "QNTM Free", "QNTM Pro", "Motley Fool", "Seeking Alpha", "Morningstar", "TipRanks", "Bloomberg"]
+    col_w  = ["25%", "11%", "11%", "11%", "11%", "10%", "10%", "11%"]
 
     header_html = "".join([
         f'<th style="width:{col_w[i]};padding:8px 6px;font-family:DM Mono,monospace;font-size:13px;'
-        f'color:{"#d4a843" if c=="QNTM" else "#9fabc0"};letter-spacing:.06em;'
+        f'color:{"#d4a843" if c.startswith("QNTM") else "#9fabc0"};letter-spacing:.06em;'
         f'text-align:{"left" if i==0 else "center"};border-bottom:1px solid rgba(255,255,255,.08);">'
         f'{c}</th>'
         for i,c in enumerate(cols_h)
@@ -5081,7 +5127,7 @@ body { background-color: #0a0b14 !important; }
         row = f'<tr style="background:{bg};">'
         row += f'<td style="padding:8px 6px;font-size:13px;color:#b3bed0;">{label}</td>'
         for ci, v in enumerate(vals):
-            is_qntm = ci == 0
+            is_qntm = ci <= 1
             if isinstance(v, str) and v.startswith("$"):
                 cell = f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{"#d4a843" if is_qntm else "#8896ac"};">{v}</span>'
             elif v == "p":
@@ -5095,7 +5141,7 @@ body { background-color: #0a0b14 !important; }
 
     matrix_html = (
         f'<div style="width:100%;box-sizing:border-box;padding:0 12px;margin-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-        f'<table style="width:100%;min-width:580px;border-collapse:collapse;background:#0a0b14;'
+        f'<table style="width:100%;min-width:680px;border-collapse:collapse;background:#0a0b14;'
         f'border:1px solid rgba(255,255,255,.07);border-radius:8px;overflow:hidden;">'
         f'<thead><tr>{header_html}</tr></thead>'
         f'<tbody>{rows_html}</tbody>'
@@ -5141,12 +5187,13 @@ body { background-color: #0a0b14 !important; }
         <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
           {feat_row(f"Screener — top 50 of {_universe_n()}")}
           {feat_row("HIGH / MOD / LOW conviction signals")}
-          {feat_row("5-pillar score breakdown")}
+          {feat_row("5-pillar breakdown + plain-English why")}
+          {feat_row("Valuation range on every card")}
           {feat_row("Live macro regime overlay")}
           {feat_row("Top 10 daily picks")}
+          {feat_row("Weekly recap email")}
           {feat_row("Portfolio tracking (10 positions)")}
           {feat_row("Live model portfolio (read only)")}
-          {feat_row("Transparent 5-factor model")}
         </div>
       </div>"""
 
@@ -5162,8 +5209,8 @@ body { background-color: #0a0b14 !important; }
           {feat_row("Unlimited portfolio positions", True)}
           {feat_row("Hidden Gems detection", True)}
           {feat_row("Portfolio Simulator (risk profiles)", True)}
-          {feat_row("Signal change alerts", True)}
-          {feat_row("Email notifications", True)}
+          {feat_row("Custom price, value &amp; conviction alerts", True)}
+          {feat_row("Intraday conviction-drop emails", True)}
           {feat_row("Founding member badge", True)}
         </div>
       </div>"""
@@ -6116,11 +6163,13 @@ def page_screener():
             'color:#cbd5e1;line-height:1.45;">'
             '<div><b style="color:#34d399;">1 · Screener</b> — you\'re here. Every stock ranked by '
             'conviction; start at the top and work down.</div>'
-            '<div><b style="color:#34d399;">2 · Open a stock</b> — tap any row for its plain-English '
-            'rationale and the five pillar scores behind the signal.</div>'
+            '<div><b style="color:#34d399;">2 · Open a stock</b> — its plain-English rationale, the five '
+            'pillar scores, and where the price sits in its value range.</div>'
             '<div><b style="color:#34d399;">3 · Watchlist</b> — star names to track them against the S&amp;P 500.</div>'
-            '<div><b style="color:#34d399;">4 · Hidden Gems</b> — strong scorers flying under Wall Street\'s radar.</div>'
-            '<div><b style="color:#34d399;">5 · Simulator &amp; Track Record</b> — test an allocation, '
+            '<div><b style="color:#34d399;">4 · Alerts &amp; weekly recap</b> — a free Saturday email, plus '
+            'price &amp; conviction alerts on the names you follow.</div>'
+            '<div><b style="color:#34d399;">5 · Hidden Gems</b> — strong scorers flying under Wall Street\'s radar.</div>'
+            '<div><b style="color:#34d399;">6 · Simulator &amp; Track Record</b> — test an allocation, '
             'then see the model\'s live performance.</div>'
             '</div>'
             f'<a href="{_wcta}" target="_self" style="display:inline-block;margin-top:16px;'
@@ -11453,13 +11502,14 @@ def page_methodology():
     sections = [
         ("Getting Started — Where to Begin", "#34d399",
          "New here? This is the path most users follow:\n\n"
-         "1. Screener — your home base. Every stock in the universe, ranked by conviction. Start at the top (High Conviction) and work down.\n"
-         "2. Open a stock — tap any row to see its plain-English rationale and the five pillar scores behind the signal.\n"
+         "1. Screener — your home base. Every stock, ranked by conviction. The Top 10 Signals view blends conviction with valuation, so high-conviction names trading cheap rise to the top.\n"
+         "2. Open a stock — tap any row for its plain-English rationale, the five pillar scores, and its valuation range: where today's price sits in the stock's own value band (◆ CHEAP or ◆ RICH).\n"
          "3. Watchlist — star the names you want to follow; they get a tracked view marked against the S&P 500.\n"
-         "4. Hidden Gems — strong-scoring names that fly under Wall Street's radar.\n"
-         "5. Portfolio Simulator — test a hypothetical allocation and see how the model scores it.\n"
-         "6. Portfolio & Track Record — the model's live, rules-based portfolio and its performance since inception.\n"
-         "7. Alerts — get notified when a stock's conviction changes (Pro).\n\n"
+         "4. Weekly recap — a free Saturday email summarising your watchlist and the macro backdrop. On by default; manage it in Account → Notifications.\n"
+         "5. Alerts — set price, valuation, or conviction alerts on a stock or a whole watchlist; they arrive in-app and by email (Pro).\n"
+         "6. Hidden Gems — strong-scoring names that fly under Wall Street's radar (Pro).\n"
+         "7. Portfolio Simulator — test a hypothetical allocation and see how the model scores it (Pro).\n"
+         "8. Portfolio & Track Record — the model's live, rules-based portfolio and its performance since inception.\n\n"
          "Throughout, the macro overlay at the top of the Screener tells you what regime the market is in "
          "and how it's shaping the scores. Everything below explains how those scores are built."),
 
@@ -11491,14 +11541,25 @@ def page_methodology():
          "Signals update nightly. In HIGH VOLATILITY regimes, conviction thresholds tighten — "
          "only scores ≥ 67 surface as High Conviction."),
 
+        ("Valuation Range & Value Position", "#34d399",
+         "Beyond conviction, every card shows where a stock trades inside its own valuation band, built "
+         "from its sector-relative multiples. Value position runs 0–100%: near 0% is the cheap end of its "
+         "range, near 100% the rich end.\n\n"
+         "• ◆ CHEAP — high conviction (≥ 60) AND trading in the bottom quarter of its range\n"
+         "• ◆ RICH — low conviction (< 45) AND trading in the top quarter of its range\n\n"
+         "The Top 10 Signals view blends conviction and value position (65/35) so a strong, well-priced "
+         "name outranks an equally strong but expensive one. Value position is descriptive context, not a "
+         "price target."),
+
         ("Macro Overlay", "#d4a843",
          "A live macro regime overlay adjusts composite scores based on current market conditions:\n\n"
          "• VIX level — real-time fear gauge via yfinance (updates every 15 minutes)\n"
          "• WTI crude price — oil spike detection via CL=F futures\n"
          "• News sentiment — 70+ headlines scanned from Yahoo Finance RSS and FRED\n"
          "• Active events — war escalation, tariff regimes, Fed policy, oil spikes\n\n"
-         "Weighting: 75% quant model / 25% macro overlay. In RISK OFF / HIGH VOLATILITY regimes, "
-         "macro dampening reduces adj_composite scores to reflect elevated systemic risk. "
+         "Weighting is regime-scaled: the macro overlay carries roughly 10–15% in calm, trending markets "
+         "and up to ~35% in risk-off / high-volatility regimes, where it dampens adj_composite scores to "
+         "reflect elevated systemic risk. The 75/25 figure shown on each card is the nominal blend label. "
          "Regime updates every 15 minutes during your session."),
 
         ("Hidden Gems", "#34d399",
@@ -11519,12 +11580,31 @@ def page_methodology():
          "signals, tracked daily from inception forward. A live record is short by nature. "
          "Past model performance does not guarantee future results."),
 
-        ("Scores & Alerts", "#d4a843",
-         "• Nightly refresh — full universe rescored each night via automated cron\n"
-         "• Daily signals — conviction scores are close-to-close; the macro overlay is the only intraday-moving input\n"
-         "• Signal alerts — Pro users receive notifications when watchlist stocks change conviction tier\n"
+        ("Refresh Cadence", "#d4a843",
+         "• Nightly refresh — the full universe is rescored each night (fundamentals + price) via automated cron\n"
+         "• Intraday — during market hours, prices, volume and the macro overlay update, and conviction is "
+         "re-evaluated on the names you hold or watch (this is what drives intraday alerts)\n"
          "• Macro regime — refreshed every 15 minutes from live VIX, WTI, and news feeds\n"
-         "• Platform stats — gem count, high/low conviction counts updated after each refresh"),
+         "• Platform stats — gem count and high / low conviction counts update after each refresh\n\n"
+         "The end-of-day signal is the primary one; intraday scores are more reactive because they run on "
+         "partial-day data."),
+
+        ("Alerts", "#34d399",
+         "Set alerts on any stock, or on a whole watchlist or portfolio at once (Pro):\n\n"
+         "• Price — when a stock crosses a level you set\n"
+         "• Valuation — when it moves into its cheap or expensive zone\n"
+         "• Conviction — when its HIGH / MODERATE / LOW tier changes\n\n"
+         "Alerts arrive in-app and by email. A separate intraday job watches the names you hold or watch and "
+         "emails you if conviction drops to LOW during market hours — confirmed across two consecutive "
+         "readings to suppress intraday noise. Manage everything in Account → Notifications."),
+
+        ("Weekly Digest", "#34d399",
+         "A free Saturday email recapping the week: the macro backdrop, sector rotation, the biggest movers "
+         "on your watchlist and portfolio, the model versus the S&P 500, and one opportunity of the week — "
+         "the highest-conviction name trading cheapest in its range. Each issue closes with a short QNTM 101 "
+         "explainer of how the model works.\n\n"
+         "It's on by default for every account, free and Pro alike; turn it off any time in Account → "
+         "Notifications. The digest is research and education, not a recommendation."),
 
         ("What QNTM Does NOT Do", "#f87171",
          "• QNTM does not provide personalized investment advice\n"
