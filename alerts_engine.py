@@ -249,7 +249,7 @@ def _collection_tickers(sb, scope, user_id):
                 from model_engine import MODEL_EPOCH
             except Exception:
                 MODEL_EPOCH = "live"
-            rows = (sb.table("model_portfolio").select("ticker")
+            rows = (sb.table("model_portfolio_positions").select("ticker")
                     .eq("is_active", True).eq("epoch", MODEL_EPOCH).execute().data or [])
         else:
             rows = []

@@ -9283,9 +9283,9 @@ def page_alerts():
 
     page_summary(
         "🔔", "Alerts",
-        "Signal changes on your holdings — the moment the model issues a HIGH or LOW conviction signal, you'll know. "
-        "Macro regime shifts (war, oil spikes, rate changes) trigger alerts too. "
-        "Pro members get email notifications on every signal change across their portfolio.",
+        "Set price, valuation-range, and conviction alerts on any stock — or across your whole "
+        "watchlist, portfolio, or the model portfolio. Alerts are delivered in-app and by email, "
+        "and by SMS once your number is verified in Account. Pro members also get the weekly recap email.",
 
     )
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
@@ -9345,6 +9345,34 @@ def page_alerts():
                 'price you set, or changes conviction. Delivered in-app and by email; SMS once your '
                 'number is verified in Account.</div>', unsafe_allow_html=True)
 
+    # ── Quick-setup helper: one-click common alerts ────────────────────────────
+    _existing = get_price_alerts(uid())
+    _have = {((a.get("scope") or "ticker"), a.get("kind"),
+              None if a.get("threshold") is None else float(a.get("threshold")))
+             for a in _existing}
+    _PRESETS = [
+        ("🟢  A watchlist stock gets cheap (lower range)", "watchlist", "value_lower", 20.0),
+        ("📉  A holding drops to LOW conviction",          "portfolio", "conviction_low", None),
+        ("📈  A watchlist stock hits HIGH conviction",     "watchlist", "conviction_high", None),
+        ("💎  A model name becomes a hidden gem",          "model",     "gem", None),
+    ]
+    st.markdown('<div style="font-size:13px;color:#9fabc0;margin:2px 0 6px;">'
+                'New here? Tap a common alert to set it up instantly:</div>',
+                unsafe_allow_html=True)
+    _pcol = st.columns(2)
+    for _i, (_plabel, _pscope, _pkind, _pth) in enumerate(_PRESETS):
+        with _pcol[_i % 2]:
+            _key = (_pscope, _pkind, _pth)
+            if _key in _have:
+                st.button(f"✓ {_plabel}", key=f"al_preset_{_i}", use_container_width=True, disabled=True)
+            elif st.button(_plabel, key=f"al_preset_{_i}", use_container_width=True):
+                if create_price_alert(uid(), None, _pkind, _pth, scope=_pscope):
+                    st.success("Alert set.")
+                    st.rerun()
+                else:
+                    st.error("Couldn't set that alert — try again.")
+    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+
     with st.expander("＋ Create an alert", expanded=False):
         _SCOPES = [("ticker", "This ticker"), ("watchlist", "Any stock on my watchlist"),
                    ("portfolio", "Any stock in my portfolio"), ("model", "Any stock in the model portfolio")]
@@ -9386,7 +9414,7 @@ def page_alerts():
                 else:
                     st.error("Could not create alert — try again.")
 
-    _my_alerts = get_price_alerts(uid())
+    _my_alerts = _existing
     if _my_alerts:
         for a in _my_alerts:
             _k = a.get("kind")
