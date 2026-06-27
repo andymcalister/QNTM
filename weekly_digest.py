@@ -816,6 +816,67 @@ def _whats_new_section(limit=3):
     return _section("New in QNTM", "".join(items))
 
 
+# ── QNTM 101 — short educational footer, rotates weekly ───────────────────────
+# Plain-language explainers of how QNTM's signals are built. Grounded in the real
+# methodology so each note teaches a concept AND demystifies the product. Purely
+# educational/general — never advice. One shows per send, cycling by ISO week so a
+# weekly reader sees a different concept each Saturday.
+_QNTM_101 = [
+    ("How conviction is scored",
+     "Conviction is one 0\u2013100 score that blends five factors \u2014 momentum, "
+     "quality, volume, value and sentiment \u2014 weighted toward momentum and "
+     "quality, the steadiest historical predictors. HIGH (\u226560) means several "
+     "factors line up at once, not just a hot price. A single strong factor rarely "
+     "clears the bar on its own."),
+    ("Why macro nudges some sectors and not others",
+     "On top of each stock's factor score, QNTM applies a macro overlay that tilts "
+     "whole sectors up or down based on the current regime \u2014 read from news, the "
+     "VIX, oil and rate expectations. A hawkish-rate read, for example, pressures "
+     "long-duration sectors like tech, REITs and utilities while helping banks. The "
+     "tilt is the same direction textbooks predict; QNTM just sizes it to the regime."),
+    ("The overlay leans harder when markets are stressed",
+     "The macro overlay isn't a fixed weight. In calm, trending markets the quant "
+     "factors lead and macro is dialed down to ~10\u201315%. When volatility spikes "
+     "(risk-off), the overlay gets more say \u2014 up to ~35% \u2014 because broad "
+     "regime moves matter more than single-stock factors during drawdowns."),
+    ("What 'value position' actually means",
+     "Value position shows where today's price sits inside a stock's own QNTM "
+     "valuation band: 0% is the cheap end, 100% the rich end. It's descriptive "
+     "context, not a price target. A high-conviction name at a low value position is "
+     "the model flagging strong factors AND an attractive price relative to its own range."),
+    ("Why a signal can change when the price barely moved",
+     "Conviction is recomputed daily on fresh data and it's relative across the whole "
+     "universe. A stock can slip from HIGH to MODERATE because its momentum cooled or "
+     "a macro headwind hit its sector \u2014 even if its share price hardly budged. "
+     "You're seeing a multi-factor ranking, not just a price chart."),
+    ("One reason the model caps each sector",
+     "The model portfolio never lets a single sector exceed ~30% of its positions. "
+     "It's a simple risk rule: if one macro shock hits, say, semiconductors, a capped "
+     "book takes a dent rather than a crater. Concentration is where a lot of avoidable "
+     "drawdown comes from \u2014 a principle any portfolio can borrow."),
+]
+
+
+def _education_note():
+    """A single QNTM 101 explainer, rotated by ISO week so it varies week to week."""
+    if not _QNTM_101:
+        return ""
+    try:
+        wk = datetime.now(timezone.utc).isocalendar()[1]
+    except Exception:
+        wk = 0
+    title, body = _QNTM_101[wk % len(_QNTM_101)]
+    return (
+        '<div style="border-top:1px solid #eee;margin:22px 0 0;padding-top:16px;">'
+        '<div style="font-size:10px;font-weight:800;letter-spacing:.08em;'
+        'text-transform:uppercase;color:#15a97a;margin-bottom:6px;">QNTM 101</div>'
+        f'<div style="font-size:14px;font-weight:700;color:#0a0b14;margin-bottom:4px;">{title}</div>'
+        f'<div style="font-size:13px;color:#555;line-height:1.65;">{body}</div>'
+        '<div style="font-size:11px;color:#aaa;margin-top:8px;">General education on how '
+        'QNTM\u2019s signals work \u2014 not investment advice.</div>'
+        '</div>')
+
+
 def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, uid=None):
     base = _app_url()
     # Tracked CTA: /?src=digest&du=<uid> lets the app log a 'digest_click' event
@@ -908,7 +969,8 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, 
         + f'<p style="margin:24px 0;"><a href="{cta}" style="display:inline-block;background:#15a97a;'
         'color:#fff;text-decoration:none;padding:12px 26px;border-radius:8px;font-weight:700;'
         'font-size:15px;">Open QNTM</a></p>'
-        '<p style="font-size:12px;color:#999;line-height:1.6;">Weekly moves are price changes over '
+        + _education_note()
+        + '<p style="font-size:12px;color:#999;line-height:1.6;">Weekly moves are price changes over '
         'roughly the last five trading days from QNTM\'s stored data. Conviction scores and the model '
         'portfolio are algorithmic outputs for research, not recommendations or personalized advice. '
         'The model portfolio is hypothetical and equal-weighted; past performance does not guarantee '
