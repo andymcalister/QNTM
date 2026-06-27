@@ -53,7 +53,14 @@ def _include_performance() -> bool:
 # ── Data ──────────────────────────────────────────────────────────────────────
 
 def recipients(sb):
-    """{user_id: email} for verified users opted into the weekly digest."""
+    """{user_id: email} for verified users opted into the weekly digest.
+
+    The weekly digest is a FREE feature — every plan is eligible. Gating:
+      • email_verified      — consent + deliverability.
+      • notifications.email — the weekly-digest preference (ON by default; users
+        opt OUT). Free and paid users both manage this in Account -> Notifications.
+    The single-recipient test path (run(only_email=...)) bypasses this gate.
+    """
     from db import decrypt_field
     try:
         users = sb.table("users").select(

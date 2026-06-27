@@ -272,7 +272,10 @@ def register_user(email: str, password: str, full_name: str) -> dict:
                 "plan":                  "free",
                 "mfa_enabled":           False,
                 "totp_secret_encrypted": None,
-                "notifications":         {"email": False, "signals": False, "alerts": False},
+                # Weekly digest defaults ON (opt-OUT). Safe for free signups: the
+                # digest sender (weekly_digest.recipients) only sends to paid +
+                # verified users, and they can disable it in Account -> Notifications.
+                "notifications":         {"email": True, "signals": False, "alerts": False},
                 "email_verified":        False,
                 "created_at":            datetime.now().isoformat(),
             }).execute()
@@ -295,7 +298,7 @@ def register_user(email: str, password: str, full_name: str) -> dict:
             "id": uid, "email": email, "full_name": full_name.strip(),
             "email_hash": email_hash, "password_hash": pw_hash,
             "plan": "free", "mfa_enabled": False, "totp_secret": None,
-            "notifications": {"email": False, "signals": False, "alerts": False},
+            "notifications": {"email": True, "signals": False, "alerts": False},
             "email_verified": False,
             "created_at": datetime.now().isoformat(), "last_login": None,
         }
