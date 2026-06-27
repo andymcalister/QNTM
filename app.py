@@ -11234,8 +11234,16 @@ def page_model_portfolio():
             sc["sector"]        = sc.get("sector") or _MP_SECTORS.get(tk, "")
             sc["signal_date"]   = str(h["entry_date"])[:10]
             sc["score_delta"]   = round(score - _quant, 1)
-            _ci_cache_mp = st.session_state.get("company_info_cache", {})
-            ci = _ci_cache_mp.get(tk)
+            # Full company name (same source the screener uses) + the screener's
+            # ◆ CHEAP / ◆ RICH header badge, so the model-portfolio cards carry the
+            # same identifying context collapsed and expanded.
+            ci = get_company_info(tk)
+            _mp_vp = _val_pos(sc)
+            if _mp_vp is not None:
+                if score >= 60 and _mp_vp <= 25:
+                    sc["_value_callout"] = "cheap"
+                elif score < 45 and _mp_vp >= 75:
+                    sc["_value_callout"] = "rich"
             _ep, _cp = h.get('entry_price'), h.get('current_price')
             _pct, _pnl = h.get('pnl_pct', 0), h.get('pnl', 0)
             _edate = str(h.get('entry_date',''))[:10]
