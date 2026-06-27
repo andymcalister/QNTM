@@ -9084,6 +9084,167 @@ def page_simulator():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PRICE / VALUE-POSITION ALERTS — user-defined alert CRUD + phone verification
+# ══════════════════════════════════════════════════════════════════════════════
+# Backs the Alerts-page manager and the Account SMS flow. Rows are evaluated by
+# alerts_engine.py (Render cron) which fans out to in-app + email + SMS.
+
+ALERT_KINDS = [
+    ("value_lower",     "Enters lower value range"),
+    ("value_upper",     "Enters upper value range"),
+    ("price_below",     "Price drops to / below"),
+    ("price_above",     "Price rises to / above"),
+    ("conviction_high", "Moves to HIGH conviction"),
+    ("conviction_low",  "Drops to LOW conviction"),
+    ("gem",             "Flagged a hidden gem"),
+]
+ALERT_KIND_LABEL = dict(ALERT_KINDS)
+_ALERT_DEFAULT_TH = {"value_lower": 20, "value_upper": 80}
+_ALERT_HELP = {
+    "value_lower":     "Fires when the price reaches the lower part of its valuation band.",
+    "value_upper":     "Fires when the price reaches the upper part of its valuation band.",
+    "price_below":     "Fires when the price falls to or below your level.",
+    "price_above":     "Fires when the price rises to or above your level.",
+    "conviction_high": "Fires when the model moves the stock to HIGH conviction.",
+    "conviction_low":  "Fires when the model drops the stock to LOW conviction.",
+    "gem":             "Fires when the model flags the stock as a hidden gem.",
+}
+
+
+def create_price_alert(user_id, ticker, kind, threshold=None) -> bool:
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return False
+        sb.table("price_alerts").insert({
+            "user_id": user_id, "ticker": (ticker or "").upper().strip(),
+            "kind": kind, "threshold": threshold, "active": True, "armed": True,
+        }).execute()
+        return True
+    except Exception:
+        return False
+
+
+def get_price_alerts(user_id) -> list:
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return []
+        return (sb.table("price_alerts").select("*")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True).execute().data or [])
+    except Exception:
+        return []
+
+
+def delete_price_alert(alert_id) -> bool:
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return False
+        sb.table("price_alerts").delete().eq("id", alert_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def toggle_price_alert(alert_id, active: bool) -> bool:
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return False
+        # Re-arm on resume so a paused-while-true alert can fire again cleanly.
+        sb.table("price_alerts").update({"active": active, "armed": True}).eq("id", alert_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def _norm_phone(p: str) -> str:
+    """Best-effort E.164. Bare 10-digit input is assumed US (+1)."""
+    p = (p or "").strip()
+    if not p:
+        return ""
+    if p.startswith("+"):
+        return "+" + "".join(ch for ch in p[1:] if ch.isdigit())
+    d = "".join(ch for ch in p if ch.isdigit())
+    if len(d) == 10:
+        return "+1" + d
+    if len(d) == 11 and d.startswith("1"):
+        return "+" + d
+    return ("+" + d) if d else ""
+
+
+def send_phone_verify_code(user_id, phone):
+    """Store phone (unverified) + a fresh 6-digit code and text it. Returns
+    (ok, msg_or_phone). SMS fails soft until Twilio/A2P is live."""
+    from data_refresh import _get_supabase
+    from datetime import datetime, timedelta, timezone
+    import random
+    sb = _get_supabase()
+    if not sb:
+        return (False, "No database connection")
+    ph = _norm_phone(phone)
+    if not ph or len(ph) < 11:
+        return (False, "Enter a valid phone number")
+    code = f"{random.randint(0, 999999):06d}"
+    exp = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    try:
+        sb.table("users").update({
+            "phone": ph, "phone_verified": False,
+            "phone_verify_code": code, "phone_verify_expires": exp,
+        }).eq("id", user_id).execute()
+    except Exception:
+        return (False, "Could not save phone number")
+    try:
+        from sms import send_sms
+        res = send_sms(ph, f"Your QNTM verification code is {code}. It expires in 10 minutes.")
+    except Exception:
+        res = {"success": False}
+    if not res.get("success"):
+        return (False, "Saved, but the text couldn't be sent yet — SMS goes live once "
+                       "carrier registration (A2P 10DLC) is approved.")
+    return (True, ph)
+
+
+def verify_phone_code(user_id, code):
+    """Check the code + expiry and mark phone_verified. Returns (ok, msg)."""
+    from data_refresh import _get_supabase
+    from datetime import datetime, timezone
+    sb = _get_supabase()
+    if not sb:
+        return (False, "No database connection")
+    try:
+        rows = (sb.table("users")
+                .select("phone,phone_verify_code,phone_verify_expires")
+                .eq("id", user_id).execute().data or [])
+    except Exception:
+        return (False, "Lookup failed")
+    if not rows:
+        return (False, "User not found")
+    want = (rows[0].get("phone_verify_code") or "").strip()
+    exp = rows[0].get("phone_verify_expires")
+    if not want:
+        return (False, "Request a code first")
+    try:
+        if exp and datetime.fromisoformat(str(exp).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+            return (False, "Code expired — request a new one")
+    except Exception:
+        pass
+    if (code or "").strip() != want:
+        return (False, "Incorrect code")
+    try:
+        sb.table("users").update({"phone_verified": True, "phone_verify_code": None}).eq("id", user_id).execute()
+    except Exception:
+        return (False, "Could not save verification")
+    return (True, "Phone verified")
+
+
 def page_alerts():
     _pin_nav("alerts")
     user = st.session_state.user or {}
@@ -9145,6 +9306,81 @@ def page_alerts():
         filter_type = st.selectbox("Filter", ["All","HIGH","LOW","Macro","Gems"], key="notif_filter", label_visibility="collapsed")
 
     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+
+    # ── My price / value alerts (user-defined) ─────────────────────────────────
+    st.markdown('<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
+                'color:#e2e8f0;margin:4px 0 8px;">My Price &amp; Value Alerts</div>'
+                '<div style="font-size:13px;color:#9fabc0;margin-bottom:10px;line-height:1.6;">'
+                'Get notified when a stock enters the lower/upper of its valuation range, crosses a '
+                'price you set, or changes conviction. Delivered in-app and by email; SMS once your '
+                'number is verified in Account.</div>', unsafe_allow_html=True)
+
+    with st.expander("＋ Create an alert", expanded=False):
+        _ac1, _ac2 = st.columns([1, 1.5])
+        with _ac1:
+            _al_tk = st.text_input("Ticker", key="al_new_tk", placeholder="e.g. TIGO")
+        with _ac2:
+            _al_kind_label = st.selectbox("Trigger", [lbl for _, lbl in ALERT_KINDS], key="al_new_kind")
+        _al_kind = next(k for k, lbl in ALERT_KINDS if lbl == _al_kind_label)
+        _al_th = None
+        if _al_kind in ("value_lower", "value_upper"):
+            _al_th = st.slider("Value-position threshold (%)", 0, 100,
+                               _ALERT_DEFAULT_TH[_al_kind], key="al_new_th_v")
+        elif _al_kind in ("price_below", "price_above"):
+            _al_th = st.number_input("Price ($)", min_value=0.0, value=0.0, step=1.0,
+                                     format="%.2f", key="al_new_th_p")
+        st.caption(_ALERT_HELP.get(_al_kind, ""))
+        if st.button("Create alert", key="al_create", type="primary"):
+            _tk = (_al_tk or "").upper().strip()
+            if not _tk:
+                st.error("Enter a ticker.")
+            elif _al_kind in ("price_below", "price_above") and (not _al_th or _al_th <= 0):
+                st.error("Enter a price above 0.")
+            else:
+                _th = float(_al_th) if _al_kind in ("value_lower", "value_upper", "price_below", "price_above") else None
+                if create_price_alert(uid(), _tk, _al_kind, _th):
+                    st.success(f"Alert set — {_tk}: {_al_kind_label.lower()}.")
+                    st.rerun()
+                else:
+                    st.error("Could not create alert — try again.")
+
+    _my_alerts = get_price_alerts(uid())
+    if _my_alerts:
+        for a in _my_alerts:
+            _k = a.get("kind")
+            _lbl = ALERT_KIND_LABEL.get(_k, _k)
+            _th = a.get("threshold")
+            if _k in ("value_lower", "value_upper") and _th is not None:
+                _thtxt = f" {int(float(_th))}%"
+            elif _k in ("price_below", "price_above") and _th is not None:
+                _thtxt = f" ${float(_th):,.2f}"
+            else:
+                _thtxt = ""
+            _act = bool(a.get("active"))
+            _statc = "#34d399" if _act else "#8896ac"
+            _state = "Active" if _act else "Paused"
+            _last = str(a.get("last_triggered_at") or "")[:16].replace("T", " ")
+            _r1, _r2, _r3 = st.columns([5, 1, 1])
+            with _r1:
+                st.markdown(
+                    '<div style="padding:8px 0;">'
+                    f'<span style="font-family:Syne,sans-serif;font-weight:800;color:#e2e8f0;">{a.get("ticker")}</span> '
+                    f'<span style="color:#b3bed0;font-size:13px;">— {_lbl}{_thtxt}</span> '
+                    f'<span style="color:{_statc};font-size:12px;font-family:DM Mono,monospace;">· {_state}</span>'
+                    + (f'<span style="color:#8896ac;font-size:12px;font-family:DM Mono,monospace;"> · last fired {_last}</span>' if _last else "")
+                    + '</div>', unsafe_allow_html=True)
+            with _r2:
+                if st.button("Resume" if not _act else "Pause", key=f"al_tog_{a['id']}", use_container_width=True):
+                    toggle_price_alert(a["id"], not _act)
+                    st.rerun()
+            with _r3:
+                if st.button("Delete", key=f"al_del_{a['id']}", use_container_width=True):
+                    delete_price_alert(a["id"])
+                    st.rerun()
+
+    st.markdown('<div style="height:18px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:14px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;'
+                'color:#e2e8f0;margin:4px 0 8px;">Notifications</div>', unsafe_allow_html=True)
 
     if not notifs:
         st.markdown("""
@@ -9863,11 +10099,83 @@ def page_account():
             le_on = st.toggle("Email me when a holding or watchlist stock drops to LOW conviction (intraday, checked ~every 30 min during market hours)",
                               value=prefs.get("low_alert_email", False), key="pref_low_email")
 
+            st.markdown('<div style="height:10px;border-top:1px solid rgba(255,255,255,.06);'
+                        'margin:14px 0 10px;"></div>'
+                        '<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;'
+                        'color:#e2e8f0;margin-bottom:6px;">Price &amp; value alerts</div>'
+                        '<div style="font-size:13px;color:#9fabc0;margin-bottom:8px;line-height:1.6;">'
+                        'Delivery channels for the alerts you create on the Alerts page. In-app is '
+                        'always on.</div>', unsafe_allow_html=True)
+            pae_on = st.toggle("Email me when one of my price / value alerts fires",
+                               value=prefs.get("alert_email", True), key="pref_alert_email")
+            pas_on = st.toggle("Text me (SMS) when one of my price / value alerts fires",
+                               value=prefs.get("alert_sms", False), key="pref_alert_sms")
+
+            # ── Phone capture + verification (required for SMS) ─────────────────
+            # Phone status is read straight from the DB (login mapping may not
+            # carry the new columns), then mirrored into session for this render.
+            _ph_cur = (user.get("phone") or "")
+            _ph_ok = bool(user.get("phone_verified"))
+            try:
+                from data_refresh import _get_supabase as _ph_sb
+                _sbp = _ph_sb()
+                if _sbp:
+                    _pr = (_sbp.table("users").select("phone,phone_verified")
+                           .eq("id", uid()).limit(1).execute().data or [])
+                    if _pr:
+                        _ph_cur = _pr[0].get("phone") or _ph_cur
+                        _ph_ok = bool(_pr[0].get("phone_verified"))
+                        st.session_state.user["phone"] = _ph_cur
+                        st.session_state.user["phone_verified"] = _ph_ok
+            except Exception:
+                pass
+            if pas_on or _ph_cur:
+                if _ph_ok:
+                    st.markdown(
+                        f'<div style="font-size:13px;color:#34d399;margin:8px 0 4px;">'
+                        f'✓ Phone verified: {_ph_cur}</div>', unsafe_allow_html=True)
+                    if st.button("Change number", key="ph_change"):
+                        st.session_state["_ph_changing"] = True
+                if (not _ph_ok) or st.session_state.get("_ph_changing"):
+                    _pc1, _pc2 = st.columns([2, 1])
+                    with _pc1:
+                        _ph_in = st.text_input("Mobile number", value=_ph_cur,
+                                               placeholder="(949) 555-1234", key="ph_input")
+                    with _pc2:
+                        st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
+                        if st.button("Send code", key="ph_send", use_container_width=True):
+                            ok, msg = send_phone_verify_code(uid(), _ph_in)
+                            st.session_state.user["phone"] = _norm_phone(_ph_in)
+                            if ok:
+                                st.session_state["_ph_code_sent"] = True
+                                st.success("Code sent — check your texts.")
+                            else:
+                                st.warning(msg)
+                    if st.session_state.get("_ph_code_sent"):
+                        _vc1, _vc2 = st.columns([2, 1])
+                        with _vc1:
+                            _code_in = st.text_input("6-digit code", max_chars=6, key="ph_code")
+                        with _vc2:
+                            st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
+                            if st.button("Verify", key="ph_verify", use_container_width=True):
+                                ok, msg = verify_phone_code(uid(), _code_in)
+                                if ok:
+                                    st.session_state.user["phone_verified"] = True
+                                    st.session_state["_ph_changing"] = False
+                                    st.session_state["_ph_code_sent"] = False
+                                    st.success("Phone verified.")
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                    st.caption("SMS sends once your number is verified and carrier registration "
+                               "(A2P 10DLC) is approved. Standard message rates apply. Reply STOP to opt out.")
+
             st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
             if st.button("Save Notification Preferences", key="save_prefs"):
                 new_prefs = {**(user.get("notifications") or {}),
                              "email": e_on, "signals": s_on, "alerts": a_on,
-                             "low_alert_email": le_on}
+                             "low_alert_email": le_on,
+                             "alert_email": pae_on, "alert_sms": pas_on}
                 if update_preferences(uid(), {"notifications": new_prefs}):
                     st.session_state.user["notifications"] = new_prefs
                     st.success("Preferences saved")
