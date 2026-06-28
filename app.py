@@ -3998,7 +3998,7 @@ DISCLAIMER = """<div style="display:flex;align-items:center;gap:8px;padding:6px 
 # ══════════════════════════════════════════════════════════════════════════════
 PRIVACY_POLICY = """
 ## Privacy Policy
-**Effective Date: June 6, 2026** · QNTM LLC (California)
+**Effective Date: June 28, 2026** · QNTM LLC (California)
 
 ### What We Collect
 
@@ -4019,6 +4019,7 @@ PRIVACY_POLICY = """
 - We don't use your data for advertising
 - We don't share your data except as described below
 - We don't track you across other websites
+- We never share, sell, or rent your mobile phone number or SMS opt-in/consent data to third parties or affiliates for marketing or promotional purposes
 
 ### Who We Share Data With
 
@@ -4028,6 +4029,7 @@ PRIVACY_POLICY = """
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
 | Render (Render Services, Inc.) | Application hosting | render.com/privacy |
 | SendGrid (Twilio) | Account, security, and notification emails — e.g. email verification, password resets, and optional signal alerts | sendgrid.com/policies/privacy |
+| Twilio, Inc. | Optional SMS alert delivery and one-time phone-number verification | twilio.com/legal/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
 
 Market data is sourced from public providers (Yahoo Finance, FRED) and is not personal data.
@@ -4042,6 +4044,16 @@ We use your email address to send two kinds of messages:
 - **Optional signal alerts** — for example, an email when a stock on your watchlist or in your portfolio moves to LOW conviction. These are **off by default** and entirely optional. You can turn them on or off anytime in Account → Notifications, and every alert email includes an unsubscribe reminder and our mailing address.
 
 We send email through SendGrid (Twilio). We don't use your email address for advertising, and we don't sell it.
+
+### Text Message (SMS) Alerts
+
+If you choose to receive alerts by text message, we collect the mobile phone number you provide. SMS alerts are entirely optional and are off by default.
+
+- **How you opt in.** In Account → Notifications you enter your own mobile number and verify it with a one-time code we text you. You then turn on the SMS alert channel. We only text you about the specific price, valuation, or conviction alerts you create yourself — never marketing.
+- **How you opt out.** Reply STOP to any alert text to unsubscribe, or turn the SMS channel off in Account → Notifications at any time. Reply HELP for help. Message and data rates may apply, and message frequency varies depending on the alerts you set.
+- **Who delivers them.** We send texts through Twilio. Your mobile number is shared only with Twilio, our messaging provider, solely to deliver the alerts you request.
+
+**Mobile phone numbers and SMS opt-in/consent data are never shared with, sold, or rented to any third parties or affiliates for marketing or promotional purposes.** This information is used only to send you the alerts you have requested.
 
 ### Security
 - Passwords: bcrypt-hashed (cost factor 12)
