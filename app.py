@@ -7893,6 +7893,77 @@ def _gems_teaser_html(compact: bool = False) -> str:
     return _headline + _sub + f'<div style="max-width:420px;margin:0 auto;">{_rows}</div>'
 
 
+def _simulator_teaser():
+    """For the free Simulator lock: a cheap, truthful preview of what the simulator
+    builds — today's scored-universe size, sector spread, and a few blurred sample
+    rows (top name per sector, ticker redacted, sector + conviction tier shown).
+    Returns (total, n_sectors, [{sector, tier}, ...]); (0, 0, []) on failure.
+    Cheap signal_log read — no scan."""
+    try:
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if not sb:
+            return 0, 0, []
+        md = (sb.table("signal_log").select("signal_date")
+              .order("signal_date", desc=True).limit(1).execute().data)
+        if not md:
+            return 0, 0, []
+        sd = md[0]["signal_date"]
+        rows = (sb.table("signal_log")
+                .select("ticker,adj_composite,composite")
+                .eq("signal_date", sd)
+                .order("adj_composite", desc=True).execute().data or [])
+        if not rows:
+            return 0, 0, []
+        secs, peek, seen_sec = set(), [], set()
+        for r in rows:
+            sec = SECTORS.get(r.get("ticker", ""), "")
+            if not sec:
+                continue
+            secs.add(sec)
+            # One blurred row per sector (rows are score-sorted, so this is the
+            # top name in each sector) — conveys the cross-sector diversification.
+            if len(peek) < 5 and sec not in seen_sec:
+                _a = float(r.get("adj_composite") or r.get("composite") or 50)
+                _tier = "High" if _a >= 60 else ("Low" if _a < 45 else "Moderate")
+                peek.append({"sector": sec, "tier": _tier})
+                seen_sec.add(sec)
+        return len(rows), len(secs), peek
+    except Exception:
+        return 0, 0, []
+
+
+def _simulator_teaser_html(compact: bool = False) -> str:
+    """Shared blurred-simulator teaser for the Simulator gate (B3) and the Pro
+    conversion screen. Previews the cross-sector sample portfolio with tickers
+    redacted. Returns '' when nothing to show. Descriptive/impersonal."""
+    _tot, _nsec, _peek = _simulator_teaser()
+    if not (_tot and _peek):
+        return ""
+    _rows = ""
+    for p in _peek:
+        _tier = p.get("tier", "")
+        _tcol = "#34d399" if _tier == "High" else ("#f87171" if _tier == "Low" else "#fbbf24")
+        _rows += (
+            '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;'
+            'background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.14);'
+            'border-radius:6px;margin-bottom:6px;text-align:left;">'
+            '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px;color:#e2e8f0;'
+            'filter:blur(5px);-webkit-filter:blur(5px);user-select:none;flex-shrink:0;">XXXX</span>'
+            f'<span style="font-size:12px;color:#b3bed0;line-height:1.4;flex:1;">{p["sector"]}</span>'
+            f'<span style="font-size:11px;font-weight:700;color:{_tcol};white-space:nowrap;">{_tier}</span></div>'
+        )
+    _hsize = "18px" if compact else "22px"
+    _headline = (f'<div style="font-family:Syne,sans-serif;font-size:{_hsize};font-weight:800;color:#d4a843;'
+                 f'margin-bottom:8px;">A sample portfolio across {_nsec} sectors</div>')
+    _sub = ('' if compact else
+            '<div style="color:#9fabc0;max-width:480px;margin:0 auto 18px;line-height:1.7;">'
+            f'Pick a risk profile \u2014 growth, balanced or value \u2014 and the simulator builds a '
+            f'~20-position hypothetical portfolio from {_tot:,} scored signals, spread across sectors. '
+            'Here\u2019s a peek at the spread \u2014 unlock to see the names and run it.</div>')
+    return _headline + _sub + f'<div style="max-width:420px;margin:0 auto;">{_rows}</div>'
+
+
 def page_gems():
     _pin_nav("gems")
     page_summary(
@@ -9338,14 +9409,22 @@ def page_simulator():
     st.markdown('<div style="padding:0 32px;">', unsafe_allow_html=True)
 
     if not is_pro():
+        _sim_teaser = _simulator_teaser_html()
+        if _sim_teaser:
+            _sim_inner = _sim_teaser
+        else:
+            # Fallback when the teaser can't load (e.g. no signals today).
+            _sim_inner = (
+                '<div style="font-size:28px;margin-bottom:12px;">🧮</div>'
+                '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:8px;">Portfolio Simulator</div>'
+                '<div style="font-size:14px;color:#b3bed0;margin-bottom:8px;">'
+                'Build a hypothetical portfolio from current HIGH conviction signals, spread across sectors.</div>'
+            )
         st.markdown(
-            '<div style="background:rgba(212,168,67,.07);border:1px solid rgba(212,168,67,.25);'
+            '<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.22);'
             'border-radius:10px;padding:28px 24px;text-align:center;margin:24px 0;">'
-            '<div style="font-size:28px;margin-bottom:12px;">🧮</div>'
-            '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#d4a843;margin-bottom:8px;">Portfolio Simulator</div>'
-            '<div style="font-size:14px;color:#b3bed0;margin-bottom:20px;">'
-            'Build a hypothetical portfolio from current HIGH conviction signals.</div>'
-            '<div style="font-size:13px;color:#9fabc0;">Pro feature — upgrade to access</div>'
+            '<div style="font-size:40px;margin-bottom:14px;">🔒</div>'
+            + _sim_inner +
             '</div>', unsafe_allow_html=True)
         if st.session_state.get("logged_in"):
             st.markdown(_cta_gold("Unlock Simulator — Upgrade to Pro", _upgrade_url("Portfolio Simulator", "simulator")), unsafe_allow_html=True)
@@ -12730,16 +12809,25 @@ def page_upgrade():
     </div>
     """, unsafe_allow_html=True)
 
-    # B2 — when the unlock target is Hidden Gems, preview the actual value behind
-    # the wall (today's real count + blurred rows) right on the conversion screen,
-    # instead of a feature list with the persuasive content one click away.
-    if "hidden gem" in (feature or "").lower():
+    # B2/B3 — when the unlock target is Hidden Gems or the Simulator, preview the
+    # actual value behind the wall (today's real, blurred sample) right on the
+    # conversion screen instead of a feature list a click away.
+    _feat_l = (feature or "").lower()
+    if "hidden gem" in _feat_l:
         _gt_html = _gems_teaser_html(compact=True)
         if _gt_html:
             st.markdown(
                 '<div style="max-width:480px;margin:-8px auto 28px;padding:0 16px;text-align:center;">'
                 '<div style="background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.2);'
                 'border-radius:10px;padding:20px 18px;">' + _gt_html + '</div></div>',
+                unsafe_allow_html=True)
+    elif "simulator" in _feat_l:
+        _st_html = _simulator_teaser_html(compact=True)
+        if _st_html:
+            st.markdown(
+                '<div style="max-width:480px;margin:-8px auto 28px;padding:0 16px;text-align:center;">'
+                '<div style="background:rgba(212,168,67,.05);border:1px solid rgba(212,168,67,.22);'
+                'border-radius:10px;padding:20px 18px;">' + _st_html + '</div></div>',
                 unsafe_allow_html=True)
 
     # ── ARL paid-trial mode ───────────────────────────────────────────────────
