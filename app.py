@@ -6605,6 +6605,19 @@ def page_screener():
             for evt in active_evts:
                 info = MACRO_EVENT_INFO.get(evt)
                 if not info: continue
+                _evt_hls = (macro.get("event_headlines") or {}).get(evt, [])
+                _hls_html = ""
+                if _evt_hls:
+                    _items = "".join(
+                        f'<li style="margin:2px 0;">{_html.escape(h)}</li>' for h in _evt_hls[:3])
+                    _hls_html = (
+                        '<div style="margin:0 0 10px;padding:8px 10px;'
+                        'background:rgba(255,255,255,.025);border-radius:5px;">'
+                        '<div style="font-family:DM Mono,monospace;font-size:10px;'
+                        'letter-spacing:.1em;text-transform:uppercase;color:#6b7689;'
+                        'margin-bottom:4px;">Live headlines driving this</div>'
+                        '<ul style="margin:0;padding-left:16px;font-family:Inter,sans-serif;'
+                        f'font-size:12px;color:#b3bed0;line-height:1.55;">{_items}</ul></div>')
                 st.markdown(
                     f'<div style="padding:14px 16px;margin-bottom:8px;'
                     f'background:rgba(255,255,255,.02);'
@@ -6616,6 +6629,7 @@ def page_screener():
                     f'text-transform:uppercase;margin-bottom:8px;">{info["label"]}</div>'
                     f'<div style="font-family:Inter,sans-serif;font-size:13px;'
                     f'color:#9fabc0;line-height:1.65;margin-bottom:10px;">{info["detail"]}</div>'
+                    f'{_hls_html}'
                     f'<div style="display:flex;gap:14px;flex-wrap:wrap;'
                     f'padding-top:8px;border-top:1px solid rgba(255,255,255,.04);">'
                     f'<span style="font-family:DM Mono,monospace;font-size:13px;'
