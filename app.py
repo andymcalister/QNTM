@@ -1270,9 +1270,165 @@ def _upgrade_url(feature: str, return_nav: str) -> str:
     return (f"?upgrade_page=1&feature={quote_plus(feature)}"
             f"&return_nav={return_nav}&uid={_uid}&plan={_plan}&ck=1")
 
-# ── ONBOARDING MODAL ──────────────────────────────────────────────────────────
+# ── ONBOARDING WALKTHROUGH ─────────────────────────────────────────────────────
+# Skippable, multi-step intro shown once to brand-new users (no onboarding_seen
+# marker). Bump ONBOARDING_VERSION to re-show it to everyone after a revamp.
+# Steps point ONLY at free functionality so a new free user is never sent to a
+# Pro wall; Pro is mentioned once, softly, as available-when-ready.
+ONBOARDING_VERSION = "2026-06-v1"
+
+_ONBOARDING_STEPS = [
+    {
+        "icon":  "\u2728",
+        "title": "Welcome to QNTM",
+        "body":  "QNTM scores around 1,400 stocks every day on a five-factor model "
+                 "and ranks them by conviction. This quick tour shows you how to get "
+                 "value right away \u2014 everything it covers is free. Skip anytime.",
+    },
+    {
+        "icon":  "\U0001F4CA",
+        "title": "Start at the screener",
+        "body":  "You'll land on the screener: every stock ranked by conviction, "
+                 "highest at the top. Green is high conviction, and a <b>CHEAP</b> tag "
+                 "flags a high-conviction name trading low in its own value range \u2014 "
+                 "often the most interesting place to look. Just start at the top and "
+                 "scan down. The macro banner above it shows the market's current "
+                 "regime and what's driving it.",
+    },
+    {
+        "icon":  "\U0001F50D",
+        "title": "Open any stock",
+        "body":  "Click a stock to see <i>why</i> the model rates it the way it does: a "
+                 "plain-English rationale, the five pillar scores \u2014 momentum, "
+                 "quality, volume, value, sentiment \u2014 and where the price sits inside "
+                 "its value range. That's how you go from a score to actually "
+                 "understanding it.",
+    },
+    {
+        "icon":  "\u2B50",
+        "title": "Build your watchlist",
+        "body":  "Star the names you want to follow. Your watchlist tracks them against "
+                 "the S&amp;P 500, so you can see whether the model's conviction is "
+                 "playing out over time. It's the easiest way to make QNTM yours.",
+    },
+    {
+        "icon":  "\U0001F4EC",
+        "title": "Get the weekly recap",
+        "body":  "Every Saturday, QNTM emails you a free recap of your watchlist and the "
+                 "broader market, including the macro backdrop behind the moves. That's "
+                 "the whole loop \u2014 scan, dig in, follow, and let the Saturday email "
+                 "keep you current. The full walkthrough is always under How It Works."
+                 "<div style='margin-top:12px;font-size:12px;color:#8896ac;'>"
+                 "Hidden Gems, custom alerts and the full universe come with Pro whenever "
+                 "you want them \u2014 no rush.</div>",
+    },
+]
+
+
+def _mark_onboarded():
+    """Persist the onboarding marker so the walkthrough won't reappear, and set a
+    session flag so it closes immediately on this run. Never raises."""
+    try:
+        _np = dict((st.session_state.user.get("notifications") or {}))
+        _np["onboarding_seen"] = ONBOARDING_VERSION
+        update_preferences(uid(), {"notifications": _np})
+        st.session_state.user["notifications"] = _np
+    except Exception:
+        pass
+    st.session_state["_ob_done"] = True
+    # Don't also flash the inline welcome card in the same session as the tour.
+    st.session_state["show_welcome"] = False
+
+
+_st_dialog = getattr(st, "dialog", None) or getattr(st, "experimental_dialog", None)
+
+def _onboarding_walkthrough_body():
+    step  = int(st.session_state.get("_ob_step", 0))
+    step  = max(0, min(step, len(_ONBOARDING_STEPS) - 1))
+    s     = _ONBOARDING_STEPS[step]
+    total = len(_ONBOARDING_STEPS)
+    is_last = step == total - 1
+
+    _dots = "".join(
+        f'<span style="width:7px;height:7px;border-radius:50%;display:inline-block;'
+        f'margin-right:6px;background:{"#34d399" if i == step else "rgba(255,255,255,.18)"};"></span>'
+        for i in range(total)
+    )
+    st.markdown(
+        f'<div style="padding:4px 2px 0;">'
+        f'<div style="margin-bottom:14px;">{_dots}'
+        f'<span style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;'
+        f'margin-left:6px;">Step {step + 1} of {total}</span></div>'
+        f'<div style="font-size:34px;line-height:1;margin-bottom:10px;">{s["icon"]}</div>'
+        f'<div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;'
+        f'letter-spacing:.02em;color:#e2e8f0;margin-bottom:10px;">{s["title"]}</div>'
+        f'<div style="font-family:Inter,sans-serif;font-size:14.5px;color:#b3bed0;'
+        f'line-height:1.62;">{s["body"]}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.write("")
+
+    c_skip, _, c_back, c_next = st.columns([1.4, 0.6, 1, 1])
+    with c_skip:
+        skip = st.button("Skip tour", key="_ob_skip", use_container_width=True)
+    with c_back:
+        back = st.button("\u2190 Back", key="_ob_back", use_container_width=True,
+                         disabled=(step == 0))
+    with c_next:
+        if is_last:
+            finish  = st.button("Done", key="_ob_next", type="primary", use_container_width=True)
+            advance = False
+        else:
+            advance = st.button("Next \u2192", key="_ob_next", type="primary", use_container_width=True)
+            finish  = False
+
+    if skip or finish:
+        _mark_onboarded()
+        st.rerun()
+    elif advance:
+        st.session_state["_ob_step"] = step + 1
+        st.rerun()
+    elif back:
+        st.session_state["_ob_step"] = max(0, step - 1)
+        st.rerun()
+
+
+# Wrap the body in st.dialog defensively: apply the decorator at import time, but
+# never let a Streamlit-version quirk (missing dialog API, or no `width` kwarg)
+# break app load — fall back gracefully to a no-op so onboarding simply doesn't show.
+_st_dialog = getattr(st, "dialog", None) or getattr(st, "experimental_dialog", None)
+if _st_dialog:
+    try:
+        _onboarding_walkthrough = _st_dialog("Getting started", width="large")(_onboarding_walkthrough_body)
+    except TypeError:
+        try:
+            _onboarding_walkthrough = _st_dialog("Getting started")(_onboarding_walkthrough_body)
+        except Exception:
+            def _onboarding_walkthrough():
+                return
+    except Exception:
+        def _onboarding_walkthrough():
+            return
+else:
+    def _onboarding_walkthrough():
+        return  # dialog API unavailable on this Streamlit build — skip silently
+
+
 def show_onboarding():
-    pass  # disabled
+    """Open the first-run walkthrough for brand-new users. No-op for returning
+    users (marker set), the demo account, or once dismissed this session."""
+    try:
+        user = st.session_state.get("user") or {}
+        if not user.get("id") or user.get("id") == "demo":
+            return
+        if st.session_state.get("_ob_done"):
+            return
+        if (user.get("notifications") or {}).get("onboarding_seen") == ONBOARDING_VERSION:
+            return
+        _onboarding_walkthrough()
+    except Exception:
+        pass
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -6221,9 +6377,12 @@ def page_screener():
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
 
-    # First-run welcome card — shown once after login, cleared on any navigation
-    # (a full-page reload starts a fresh session, so the flag naturally resets).
-    if st.session_state.get("show_welcome"):
+    # First-run welcome card — a light "welcome back" strip for users who have
+    # already completed the onboarding walkthrough. Brand-new users (no
+    # onboarding marker) get the full skippable walkthrough modal instead, so we
+    # suppress this card for them to avoid a double welcome.
+    _ob_done = ((st.session_state.user or {}).get("notifications") or {}).get("onboarding_seen") == ONBOARDING_VERSION
+    if st.session_state.get("show_welcome") and _ob_done:
         _wu = st.session_state.user or {}
         _wcta = f"?qnav=screener&uid={_wu.get('id','')}&plan={_wu.get('plan','free')}&ck=1"
         st.markdown(
