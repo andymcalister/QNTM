@@ -12069,16 +12069,10 @@ def page_platform():
           </div>
         </div>
         """, unsafe_allow_html=True)
-    # ── "What's New" popup — fire once per session for logged-in users who have
-    # changelog entries newer than their last acknowledgement. Purely cosmetic,
-    # so any failure is swallowed rather than breaking the platform render.
-    if not st.session_state.get("_changelog_checked"):
-        st.session_state["_changelog_checked"] = True
-        try:
-            from changelog import maybe_show_whats_new
-            maybe_show_whats_new()
-        except Exception:
-            pass
+    # NOTE: The auto-popup "What's New" modal was removed — the inline
+    # "What's new since you were last here" banner (_render_whats_new) is the
+    # single canonical changelog surface for returning users, and new users are
+    # stamped caught-up at registration so they get the onboarding instead.
 
     # ── Analytics: one-per-navigation view events + admin-only dashboard ──────
     _prev_nav = st.session_state.get("_last_nav")

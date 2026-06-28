@@ -256,6 +256,15 @@ def register_user(email: str, password: str, full_name: str) -> dict:
     enc_email  = encrypt_field(email)
     enc_name   = encrypt_field(full_name.strip())
 
+    # New users start "caught up" on the changelog: stamp the latest entry id so
+    # they never see "what's new since you were last here" (which is meaningless
+    # for someone who was never here) — they get the new-user onboarding instead.
+    try:
+        from whats_new import latest_id as _wn_latest_id
+        _wn_seen = _wn_latest_id()
+    except Exception:
+        _wn_seen = ""
+
     sb = get_supabase()
     if sb:
         try:
@@ -272,10 +281,7 @@ def register_user(email: str, password: str, full_name: str) -> dict:
                 "plan":                  "free",
                 "mfa_enabled":           False,
                 "totp_secret_encrypted": None,
-                # Weekly digest defaults ON (opt-OUT). Safe for free signups: the
-                # digest sender (weekly_digest.recipients) only sends to paid +
-                # verified users, and they can disable it in Account -> Notifications.
-                "notifications":         {"email": True, "signals": False, "alerts": False},
+                "notifications":         {"email": False, "signals": False, "alerts": False, "whatsnew_seen": _wn_seen},
                 "email_verified":        False,
                 "created_at":            datetime.now().isoformat(),
             }).execute()
@@ -298,7 +304,7 @@ def register_user(email: str, password: str, full_name: str) -> dict:
             "id": uid, "email": email, "full_name": full_name.strip(),
             "email_hash": email_hash, "password_hash": pw_hash,
             "plan": "free", "mfa_enabled": False, "totp_secret": None,
-            "notifications": {"email": True, "signals": False, "alerts": False},
+            "notifications": {"email": False, "signals": False, "alerts": False, "whatsnew_seen": _wn_seen},
             "email_verified": False,
             "created_at": datetime.now().isoformat(), "last_login": None,
         }
