@@ -4089,7 +4089,7 @@ privacy@qntm.live
 
 TERMS_OF_SERVICE = """
 ## Terms of Service
-**Effective Date: June 6, 2026** · QNTM LLC (California)
+**Effective Date: June 28, 2026** · QNTM LLC (California)
 
 ### 1. Who We Are and What We Do
 QNTM is a quantitative research platform operated by QNTM LLC, a California limited liability company. We score stocks using a five-factor model, apply a live macro regime overlay, and surface conviction signals. Everything we produce is algorithmic research — not investment advice.
@@ -4113,6 +4113,22 @@ You must be 18 or older. By using QNTM you confirm this. You are responsible for
 - You are responsible for all activity on your account
 - Report unauthorized access immediately to security@qntm.live
 - By creating an account, you agree to receive account and security emails (such as email verification, password resets, and billing notices), which are necessary to operate your account. Optional signal-alert emails are off by default and can be enabled or disabled anytime in Account → Notifications.
+
+### Text Message (SMS) Program Terms
+
+**Program:** QNTM Alerts. If you opt in, QNTM LLC sends automated text-message alerts about the price, valuation, and conviction changes you configure on the Alerts page. This is a recurring messaging program.
+
+**Opt-in.** SMS alerts are optional and off by default. You opt in within your account (Account → Notifications) by entering and verifying your own mobile number, then enabling the SMS channel. We only text you about alerts you create yourself — never marketing.
+
+**Message frequency** varies based on the alerts you set and how often their conditions are met.
+
+**Message and data rates may apply** — your mobile carrier's standard messaging and data charges apply to messages you receive.
+
+**Opt-out and help.** Reply **STOP** to any QNTM message to cancel and stop all further texts. Reply **HELP** for help. You can also turn SMS off at any time in Account → Notifications.
+
+**Support:** support@qntm.live. Carriers are not liable for delayed or undelivered messages.
+
+Mobile phone numbers and SMS opt-in/consent data are never shared with, sold, or rented to any third parties or affiliates for marketing or promotional purposes. See our Privacy Policy for details.
 
 ### 6. Subscriptions
 
