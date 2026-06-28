@@ -6264,11 +6264,22 @@ def platform_nav():
                          'line-height:1.2;text-align:center;white-space:normal;word-break:break-word;'
                          'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;')
 
-        badge = (
-            f'<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;'
-            f'border-radius:50%;width:14px;height:14px;display:flex;align-items:center;'
-            f'justify-content:center;font-size:8px;font-weight:700;">{n_count}</span>'
-        ) if (key == "alerts" and n_count > 0) else ""
+        if key == "alerts" and n_count > 0:
+            # Notification count takes the badge slot when there's something to show.
+            badge = (
+                f'<span style="position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;'
+                f'border-radius:50%;width:14px;height:14px;display:flex;align-items:center;'
+                f'justify-content:center;font-size:8px;font-weight:700;">{n_count}</span>'
+            )
+        elif (not is_pro()) and key in ("gems", "simulator", "alerts"):
+            # B4 — flag Pro-gated items so free users see the wall before walking
+            # into it (the page itself still opens, now to a teaser, not a dead end).
+            badge = (
+                '<span style="position:absolute;top:5px;right:6px;font-size:10px;'
+                'line-height:1;opacity:.9;">🔒</span>'
+            )
+        else:
+            badge = ""
 
         grid_html += (
             f'<a href="{href}" target="_self" style="position:relative;min-width:0;overflow:hidden;{btn_style}">'
@@ -7838,13 +7849,48 @@ def _gems_teaser():
         for r in rows:
             reason = (r.get("hidden_gem_reason") or "").strip()
             if reason:
+                _tk = r.get("ticker", "")
                 peek.append({"reason": reason,
-                             "cap": cap_lbl.get(str(r.get("mktcap") or "").strip().lower(), "")})
+                             "cap": cap_lbl.get(str(r.get("mktcap") or "").strip().lower(), ""),
+                             "sector": SECTORS.get(_tk, "")})
             if len(peek) >= 4:
                 break
         return len(rows), peek
     except Exception:
         return 0, []
+
+
+def _gems_teaser_html(compact: bool = False) -> str:
+    """Shared blurred-gems teaser used by BOTH the Hidden Gems gate (B1) and the
+    Pro upgrade/conversion screen (B2): today's real gem count + a few blurred
+    rows showing the real reason, sector and cap with the ticker and score
+    redacted. Returns '' when there's nothing to show (no gems today / read
+    failed) so callers can fall back to static copy. Descriptive/impersonal."""
+    _n, _peek = _gems_teaser()
+    if not (_n and _peek):
+        return ""
+    _rows = ""
+    for p in _peek:
+        _bits = [b for b in [p.get("sector", ""), p.get("cap", "")] if b]
+        _meta = (f'<span style="color:#8896ac;font-size:11px;white-space:nowrap;"> · {" · ".join(_bits)}</span>'
+                 if _bits else "")
+        _rows += (
+            '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;'
+            'background:rgba(52,211,153,.05);border:1px solid rgba(52,211,153,.14);'
+            'border-radius:6px;margin-bottom:6px;text-align:left;">'
+            '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px;color:#e2e8f0;'
+            'filter:blur(5px);-webkit-filter:blur(5px);user-select:none;flex-shrink:0;">XXXX</span>'
+            f'<span style="font-size:12px;color:#b3bed0;line-height:1.4;">{p["reason"]}{_meta}</span></div>'
+        )
+    _hsize = "18px" if compact else "24px"
+    _headline = (f'<div style="font-family:Syne,sans-serif;font-size:{_hsize};font-weight:800;color:#34d399;'
+                 f'margin-bottom:8px;">{_n} hidden {"gem" if _n == 1 else "gems"} live right now</div>')
+    _sub = ('' if compact else
+            '<div style="color:#9fabc0;max-width:480px;margin:0 auto 18px;line-height:1.7;">'
+            'Mid- and small-cap names clearing the high-conviction threshold that fly under Wall '
+            'Street\u2019s radar. Here\u2019s a peek at today\u2019s list \u2014 unlock to see the '
+            'names, scores and full rationale.</div>')
+    return _headline + _sub + f'<div style="max-width:420px;margin:0 auto;">{_rows}</div>'
 
 
 def page_gems():
@@ -7855,30 +7901,10 @@ def page_gems():
     )
 
     if not is_pro():
-        _gem_n, _gem_peek = _gems_teaser()
-        if _gem_n and _gem_peek:
+        _gem_teaser = _gems_teaser_html()
+        if _gem_teaser:
             # Live tease: today's real gem count + blurred names with real reasons.
-            _peek_rows = ""
-            for p in _gem_peek:
-                _cap = (f'<span style="color:#8896ac;font-size:11px;white-space:nowrap;"> · {p["cap"]}</span>'
-                        if p["cap"] else "")
-                _peek_rows += (
-                    '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;'
-                    'background:rgba(52,211,153,.05);border:1px solid rgba(52,211,153,.14);'
-                    'border-radius:6px;margin-bottom:6px;text-align:left;">'
-                    '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px;color:#e2e8f0;'
-                    'filter:blur(5px);-webkit-filter:blur(5px);user-select:none;flex-shrink:0;">XXXX</span>'
-                    f'<span style="font-size:12px;color:#b3bed0;line-height:1.4;">{p["reason"]}{_cap}</span></div>'
-                )
-            _gem_inner = (
-                f'<div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#34d399;'
-                f'margin-bottom:8px;">{_gem_n} hidden {"gem" if _gem_n == 1 else "gems"} live right now</div>'
-                '<div style="color:#9fabc0;max-width:480px;margin:0 auto 18px;line-height:1.7;">'
-                'Mid- and small-cap names clearing the high-conviction threshold that fly under Wall '
-                'Street\u2019s radar. Here\u2019s a peek at today\u2019s list \u2014 unlock to see the '
-                'names, scores and full rationale.</div>'
-                f'<div style="max-width:420px;margin:0 auto;">{_peek_rows}</div>'
-            )
+            _gem_inner = _gem_teaser
         else:
             # Fallback when the teaser can't load (e.g. no gems today / read failed).
             _gem_inner = (
@@ -12703,6 +12729,18 @@ def page_upgrade():
       </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # B2 — when the unlock target is Hidden Gems, preview the actual value behind
+    # the wall (today's real count + blurred rows) right on the conversion screen,
+    # instead of a feature list with the persuasive content one click away.
+    if "hidden gem" in (feature or "").lower():
+        _gt_html = _gems_teaser_html(compact=True)
+        if _gt_html:
+            st.markdown(
+                '<div style="max-width:480px;margin:-8px auto 28px;padding:0 16px;text-align:center;">'
+                '<div style="background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.2);'
+                'border-radius:10px;padding:20px 18px;">' + _gt_html + '</div></div>',
+                unsafe_allow_html=True)
 
     # ── ARL paid-trial mode ───────────────────────────────────────────────────
     # Activates the full ARL checkout (notice + consent + log + ack email) and
