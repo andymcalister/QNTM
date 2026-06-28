@@ -2437,7 +2437,7 @@ def macro_regime_banner_html(macro: dict) -> str:
         f'<div style="font-size:14px;color:#b3bed0;margin-top:3px;letter-spacing:.04em;">Macro Weight</div>'
         f'<span class="tip-box" style="width:260px;">'
         f'<div class="tip-title">Macro Weight</div>'
-        f'<div class="tip-body">The percentage of each score adjusted by the current macro regime. In RISK_OFF this rises to 35% — dampening high-beta exposure. In NEUTRAL it drops to 10% to let quant signals dominate.</div>'
+        f'<div class="tip-body">The percentage of each score adjusted by the current macro regime. In RISK_OFF this rises to 25% — dampening high-beta exposure. In NEUTRAL it drops to 10% to let quant signals dominate.</div>'
         f'</span></div>'
 
         # Active events
@@ -5032,6 +5032,19 @@ body { background-color: #0a0b14 !important; }
     except Exception:
         _top5 = []
 
+    # G11 — lead the top-signals strip with a name a cold visitor recognizes (a
+    # mega-cap) when one is in today's top signals, so the proof surface doesn't
+    # open on an unfamiliar ticker. `_top5` is score-sorted, so this promotes the
+    # highest-scored recognizable name; the rest stay in score order.
+    _RECOG = {"AAPL","MSFT","NVDA","GOOGL","GOOG","AMZN","META","TSLA","NFLX","AMD",
+              "INTC","MU","AVGO","QCOM","ORCL","CRM","ADBE","CSCO","JPM","BAC","V","MA",
+              "DIS","KO","PEP","WMT","COST","HD","MCD","NKE","SBUX","XOM","CVX","PLTR",
+              "COIN","UBER","BA","PFE","JNJ","UNH","LLY","F","GM","T","VZ"}
+    if _top5:
+        _lead = next((r for r in _top5 if str(r.get("ticker", "")).upper() in _RECOG), None)
+        if _lead is not None:
+            _top5 = [_lead] + [r for r in _top5 if r is not _lead]
+
     # Signal rows for right panel — simple scan rows, not full cards
     _n_high_total = len(_top5)  # will update after full count fetch below
     _signal_rows = ""
@@ -5089,7 +5102,7 @@ body { background-color: #0a0b14 !important; }
         '<div style="display:inline-flex;align-items:center;background:rgba(52,211,153,.05);'
         'border:1px solid rgba(52,211,153,.15);border-radius:100px;padding:5px 14px;">'
         f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#34d399;letter-spacing:.08em;">'
-        f'🎯 {_spots_remaining} FOUNDING SPOTS · FREE TODAY</span></div>'
+        f'🎯 {_spots_remaining} of 50 founding spots left · FREE TODAY</span></div>'
         '</div>'
         '<h1 style="font-family:Syne,sans-serif;font-size:clamp(36px,4vw,60px);'
         'font-weight:800;line-height:1.0;letter-spacing:-.02em;color:#ffffff;margin-bottom:18px;">'
@@ -6130,6 +6143,14 @@ def _render_verify_banner():
         try:
             if is_email_verified(u.get("id")):
                 u["email_verified"] = True
+                # G2 — confirm success explicitly the first time, so the only
+                # signal isn't the banner quietly disappearing.
+                if not st.session_state.get("_email_confirmed_shown"):
+                    st.session_state["_email_confirmed_shown"] = True
+                    try:
+                        st.toast("✓ Email confirmed")
+                    except Exception:
+                        pass
         except Exception:
             return  # transient read error — don't nag
     if u.get("email_verified") is True:
@@ -8019,7 +8040,8 @@ def page_gems():
 
     # Use exactly same data pipeline as screener — guarantees matching gem count
     if st.session_state.scan_results is None:
-        st.markdown(
+        _gem_load_ph = st.empty()
+        _gem_load_ph.markdown(
             '<div style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;'
             'letter-spacing:.08em;margin-bottom:8px;">LOADING UNIVERSE SCORES</div>',
             unsafe_allow_html=True)
@@ -8042,6 +8064,7 @@ def page_gems():
             st.session_state.macro_data   = _mac
             _gems_prog.progress(100, text="Done")
             _gems_prog.empty()
+            _gem_load_ph.empty()  # G1 — clear the stale "LOADING…" label on resolve
         except Exception as _ge:
             _gems_prog.empty()
             st.error(f"Failed to load scores: {_ge}")
@@ -9227,8 +9250,14 @@ def page_portfolio():
         ref_basis    = total_cost_basis if is_actual else total_start_val
         total_change = total_current - ref_basis
         chg_pct      = (total_change / ref_basis * 100) if ref_basis > 0 else 0
-        change_c     = "#34d399" if total_change >= 0 else "#f87171"
-        arrow        = "▲" if total_change >= 0 else "▼"
+        # G8 — a flat / near-zero change (rounds to 0.0%) is neutral, not a green
+        # ▲ gain or a red ▼ loss. Without this, a tiny negative shows "▼ 0.0%" red.
+        if abs(chg_pct) < 0.05:
+            change_c, arrow = "#9fabc0", "–"
+        elif total_change >= 0:
+            change_c, arrow = "#34d399", "▲"
+        else:
+            change_c, arrow = "#f87171", "▼"
         period_note  = "vs cost basis" if is_actual else f"{plbl} lookback (actual prices)"
 
         b2    = sum(1 for h in holdings if (score_map.get(h["ticker"],{}) or {}).get("adj_action",(score_map.get(h["ticker"],{}) or {}).get("action","N/A"))=="BUY")
@@ -9781,7 +9810,7 @@ def page_simulator():
                             _p = (ticker_map.get(_t) or {}).get("price")
                             if add_watchlist_item(_sim_uid, _lst["id"], _t, _p):
                                 _ok += 1
-                        st.success(f"Saved {_ok} positions to “{_nm}”.")
+                        st.success(f"Saved {_ok} position{'s' if _ok!=1 else ''} to “{_nm}”.")
                     else:
                         st.error("Could not create that list.")
     with _load_c:
@@ -9914,7 +9943,7 @@ def page_simulator():
     st.markdown(
         f'<div style="font-size:13px;color:#8896ac;padding-top:12px;margin-top:8px;'
         f'border-top:1px solid rgba(255,255,255,.05);">'
-        f'{"Equal weight" if equal_weight else "Custom weight (normalised)"} · ${sim_amount:,.0f} across {n_sel} positions · '
+        f'{"Equal weight" if equal_weight else "Custom weight (normalised)"} · ${sim_amount:,.0f} across {n_sel} position{"s" if n_sel!=1 else ""} · '
         f'Shares at last scan price · Hypothetical — not investment advice.</div>',
         unsafe_allow_html=True)
 
@@ -12304,7 +12333,7 @@ def page_methodology():
          "• News sentiment — 70+ headlines scanned from Yahoo Finance RSS and FRED\n"
          "• Active events — war escalation, tariff regimes, Fed policy, oil spikes\n\n"
          "Weighting is regime-scaled: the macro overlay carries roughly 10–15% in calm, trending markets "
-         "and up to ~35% in risk-off / high-volatility regimes, where it dampens adj_composite scores to "
+         "and up to ~25% in risk-off / high-volatility regimes, where it dampens adj_composite scores to "
          "reflect elevated systemic risk. The 75/25 figure shown on each card is the nominal blend label. "
          "Regime updates every 15 minutes during your session."),
 
@@ -13512,7 +13541,7 @@ def main():
         "A hawkish-rate regime pressures long-duration sectors like tech and REITs, and tends to help banks.",
         "The macro overlay leans harder when markets are volatile and steps back when trends are calm.",
         "Value position shows where a price sits in its own valuation band \u2014 0% is the cheap end, 100% the rich end.",
-        "A high-conviction name low in its value range is strong factors meeting a low relative price.",
+        "A high-conviction name trading low in its value range pairs strong factors with a low relative price.",
         "Hidden Gems are under-followed mid- and small-caps that still score well in the model.",
         "Conviction is recomputed daily, so a signal can shift even when the share price barely moved.",
         "Scores are relative across the whole universe \u2014 it\u2019s a ranking, not just a price chart.",
