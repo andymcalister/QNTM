@@ -778,8 +778,7 @@ MACRO_EVENT_INFO = {
             "oil-supply risk rises — lifting crude and pressuring energy-importing cyclicals. "
             "Defense names tend to benefit, while broad equities typically de-rate on risk-off "
             "sentiment until the situation stabilises. Historical analogue: Gulf War I (1990) "
-            "saw oil roughly double and equities fall ~20% before recovering. The live headlines "
-            "below show what is currently driving this signal."
+            "saw oil roughly double and equities fall ~20% before recovering."
         ),
         "impact":  "Bearish: Consumer Discretionary, Tech, Financials",
         "bullish": "Bullish: Energy, Defense, Materials",
@@ -1116,6 +1115,23 @@ def _overnight_futures_risk():
         return None
 
 
+def _clean_headline(title: str, summary: str) -> str:
+    """Display string for a matched headline. Prefer the title (minus the
+    ' - Source' suffix Google News appends); if a feed gives no title, fall back
+    to a stripped, truncated summary so the headline is never blank."""
+    import re as _re
+    t = (title or "").strip()
+    t = _re.sub(r"\s+[-–—]\s+[^-–—]{2,42}$", "", t).strip()  # drop trailing " - Reuters" etc.
+    if len(t) >= 12:
+        return t
+    s = _re.sub(r"<[^>]+>", " ", summary or "")          # strip any HTML
+    s = _re.sub(r"\s+", " ", s).strip()
+    if not s:
+        return t  # may be "" — caller filters those out
+    words = s.split()
+    return " ".join(words[:16]) + ("…" if len(words) > 16 else "")
+
+
 def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
     """
     Fetch macro regime and sector overlays from live data sources.
@@ -1163,12 +1179,14 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             try:
                 feed = feedparser.parse(url)
                 for entry in (feed.entries or [])[:cap]:
-                    text = (entry.get("title","") + " " + entry.get("summary","")).lower().strip()
+                    _etitle = (entry.get("title","") or "").strip()
+                    _esumm  = (entry.get("summary","") or "").strip()
+                    text = (_etitle + " " + _esumm).lower().strip()
                     if text and text not in _seen:
                         _seen.add(text)
                         headlines.append(text)
                         _hl_w[text] = _headline_recency_weight(entry)
-                        _hl_title[text] = (entry.get("title","") or "").strip()
+                        _hl_title[text] = _clean_headline(_etitle, _esumm)
             except Exception:
                 pass
 
@@ -1386,7 +1404,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                     continue
                 _seen_t.add(_k)
                 _out.append(_t)
-                if len(_out) >= 3:
+                if len(_out) >= 5:
                     break
             if _out:
                 _event_headlines[_et] = _out
