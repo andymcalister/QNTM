@@ -4594,8 +4594,8 @@ def _cookie_banner():
         '<div style="font-size:13px;color:#8896ac;line-height:1.5;max-width:900px;">'
         'QNTM uses essential cookies for login and session management and anonymous analytics to improve the platform. '
         'By using QNTM you agree to our '
-        '<a href="?legal=privacy" style="color:#9fabc0;text-decoration:underline;">Privacy Policy</a> and '
-        '<a href="?legal=terms" style="color:#9fabc0;text-decoration:underline;">Terms of Service</a>. '
+        '<a href="https://legal.qntm.live/privacy.html" target="_blank" rel="noopener" style="color:#9fabc0;text-decoration:underline;">Privacy Policy</a> and '
+        '<a href="https://legal.qntm.live/terms.html" target="_blank" rel="noopener" style="color:#9fabc0;text-decoration:underline;">Terms of Service</a>. '
         'QNTM is a quantitative research tool — not investment advice.'
         '</div>'
         '</div>',
@@ -5485,8 +5485,8 @@ body { background-color: #0a0b14 !important; }
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:13px;color:#9fabc0;letter-spacing:.12em;margin-bottom:12px;">LEGAL</div>
             <div style="font-size:13px;color:#b3bed0;line-height:2.2;">
-              <a href="?legal=privacy" style="color:#b3bed0;text-decoration:none;display:block;">Privacy Policy</a>
-              <a href="?legal=terms" style="color:#b3bed0;text-decoration:none;display:block;">Terms of Service</a>
+              <a href="https://legal.qntm.live/privacy.html" target="_blank" rel="noopener" style="color:#b3bed0;text-decoration:none;display:block;">Privacy Policy</a>
+              <a href="https://legal.qntm.live/terms.html" target="_blank" rel="noopener" style="color:#b3bed0;text-decoration:none;display:block;">Terms of Service</a>
               <a href="?legal=billing" style="color:#b3bed0;text-decoration:none;display:block;">Billing & Refunds</a>
               <a href="?legal=disclaimer" style="color:#b3bed0;text-decoration:none;display:block;">Investment Disclaimer</a>
               <a href="?legal=cookies" style="color:#b3bed0;text-decoration:none;display:block;">Cookie Policy</a>
@@ -5784,9 +5784,9 @@ def page_auth():
         "border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:8px 4px;"
     )
     with r1c1:
-        st.markdown(f'<a href="?legal=privacy" style="{link_style}">PRIVACY POLICY</a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="https://legal.qntm.live/privacy.html" target="_blank" rel="noopener" style="{link_style}">PRIVACY POLICY</a>', unsafe_allow_html=True)
     with r1c2:
-        st.markdown(f'<a href="?legal=terms" style="{link_style}">TERMS OF SERVICE</a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="https://legal.qntm.live/terms.html" target="_blank" rel="noopener" style="{link_style}">TERMS OF SERVICE</a>', unsafe_allow_html=True)
     with r2c1:
         st.markdown(f'<a href="?legal=billing" style="{link_style}">BILLING &amp; REFUNDS</a>', unsafe_allow_html=True)
     with r2c2:
@@ -12353,8 +12353,8 @@ def page_platform():
           QNTM · Quantitative research platform · Not investment advice
         </div>
         <div style="font-size:13px;color:#8896ac;">
-          <a href="?legal=privacy" target="_blank" rel="noopener" style="color:#b3bed0;">Privacy</a> ·
-          <a href="?legal=terms" target="_blank" rel="noopener" style="color:#b3bed0;">Terms</a> ·
+          <a href="https://legal.qntm.live/privacy.html" target="_blank" rel="noopener" style="color:#b3bed0;">Privacy</a> ·
+          <a href="https://legal.qntm.live/terms.html" target="_blank" rel="noopener" style="color:#b3bed0;">Terms</a> ·
           <a href="?legal=disclaimer" target="_blank" rel="noopener" style="color:#b3bed0;">Disclaimer</a>
         </div>
       </div>
