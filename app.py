@@ -9124,20 +9124,53 @@ def page_simulator():
             st.markdown('</div>', unsafe_allow_html=True)
             return
 
-    all_buys = sorted(
-        [r for r in scan if r.get("adj_action") == "BUY"],
-        key=lambda x: float(x.get("adj_composite", x.get("composite", 0)) or 0), reverse=True
-    )
     ticker_map = {r["ticker"]: r for r in scan}
 
-    def profile_tickers(profile):
+    # Ensure every row carries a sector so the sample portfolio can be spread
+    # across sectors — some sources (e.g. the screener's scan_results) don't
+    # include it, which would collapse the diversification to "Unknown".
+    try:
+        from model_engine import SECTORS as _SIM_SECTORS2
+        for _r in scan:
+            if not _r.get("sector"):
+                _r["sector"] = _SIM_SECTORS2.get(_r.get("ticker"), "Unknown")
+    except Exception:
+        pass
+
+    def profile_tickers(profile, n=20, sector_cap=4):
+        """Top-N sample portfolio for a risk profile, spread across sectors.
+
+        Ranks the whole scored universe by the profile's metric — deliberately
+        NOT filtered to a BUY label, which can be empty in a risk-off regime or
+        when the data arrives as the screener's conviction-labelled rows (that
+        was the 'No positions' bug). HIGH = momentum, LOW = quality+value,
+        MEDIUM = conviction. A per-sector cap keeps the sample diversified."""
+        def _comp(x):
+            return float(x.get("adj_composite", x.get("composite", 0)) or 0)
         if profile == "HIGH":
-            ranked = sorted(all_buys, key=lambda x: x.get("momentum", 0), reverse=True)
+            key = lambda x: float(x.get("momentum", 0) or 0)
         elif profile == "LOW":
-            ranked = sorted(all_buys, key=lambda x: (x.get("quality", 0) + x.get("value", 0)) / 2, reverse=True)
-        else:
-            ranked = all_buys
-        return [r["ticker"] for r in ranked[:20]]
+            key = lambda x: (float(x.get("quality", 0) or 0) + float(x.get("value", 0) or 0)) / 2.0
+        else:  # MEDIUM — balanced, ranked by conviction
+            key = _comp
+        ranked = sorted([r for r in scan if r.get("ticker")], key=key, reverse=True)
+        picked, sec_counts = [], {}
+        for r in ranked:
+            sec = r.get("sector", "Unknown")
+            if sec_counts.get(sec, 0) >= sector_cap:
+                continue
+            picked.append(r["ticker"])
+            sec_counts[sec] = sec_counts.get(sec, 0) + 1
+            if len(picked) >= n:
+                break
+        # Top off if the sector cap left us short (thin sectors / sparse data)
+        if len(picked) < n:
+            for r in ranked:
+                if r["ticker"] not in picked:
+                    picked.append(r["ticker"])
+                    if len(picked) >= n:
+                        break
+        return picked
 
     # Profile from URL param — read without navigation
     _sp = st.query_params.get("_sp", "")
@@ -9151,7 +9184,7 @@ def page_simulator():
         st.session_state.sim_profile = "MEDIUM"
     if ("sim_selected" not in st.session_state
             or st.session_state.get("sim_profile_applied") != st.session_state.sim_profile
-            or (not st.session_state.get("sim_selected") and all_buys)):
+            or (not st.session_state.get("sim_selected") and scan)):
         st.session_state.sim_selected = profile_tickers(st.session_state.sim_profile)
         st.session_state.sim_weights  = {}
         st.session_state.sim_profile_applied = st.session_state.sim_profile
