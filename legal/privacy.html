@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — QNTM LLC</title>
+<meta name="description" content="QNTM LLC Privacy Policy, including SMS/text message alert data practices.">
+<style>
+ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+   max-width:760px;margin:0 auto;padding:40px 20px;color:#1a1a1a;line-height:1.65;}
+ h1,h2,h3{line-height:1.25;} h2{margin-top:32px;border-bottom:1px solid #eee;padding-bottom:6px;}
+ h3{margin-top:24px;}
+ table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+ th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;} th{background:#f7f7f7;}
+ code{background:#f2f2f2;padding:1px 4px;border-radius:3px;} a{color:#0a7;} strong{color:#000;}
+ footer{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:13px;color:#777;}
+</style></head><body>
+<h2>Privacy Policy</h2>
+<p><strong>Effective Date: June 28, 2026</strong> · QNTM LLC (California)</p>
+<h3>What We Collect</h3>
+<p><strong>You give us:</strong>
+- Email address and password (passwords are bcrypt-hashed — we cannot see them)
+- Optional 2FA secret (encrypted at rest)
+- Optional full name
+- Payment method (processed and stored by Stripe — we never see your card number)
+- Your watchlist, portfolio, and simulator data</p>
+<p><strong>We collect automatically:</strong>
+- Login times and session data
+- IP address (for security only — not tracked across sites, not sold)
+- Anonymous, aggregated feature usage (used to improve the product)</p>
+<h3>What We Don't Do</h3>
+<ul>
+<li>We don't sell your data</li>
+<li>We don't use your data for advertising</li>
+<li>We don't share your data except as described below</li>
+<li>We don't track you across other websites</li>
+<li>We never share, sell, or rent your mobile phone number or SMS opt-in/consent data to third parties or affiliates for marketing or promotional purposes</li>
+</ul>
+<h3>Who We Share Data With</h3>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Purpose</th>
+<th>Their privacy policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stripe, Inc.</td>
+<td>Payment processing</td>
+<td>stripe.com/privacy</td>
+</tr>
+<tr>
+<td>Supabase, Inc.</td>
+<td>Database hosting and authentication</td>
+<td>supabase.com/privacy</td>
+</tr>
+<tr>
+<td>Render (Render Services, Inc.)</td>
+<td>Application hosting</td>
+<td>render.com/privacy</td>
+</tr>
+<tr>
+<td>SendGrid (Twilio)</td>
+<td>Account, security, and notification emails — e.g. email verification, password resets, and optional signal alerts</td>
+<td>sendgrid.com/policies/privacy</td>
+</tr>
+<tr>
+<td>Twilio, Inc.</td>
+<td>Optional SMS alert delivery and one-time phone-number verification</td>
+<td>twilio.com/legal/privacy</td>
+</tr>
+<tr>
+<td>GitHub, Inc.</td>
+<td>Scheduled background jobs (data refresh)</td>
+<td>github.com/site/privacy</td>
+</tr>
+</tbody>
+</table>
+<p>Market data is sourced from public providers (Yahoo Finance, FRED) and is not personal data.</p>
+<p>We will share data with law enforcement if legally required, and may disclose data to protect QNTM's rights or the safety of users.</p>
+<h3>Email Communications</h3>
+<p>We use your email address to send two kinds of messages:</p>
+<ul>
+<li><strong>Account and security emails</strong> — for example, email verification, password resets, and billing notices. These are necessary to operate your account, so you can't opt out of them while your account is active.</li>
+<li><strong>Optional signal alerts</strong> — for example, an email when a stock on your watchlist or in your portfolio moves to LOW conviction. These are <strong>off by default</strong> and entirely optional. You can turn them on or off anytime in Account → Notifications, and every alert email includes an unsubscribe reminder and our mailing address.</li>
+</ul>
+<p>We send email through SendGrid (Twilio). We don't use your email address for advertising, and we don't sell it.</p>
+<h3>Text Message (SMS) Alerts</h3>
+<p>If you choose to receive alerts by text message, we collect the mobile phone number you provide. SMS alerts are entirely optional and are off by default.</p>
+<ul>
+<li><strong>How you opt in.</strong> In Account → Notifications you enter your own mobile number and verify it with a one-time code we text you. You then turn on the SMS alert channel. We only text you about the specific price, valuation, or conviction alerts you create yourself — never marketing.</li>
+<li><strong>How you opt out.</strong> Reply STOP to any alert text to unsubscribe, or turn the SMS channel off in Account → Notifications at any time. Reply HELP for help. Message and data rates may apply, and message frequency varies depending on the alerts you set.</li>
+<li><strong>Who delivers them.</strong> We send texts through Twilio. Your mobile number is shared only with Twilio, our messaging provider, solely to deliver the alerts you request.</li>
+</ul>
+<p><strong>Mobile phone numbers and SMS opt-in/consent data are never shared with, sold, or rented to any third parties or affiliates for marketing or promotional purposes.</strong> This information is used only to send you the alerts you have requested.</p>
+<h3>Security</h3>
+<ul>
+<li>Passwords: bcrypt-hashed (cost factor 12)</li>
+<li>Sensitive personal fields (email, name, 2FA secret): encrypted at rest with authenticated symmetric encryption (Fernet — AES-128-CBC with HMAC-SHA256)</li>
+<li>Email-hash lookup so we can find your account without decrypting your email</li>
+<li>Two-factor authentication available and strongly recommended</li>
+<li>Login events are logged for security review</li>
+<li>HTTPS for all traffic</li>
+</ul>
+<h3>How Long We Keep Your Data</h3>
+<ul>
+<li><strong>Active accounts:</strong> kept while your account exists</li>
+<li><strong>Deleted accounts:</strong> personal data is removed within 30 days. Founding Member status is forfeited at deletion and cannot be restored — see Terms §6.</li>
+<li><strong>Payment records:</strong> kept 7 years as required by tax and financial-record law</li>
+<li><strong>Anonymous, aggregated usage statistics:</strong> kept indefinitely</li>
+</ul>
+<h3>Your Rights</h3>
+<p>Email privacy@qntm.live to:
+- See what data we hold about you
+- Correct inaccurate data
+- Delete your account and personal data
+- Export your data in machine-readable form</p>
+<p>We will respond within 30 days.</p>
+<p>California residents have additional rights under the California Consumer Privacy Act (CCPA), including the right to know what personal information we collect, the right to delete it, and the right to non-discrimination for exercising these rights. We do not sell personal information as defined by CCPA.</p>
+<h3>Children</h3>
+<p>QNTM is not directed to anyone under 18. We do not knowingly collect data from anyone under 18. If you believe a child has provided us data, contact privacy@qntm.live and we will delete it.</p>
+<h3>Contact</h3>
+<p>privacy@qntm.live</p>
+<footer>QNTM LLC · 35 Laguna Woods Drive, Laguna Niguel, CA 92677 · privacy@qntm.live</footer>
+</body></html>
