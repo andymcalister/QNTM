@@ -207,11 +207,20 @@ st.markdown("""
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
-/* ── Per-card action buttons (Add/Remove) — mobile text fit ── */
+/* ── Button labels wrap instead of overflowing their box (mobile fit). The old
+   per-card add/remove links are gone; the watchlist toggle and the whole-model
+   alert presets are now st.buttons, whose longer labels must wrap to fit. ── */
+.stButton button, button[data-testid^="stBaseButton"]{
+  white-space: normal !important;
+  height: auto !important;
+  min-height: 38px;
+}
+.stButton button p, button[data-testid^="stBaseButton"] p{
+  white-space: normal !important;
+  line-height: 1.3 !important;
+}
 @media(max-width:640px){
-  a[href*="wl_action"], a[href*="port_action"], a[href*="sim_add"], a[href*="sim_remove"]{
-    font-size:13px !important; letter-spacing:.02em !important; padding:8px 4px !important;
-  }
+  .stButton button, button[data-testid^="stBaseButton"]{ font-size:13px !important; }
 }
 
 /* ── Popover trigger buttons — match institutional dark/gold aesthetic ── */
@@ -2803,8 +2812,48 @@ def render_card_with_watchlist(r: dict, nav: str = "screener", is_gem: bool = Fa
     )
 
 
-def _unused_external_button():
-    pass
+def render_card_wl_button(r: dict, *, nav: str = "screener", is_gem: bool = False,
+                          company_info: dict = None, wl_set: set = None,
+                          key_prefix: str = "wl", extra_detail: str = "",
+                          price: float = None):
+    """Render ONE card in the main document (no iframe) followed by a NO-RELOAD
+    watchlist toggle. This is the single canonical add/remove control — same
+    mechanism as the model portfolio: an st.button whose click reruns ONLY the
+    surrounding fragment via st.rerun(scope="fragment"), instead of the legacy
+    ?wl_action= target=_self link that forced a full-page reload every time.
+
+    MUST be called from inside an @st.fragment. (Falls back to a full rerun if
+    it isn't, so it can never hard-error, but callers should wrap their list.)"""
+    tk = r.get("ticker", "")
+    st.markdown(
+        factor_panel_html(r, is_gem, company_info=company_info,
+                          wl_btn=extra_detail, as_details=True),
+        unsafe_allow_html=True,
+    )
+    if not uid() or not tk:
+        return
+    if wl_set is None:
+        wl_set = {w["ticker"] for w in get_watchlist(uid())}
+    _in = tk in wl_set
+    if st.button(("\u2715 Remove from Watchlist" if _in else "\u2606 Add to Watchlist"),
+                 key=f"{key_prefix}_{tk}", use_container_width=True):
+        if _in:
+            remove_from_watchlist(uid(), tk); _evt = "watchlist_removed"
+        else:
+            add_to_watchlist(uid(), tk, price if price is not None else r.get("price"))
+            _evt = "watchlist_added"
+        try:
+            analytics.capture(_evt, user=st.session_state.get("user"), props={"ticker": tk})
+        except Exception:
+            pass
+        try:
+            st.session_state.get("_run_cache", {}).pop(f"wl:{uid()}", None)
+        except Exception:
+            pass
+        try:
+            st.rerun(scope="fragment")
+        except Exception:
+            st.rerun()
 
 
 def render_watchlist_actions(tickers: list, nav: str = "screener", in_list: set = None):
@@ -4093,17 +4142,35 @@ def _render_stock_result(ticker: str, nav: str = "screener", wl_actions: bool = 
     # Watchlist add/remove toggle — rendered outside the try so a button error
     # can never surface as "not found". Suppressed (wl_actions=False) on the
     # Watchlist page, which renders its own prominent Add/Remove button instead.
-    if _ok and wl_actions:
-        try:
-            from db import get_watchlist_items as _gwi, get_watchlists as _gws
-            _u = uid()
-            _lists = _gws(_u)
-            _did = next((l["id"] for l in _lists if l.get("is_default")),
-                        _lists[0]["id"] if _lists else None)
-            _wtk = {w["ticker"] for w in _gwi(_u, _did)} if _did else set()
-            render_watchlist_actions([_ok["ticker"]], nav=nav, in_list=_wtk)
-        except Exception:
-            pass
+    if _ok and wl_actions and uid():
+        _srtk = _ok["ticker"]
+        @st.fragment
+        def _sr_wl_btn():
+            try:
+                from db import get_watchlist_items as _gwi, get_watchlists as _gws
+                _u = uid()
+                _lists = _gws(_u)
+                _did = next((l["id"] for l in _lists if l.get("is_default")),
+                            _lists[0]["id"] if _lists else None)
+                _wtk = {w["ticker"] for w in _gwi(_u, _did)} if _did else set()
+            except Exception:
+                _wtk = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+            _in = _srtk in _wtk
+            if st.button(("\u2715 Remove from Watchlist" if _in else "\u2606 Add to Watchlist"),
+                         key=f"srwl_{_srtk}", use_container_width=True):
+                if _in:
+                    remove_from_watchlist(uid(), _srtk)
+                else:
+                    add_to_watchlist(uid(), _srtk, _ok.get("price"))
+                try:
+                    st.session_state.get("_run_cache", {}).pop(f"wl:{uid()}", None)
+                except Exception:
+                    pass
+                try:
+                    st.rerun(scope="fragment")
+                except Exception:
+                    st.rerun()
+        _sr_wl_btn()
     return _ok
 
 
@@ -6345,9 +6412,7 @@ def _render_screener_cards(filtered, gem_tickers, filter_key):
 
     _show_sparkline = len(_page_items) <= 20
     _ci_cache = st.session_state.get("company_info_cache", {})
-    _fu_prog = st.progress(0, text="Loading cards...")
     _fu_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
-    _fu_html = ""
     for _fu_i, r in enumerate(_page_items):
         ci = _ci_cache.get(r["ticker"])
         _extra = ""
@@ -6356,13 +6421,13 @@ def _render_screener_cards(filtered, gem_tickers, filter_key):
             _ch = signal_history_chart(r["ticker"], _sc)
             if _ch:
                 _extra = _ch
-        _fu_html += build_card_html(r, nav="screener",
-                                    is_gem=(r["ticker"] in gem_tickers),
-                                    company_info=ci, in_list=_fu_wl_now,
-                                    extra_detail=_extra)
-        _fu_prog.progress(int((_fu_i+1)/len(_page_items)*100), text=f"Loading {_fu_i+1}/{len(_page_items)}...")
-    _fu_prog.empty()
-    render_cards_batch(_fu_html)
+        # Card + no-reload watchlist toggle (same mechanism as the model
+        # portfolio). The whole loop runs inside this fragment, so the toggle
+        # reruns only this block — the page no longer reloads on add/remove.
+        render_card_wl_button(r, nav="screener",
+                              is_gem=(r["ticker"] in gem_tickers),
+                              company_info=ci, wl_set=_fu_wl_now,
+                              key_prefix="fuwl", extra_detail=_extra)
 
 
 def _val_pos(r) -> float | None:
@@ -6656,8 +6721,28 @@ def page_screener():
             _def_id = next((l["id"] for l in _def_lists if l.get("is_default")),
                            _def_lists[0]["id"] if _def_lists else None)
             _wl_tickers = {w["ticker"] for w in _gwi(_wl_uid_s, _def_id)} if _def_id else set()
-            # Use the shared main-document action row (target=_self, mobile-safe)
-            render_watchlist_actions([_srtk], nav="screener", in_list=_wl_tickers)
+            # No-reload watchlist toggle (matches the cards / model portfolio).
+            _scr_srtk  = _srtk
+            _scr_sr_px = _sr_ok.get("price")
+            @st.fragment
+            def _scr_sr_wl():
+                _wtk = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+                _in = _scr_srtk in _wtk
+                if st.button(("\u2715 Remove from Watchlist" if _in else "\u2606 Add to Watchlist"),
+                             key=f"scrsrwl_{_scr_srtk}", use_container_width=True):
+                    if _in:
+                        remove_from_watchlist(uid(), _scr_srtk)
+                    else:
+                        add_to_watchlist(uid(), _scr_srtk, _scr_sr_px)
+                    try:
+                        st.session_state.get("_run_cache", {}).pop(f"wl:{uid()}", None)
+                    except Exception:
+                        pass
+                    try:
+                        st.rerun(scope="fragment")
+                    except Exception:
+                        st.rerun()
+            _scr_sr_wl()
         st.markdown('<div style="height:1px;background:rgba(255,255,255,.05);margin:8px 0 12px;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -7834,27 +7919,31 @@ def page_gems():
         _starts = list(_gem_first.values()) + [_gem_trail]
         _gem_pm, _gem_sm = _mini_price_data(tuple(sorted(set(_gem_tks))), min(_starts))
 
-    # Gems use same collapsed card pattern — batched into one markdown render
-    _gems_html = ""
-    for g in gems:
-        tk = g.get("ticker", "")
-        try:
-            adj   = float(g.get("adj_composite") or g.get("composite") or 0)
-            raw   = float(g.get("composite") or 0)
-            g["adj_action"]  = "BUY"
-            g["score_delta"] = round(adj - raw, 1)
-            if not g.get("sector") or g.get("sector") == "Unknown":
-                g["sector"] = SECTORS.get(tk, "")
-            ci = get_company_info(tk)
-            _gstart = _gem_first.get(tk) or _gem_trail
-            _glabel = "since flagged" if _gem_first.get(tk) else "vs SPY · 20d"
-            g["_mini_chart_html"] = _build_mini_chart_html(
-                tk, _gstart, _gem_pm, _gem_sm, since_label=_glabel)
-            _gems_html += build_card_html(g, nav="gems", is_gem=True,
-                                          company_info=ci, in_list=wl_tickers)
-        except Exception:
-            pass
-    render_cards_batch(_gems_html)
+    # Gems use the same card pattern with the no-reload watchlist toggle,
+    # isolated in a fragment so add/remove reruns only this list.
+    @st.fragment
+    def _gems_cards():
+        _gem_wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+        for g in gems:
+            tk = g.get("ticker", "")
+            try:
+                adj   = float(g.get("adj_composite") or g.get("composite") or 0)
+                raw   = float(g.get("composite") or 0)
+                g["adj_action"]  = "BUY"
+                g["score_delta"] = round(adj - raw, 1)
+                if not g.get("sector") or g.get("sector") == "Unknown":
+                    g["sector"] = SECTORS.get(tk, "")
+                ci = get_company_info(tk)
+                _gstart = _gem_first.get(tk) or _gem_trail
+                _glabel = "since flagged" if _gem_first.get(tk) else "vs SPY · 20d"
+                g["_mini_chart_html"] = _build_mini_chart_html(
+                    tk, _gstart, _gem_pm, _gem_sm, since_label=_glabel)
+                render_card_wl_button(g, nav="gems", is_gem=True,
+                                      company_info=ci, wl_set=_gem_wl_now,
+                                      key_prefix="gemwl")
+            except Exception:
+                pass
+    _gems_cards()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -9370,16 +9459,27 @@ def page_simulator():
                 st.session_state._sim_selected_tk = ""
                 st.session_state.nav = "simulator"
                 st.rerun()
-        try:
-            from db import get_watchlist_items as _gwi2, get_watchlists as _gws2
-            _u2 = uid()
-            _l2 = _gws2(_u2)
-            _d2 = next((l["id"] for l in _l2 if l.get("is_default")),
-                       _l2[0]["id"] if _l2 else None)
-            _w2 = {w["ticker"] for w in _gwi2(_u2, _d2)} if _d2 else set()
-            render_watchlist_actions([_sim_sel_tk], nav="simulator", in_list=_w2)
-        except Exception:
-            pass
+        _sim_srtk  = _sim_sel_tk
+        _sim_sr_px = _sel_r.get("price")
+        @st.fragment
+        def _sim_sr_wl():
+            _wtk = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+            _in = _sim_srtk in _wtk
+            if st.button(("\u2715 Remove from Watchlist" if _in else "\u2606 Add to Watchlist"),
+                         key=f"simsrwl_{_sim_srtk}", use_container_width=True):
+                if _in:
+                    remove_from_watchlist(uid(), _sim_srtk)
+                else:
+                    add_to_watchlist(uid(), _sim_srtk, _sim_sr_px)
+                try:
+                    st.session_state.get("_run_cache", {}).pop(f"wl:{uid()}", None)
+                except Exception:
+                    pass
+                try:
+                    st.rerun(scope="fragment")
+                except Exception:
+                    st.rerun()
+        _sim_sr_wl()
         st.markdown('</div>', unsafe_allow_html=True)
 
     selected_rows = [ticker_map[t] for t in st.session_state.sim_selected if t in ticker_map]
