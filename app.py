@@ -6071,7 +6071,7 @@ def platform_nav():
         "s.id='qntm-curtain-kf';s.textContent='@keyframes qntmspin{to{transform:rotate(360deg)}}';"
         "doc.head.appendChild(s);}"
         "doc.addEventListener('click',function(e){"
-        "var a=e.target.closest&&e.target.closest('a[href*=\\\"qnav\\\"],a[href*=\\\"legal=\\\"],a[href*=\\\"nav=\\\"]');"
+        "var a=e.target.closest&&e.target.closest('a[href*=\\\"qnav\\\"],a[href*=\\\"nav=\\\"]');"
         "if(a){var h=a.getAttribute('href')||'';if(h&&h.charAt(0)!=='#'){c.style.display='flex';}}"
         "},true);"
         "window.addEventListener('pageshow',function(){c.style.display='none';});"
@@ -12157,9 +12157,9 @@ def page_platform():
           QNTM · Quantitative research platform · Not investment advice
         </div>
         <div style="font-size:13px;color:#8896ac;">
-          <a href="#" style="color:#b3bed0;">Privacy</a> ·
-          <a href="#" style="color:#b3bed0;">Terms</a> ·
-          <a href="#" style="color:#b3bed0;">Disclaimer</a>
+          <a href="?legal=privacy" target="_blank" rel="noopener" style="color:#b3bed0;">Privacy</a> ·
+          <a href="?legal=terms" target="_blank" rel="noopener" style="color:#b3bed0;">Terms</a> ·
+          <a href="?legal=disclaimer" target="_blank" rel="noopener" style="color:#b3bed0;">Disclaimer</a>
         </div>
       </div>
     </div>
