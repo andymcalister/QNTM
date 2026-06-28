@@ -223,6 +223,17 @@ st.markdown("""
   .stButton button, button[data-testid^="stBaseButton"]{ font-size:13px !important; }
 }
 
+/* ── Top 10 HIGH/LOW columns stack to one column on phones. st.columns won't
+   stack on its own, so force the block holding the .qntm-t10-anchor marker to
+   wrap; scoped via :has() so no other st.columns layout is affected. ── */
+@media(max-width:640px){
+  [data-testid="stHorizontalBlock"]:has(.qntm-t10-anchor){ flex-wrap: wrap !important; }
+  [data-testid="stHorizontalBlock"]:has(.qntm-t10-anchor) > [data-testid="stColumn"],
+  [data-testid="stHorizontalBlock"]:has(.qntm-t10-anchor) > [data-testid="column"]{
+    flex: 1 1 100% !important; width: 100% !important; min-width: 100% !important;
+  }
+}
+
 /* ── Popover trigger buttons — match institutional dark/gold aesthetic ── */
 div[data-testid="stPopover"] > button,
 button[data-testid="stPopoverButton"],
@@ -6944,35 +6955,42 @@ def page_screener():
 
     # ── TAB 1: TOP 10 — scan mode ───────────────────────────────────────────
     with scr_tab1:
-        # Responsive CSS grid (not st.columns, which won't stack on mobile and
-        # clips the expanded card on narrow screens). 2 cols on desktop, 1 col
-        # on phones via the .qntm-conv-grid media query in the main-doc <style>.
-        _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
-
-        # Trailing vs-SPY mini charts for the top/bottom 10 — these lists have no
-        # stored "entered the list" date, so we show a fixed trailing window.
+        # HIGH (buys) on the left, LOW (sells) on the right — same side-by-side
+        # contrast as before, but now real Streamlit columns so each card can
+        # carry a no-reload watchlist toggle (st.button in a fragment). The old
+        # "st.columns clips the expanded card" concern is gone: cards are native
+        # <details>, not fixed-height iframes, so nothing clips. The columns
+        # stack on phones via the scoped .qntm-t10-anchor media query.
         _scr_trail = _trail_start(30)
         _scr_tks = [r["ticker"] for r in buys_ranked[:10]] + [r["ticker"] for r in sells_ranked[:10]]
         _scr_pm, _scr_sm = ({}, {})
         if _scr_tks:
             _scr_pm, _scr_sm = _mini_price_data(tuple(sorted(set(_scr_tks))), _scr_trail)
 
-        def _conv_col(label, color, ranked):
-            out = (f'<div style="font-family:DM Mono,monospace;font-size:13px;color:{color};'
-                   f'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
-                   f'border-bottom:1px solid rgba(255,255,255,.05);">{label}</div>')
-            for r in ranked:
+        st.markdown(
+            '<div style="font-size:12px;color:#94a3b8;line-height:1.6;margin:2px 0 10px;">'
+            'Ranked by conviction, tilted toward where price sits in each stock\'s valuation '
+            'range — so high-conviction names trading <span style="color:#34d399;">cheap</span> '
+            'rise to the top. A <span style="color:#34d399;font-weight:700;">◆ CHEAP</span> tag '
+            'flags high conviction + low in range; <span style="color:#f87171;font-weight:700;">'
+            '◆ RICH</span> flags low conviction + high in range.</div>',
+            unsafe_allow_html=True)
+
+        @st.fragment
+        def _top10_cards():
+            # Read membership inside the fragment so toggle labels flip on the
+            # scoped rerun (same contract as the full-universe / gems lists).
+            _wl_now = {w["ticker"] for w in get_watchlist(uid())} if uid() else set()
+
+            def _prep(r, color):
                 r = dict(r)  # never mutate the shared session row
-                ci     = get_company_info(r["ticker"])
-                is_gem = r["ticker"] in gem_tickers
-                # Ensure action matches list — signal_log BUY/SELL may not match adj
-                if color == "#f87171" and r.get("adj_action",r.get("action")) != "SELL":
+                # Ensure action matches the column — signal_log BUY/SELL may not
+                # match the macro-adjusted action.
+                if color == "#f87171" and r.get("adj_action", r.get("action")) != "SELL":
                     r["adj_action"] = "SELL"
-                elif color == "#34d399" and r.get("adj_action",r.get("action")) != "BUY":
+                elif color == "#34d399" and r.get("adj_action", r.get("action")) != "BUY":
                     r["adj_action"] = "BUY"
-                # Call out names that are both a strong signal AND well-priced:
-                # high conviction trading cheap (buys) / low conviction trading
-                # expensive (sells). Drives the ◆ CHEAP / ◆ RICH badge.
+                # ◆ CHEAP / ◆ RICH callout (high conviction + cheap / low + rich)
                 _conv = float(r.get("adj_composite", r.get("composite", 50)) or 50)
                 _vp = _val_pos(r)
                 if _vp is not None:
@@ -6982,26 +7000,35 @@ def page_screener():
                         r["_value_callout"] = "rich"
                 r["_mini_chart_html"] = _build_mini_chart_html(
                     r["ticker"], _scr_trail, _scr_pm, _scr_sm, since_label="vs SPY · 20d")
-                out += build_card_html(r, nav="screener", is_gem=is_gem,
-                                       company_info=ci, in_list=_wl_now)
-            return out
+                return r
 
-        _high_html = _conv_col("▲ HIGH CONVICTION", "#34d399", buys_ranked[:10])
-        _low_html  = _conv_col("▼ LOW CONVICTION",  "#f87171", sells_ranked[:10])
-        st.markdown(
-            '<div style="font-size:12px;color:#94a3b8;line-height:1.6;margin:2px 0 10px;">'
-            'Ranked by conviction, tilted toward where price sits in each stock\'s valuation '
-            'range — so high-conviction names trading <span style="color:#34d399;">cheap</span> '
-            'rise to the top. A <span style="color:#34d399;font-weight:700;">◆ CHEAP</span> tag '
-            'flags high conviction + low in range; <span style="color:#f87171;font-weight:700;">'
-            '◆ RICH</span> flags low conviction + high in range.</div>',
-            unsafe_allow_html=True)
-        st.markdown(
-            '<div class="qntm-conv-grid" style="display:grid;'
-            'grid-template-columns:1fr 1fr;gap:16px;align-items:start;">'
-            f'<div>{_high_html}</div><div>{_low_html}</div>'
-            '</div>',
-            unsafe_allow_html=True)
+            _hcol, _lcol = st.columns(2)
+            with _hcol:
+                st.markdown(
+                    '<span class="qntm-t10-anchor"></span>'
+                    '<div style="font-family:DM Mono,monospace;font-size:13px;color:#34d399;'
+                    'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
+                    'border-bottom:1px solid rgba(255,255,255,.05);">▲ HIGH CONVICTION</div>',
+                    unsafe_allow_html=True)
+                for r in buys_ranked[:10]:
+                    _r = _prep(r, "#34d399")
+                    render_card_wl_button(_r, nav="screener",
+                                          is_gem=(_r["ticker"] in gem_tickers),
+                                          company_info=get_company_info(_r["ticker"]),
+                                          wl_set=_wl_now, key_prefix="t10hi")
+            with _lcol:
+                st.markdown(
+                    '<div style="font-family:DM Mono,monospace;font-size:13px;color:#f87171;'
+                    'letter-spacing:.12em;margin:0 0 6px;padding-bottom:4px;'
+                    'border-bottom:1px solid rgba(255,255,255,.05);">▼ LOW CONVICTION</div>',
+                    unsafe_allow_html=True)
+                for r in sells_ranked[:10]:
+                    _r = _prep(r, "#f87171")
+                    render_card_wl_button(_r, nav="screener",
+                                          is_gem=(_r["ticker"] in gem_tickers),
+                                          company_info=get_company_info(_r["ticker"]),
+                                          wl_set=_wl_now, key_prefix="t10lo")
+        _top10_cards()
 
     # ── TAB 2: FULL UNIVERSE ───────────────────────────────────────────────────
     with scr_tab2:
