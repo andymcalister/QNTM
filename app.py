@@ -2990,43 +2990,82 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
     if _vr_basis != "na" and _vr_low is not None and _vr_high is not None:
         # Marker tracks the LIVE price (worker keeps signal_log.price fresh ~90s)
         # against last night's band; fall back to the stored value_position.
-        _pos = None
+        _pos = None     # clamped 0-100, for the in-band marker
+        _raw = None     # unclamped, used to detect out-of-band
         try:
             _lo, _hi = float(_vr_low), float(_vr_high)
             _pr = float(r.get("price")) if r.get("price") else None
             if _pr is not None and _hi > _lo:
-                _pos = max(0.0, min(100.0, (_pr - _lo) / (_hi - _lo) * 100.0))
+                _raw = (_pr - _lo) / (_hi - _lo) * 100.0
+                _pos = max(0.0, min(100.0, _raw))
             elif _vr_pos is not None:
-                _pos = max(0.0, min(100.0, float(_vr_pos)))
+                _pos = max(0.0, min(100.0, float(_vr_pos))); _raw = _pos
         except (TypeError, ValueError):
-            _pos = max(0.0, min(100.0, float(_vr_pos))) if _vr_pos is not None else None
+            if _vr_pos is not None:
+                _pos = max(0.0, min(100.0, float(_vr_pos))); _raw = _pos
         if _pos is not None:
-            if   _pos <= 20: _zone, _zc = "Lower range",     "#34d399"
-            elif _pos <= 40: _zone, _zc = "Lower-mid range", "#86efac"
-            elif _pos <= 60: _zone, _zc = "Mid range",       "#fbbf24"
-            elif _pos <= 80: _zone, _zc = "Upper-mid range", "#fb923c"
-            else:            _zone, _zc = "Upper range",      "#f87171"
             _basis_note = "" if _vr_basis == "valuation" else " · technical range"
             _cur = f'${r["price"]:,.2f}' if r.get("price") else "—"
-            _valrange_html = (
-                f'<div style="margin-top:14px;padding-top:12px;'
-                f'border-top:1px solid rgba(255,255,255,.04);">'
-                f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                f'margin-bottom:7px;">'
-                f'<span style="font-size:13px;color:#8896ac;letter-spacing:.06em;">VALUE POSITION</span>'
-                f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_zc};'
-                f'font-weight:700;">{_pos:.0f}% · {_zone}</span></div>'
-                f'<div style="position:relative;height:8px;border-radius:5px;'
-                f'background:linear-gradient(90deg,#34d399 0%,#fbbf24 50%,#f87171 100%);">'
-                f'<div style="position:absolute;top:-3px;left:calc({_pos:.1f}% - 2px);'
-                f'width:4px;height:14px;border-radius:2px;background:#e8edf4;'
-                f'box-shadow:0 0 4px rgba(0,0,0,.6);"></div></div>'
-                f'<div style="display:flex;justify-content:space-between;margin-top:5px;'
-                f'font-family:DM Mono,monospace;font-size:12px;color:#7e8aa0;">'
-                f'<span>${_vr_low:,.2f}</span>'
-                f'<span style="color:#9fabc0;">{_cur} now{_basis_note}</span>'
-                f'<span>${_vr_high:,.2f}</span></div></div>'
-            )
+            _out_of_band = _raw is not None and (_raw < -0.5 or _raw > 100.5)
+            if not _out_of_band:
+                if   _pos <= 20: _zone, _zc = "Lower range",     "#34d399"
+                elif _pos <= 40: _zone, _zc = "Lower-mid range", "#86efac"
+                elif _pos <= 60: _zone, _zc = "Mid range",       "#fbbf24"
+                elif _pos <= 80: _zone, _zc = "Upper-mid range", "#fb923c"
+                else:            _zone, _zc = "Upper range",      "#f87171"
+                _valrange_html = (
+                    f'<div style="margin-top:14px;padding-top:12px;'
+                    f'border-top:1px solid rgba(255,255,255,.04);">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                    f'margin-bottom:7px;">'
+                    f'<span style="font-size:13px;color:#8896ac;letter-spacing:.06em;">VALUE POSITION</span>'
+                    f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_zc};'
+                    f'font-weight:700;">{_pos:.0f}% · {_zone}</span></div>'
+                    f'<div style="position:relative;height:8px;border-radius:5px;'
+                    f'background:linear-gradient(90deg,#34d399 0%,#fbbf24 50%,#f87171 100%);">'
+                    f'<div style="position:absolute;top:-3px;left:calc({_pos:.1f}% - 2px);'
+                    f'width:4px;height:14px;border-radius:2px;background:#e8edf4;'
+                    f'box-shadow:0 0 4px rgba(0,0,0,.6);"></div></div>'
+                    f'<div style="display:flex;justify-content:space-between;margin-top:5px;'
+                    f'font-family:DM Mono,monospace;font-size:12px;color:#7e8aa0;">'
+                    f'<span>${_vr_low:,.2f}</span>'
+                    f'<span style="color:#9fabc0;">{_cur} now{_basis_note}</span>'
+                    f'<span>${_vr_high:,.2f}</span></div></div>'
+                )
+            else:
+                # Price sits outside the sector-relative fair-value band. Sandwiching
+                # `now` between low/high here produces a non-ascending, misleading row,
+                # so state it descriptively and show the distance instead.
+                if _raw < 0:
+                    _state, _sc = "Below fair-value band", "#34d399"
+                    _dist = (_lo - _pr) / _lo * 100.0 if _lo else 0.0
+                    _dist_txt = f"price is {_dist:.0f}% below the band floor"
+                    _mark = 0.0
+                else:
+                    _state, _sc = "Above fair-value band", "#f87171"
+                    _dist = (_pr - _hi) / _hi * 100.0 if _hi else 0.0
+                    _dist_txt = f"price is {_dist:.0f}% above the band ceiling"
+                    _mark = 100.0
+                _valrange_html = (
+                    f'<div style="margin-top:14px;padding-top:12px;'
+                    f'border-top:1px solid rgba(255,255,255,.04);">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                    f'margin-bottom:7px;">'
+                    f'<span style="font-size:13px;color:#8896ac;letter-spacing:.06em;">VALUE POSITION</span>'
+                    f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{_sc};'
+                    f'font-weight:700;">{_state}</span></div>'
+                    f'<div style="position:relative;height:8px;border-radius:5px;'
+                    f'background:linear-gradient(90deg,#34d399 0%,#fbbf24 50%,#f87171 100%);opacity:.45;">'
+                    f'<div style="position:absolute;top:-3px;left:calc({_mark:.1f}% - 2px);'
+                    f'width:4px;height:14px;border-radius:2px;background:#e8edf4;'
+                    f'box-shadow:0 0 4px rgba(0,0,0,.6);"></div></div>'
+                    f'<div style="display:flex;justify-content:space-between;margin-top:5px;'
+                    f'font-family:DM Mono,monospace;font-size:12px;color:#7e8aa0;">'
+                    f'<span style="color:#9fabc0;">{_cur} now{_basis_note}</span>'
+                    f'<span>band ${_vr_low:,.2f}–${_vr_high:,.2f}</span></div>'
+                    f'<div style="font-family:DM Mono,monospace;font-size:11px;color:{_sc};'
+                    f'margin-top:4px;">{_dist_txt}</div></div>'
+                )
     price_html = ""
     if r.get("price"):
         price_html = (
@@ -3067,9 +3106,9 @@ def factor_panel_html(r: dict, is_gem: bool = False, company_info: dict = None, 
         f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">BLEND</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#d4a843;">75/25</div></div>'
         f'<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 10px;">'
-        f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">RANK</div>'
+        f'<div style="font-size:13px;color:#8896ac;letter-spacing:.06em;margin-bottom:2px;">PERCENTILE</div>'
         f'<div style="font-family:DM Mono,monospace;font-size:14px;color:#b3bed0;">'
-        f'{_ordinal(_pct_rank)}</div></div>'
+        f'{int(_pct_rank)}<span style="font-size:11px;color:#7e8aa0;">/100</span></div></div>'
         f'</div>'
         + _valrange_html
         + why_html
@@ -8428,13 +8467,28 @@ def page_portfolio():
         except Exception:
             pass
 
+    # ── Single source of truth for conviction tiers ────────────────────────────
+    # Both the header summary and the grid strip MUST bucket by this exact rule
+    # (documented thresholds on adj_composite), so they can never disagree. The
+    # BUY/HOLD/SELL action label is regime-scaled and is a different concept —
+    # do not use it for tier counting.
+    def _conv_tier(tk):
+        _r = score_map.get(tk, {}) or {}
+        if not _r or _r.get("adj_action") == "N/A":
+            return None  # outside universe / unscored
+        _x = float(_r.get("adj_composite", _r.get("composite", 50)) or 50)
+        return "HIGH" if _x >= 60 else ("LOW" if _x < 45 else "MOD")
+
     # ── Portfolio conviction summary — single primary card ──────────────
     if holdings and score_map:
-        _sc = [float(score_map.get(h["ticker"],{}).get("adj_composite",50) or 50) for h in holdings]
-        _hi = sum(1 for x in _sc if x>=60)
-        _mo = sum(1 for x in _sc if 45<=x<60)
-        _lo = sum(1 for x in _sc if x<45)
-        _avg = sum(_sc)/len(_sc)
+        _tiers = [_conv_tier(h["ticker"]) for h in holdings]
+        _hi = _tiers.count("HIGH")
+        _mo = _tiers.count("MOD")
+        _lo = _tiers.count("LOW")
+        _sc = [float(score_map.get(h["ticker"],{}).get("adj_composite",
+                     score_map.get(h["ticker"],{}).get("composite",50)) or 50)
+               for h in holdings if _conv_tier(h["ticker"]) is not None]
+        _avg = (sum(_sc)/len(_sc)) if _sc else 50.0
         _conv_label = "High" if _avg>=60 else ("Low" if _avg<45 else "Moderate")
         _conv_color = "#34d399" if _avg>=60 else ("#f87171" if _avg<45 else "#fbbf24")
         # Trend — compare to previous snapshot avg if available
@@ -8746,10 +8800,12 @@ def page_portfolio():
         return
 
     # ── Portfolio summary strip ────────────────────────────────────────────────
-    port_buys  = sum(1 for h in holdings if score_map.get(h["ticker"],{}).get("adj_action", score_map.get(h["ticker"],{}).get("action")) == "BUY")
-    port_holds = sum(1 for h in holdings if score_map.get(h["ticker"],{}).get("adj_action", score_map.get(h["ticker"],{}).get("action")) == "HOLD")
-    port_sells = sum(1 for h in holdings if score_map.get(h["ticker"],{}).get("adj_action", score_map.get(h["ticker"],{}).get("action")) == "SELL")
-    port_na    = n_holdings - port_buys - port_holds - port_sells
+    # Same tier source as the header above — header and grid can never disagree.
+    _grid_tiers = [_conv_tier(h["ticker"]) for h in holdings]
+    port_buys  = _grid_tiers.count("HIGH")
+    port_holds = _grid_tiers.count("MOD")
+    port_sells = _grid_tiers.count("LOW")
+    port_na    = _grid_tiers.count(None)
 
     port_summary_data = [
         ("▲ High Conviction",  port_buys,  "#34d399"),
