@@ -7461,7 +7461,7 @@ def page_watchlist():
         f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
         f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">{n} tracked</span>'
         f'<span style="color:#1e293b;">·</span>'
-        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{avg_color};">avg {avg_score:.0f} {avg_label}</span>'
+        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">avg {avg_score:.0f}</span>'
         + (_sep + _sep.join(_parts) if _parts else '')
         + f'</div>',
         unsafe_allow_html=True
@@ -8528,12 +8528,12 @@ def page_portfolio():
         st.markdown(
             f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);'
             f'border-radius:10px;padding:16px 20px;margin-bottom:16px;">'
-            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;letter-spacing:.1em;margin-bottom:6px;">PORTFOLIO CONVICTION</div>'
+            f'<div style="font-family:DM Mono,monospace;font-size:11px;color:#8896ac;letter-spacing:.1em;margin-bottom:6px;">CONVICTION BREAKDOWN</div>'
             f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
             f'<div>'
-            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:{_conv_color};white-space:nowrap;">{_conv_label}</span>'
+            f'<span style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#b3bed0;white-space:nowrap;">avg {_avg:.0f}</span>'
             f'{_trend_html}'
-            f'<div style="font-size:13px;color:#8896ac;margin-top:2px;">avg score {_avg:.0f} · {len(holdings)} positions</div>'
+            f'<div style="font-size:13px;color:#8896ac;margin-top:2px;">average model score across {len(holdings)} position{"s" if len(holdings)!=1 else ""}</div>'
             f'</div>'
             f'<div style="display:flex;gap:12px;">'
             f'<div style="text-align:center;"><div style="font-family:DM Mono,monospace;font-size:16px;color:#34d399;">{_hi}</div><div style="font-size:11px;color:#8896ac;">HIGH</div></div>'
