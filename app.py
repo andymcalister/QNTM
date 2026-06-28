@@ -7338,17 +7338,9 @@ def page_watchlist():
                     st.rerun()
                 else:
                     st.toast(f"Could not add {_wl_sel}")
-    if watchlist:
-        _rm_c, _rmbtn_c = st.columns([3, 1])
-        with _rm_c:
-            _rm_pick = st.selectbox("Remove ticker", [w["ticker"] for w in watchlist],
-                                    key="wl_native_rm_pick", label_visibility="collapsed")
-        with _rmbtn_c:
-            if st.button("✕ Remove", key="wl_native_rm", use_container_width=True):
-                if remove_watchlist_item(_wl_uid, _active_id, _rm_pick):
-                    st.session_state.pop("_wl_daychange_cache", None)
-                    st.toast(f"Removed {_rm_pick}")
-                    st.rerun()
+    # (Removed the standalone "Remove ticker" dropdown — each card now carries its
+    #  own no-reload Remove button, so the dropdown was a duplicate control. The
+    #  search box above stays as the add path.)
     st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
 
     if not watchlist:
@@ -7515,28 +7507,10 @@ def page_watchlist():
 
     # Batch fetch last 2 signal_log rows per ticker for trend arrows
     # wl_trend already initialised above
-    # ── Intelligence summary — improving/weakening/posture ─────────────────
-    n        = len(watchlist)
-    n_hi     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) >= 60)
-    n_lo     = sum(1 for w in watchlist if float((score_map.get(w["ticker"]) or {}).get("adj_composite",50) or 50) < 45)
-    scores_all = [float((score_map.get(w["ticker"]) or {}).get("adj_composite",0) or 0) for w in watchlist]
-    avg_score  = sum(scores_all) / len(scores_all) if scores_all else 0
-    avg_label  = 'High' if avg_score >= 60 else ('Low' if avg_score < 45 else 'Moderate')
-    avg_color  = '#34d399' if avg_score >= 60 else ('#f87171' if avg_score < 45 else '#fbbf24')
-    # Count improving vs weakening from wl_trend
-    n_improving = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2191')
-    n_weakening = sum(1 for w in watchlist if (wl_trend.get(w['ticker']) or ('',))[0] == '\u2193')
-    # Sector posture — dominant sector among high conviction
-    hi_sectors = [_WL_SECTORS.get(w['ticker'],'') for w in watchlist
-                  if float((score_map.get(w['ticker']) or {}).get('adj_composite',0) or 0) >= 60]
-    from collections import Counter
-    top_sector = Counter(hi_sectors).most_common(1)[0][0] if hi_sectors else ''
-    top_sector_html = f'<span style="color:#8896ac;">· {top_sector} leading</span>' if top_sector else ''
-
-    _impr_html = f'<span style="color:#34d399;">↑ {n_improving} improving</span>' if n_improving else ''
-    _weak_html = f'<span style="color:#f87171;">↓ {n_weakening} weakening</span>' if n_weakening else ''
-    _sep = '<span style="color:#1e293b;"> · </span>'
-    _parts = [p for p in [_impr_html, _weak_html, top_sector_html] if p]
+    # ── Intelligence summary + cards are rendered together in a fragment below
+    #    (see _wl_list) so a no-reload remove recomputes the tracked-count / avg /
+    #    improving-weakening line over the current list instead of leaving it
+    #    stale. The wl_trend DB enrichment stays here (runs once per page load).
 
     try:
         from data_refresh import _get_supabase as _wl_sb
@@ -7568,16 +7542,8 @@ def page_watchlist():
     except Exception:
         pass
 
-    st.markdown(
-        f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
-        f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
-        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">{n} tracked</span>'
-        f'<span style="color:#1e293b;">·</span>'
-        f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">avg {avg_score:.0f}</span>'
-        + (_sep + _sep.join(_parts) if _parts else '')
-        + f'</div>',
-        unsafe_allow_html=True
-    )
+    # (tracked-count / avg / improving-weakening summary is rendered inside the
+    #  _wl_list fragment below, recomputed over the current list.)
 
     # Watchlist — collapsed card pattern, no table header needed
     _uid_wl  = (st.session_state.user or {}).get("id","")
@@ -7613,7 +7579,7 @@ def page_watchlist():
     _wl_pm, _wl_sm = ({}, {})
     if _wl_dates:
         _wl_pm, _wl_sm = _mini_price_data(tuple(sorted(_wl_active_tickers)), min(_wl_dates))
-    _cards_html = ""
+    _wl_card_html = {}   # ticker -> prebuilt card HTML (rendered in fragment)
     for w in watchlist:
         tk  = w["ticker"]
         sc  = dict(score_map.get(tk, {}) or {})
@@ -7707,10 +7673,6 @@ def page_watchlist():
                 'border-radius:0 0 6px 6px;">'
                 + "".join(_segments) + '</div>'
             )
-        # Per-card: card + P&L strip + Remove button, accumulated for one render.
-        _wl_rm_url = (f"?qnav=watchlist&uid={st.query_params.get('uid','')}"
-                      f"&plan={st.query_params.get('plan','free')}&ck=1&_n=watchlist"
-                      f"&wl_list_action=remove_item&wl_list_id={_active_id}&wl_rm_ticker={tk}")
         # Collapsed-card meta strip — surfaces "added on / today's %" at a glance
         # without making the user expand. The added_at field is set when the
         # watchlist item is created; day_change is the same dict already used by
@@ -7721,11 +7683,68 @@ def page_watchlist():
         )
         sc["_mini_chart_html"] = _build_mini_chart_html(
             tk, w.get("added_at") or w.get("created_at"), _wl_pm, _wl_sm, since_label="since added")
-        _cards_html += build_card_html(sc, nav="watchlist", is_gem=(tk in _wl_gems),
-                                       company_info=ci, in_list=_wl_active_tickers,
-                                       extra_detail=_since_html, remove_url=_wl_rm_url)
+        # No embedded action link — the no-reload Remove button is rendered under
+        # each card inside the _wl_list fragment below.
+        _wl_card_html[tk] = factor_panel_html(
+            sc, is_gem=(tk in _wl_gems), company_info=ci,
+            wl_btn=_since_html, as_details=True)
 
-    render_cards_batch(_cards_html)
+    @st.fragment
+    def _wl_list():
+        # Re-fetch inside the fragment so a no-reload remove (st.rerun scope=
+        # "fragment") refreshes both the list and the summary line below — no
+        # full-page reload, no scroll jump.
+        from collections import Counter
+        _wl = get_watchlist_items(_wl_uid, _active_id)
+        # ── Intelligence summary, recomputed over the CURRENT list ──
+        _n = len(_wl)
+        _scores = [float((score_map.get(x["ticker"]) or {}).get("adj_composite", 0) or 0) for x in _wl]
+        _avg = sum(_scores) / len(_scores) if _scores else 0
+        _impr_n = sum(1 for x in _wl if (wl_trend.get(x["ticker"]) or ("",))[0] == "\u2191")
+        _weak_n = sum(1 for x in _wl if (wl_trend.get(x["ticker"]) or ("",))[0] == "\u2193")
+        _hi_sec = [_WL_SECTORS.get(x["ticker"], "") for x in _wl
+                   if float((score_map.get(x["ticker"]) or {}).get("adj_composite", 0) or 0) >= 60]
+        _top_sec = Counter(_hi_sec).most_common(1)[0][0] if _hi_sec else ""
+        _top_html = f'<span style="color:#8896ac;">· {_top_sec} leading</span>' if _top_sec else ""
+        _impr_html = f'<span style="color:#34d399;">↑ {_impr_n} improving</span>' if _impr_n else ""
+        _weak_html = f'<span style="color:#f87171;">↓ {_weak_n} weakening</span>' if _weak_n else ""
+        _sep = '<span style="color:#1e293b;"> · </span>'
+        _parts = [p for p in [_impr_html, _weak_html, _top_html] if p]
+        st.markdown(
+            f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
+            f'padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.04);">'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">{_n} tracked</span>'
+            f'<span style="color:#1e293b;">·</span>'
+            f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#8896ac;">avg {_avg:.0f}</span>'
+            + (_sep + _sep.join(_parts) if _parts else "")
+            + '</div>',
+            unsafe_allow_html=True)
+        if not _wl:
+            st.markdown('<div style="text-align:center;color:#8896ac;font-size:13px;'
+                        'padding:24px 0;">No stocks in this list yet.</div>',
+                        unsafe_allow_html=True)
+            return
+        for x in _wl:
+            _xtk = x["ticker"]
+            _chtml = _wl_card_html.get(_xtk)
+            if _chtml is None:
+                continue
+            st.markdown(_chtml, unsafe_allow_html=True)
+            if st.button("\u2715 Remove from Watchlist", key=f"wlrm_{_xtk}",
+                         use_container_width=True):
+                if remove_watchlist_item(_wl_uid, _active_id, _xtk):
+                    st.session_state.pop("_wl_daychange_cache", None)
+                    try:
+                        st.session_state.get("_run_cache", {}).pop(f"wl:{uid()}", None)
+                    except Exception:
+                        pass
+                    st.toast(f"Removed {_xtk}")
+                    try:
+                        st.rerun(scope="fragment")
+                    except Exception:
+                        st.rerun()
+    if watchlist:
+        _wl_list()
 
     st.markdown(
         '<div style="padding:8px 14px;background:#050a0f;border:1px solid rgba(255,255,255,.07);'
