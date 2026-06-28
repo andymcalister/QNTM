@@ -737,19 +737,20 @@ def _detect_anticipation(headlines):
     return scores, meta
 
 
-# Current estimated regime (updated daily in production via RSS; estimated here)
-# Based on 2025H1 tariff environment
+# Estimated regime fallback — used ONLY if live RSS feeds are unavailable. Kept
+# deliberately free of point-in-time price levels and dates so it never reads as
+# stale; the live overlay (VIX, WTI, regime score, headline count) carries the
+# current picture whenever feeds are up.
 _CURRENT_REGIME = {
     "label": "RISK-OFF",
     "score": -0.45,
     "active_events": ["tariff_broad", "war_escalation"],
     "source": "estimated",
     "note": (
-        "Estimated regime 2026: US tariffs active on major partners; "
-        "Iran-Israel tensions and Strait of Hormuz disruption keep war escalation "
-        "risk elevated. WTI currently $85-92 — within normal range, so oil_spike "
-        "only triggers if RSS headlines surge or WTI breaches $95. "
-        "RSS live feeds activate on deployment."
+        "Estimated fallback regime: broad US tariffs active on major partners and "
+        "elevated Middle East war-escalation risk (Iran-Israel / Strait of Hormuz). "
+        "oil_spike triggers only if RSS headlines surge or WTI breaches $95. "
+        "Live RSS feeds override this estimate when available."
     )
 }
 
@@ -760,7 +761,7 @@ MACRO_EVENT_INFO = {
         "summary": "US reciprocal tariffs on major trading partners",
         "detail":  (
             "The US has imposed sweeping import tariffs averaging 25%+ on goods from China, "
-            "the EU, and other partners (2025). This raises input costs for US manufacturers, "
+            "the EU, and other partners. This raises input costs for US manufacturers, "
             "squeezes consumer discretionary margins, and dampens global trade volumes. "
             "Tech hardware and semiconductor supply chains are particularly exposed. "
             "Historically, broad tariff regimes compress P/E multiples 10-15% in the first year."
@@ -769,18 +770,19 @@ MACRO_EVENT_INFO = {
         "bullish": "Defensive: Consumer Staples, Utilities, Healthcare",
     },
     "war_escalation": {
-        "label":   "Iran-Israel War Escalation",
-        "summary": "Military conflict in Middle East with Strait of Hormuz risk",
+        "label":   "War Escalation",
+        "summary": "Armed conflict raising oil-supply and risk-off pressure",
         "detail":  (
-            "Escalating Iran-Israel military exchanges in May 2025 have raised the risk of "
-            "Strait of Hormuz disruption — a chokepoint for ~20% of global oil supply. "
-            "Iran has threatened to close the Strait in response to further strikes. "
-            "Defense contractors benefit; global cyclicals face headwinds from energy cost "
-            "increases and risk-off sentiment. Historical analogues: Gulf War I (1990) saw "
-            "oil double and equities fall 20% before recovering."
+            "An active or escalating armed conflict raises the geopolitical risk premium "
+            "across markets. Where fighting threatens a major energy chokepoint or producer, "
+            "oil-supply risk rises — lifting crude and pressuring energy-importing cyclicals. "
+            "Defense names tend to benefit, while broad equities typically de-rate on risk-off "
+            "sentiment until the situation stabilises. Historical analogue: Gulf War I (1990) "
+            "saw oil roughly double and equities fall ~20% before recovering. The live headlines "
+            "below show what is currently driving this signal."
         ),
         "impact":  "Bearish: Consumer Discretionary, Tech, Financials",
-        "bullish": "Bullish: Energy, Defense (RTX, LMT), Materials",
+        "bullish": "Bullish: Energy, Defense, Materials",
     },
     "war_deescalation": {
         "label":   "Ceasefire / De-escalation",
@@ -1156,6 +1158,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         ]
         _seen = set()
         _hl_w = {}                       # headline text -> recency weight
+        _hl_title = {}                   # headline text -> original-case title (for display)
         for url, cap in NEWS_FEEDS:
             try:
                 feed = feedparser.parse(url)
@@ -1165,6 +1168,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                         _seen.add(text)
                         headlines.append(text)
                         _hl_w[text] = _headline_recency_weight(entry)
+                        _hl_title[text] = (entry.get("title","") or "").strip()
             except Exception:
                 pass
 
@@ -1205,6 +1209,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         # "N signals" display, which should stay an honest integer count).
         event_scores = defaultdict(float)
         event_counts = defaultdict(int)
+        event_titles = defaultdict(list)   # event_type -> [(weight, title), ...] for display
         _deesc_kws = EVENT_KEYWORDS["war_deescalation"]
         for event_type, keywords in EVENT_KEYWORDS.items():
             for headline in headlines:
@@ -1215,6 +1220,9 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
                     if kw in headline:
                         event_scores[event_type] += _hl_w.get(headline, 0.7)
                         event_counts[event_type] += 1
+                        _t = _hl_title.get(headline, "")
+                        if _t:
+                            event_titles[event_type].append((_hl_w.get(headline, 0.7), _t))
                         break  # one hit per headline per event
 
         # ── VIX-based event injection ─────────────────────────────────────────
@@ -1366,6 +1374,23 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
         _narrative_live = _macro_narrative(regime_label, risk_score, _drivers_live,
                                             vix_level, oil_price, fed_consensus)
 
+        # Top live headlines per event (highest recency-weight first, de-duped, ≤3)
+        # so the UI can show what is actually driving each signal right now —
+        # the static event descriptions stay evergreen and the specifics come from here.
+        _event_headlines = {}
+        for _et, _lst in event_titles.items():
+            _seen_t, _out = set(), []
+            for _w, _t in sorted(_lst, key=lambda x: x[0], reverse=True):
+                _k = _t.lower()
+                if _k in _seen_t:
+                    continue
+                _seen_t.add(_k)
+                _out.append(_t)
+                if len(_out) >= 3:
+                    break
+            if _out:
+                _event_headlines[_et] = _out
+
         return {
             "regime":          regime_label,
             "regime_score":    round(risk_score, 3),
@@ -1379,6 +1404,7 @@ def fetch_macro_overlay(use_live_feeds: bool = True) -> dict:
             "source":          source_desc,
             "live":            True,
             "event_labels":    _ev_labels_live,
+            "event_headlines": _event_headlines,
             "summary":         _summary_live,
             "drivers":         _drivers_live,
             "narrative":       _narrative_live,
