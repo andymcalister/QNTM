@@ -2173,6 +2173,7 @@ def macro_regime_banner_html(macro: dict) -> str:
     breakdown_html = ""
     if drivers:
         rows = ""
+        _evt_hl_map = macro.get("event_headlines") or {}
         for d in drivers[:6]:
             c = d.get("contribution", 0.0) or 0.0
             if c < 0:   c_col, arrow = "#f87171", "&#9660;"
@@ -2186,6 +2187,14 @@ def macro_regime_banner_html(macro: dict) -> str:
                      f'</span>'
                      f'<span style="font-family:DM Mono,monospace;font-size:13px;color:{c_col};">'
                      f'{arrow} {c:+.2f}</span></div>')
+            _dhls = _evt_hl_map.get(d.get("event", ""), [])
+            if _dhls:
+                _hl_lines = "".join(
+                    f'<div style="color:#8b97aa;font-size:11.5px;line-height:1.5;'
+                    f'padding:1px 0 1px 11px;margin-left:2px;'
+                    f'border-left:1px solid rgba(255,255,255,.07);">&middot;&nbsp;{_html.escape(h)}</div>'
+                    for h in _dhls[:2])
+                rows += f'<div style="margin:2px 0 7px;">{_hl_lines}</div>'
         net = macro.get("regime_score", 0.0) or 0.0
         breakdown_html = (
             f'<div style="margin-top:8px;background:rgba(0,0,0,.15);border-radius:6px;padding:8px 11px;">'
@@ -6609,7 +6618,7 @@ def page_screener():
                 _hls_html = ""
                 if _evt_hls:
                     _items = "".join(
-                        f'<li style="margin:2px 0;">{_html.escape(h)}</li>' for h in _evt_hls[:3])
+                        f'<li style="margin:2px 0;">{_html.escape(h)}</li>' for h in _evt_hls[:5])
                     _hls_html = (
                         '<div style="margin:0 0 10px;padding:8px 10px;'
                         'background:rgba(255,255,255,.025);border-radius:5px;">'
