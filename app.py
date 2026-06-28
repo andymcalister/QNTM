@@ -3834,12 +3834,18 @@ def _fetch_day_change_map(tickers: list, cache_key: str = "_dc_cache",
     return out
 
 
-def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> str:
+def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None,
+                             since_pct=None, since_label: str = "since&nbsp;entry") -> str:
     """Compact one-line strip rendered inside the collapsed card summary, under
     the conviction label. Shows "ENT MM/DD" (where applicable) and a coloured
     "+x.xx% today" segment so a user can triage a watchlist / portfolio / model
     portfolio without expanding each card. Returns '' if no data is renderable
-    (so callers can safely set _summary_meta_html unconditionally)."""
+    (so callers can safely set _summary_meta_html unconditionally).
+
+    `since_pct` (optional): a since-entry/since-inception return shown INSTEAD of
+    the day move when the market is closed and that move is a flat placeholder
+    (today's mark == prior close) — so the proof surface never reads as a column
+    of "+0.00% today" zeros (D1)."""
     bits = []
     # Entry date — accept date / datetime / iso string; render MM/DD only
     if entry_date:
@@ -3853,12 +3859,24 @@ def _build_summary_meta_html(entry_date=None, day_change_entry: dict = None) -> 
     # while the market is open ("today") and frozen at the close ("at close")
     # afterward / on weekends, rather than blanking out.
     dc = day_change_entry or {}
-    if dc.get("chg_pct") is not None:
-        pct = float(dc["chg_pct"])
+    _dc_pct = dc.get("chg_pct")
+    # A settled (closed-market) move that is exactly flat is almost always a
+    # placeholder mark (today's stored price == prior close), not a genuinely
+    # flat session. Showing "+0.00% at close" on every row makes the proof
+    # surface look dead, so in that case prefer a meaningful since-entry figure.
+    _dc_meaningful = (_dc_pct is not None) and not (
+        dc.get("settled") and abs(float(_dc_pct)) < 0.005)
+    if _dc_meaningful:
+        pct = float(_dc_pct)
         col = "#34d399" if pct > 0 else ("#f87171" if pct < 0 else "#b3bed0")
         sign = "+" if pct >= 0 else ""
         lbl = "at&nbsp;close" if dc.get("settled") else "today"
         bits.append(f'<span style="color:{col};">{sign}{pct:.2f}%&nbsp;{lbl}</span>')
+    elif since_pct is not None:
+        _sp = float(since_pct)
+        _spc = "#34d399" if _sp > 0 else ("#f87171" if _sp < 0 else "#b3bed0")
+        _sps = "+" if _sp >= 0 else ""
+        bits.append(f'<span style="color:{_spc};">{_sps}{_sp:.2f}%&nbsp;{since_label}</span>')
     # Extended-hours figure — live session only: pre-market before the open,
     # after-hours after the close (nothing extra during regular trading).
     _phase = _market_phase()
@@ -11343,8 +11361,11 @@ def _render_track_equity(_pt, positions, day_pct=None, day_spy_pct=None):
     """Equity-curve window selector + chart for the track record, isolated in a
     fragment so changing the time window re-renders ONLY the chart, not the whole
     model-portfolio page. Nothing outside the chart depends on the window."""
+    # D1 — default to the full curve (since inception) so the proof surface loads
+    # showing the actual track and the vs-SPY story, not a flat single-day line.
+    # index=4 → "All"; returning users' window choice persists via the key.
     _win = st.radio("Window", ["1D", "1M", "3M", "1Y", "All"],
-                    index=0, horizontal=True, key="tr_window",
+                    index=4, horizontal=True, key="tr_window",
                     label_visibility="collapsed",
                     format_func=lambda x: "Day" if x == "1D" else x)
     _wk = "ALL" if _win == "All" else _win
@@ -11471,7 +11492,7 @@ def page_model_portfolio():
 
     page_summary(
         "🏆", "Portfolio & Track Record",
-        "Live model portfolio vs SPY · equal-weighted $2K · true P&L · exits at Low Conviction"
+        "Live model portfolio vs SPY · equal-weighted $2K · marked-to-market · exits at Low Conviction"
     )
 
     # ── Manual refresh — re-pull the live equity curve without leaving the page ─
@@ -12044,6 +12065,7 @@ def page_model_portfolio():
             sc["_summary_meta_html"] = _build_summary_meta_html(
                 entry_date=h.get("entry_date"),
                 day_change_entry=_mp_day_change.get(tk),
+                since_pct=_pct, since_label="since&nbsp;entry",
             )
             sc["_mini_chart_html"] = _build_mini_chart_html(
                 tk, _mp_trail, _mp_mini_pm, _mp_mini_sm, since_label="vs SPY · 20d")
