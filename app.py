@@ -3365,10 +3365,12 @@ def signal_history_chart(ticker: str, current_score: float) -> str:
         return ""
 
 
-def resolve_ticker(query: str) -> tuple[str, str]:
+def resolve_ticker(query: str, use_network: bool = True) -> tuple[str, str]:
     """
     Given a ticker or company name, return (ticker, display_name).
     Tries: exact ticker match → name substring match in KNOWN → yfinance search.
+    Pass use_network=False on latency-sensitive paths (as-you-type suggestions) to
+    skip the yfinance lookup.
     """
     q = query.strip().upper()
     if not q:
@@ -3429,16 +3431,17 @@ def resolve_ticker(query: str) -> tuple[str, str]:
         if q_lower == ticker.lower() or q_lower in name.lower() or q_lower == ticker.lower():
             return ticker, name
 
-    # Try yfinance search as last resort
-    try:
-        import yfinance as yf
-        results = yf.Search(query, max_results=1).quotes
-        if results:
-            tk = results[0].get("symbol", q)
-            nm = results[0].get("longname") or results[0].get("shortname") or tk
-            return tk.upper(), nm
-    except Exception:
-        pass
+    # Try yfinance search as last resort (skipped on latency-sensitive paths).
+    if use_network:
+        try:
+            import yfinance as yf
+            results = yf.Search(query, max_results=1).quotes
+            if results:
+                tk = results[0].get("symbol", q)
+                nm = results[0].get("longname") or results[0].get("shortname") or tk
+                return tk.upper(), nm
+        except Exception:
+            pass
 
     # Fall back to treating input as ticker
     return q, q
@@ -3984,6 +3987,17 @@ def _stock_suggestions(query, limit: int = 6, exclude=None):
         if len(starts) >= limit:
             break
     out = starts + [c for c in contains if c not in starts]
+    if not out:
+        # Fall back to the robust resolver (alias / company-name map) so the
+        # dropdown matches what the search card will resolve — e.g. "nvidia" → NVDA
+        # — instead of printing "no matches" above a card that resolves fine.
+        # use_network=False keeps it instant (no yfinance call per keystroke).
+        try:
+            _rtk, _rnm = resolve_ticker(query, use_network=False)
+        except Exception:
+            _rtk, _rnm = "", ""
+        if _rtk and _rtk in SECTORS and _rtk.upper() not in excl:
+            out = [(_rtk, _rnm or _SEARCH_NAMES.get(_rtk, ""))]
     return out[:limit]
 
 
@@ -5861,29 +5875,51 @@ def page_auth():
                                               props={"plan": "pro" if st.session_state.get("auto_upgrade") else "free"})
                         except Exception:
                             pass
-                        # Fire off the email-confirmation link (soft gate)
+                        # Fire off the email-confirmation link (soft gate — the
+                        # in-app "confirm your email" banner stays; it never blocks).
                         try:
                             request_email_verification(rg_email)
                         except Exception:
                             pass
-                        # Auto-upgrade if came from Founding Member CTA
-                        if st.session_state.get("auto_upgrade"):
+                        # Auto-upgrade if they came from the Founding Member CTA.
+                        _founding = bool(st.session_state.get("auto_upgrade"))
+                        if _founding:
                             upgrade_plan(res["user_id"], "pro")
                             st.session_state.auto_upgrade = False
-                            msg = ("✓ Founding Member spot claimed! Full Pro access is active. "
-                                   "Check your email to confirm your address, then sign in above.")
-                            tag = "🏆 Founding Member"
+                        # C1 — auto-login: authenticate the just-created session and
+                        # land straight on the screener instead of bouncing the user
+                        # back to the sign-in form to re-enter what they just typed.
+                        _login = login_user(rg_email, rg_pass)
+                        if _login.get("success"):
+                            _u = _login["user"]
+                            st.session_state.logged_in    = True
+                            st.session_state.user         = _u
+                            st.session_state.mfa_verified = True
+                            st.session_state.scan_results = None
+                            st.session_state.show_welcome = True
+                            if not _u.get("mfa_offered"):
+                                st.session_state.force_mfa_setup = True
+                            _signed = _sign_token(_u["id"], _u.get("plan", "free"))
+                            st.query_params["uid"]  = _signed
+                            st.query_params["plan"] = _u.get("plan", "free")
+                            _write_localstorage_token(_u["id"], _u.get("plan", "free"))
+                            st.session_state.nav = "screener"
+                            st.session_state["_signup_toast"] = (
+                                "🏆 Founding Member access active — unlimited holdings, "
+                                "Hidden Gems & alerts are live. Confirm your email when you get a sec."
+                                if _founding else
+                                "✓ Account created — welcome to QNTM. We've emailed a confirmation link."
+                            )
+                            go("platform")
                         else:
-                            msg = ("✓ Account created. We've emailed you a link to confirm your "
-                                   "address — then sign in above to continue.")
-                            tag = ""
-                        st.markdown(f"""
-                        <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);
-                             border-radius:6px;padding:14px 16px;font-size:13px;color:#34d399;margin-top:8px;">
-                          {msg}
-                          {'<div style="font-size:13px;color:#d4a843;margin-top:4px;">' + tag + ' — unlimited holdings, hidden gems &amp; alerts are live.</div>' if tag else ''}
-                        </div>
-                        """, unsafe_allow_html=True)
+                            # Fallback to the old confirm-then-sign-in message only if
+                            # the immediate re-auth somehow fails.
+                            st.markdown("""
+                            <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);
+                                 border-radius:6px;padding:14px 16px;font-size:13px;color:#34d399;margin-top:8px;">
+                              ✓ Account created. We've emailed you a link to confirm your address — then sign in above to continue.
+                            </div>
+                            """, unsafe_allow_html=True)
                     else:
                         st.error(res.get("error", "Registration failed — please try again"))
 
@@ -8770,16 +8806,20 @@ def page_portfolio():
                     _v = st.session_state.get("p_tk", "").strip().upper()
                     st.session_state.p_sel_tk = _v if _v in SECTORS else ""
 
-                # Prefill Price from the platform's last price once a ticker is
-                # picked; only set on ticker change, so a user override sticks.
-                _picked0 = st.session_state.get("p_sel_tk", "").strip().upper()
+                # Prefill Price from the platform's last price as soon as a valid
+                # ticker is entered — from the picker OR typed directly — so DOLLARS
+                # mode never sits at $0.0000 / an undefined cost basis. Only set on
+                # ticker change, so a manual override sticks.
+                _typed0  = st.session_state.get("p_tk", "").strip().upper()
+                _picked0 = (st.session_state.get("p_sel_tk", "").strip().upper()
+                            or (_typed0 if _typed0 in SECTORS else ""))
                 if _picked0 and _picked0 in SECTORS:
                     try:
                         _plat_px = float(score_map.get(_picked0, {}).get("price") or 0)
                     except Exception:
                         _plat_px = 0.0
                     if _plat_px > 0 and st.session_state.get("p_price_for") != _picked0:
-                        st.session_state["p_price"] = round(_plat_px, 4)
+                        st.session_state["p_price"] = round(_plat_px, 2)
                         st.session_state["p_price_for"] = _picked0
 
                 _mode = st.radio("Add by", ["Dollars", "Shares"], key="p_mode",
@@ -8804,7 +8844,7 @@ def page_portfolio():
                         new_amt = 0.0
                 with r1c3:
                     new_price = st.number_input("Price ($)", key="p_price",
-                        min_value=0.0, step=0.01, format="%.4f",
+                        min_value=0.0, step=0.01, format="%.2f",
                         help="Defaults to the platform's last price — edit to set your actual cost.",
                         on_change=_pin_portfolio_nav)
 
@@ -9168,8 +9208,6 @@ def page_portfolio():
                   "value": 0, "sentiment": 0, "score_delta": 0, "sector": "Unknown"}
 
         ci = get_company_info(tk)
-        _rm_url = f"?qnav=portfolio&uid={_uid_pv}&plan={_pln_pv}&ck=1&_n=portfolio&port_action=remove&port_ticker={tk}"
-        _pbtn = _card_action_button(tk, "portfolio", "portfolio", set(), _uid_pv, _pln_pv, remove_url=_rm_url)
 
         # Build P&L strip in the same style as the Model Portfolio page so a
         # held position shows entry date, entry price, current, and return.
@@ -9209,9 +9247,23 @@ def page_portfolio():
         )
         st.markdown(
             factor_panel_html(sc, tk in _port_gems, company_info=ci,
-                              wl_btn=(_pnl_html + _pbtn), as_details=True),
+                              wl_btn=_pnl_html, as_details=True),
             unsafe_allow_html=True,
         )
+        # No ?port_action= URL nav. Removing a position changes portfolio value,
+        # P&L, conviction mix and sector exposure, so a full rerun is correct
+        # here — it recomputes every aggregate on the page (unlike the screener,
+        # where add/remove leaves the surrounding view untouched).
+        if st.button(f"\u2715 Remove {tk} from Portfolio", key=f"portrm_{tk}",
+                     use_container_width=True):
+            delete_holding(uid(), tk)
+            try:
+                analytics.capture("portfolio_position_removed",
+                                  user=st.session_state.get("user"), props={"ticker": tk})
+            except Exception:
+                pass
+            st.toast(f"Removed {tk}")
+            st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -12354,6 +12406,13 @@ def _render_whats_new():
 
 
 def page_platform():
+    # One-time post-signup toast (C1 auto-login lands here straight from create).
+    _su_toast = st.session_state.pop("_signup_toast", None)
+    if _su_toast:
+        try:
+            st.toast(_su_toast)
+        except Exception:
+            pass
     # ── Accordion behavior for cards (one open at a time) ──────────────────────
     # Cards render as <details name="qntm-cards">; modern browsers make same-named
     # details mutually exclusive natively. This JS is a fallback for browsers that
