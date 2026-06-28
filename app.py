@@ -6608,6 +6608,7 @@ def page_screener():
     # Active events — single collapsed expander
     active_evts = macro.get("active_events", [])
     if active_evts:
+        import html as _html
         _evt_labels = [MACRO_EVENT_INFO[e]['label'] for e in active_evts if e in MACRO_EVENT_INFO]
         _evt_title  = f"{len(active_evts)} active macro driver{'s' if len(active_evts)>1 else ''}: {', '.join(_evt_labels[:3])}"
         with st.expander(_evt_title, expanded=False):
