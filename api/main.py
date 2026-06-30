@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import screener, auth, macro
+from .routers import screener, auth, macro, movers
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(screener.router)
 app.include_router(auth.router)
 app.include_router(macro.router)
+app.include_router(movers.router)
 
 
 @app.get("/health", tags=["meta"])

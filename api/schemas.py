@@ -63,6 +63,31 @@ class MacroDetail(BaseModel):
     event_headlines: dict[str, list[str]] = {}
 
 
+class Mover(BaseModel):
+    kind: str = "mover"                 # "mover" | "macro_summary"
+    # regular mover
+    ticker: Optional[str] = None
+    now: Optional[float] = None
+    prev: Optional[float] = None
+    delta: Optional[float] = None
+    quant_delta: Optional[float] = None
+    macro_only: bool = False
+    now_tier: Optional[str] = None
+    prev_tier: Optional[str] = None
+    driver: Optional[str] = None
+    driver_delta: Optional[float] = None
+    # macro_summary
+    count: Optional[int] = None
+    up: Optional[bool] = None
+    lo: Optional[float] = None
+    hi: Optional[float] = None
+
+
+class MoversResponse(BaseModel):
+    regime: str = "NEUTRAL"
+    movers: list[Mover] = []
+
+
 class ScreenerResponse(BaseModel):
     as_of: Optional[str] = None     # signal_date of the data, ISO yyyy-mm-dd
     regime: Regime

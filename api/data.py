@@ -201,6 +201,143 @@ def _num(v):
         return None
 
 
+# ── Conviction movers (day-over-day) ──────────────────────────────────────────
+_MOVERS_CACHE: dict = {"ts": 0.0, "payload": None}
+_PILL = ("momentum", "quality", "volume", "value", "sentiment")
+_PLAB = {"momentum": "Momentum", "quality": "Quality", "volume": "Volume",
+         "value": "Value", "sentiment": "Sentiment"}
+
+
+def compute_movers(lookback_days: int = 10, top_n: int = 24,
+                   compare_days: int = 1, collapse_macro: bool = True) -> list:
+    """Day-over-day conviction movers for the hero feed — ported from the app's
+    _conviction_movers. Compares each ticker's latest CLEAN scored row against
+    the most recent clean row at least `compare_days` older, reports the
+    adj_composite move and what drove it (biggest-moving pillar, or the macro
+    overlay on regime days). Macro-driven names collapse into one summary chip so
+    they don't flood the feed. Cached for CACHE_TTL_SECONDS; one batched read."""
+    now_t = time.time()
+    cached = _MOVERS_CACHE["payload"]
+    if cached is not None and (now_t - _MOVERS_CACHE["ts"]) < settings.CACHE_TTL_SECONDS:
+        return cached
+
+    from datetime import date, timedelta
+
+    sb = _get_supabase()
+    if not sb:
+        return []
+    since = (date.today() - timedelta(days=lookback_days)).isoformat()
+
+    rows: list[dict] = []
+    PAGE, page = 1000, 0
+    try:
+        while page < 25:
+            resp = (
+                sb.table("signal_log")
+                .select("ticker,signal_date,adj_composite,composite,"
+                        "momentum,quality,volume,value,sentiment")
+                .gte("signal_date", since)
+                .not_.is_("composite", "null")
+                .order("signal_date", desc=True)
+                .range(page * PAGE, (page + 1) * PAGE - 1)
+                .execute()
+            )
+            batch = resp.data or []
+            rows.extend(batch)
+            if len(batch) < PAGE:
+                break
+            page += 1
+    except Exception as e:
+        log.warning("movers read failed: %s", e)
+        return []
+
+    from datetime import date as _date
+
+    def _pd(s):
+        try:
+            return _date.fromisoformat(s)
+        except (TypeError, ValueError):
+            return None
+
+    by: dict = {}
+    for r in rows:                       # already date-desc
+        by.setdefault(r["ticker"], []).append(r)
+
+    def _tier(v):
+        return "HIGH" if v >= 60 else ("MOD" if v >= 45 else "LOW")
+
+    movers = []
+    for tk, rs in by.items():
+        distinct, seen = [], set()
+        for r in rs:
+            d = r.get("signal_date")
+            if d and d not in seen:
+                seen.add(d); distinct.append(r)
+        if len(distinct) < 2:
+            continue
+        now = distinct[0]
+        nd = _pd(now.get("signal_date"))
+        prev = None
+        if nd:
+            for r in distinct[1:]:
+                rd = _pd(r.get("signal_date"))
+                if rd and (nd - rd).days >= compare_days:
+                    prev = r
+                    break
+        if prev is None:
+            prev = distinct[-1]
+        if prev.get("signal_date") == now.get("signal_date"):
+            continue
+        a_now, a_prev = _num(now.get("adj_composite")), _num(prev.get("adj_composite"))
+        if a_now is None or a_prev is None:
+            continue
+        delta = round(a_now - a_prev, 1)
+        if abs(round(delta)) < 1:
+            continue
+        c_now, c_prev = _num(now.get("composite")), _num(prev.get("composite"))
+        comp_delta = (c_now - c_prev) if (c_now is not None and c_prev is not None) else 0.0
+        macro_contrib = delta - comp_delta
+        drv_p, drv_pd = None, 0.0
+        for p in _PILL:
+            pn, pp = _num(now.get(p)), _num(prev.get(p))
+            if pn is None or pp is None:
+                continue
+            dd = pn - pp
+            if abs(dd) > abs(drv_pd):
+                drv_p, drv_pd = p, dd
+        macro_only = abs(macro_contrib) >= 2 and abs(macro_contrib) > abs(comp_delta)
+        if macro_only:
+            driver, ddelta = "Macro overlay", round(macro_contrib, 1)
+        elif drv_p and abs(drv_pd) >= 2:
+            driver, ddelta = _PLAB[drv_p], round(drv_pd, 1)
+        else:
+            driver, ddelta = None, 0.0
+        movers.append({
+            "kind": "mover", "ticker": tk, "now": a_now, "prev": a_prev, "delta": delta,
+            "quant_delta": round(comp_delta, 1), "macro_only": macro_only,
+            "now_tier": _tier(a_now), "prev_tier": _tier(a_prev),
+            "driver": driver, "driver_delta": ddelta,
+        })
+
+    quant = sorted([m for m in movers if not m["macro_only"]],
+                   key=lambda m: abs(m["quant_delta"]), reverse=True)
+    macro = sorted([m for m in movers if m["macro_only"]],
+                   key=lambda m: abs(m["delta"]), reverse=True)
+    if collapse_macro and len(macro) >= 3:
+        ups = [m for m in macro if m["delta"] > 0]
+        downs = [m for m in macro if m["delta"] < 0]
+        grp = ups if len(ups) >= len(downs) else downs
+        deltas = [m["delta"] for m in grp]
+        out = quant[:top_n]
+        out.append({"kind": "macro_summary", "count": len(grp),
+                    "up": grp[0]["delta"] > 0, "lo": min(deltas), "hi": max(deltas)})
+    else:
+        out = (quant + macro)[:top_n]
+
+    _MOVERS_CACHE.update(ts=now_t, payload=out)
+    return out
+
+
 def load_macro_detail() -> dict:
     """Full macro overlay for the regime banner — regime, indicators, the
     'what's moving the regime' driver breakdown, and per-event headlines.
