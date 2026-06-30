@@ -1,0 +1,15 @@
+# QNTM API — extra deps on top of the repo's existing requirements.
+# The API imports model_engine / data_refresh / universe_data, which already
+# pull pandas, numpy, supabase, yfinance, etc. via the repo's root
+# requirements.txt — install that first, then these:
+#
+#   pip install -r requirements.txt          # repo root (engine deps)
+#   pip install -r api/requirements.txt       # this file (web layer)
+#
+# On Render, set the build command to install both.
+
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0
+# supabase is already a repo dependency; pinned here only if the API is ever
+# deployed standalone without the root requirements.
+supabase>=2.0
