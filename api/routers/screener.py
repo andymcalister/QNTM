@@ -32,7 +32,7 @@ def get_screener(
     gems_only: bool = Query(False, description="restrict to hidden gems"),
     sort: str = Query("score", description="sort field"),
     order: str = Query("desc", description="asc | desc"),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ):
     rows, regime, as_of = load_universe()
