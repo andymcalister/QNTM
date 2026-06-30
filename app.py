@@ -6575,6 +6575,27 @@ def _blend_sell_score(r) -> float:
 
 def page_screener():
     _pin_nav("screener")
+
+    # ── New screener (beta) handoff ──────────────────────────────────────────
+    # Mint a short-lived signed token for the logged-in user and offer a link to
+    # the new Next.js screener. Fully wrapped so it can never break this page.
+    # Requires pyjwt + QNTM_BRIDGE_SECRET on this service; NEXT_APP_URL points at
+    # the Next app (defaults to the qntm.live apex).
+    try:
+        if st.session_state.get("logged_in"):
+            from api.auth import create_token as _qntm_mint
+            _qu = st.session_state.get("user") or {}
+            _quid = _qu.get("id")
+            if _quid and _quid != "demo":
+                import os as _qos
+                _qtok = _qntm_mint(str(_quid), email=_qu.get("email") or None,
+                                   plan=_qu.get("plan") or None)
+                _qbase = _qos.getenv("NEXT_APP_URL", "https://qntm.live").rstrip("/")
+                st.link_button("⚡ Try the new screener (beta)",
+                               f"{_qbase}/auth/handoff#token={_qtok}")
+    except Exception:
+        pass
+
     from model_engine import (MACRO_EVENT_INFO, score_stock, fetch_price_data,
                                SECTORS as ALL_SECTORS, fetch_macro_overlay, apply_macro_overlay)
 
