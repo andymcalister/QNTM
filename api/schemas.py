@@ -63,6 +63,22 @@ class MacroDetail(BaseModel):
     event_headlines: dict[str, list[str]] = {}
 
 
+class WatchlistItem(ScreenerRow):
+    price_at_add: Optional[float] = None
+    added_at: Optional[str] = None
+    change_pct: Optional[float] = None
+
+
+class WatchlistResponse(BaseModel):
+    regime: Regime
+    count: int
+    items: list[WatchlistItem] = []
+
+
+class TickerRequest(BaseModel):
+    ticker: str
+
+
 class Mover(BaseModel):
     kind: str = "mover"                 # "mover" | "macro_summary"
     # regular mover

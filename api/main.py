@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import screener, auth, macro, movers
+from .routers import screener, auth, macro, movers, watchlist
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -31,7 +31,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],  # GET for reads, POST for /api/auth/verify
+    allow_methods=["GET", "POST", "DELETE"],  # DELETE for watchlist removal
     allow_headers=["*"],
 )
 
@@ -39,6 +39,7 @@ app.include_router(screener.router)
 app.include_router(auth.router)
 app.include_router(macro.router)
 app.include_router(movers.router)
+app.include_router(watchlist.router)
 
 
 @app.get("/health", tags=["meta"])

@@ -407,3 +407,149 @@ def load_universe() -> tuple[list[dict], dict, Optional[str]]:
         if cached is not None:
             return cached
         return ([], {"label": "NEUTRAL", "vix": None, "event": None, "summary": None}, None)
+
+
+# ── Watchlist (authed read-write) ─────────────────────────────────────────────
+# Writes use the service-role client (bypasses RLS); every function takes the
+# user_id from the VERIFIED token at the call site (routers/watchlist.py), never
+# from client input, so a user can only ever touch their own list.
+_SB_ADMIN = None
+
+
+def _get_supabase_admin():
+    """Service-role Supabase client for per-user writes. None if no service key
+    is configured (writes then no-op rather than silently hitting RLS)."""
+    global _SB_ADMIN
+    if _SB_ADMIN is not None:
+        return _SB_ADMIN
+    if not settings.SERVICE_KEY:
+        log.warning("watchlist writes need a service key (SUPABASE_SERVICE_KEY) — none set")
+        return None
+    try:
+        from supabase import create_client
+        _SB_ADMIN = create_client(settings.SUPABASE_URL, settings.SERVICE_KEY)
+        return _SB_ADMIN
+    except Exception as e:
+        log.warning("admin client init failed: %s", e)
+        return None
+
+
+def _resolve_default_list(sb, user_id: str):
+    """Resolve (auto-creating if needed) the user's default watchlist id."""
+    try:
+        resp = (sb.table("watchlists").select("id,is_default")
+                .eq("user_id", user_id)
+                .order("is_default", desc=True).order("created_at", desc=False)
+                .execute())
+        lists = resp.data or []
+        if lists:
+            for w in lists:
+                if w.get("is_default"):
+                    return w["id"]
+            return lists[0]["id"]
+        created = (sb.table("watchlists")
+                   .insert({"user_id": user_id, "name": "My Watchlist", "is_default": True})
+                   .execute())
+        return (created.data or [{}])[0].get("id")
+    except Exception as e:
+        log.warning("default-list resolve failed: %s", e)
+        return None
+
+
+def watchlist_items(user_id: str) -> list:
+    """Raw items in the user's default list: [{ticker, price_at_add, added_at}]."""
+    sb = _get_supabase_admin()
+    if not sb:
+        return []
+    try:
+        lid = _resolve_default_list(sb, user_id)
+        if not lid:
+            return []
+        resp = (sb.table("watchlist_items").select("ticker,price_at_add,added_at")
+                .eq("user_id", user_id).eq("watchlist_id", lid)
+                .order("added_at", desc=True).execute())
+        return resp.data or []
+    except Exception as e:
+        log.warning("watchlist read failed: %s", e)
+        return []
+
+
+def add_watchlist(user_id: str, ticker: str, price_at_add=None) -> bool:
+    """Add a ticker to the user's default list (idempotent). Validates against
+    the model universe first — refuses arbitrary strings."""
+    tk = (ticker or "").strip().upper()
+    if not tk or tk not in _SECTORS:
+        return False
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        lid = _resolve_default_list(sb, user_id)
+        if not lid:
+            return False
+        payload = {"watchlist_id": lid, "user_id": user_id, "ticker": tk}
+        if price_at_add:
+            payload["price_at_add"] = round(float(price_at_add), 4)
+        sb.table("watchlist_items").upsert(payload, on_conflict="watchlist_id,ticker").execute()
+        return True
+    except Exception as e:
+        log.warning("watchlist add failed: %s", e)
+        return False
+
+
+def remove_watchlist(user_id: str, ticker: str) -> bool:
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return False
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        lid = _resolve_default_list(sb, user_id)
+        if not lid:
+            return False
+        (sb.table("watchlist_items").delete()
+         .eq("user_id", user_id).eq("watchlist_id", lid).eq("ticker", tk)
+         .execute())
+        return True
+    except Exception as e:
+        log.warning("watchlist remove failed: %s", e)
+        return False
+
+
+def _row_stub(tk: str) -> dict:
+    """Minimal screener-row-shaped stub for a watched ticker that isn't in the
+    latest scored set (so the card still renders)."""
+    return {
+        "ticker": tk, "sector": _SECTORS.get(tk, "Unknown"), "conviction": "LOW",
+        "action": "SELL", "score": 0.0, "composite": 0.0, "momentum": 0.0,
+        "quality": 0.0, "volume": 0.0, "value": 0.0, "sentiment": 0.0,
+        "macro_overlay": None, "price": None, "value_position": None,
+        "is_hidden_gem": False, "mktcap": None, "val_low": None, "val_high": None,
+        "val_basis": None, "signal_date": None,
+    }
+
+
+def load_watchlist(user_id: str) -> list:
+    """The user's watched tickers, each enriched with its current screener row
+    plus the watchlist metadata (price_at_add, added_at, change-since-add)."""
+    items = watchlist_items(user_id)
+    if not items:
+        return []
+    rows, _regime, _as_of = load_universe()
+    by_ticker = {r["ticker"]: r for r in rows}
+    out = []
+    for it in items:
+        tk = it.get("ticker")
+        base = by_ticker.get(tk) or _row_stub(tk)
+        pa = it.get("price_at_add")
+        cur = base.get("price")
+        change_pct = None
+        if pa and cur:
+            try:
+                change_pct = round((float(cur) - float(pa)) / float(pa) * 100, 2)
+            except (TypeError, ValueError, ZeroDivisionError):
+                change_pct = None
+        out.append({**base, "price_at_add": _num(pa), "added_at": it.get("added_at"),
+                    "change_pct": change_pct})
+    return out

@@ -41,5 +41,18 @@ class Settings:
     # user from Streamlit into the Next app, which then holds its own session.
     BRIDGE_TOKEN_TTL: int = int(os.getenv("BRIDGE_TOKEN_TTL", "900"))  # 15 min
 
+    # ── Service-role key (authed writes only) ─────────────────────────────────
+    # Privileged key that BYPASSES RLS — required for per-user writes (watchlist,
+    # later portfolio), since this app authenticates with its own JWT, not
+    # Supabase Auth, so the anon role has no auth.uid() and RLS blocks its writes.
+    # NEVER reaches the browser; per-user scoping is enforced in code from the
+    # verified token's `sub`. Same key db.py uses. Reads still use the anon key.
+    SERVICE_KEY: str = (
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or os.getenv("SUPABASE_SECRET_KEY")
+        or ""
+    )
+
 
 settings = Settings()
