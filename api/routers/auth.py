@@ -1,104 +1,72 @@
 """
-QNTM auth bridge — signed-token mint & verify.
+QNTM API — auth bridge endpoints.
 
-This module is the SINGLE source of truth for the cross-app token. It is used by
-*both* sides of the bridge:
+POST /api/auth/verify
+    Validate a bridge token minted by Streamlit. The Next.js app calls this from
+    its server-side handoff route: it receives the token in the URL fragment,
+    POSTs it here, and on `valid: true` sets its own httpOnly session cookie and
+    drops the user on the screener. Invalid/expired → bounce back to login.
 
-  * Streamlit (app.py) imports `create_token` to mint a short-lived token for a
-    logged-in user when it hands them off to the new Next.js screener.
-  * FastAPI (this API) imports `verify_token` / `get_current_user` to validate
-    that token.
-
-Because mint and verify share one implementation and one secret, they can never
-drift. The secret (QNTM_BRIDGE_SECRET) must be set identically on the Streamlit
-service and this API service.
-
-Token = JWT (HS256). Claims: sub (user id), email (optional), plan (optional),
-iat, exp, iss, aud. Short TTL — it only needs to live long enough to bridge a
-logged-in user from Streamlit into the Next.js app, which then holds its own
-session cookie.
+Keeping verification on the API (not in the Next app) means the shared secret
+lives only on the Streamlit + API services, never in the Vercel/Next env.
 """
 
-from __future__ import annotations
-
-import time
-import logging
 from typing import Optional
 
-import jwt  # PyJWT
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel
 
-from .config import settings
+from ..auth import verify_token, get_current_user as _resolve_user, TokenError
 
-log = logging.getLogger("qntm.api.auth")
-
-_ALGO = "HS256"
-_ISS = "qntm-streamlit"
-_AUD = "qntm-api"
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-class TokenError(Exception):
-    """Raised on any mint/verify failure. The message is for logs only — never
-    surface the reason to the caller (don't leak expired-vs-tampered)."""
+class VerifyRequest(BaseModel):
+    token: str
 
 
-def create_token(
-    user_id: str,
-    email: Optional[str] = None,
-    plan: Optional[str] = None,
-    ttl: Optional[int] = None,
-) -> str:
-    """Mint a signed bridge token for a logged-in user. Called by Streamlit."""
-    if not settings.BRIDGE_SECRET:
-        raise TokenError("QNTM_BRIDGE_SECRET not configured")
-    now = int(time.time())
-    ttl = int(ttl if ttl is not None else settings.BRIDGE_TOKEN_TTL)
-    payload = {
-        "sub": str(user_id),
-        "iat": now,
-        "exp": now + ttl,
-        "iss": _ISS,
-        "aud": _AUD,
-    }
-    if email:
-        payload["email"] = email
-    if plan:
-        payload["plan"] = plan
-    return jwt.encode(payload, settings.BRIDGE_SECRET, algorithm=_ALGO)
+class VerifyResponse(BaseModel):
+    valid: bool
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    plan: Optional[str] = None
+    exp: Optional[int] = None
 
 
-def verify_token(token: str) -> dict:
-    """Validate a bridge token. Returns the claims dict or raises TokenError.
-
-    Verifies signature, expiry, issued-at, audience, and that the required
-    claims are present. Any failure → TokenError (caller maps to 401)."""
-    if not settings.BRIDGE_SECRET:
-        raise TokenError("QNTM_BRIDGE_SECRET not configured")
+@router.post("/verify", response_model=VerifyResponse)
+def verify(req: VerifyRequest):
     try:
-        payload = jwt.decode(
-            token,
-            settings.BRIDGE_SECRET,
-            algorithms=[_ALGO],
-            audience=_AUD,
-            options={"require": ["exp", "iat", "sub"]},
-        )
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise TokenError("expired")
-    except jwt.InvalidTokenError as e:
-        raise TokenError(f"invalid: {e}")
+        claims = verify_token(req.token)
+    except TokenError:
+        # Uniform 401 — never reveal expired-vs-tampered to the caller.
+        raise HTTPException(status_code=401, detail="invalid_or_expired_token")
+    return VerifyResponse(
+        valid=True,
+        user_id=claims.get("sub"),
+        email=claims.get("email"),
+        plan=claims.get("plan"),
+        exp=claims.get("exp"),
+    )
 
 
-# ── FastAPI dependency for protecting endpoints ───────────────────────────────
-# Screener stays public (data isn't user-specific), but user-specific endpoints
-# added later (watchlist, portfolio) declare `user = Depends(get_current_user)`
-# and get the verified claims, or a 401 if the Bearer token is missing/bad.
-def get_current_user(authorization: Optional[str] = None) -> dict:
-    """Resolve the caller from an `Authorization: Bearer <token>` header.
+# ── Reusable dependency for protected routers (watchlist/portfolio later) ──────
+def current_user(authorization: Optional[str] = Header(default=None)) -> dict:
+    """FastAPI dependency: returns verified claims or raises 401. Use as
+    `user: dict = Depends(current_user)` on any endpoint that needs the caller."""
+    try:
+        return _resolve_user(authorization)
+    except TokenError:
+        raise HTTPException(status_code=401, detail="not_authenticated")
 
-    Imported and wired as a FastAPI dependency in routers that need auth (see
-    routers/auth.py for the Header-bound wrapper). Kept header-agnostic here so
-    it's unit-testable without FastAPI."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise TokenError("missing bearer token")
-    token = authorization.split(" ", 1)[1].strip()
-    return verify_token(token)
+
+@router.get("/me", response_model=VerifyResponse)
+def me(user: dict = Depends(current_user)):
+    """Echo the authenticated caller — handy for the Next app to confirm a
+    session cookie is still valid (it forwards the token as a Bearer header)."""
+    return VerifyResponse(
+        valid=True,
+        user_id=user.get("sub"),
+        email=user.get("email"),
+        plan=user.get("plan"),
+        exp=user.get("exp"),
+    )
