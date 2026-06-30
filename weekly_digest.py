@@ -38,7 +38,7 @@ def _cfg(key):
 
 
 def _app_url():
-    return (_cfg("APP_URL") or "https://qntm.live").rstrip("/")
+    return (_cfg("APP_URL") or "https://app.qntm.live").rstrip("/")
 
 
 def _include_performance() -> bool:
