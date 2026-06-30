@@ -21,6 +21,7 @@ class ScreenerRow(BaseModel):
     ticker: str
     sector: str
     conviction: str                 # HIGH | MODERATE | LOW
+    action: str = "HOLD"            # BUY | HOLD | SELL (derived from conviction)
     score: float                    # adj_composite (macro-adjusted, the headline)
     composite: float                # raw quant composite (pre-overlay)
     momentum: float
@@ -32,6 +33,12 @@ class ScreenerRow(BaseModel):
     price: Optional[float] = None
     value_position: Optional[float] = None  # 0-100, low = cheaper in its range
     is_hidden_gem: bool = False
+    # ── card fields ──
+    mktcap: Optional[str] = None            # "large" | "mid" | "small"
+    val_low: Optional[float] = None         # valuation band floor ($)
+    val_high: Optional[float] = None        # valuation band ceiling ($)
+    val_basis: Optional[str] = None         # "valuation" | "technical" | "na"
+    signal_date: Optional[str] = None       # ISO date of this score row
 
 
 class ScreenerResponse(BaseModel):

@@ -81,7 +81,8 @@ def _get_supabase():
 # ── Raw reads ─────────────────────────────────────────────────────────────────
 _SCREENER_COLS = (
     "ticker,composite,adj_composite,momentum,quality,volume,value,sentiment,"
-    "macro_overlay,price,is_hidden_gem,value_position,signal_date"
+    "macro_overlay,price,is_hidden_gem,value_position,signal_date,"
+    "mktcap,val_low,val_high,val_basis"
 )
 
 
@@ -158,10 +159,16 @@ def _enrich(r: dict) -> dict:
             return default
 
     adj = f("adj_composite") or f("composite") or 0.0
+    tier = conviction_label(adj)
+    # action maps 1:1 to the conviction tier (same ENTRY/EXIT thresholds the
+    # model uses), so derive it here rather than depend on a stored column.
+    _action = {"HIGH": "BUY", "MODERATE": "HOLD", "LOW": "SELL"}[tier]
+    _cap = str(r.get("mktcap") or "").strip().lower() or None
     return {
         "ticker": r["ticker"],
         "sector": _SECTORS.get(r["ticker"], "Unknown"),
-        "conviction": conviction_label(adj),
+        "conviction": tier,
+        "action": _action,
         "score": round(adj, 1),
         "composite": round(f("composite") or 0.0, 1),
         "momentum": round(f("momentum") or 0.0, 1),
@@ -173,6 +180,12 @@ def _enrich(r: dict) -> dict:
         "price": f("price"),
         "value_position": f("value_position"),
         "is_hidden_gem": bool(r.get("is_hidden_gem")),
+        # ── card fields ──
+        "mktcap": _cap if _cap in ("large", "mid", "small") else None,
+        "val_low": f("val_low"),
+        "val_high": f("val_high"),
+        "val_basis": (r.get("val_basis") or None),
+        "signal_date": r.get("signal_date"),
     }
 
 
