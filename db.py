@@ -1398,9 +1398,9 @@ def request_password_reset(email: str) -> dict:
         token = create_auth_token(uid_, kind="reset", ttl_minutes=30)
         if token:
             try:
-                base = st.secrets.get("APP_URL") or os.getenv("APP_URL") or "https://qntm.live"
+                base = st.secrets.get("APP_URL") or os.getenv("APP_URL") or "https://app.qntm.live"
             except Exception:
-                base = os.getenv("APP_URL") or "https://qntm.live"
+                base = os.getenv("APP_URL") or "https://app.qntm.live"
             link = f"{base.rstrip('/')}/?reset_token={token}"
             html = (
                 '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">'
@@ -1483,9 +1483,9 @@ def request_email_verification(email: str) -> dict:
         token = create_auth_token(uid_, kind="verify", ttl_minutes=60 * 24)  # 24h
         if token:
             try:
-                base = st.secrets.get("APP_URL") or os.getenv("APP_URL") or "https://qntm.live"
+                base = st.secrets.get("APP_URL") or os.getenv("APP_URL") or "https://app.qntm.live"
             except Exception:
-                base = os.getenv("APP_URL") or "https://qntm.live"
+                base = os.getenv("APP_URL") or "https://app.qntm.live"
             link = f"{base.rstrip('/')}/?verify_token={token}"
             html = (
                 '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">'
