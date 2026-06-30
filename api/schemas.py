@@ -41,6 +41,28 @@ class ScreenerRow(BaseModel):
     signal_date: Optional[str] = None       # ISO date of this score row
 
 
+class MacroDriver(BaseModel):
+    label: str = ""
+    contribution: float = 0.0
+    signals: int = 0
+    event: Optional[str] = None
+
+
+class MacroDetail(BaseModel):
+    regime: str = "NEUTRAL"
+    vix: Optional[float] = None
+    oil_price: Optional[float] = None
+    active_events: list[str] = []
+    source: Optional[str] = None
+    live: bool = False
+    headlines_scanned: int = 0
+    narrative: Optional[str] = None
+    summary: Optional[str] = None
+    regime_score: Optional[float] = None
+    drivers: list[MacroDriver] = []
+    event_headlines: dict[str, list[str]] = {}
+
+
 class ScreenerResponse(BaseModel):
     as_of: Optional[str] = None     # signal_date of the data, ISO yyyy-mm-dd
     regime: Regime

@@ -191,6 +191,60 @@ def _enrich(r: dict) -> dict:
 
 # ── TTL-cached universe load ───────────────────────────────────────────────────
 _CACHE: dict = {"ts": 0.0, "payload": None}
+_MACRO_CACHE: dict = {"ts": 0.0, "payload": None}
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def load_macro_detail() -> dict:
+    """Full macro overlay for the regime banner — regime, indicators, the
+    'what's moving the regime' driver breakdown, and per-event headlines.
+
+    Passes through the same persisted overlay the Streamlit banner reads
+    (_load_macro_state), so the banner, screener, and marketing hero never
+    disagree. Cached for CACHE_TTL_SECONDS (the overlay only changes on the
+    ~30-min macro cron)."""
+    now = time.time()
+    cached = _MACRO_CACHE["payload"]
+    if cached is not None and (now - _MACRO_CACHE["ts"]) < settings.CACHE_TTL_SECONDS:
+        return cached
+    try:
+        from data_refresh import _load_macro_state
+        m = _load_macro_state() or {}
+    except Exception as e:
+        log.warning("macro detail read failed: %s", e)
+        m = {}
+
+    drivers = []
+    for d in (m.get("drivers") or [])[:8]:
+        drivers.append({
+            "label": str(d.get("label", "")),
+            "contribution": _num(d.get("contribution")) or 0.0,
+            "signals": int(d.get("signals") or 0),
+            "event": d.get("event"),
+        })
+
+    payload = {
+        "regime": m.get("regime") or "NEUTRAL",
+        "vix": _num(m.get("vix")),
+        "oil_price": _num(m.get("oil_price")),
+        "active_events": list(m.get("active_events") or []),
+        "source": m.get("source"),
+        "live": bool(m.get("live")),
+        "headlines_scanned": int(m.get("headlines_scanned") or 0),
+        "narrative": m.get("narrative"),
+        "summary": m.get("summary"),
+        "regime_score": _num(m.get("regime_score")),
+        "drivers": drivers,
+        "event_headlines": {k: list(v)[:3] for k, v in (m.get("event_headlines") or {}).items()},
+    }
+    _MACRO_CACHE.update(ts=now, payload=payload)
+    return payload
 
 
 def load_universe() -> tuple[list[dict], dict, Optional[str]]:
