@@ -6942,18 +6942,28 @@ def page_screener():
     st.session_state._gem_count  = _n_gems_strip
     st.session_state._high_count = buys
     st.session_state._low_count  = sells
-    # Write to platform_stats so landing page always has fresh counts
+    # Write to platform_stats so landing page always has fresh counts.
+    # NOTE: stat_date is written explicitly here. It used to be omitted, which left
+    # the column frozen at its last legacy value (2026-05-25) while updated_at kept
+    # advancing — the "fresh updated_at, stale stat_date" mismatch. regime is taken
+    # from the live macro_state read above (hardened against a missing/empty key) so
+    # it tracks the same regime the scoring used instead of silently defaulting to
+    # NEUTRAL. This is still a render-path write; the durable fix is to author this
+    # row from data_refresh.py on every scheduled pass (see Phase 1).
     try:
         from data_refresh import _get_supabase as _ps_sb
+        from datetime import date as _ps_date
         _ps_client = _ps_sb()
+        _ps_regime = (macro or {}).get("regime") or "NEUTRAL"
         if _ps_client:
             _ps_client.table("platform_stats").upsert({
-                "stat_key": "daily_summary",
-                "n_high":   buys,
-                "n_low":    sells,
-                "n_gems":   _n_gems_strip,
-                "n_total":  len(results),
-                "regime":   macro.get("regime", "NEUTRAL"),
+                "stat_key":   "daily_summary",
+                "stat_date":  _ps_date.today().isoformat(),
+                "n_high":     buys,
+                "n_low":      sells,
+                "n_gems":     _n_gems_strip,
+                "n_total":    len(results),
+                "regime":     _ps_regime,
                 "updated_at": "now()",
             }, on_conflict="stat_key").execute()
     except Exception:
