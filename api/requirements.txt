@@ -10,6 +10,8 @@
 
 fastapi>=0.110,<1.0
 uvicorn[standard]>=0.29,<1.0
+# JWT for the cross-app auth bridge (mint in Streamlit, verify here).
+pyjwt>=2.4,<3
 # supabase is already a repo dependency; pinned here only if the API is ever
 # deployed standalone without the root requirements.
 supabase>=2.0

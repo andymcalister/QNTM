@@ -32,5 +32,14 @@ class Settings:
     # a burst of screener page-loads into one DB read without serving stale data.
     CACHE_TTL_SECONDS: int = int(os.getenv("API_CACHE_TTL", "60"))
 
+    # ── Auth bridge ───────────────────────────────────────────────────────────
+    # Shared HMAC secret for the cross-app token. MUST be set identically on the
+    # Streamlit service (which mints) and this API (which verifies). Generate one
+    # with:  python -c "import secrets; print(secrets.token_urlsafe(48))"
+    BRIDGE_SECRET: str = os.getenv("QNTM_BRIDGE_SECRET", "")
+    # Bridge token lifetime in seconds. Short — it only has to carry a logged-in
+    # user from Streamlit into the Next app, which then holds its own session.
+    BRIDGE_TOKEN_TTL: int = int(os.getenv("BRIDGE_TOKEN_TTL", "900"))  # 15 min
+
 
 settings = Settings()

@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import screener
+from .routers import screener, auth
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -31,11 +31,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET"],          # screener is read-only; widen per-endpoint later
+    allow_methods=["GET", "POST"],  # GET for reads, POST for /api/auth/verify
     allow_headers=["*"],
 )
 
 app.include_router(screener.router)
+app.include_router(auth.router)
 
 
 @app.get("/health", tags=["meta"])
@@ -44,7 +45,7 @@ def health():
     return {"ok": True, "service": "qntm-api", "version": app.version}
 
 
-# TODO (Phase 1, later pages): add a `get_current_user` dependency that verifies
-# the caller's QNTM session token, then mount authed routers (watchlist,
-# portfolio) that depend on it. Screener stays public — its data isn't
-# user-specific.
+# Auth: the bridge verifies Streamlit-minted tokens (routers/auth.py). The
+# screener stays public (its data isn't user-specific); user-specific routers
+# added later (watchlist, portfolio) should declare
+# `user: dict = Depends(current_user)` from routers.auth.
