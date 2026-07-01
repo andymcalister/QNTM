@@ -113,6 +113,41 @@ class TickerRequest(BaseModel):
     ticker: str
 
 
+class HoldingItem(ScreenerRow):
+    shares: float = 0.0
+    avg_cost: float = 0.0
+    entry_date: Optional[str] = None
+    notes: Optional[str] = None
+    market_value: Optional[float] = None
+    cost_basis: Optional[float] = None
+    pnl: Optional[float] = None
+    pnl_pct: Optional[float] = None
+
+
+class PortfolioSummary(BaseModel):
+    count: int = 0
+    hi: int = 0
+    mo: int = 0
+    lo: int = 0
+    avg_score: Optional[float] = None
+    total_value: float = 0.0
+    total_cost: float = 0.0
+    total_pnl: float = 0.0
+    total_pnl_pct: Optional[float] = None
+
+
+class PortfolioResponse(BaseModel):
+    regime: Regime
+    summary: PortfolioSummary
+    holdings: list[HoldingItem] = []
+
+
+class AddHoldingRequest(BaseModel):
+    ticker: str
+    shares: float
+    avg_cost: float
+
+
 class Mover(BaseModel):
     kind: str = "mover"                 # "mover" | "macro_summary"
     # regular mover

@@ -717,3 +717,111 @@ def stock_price_series(ticker: str, days: int = 20):
 
     return {"ticker": tk, "days": days, "stock": stock, "spy": spy,
             "stock_ret_pct": _ret(stock), "spy_ret_pct": _ret(spy)}
+
+
+# ── Portfolio / holdings (authed read-write) ──────────────────────────────────
+# Same security model as the watchlist: service-role writes, user_id always from
+# the verified token. Adds shares/avg_cost so we can surface market value + P&L
+# on top of the conviction scores.
+def portfolio_holdings(user_id: str) -> list:
+    sb = _get_supabase_admin()
+    if not sb:
+        return []
+    try:
+        resp = (sb.table("holdings").select("ticker,shares,avg_cost,entry_date,notes")
+                .eq("user_id", user_id).order("ticker").execute())
+        return resp.data or []
+    except Exception as e:
+        log.warning("holdings read failed: %s", e)
+        return []
+
+
+def upsert_holding(user_id: str, ticker: str, shares, avg_cost, entry_date=None, notes: str = "") -> bool:
+    from datetime import date, datetime
+    tk = (ticker or "").strip().upper()
+    if not tk or tk not in _SECTORS:
+        return False
+    try:
+        sh = round(float(shares), 4)
+        ac = round(float(avg_cost), 4)
+    except (TypeError, ValueError):
+        return False
+    if sh <= 0 or ac < 0:
+        return False
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        rec = {"user_id": user_id, "ticker": tk, "shares": sh, "avg_cost": ac,
+               "entry_date": str(entry_date or date.today()), "notes": (notes or "")[:200],
+               "updated_at": datetime.now().isoformat()}
+        sb.table("holdings").upsert(rec, on_conflict="user_id,ticker").execute()
+        return True
+    except Exception as e:
+        log.warning("holding upsert failed: %s", e)
+        return False
+
+
+def delete_holding(user_id: str, ticker: str) -> bool:
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return False
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        sb.table("holdings").delete().eq("user_id", user_id).eq("ticker", tk).execute()
+        return True
+    except Exception as e:
+        log.warning("holding delete failed: %s", e)
+        return False
+
+
+def _tier(score: float) -> str:
+    return "HIGH" if score >= 60 else ("LOW" if score < 45 else "MOD")
+
+
+def load_portfolio(user_id: str) -> dict:
+    """Holdings enriched with current conviction rows + per-position market value
+    and unrealized P&L, plus a portfolio-level conviction/P&L summary."""
+    items = portfolio_holdings(user_id)
+    rows, regime, _as_of = load_universe()
+    by = {r["ticker"]: r for r in rows}
+    out = []
+    tv = tc = 0.0
+    scores = []
+    hi = mo = lo = 0
+    for it in items:
+        tk = it.get("ticker")
+        base = by.get(tk) or _row_stub(tk)
+        shares = _num(it.get("shares")) or 0.0
+        avg_cost = _num(it.get("avg_cost")) or 0.0
+        price = base.get("price")
+        mv = round(shares * price, 2) if price else None
+        cb = round(shares * avg_cost, 2) if avg_cost else None
+        pnl = round(mv - cb, 2) if (mv is not None and cb is not None) else None
+        pnl_pct = round(pnl / cb * 100, 2) if (pnl is not None and cb) else None
+        out.append({**base, "shares": shares, "avg_cost": avg_cost,
+                    "entry_date": it.get("entry_date"), "notes": it.get("notes"),
+                    "market_value": mv, "cost_basis": cb, "pnl": pnl, "pnl_pct": pnl_pct})
+        if mv is not None:
+            tv += mv
+        if cb is not None:
+            tc += cb
+        if tk in by:
+            s = float(base.get("score", 0.0) or 0.0)
+            scores.append(s)
+            t = _tier(s)
+            hi += t == "HIGH"
+            mo += t == "MOD"
+            lo += t == "LOW"
+
+    total_pnl = round(tv - tc, 2)
+    summary = {
+        "count": len(items), "hi": hi, "mo": mo, "lo": lo,
+        "avg_score": round(sum(scores) / len(scores), 1) if scores else None,
+        "total_value": round(tv, 2), "total_cost": round(tc, 2),
+        "total_pnl": total_pnl,
+        "total_pnl_pct": round(total_pnl / tc * 100, 2) if tc else None,
+    }
+    return {"regime": regime, "summary": summary, "holdings": out}
