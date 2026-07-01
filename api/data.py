@@ -839,8 +839,8 @@ MODEL_EPOCH = "live"
 _MP_POS_SIZE = 2000.0
 _MP_BASE = 100000.0
 _MODEL_CACHE: dict = {"ts": 0.0, "payload": None}
-_MP_EMPTY = {"inception": None, "curve": [], "stats": None,
-             "positions": [], "exits": [], "sector_counts": []}
+_MP_EMPTY = {"inception": None, "curve": [], "stats": None, "day": None,
+             "prices_as_of": None, "positions": [], "exits": [], "sector_counts": []}
 
 
 def _model_sec_map() -> dict:
@@ -920,6 +920,7 @@ def load_model_portfolio() -> dict:
 
         curve: list = []
         stats = None
+        day = None
 
         if len(spy) >= 2:
             dates = sorted(spy.keys())
@@ -974,6 +975,29 @@ def load_model_portfolio() -> dict:
                          if len(model_series) > 1 and model_series[-2][1] else 0.0)
             day_spy = ((spy_series[-1][1] / spy_series[-2][1] - 1) * 100
                        if len(spy_series) > 1 and spy_series[-2][1] else 0.0)
+
+            # DAY move — mark TODAY's open book at the prior session's closes and
+            # compare to now. `now` reflects the intraday cron (incl. pre/post-
+            # market), so this is the position-weighted "prev close → now" move
+            # the Streamlit TODAY card shows, robust to same-day entries/exits.
+            if len(dates) >= 2:
+                d_prev = dates[-2]
+                model_prev = cash + sum(
+                    lot["shares"] * price_on(lot["ticker"], d_prev, lot["entry_price"])
+                    for lot in open_lots.values())
+                model_now = m_last
+                dm_dollar = model_now - model_prev
+                dm_pct = (dm_dollar / model_prev * 100) if model_prev else 0.0
+                spy_prev_v = _MP_BASE * spy[d_prev] / spy0
+                spy_now_v = s_last
+                ds_pct = ((spy[dates[-1]] / spy[d_prev] - 1) * 100) if spy[d_prev] else 0.0
+                day = {
+                    "model_now": round(model_now, 2), "model_prev": round(model_prev, 2),
+                    "model_pct": round(dm_pct, 2), "model_dollar": round(dm_dollar, 2),
+                    "spy_now": round(spy_now_v, 2), "spy_prev": round(spy_prev_v, 2),
+                    "spy_pct": round(ds_pct, 2), "spy_dollar": round(spy_now_v - spy_prev_v, 2),
+                    "vs_spy_pct": round(dm_pct - ds_pct, 2),
+                }
             stats = {
                 "inception": inception,
                 "model_value": round(m_last, 2), "spy_value": round(s_last, 2),
@@ -1040,7 +1064,21 @@ def load_model_portfolio() -> dict:
         sector_counts = [{"sector": s, "count": c}
                          for s, c in sorted(sect.items(), key=lambda x: x[1], reverse=True)]
 
-        payload = {"inception": inception, "curve": curve, "stats": stats,
+        # prices-as-of — freshness of the stored intraday marks (SPY's
+        # benchmark_price row is rewritten every cron cycle), doubles as a cron
+        # heartbeat. Returned as ISO; the client formats + ages it.
+        prices_as_of = None
+        try:
+            fr = (sb.table("benchmark_price").select("updated_at")
+                  .not_.is_("updated_at", "null")
+                  .order("updated_at", desc=True).limit(1).execute())
+            if fr.data and fr.data[0].get("updated_at"):
+                prices_as_of = str(fr.data[0]["updated_at"])
+        except Exception:
+            prices_as_of = None
+
+        payload = {"inception": inception, "curve": curve, "stats": stats, "day": day,
+                   "prices_as_of": prices_as_of,
                    "positions": open_positions, "exits": exits,
                    "sector_counts": sector_counts}
         _MODEL_CACHE.update(ts=now, payload=payload)

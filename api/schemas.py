@@ -225,10 +225,24 @@ class SectorCount(BaseModel):
     count: int
 
 
+class DayMove(BaseModel):
+    model_now: float = 0.0
+    model_prev: float = 0.0
+    model_pct: float = 0.0
+    model_dollar: float = 0.0
+    spy_now: float = 0.0
+    spy_prev: float = 0.0
+    spy_pct: float = 0.0
+    spy_dollar: float = 0.0
+    vs_spy_pct: float = 0.0
+
+
 class ModelPortfolioResponse(BaseModel):
     inception: Optional[str] = None
     curve: list[EquityPoint] = []
     stats: Optional[ModelStats] = None
+    day: Optional[DayMove] = None
+    prices_as_of: Optional[str] = None
     positions: list[ModelPosition] = []
     exits: list[ExitTrade] = []
     sector_counts: list[SectorCount] = []
