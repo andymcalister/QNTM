@@ -7,10 +7,10 @@ GET /api/stock/{ticker}
     day). Public read, same as the screener. 404 if the ticker isn't scored.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
-from ..schemas import StockResponse
-from ..data import load_stock
+from ..schemas import StockResponse, PriceSeriesResponse
+from ..data import load_stock, stock_price_series
 
 router = APIRouter(prefix="/api", tags=["stock"])
 
@@ -21,3 +21,11 @@ def stock(ticker: str):
     if data is None:
         raise HTTPException(status_code=404, detail="ticker_not_found")
     return StockResponse(**data)
+
+
+@router.get("/stock/{ticker}/prices", response_model=PriceSeriesResponse)
+def stock_prices(ticker: str, days: int = Query(20, ge=5, le=90)):
+    data = stock_price_series(ticker, days)
+    if data is None:
+        raise HTTPException(status_code=404, detail="ticker_not_found")
+    return PriceSeriesResponse(**data)

@@ -657,3 +657,63 @@ def load_stock(ticker: str):
     n = len(scores) or 1
     pct_rank = round(bisect.bisect_right(scores, row["score"]) / n * 100)
     return {**row, "pct_rank": pct_rank, "changes": stock_changes(tk)}
+
+
+# ── vs-SPY price series (stored-first, no live pull) ──────────────────────────
+def stock_price_series(ticker: str, days: int = 20):
+    """The ticker's recent daily prices (from signal_log) alongside SPY (from
+    benchmark_price) over the same sessions — the data for the detail page's
+    vs-SPY sparkline. Entirely from stored data: the same source the model
+    portfolio rebuilds its equity curve from. Returns raw price pairs; the client
+    rebases to 0%. Degrades to empty series (chart skipped) if history is thin."""
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return None
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb:
+        return None
+    from datetime import date, timedelta
+    since = (date.today() - timedelta(days=int(days * 1.6) + 10)).isoformat()
+
+    try:
+        srows = (sb.table("signal_log").select("signal_date,price")
+                 .eq("ticker", tk).gte("signal_date", since)
+                 .not_.is_("price", "null")
+                 .order("signal_date", desc=False).execute()).data or []
+    except Exception as e:
+        log.warning("price series (stock) failed: %s", e)
+        return None
+
+    smap = {}
+    for r in srows:
+        d = r.get("signal_date"); p = _num(r.get("price"))
+        if d and p is not None:
+            smap[d] = p                       # asc order → last write per date wins
+    sdates = sorted(smap.keys())[-days:]
+    empty = {"ticker": tk, "days": days, "stock": [], "spy": [], "stock_ret_pct": None, "spy_ret_pct": None}
+    if len(sdates) < 2:
+        return empty
+
+    try:
+        brows = (sb.table("benchmark_price").select("d,close")
+                 .gte("d", sdates[0]).lte("d", sdates[-1])
+                 .order("d", desc=False).execute()).data or []
+    except Exception as e:
+        log.warning("price series (spy) failed: %s", e)
+        brows = []
+    kmap = {}
+    for r in brows:
+        d = r.get("d"); c = _num(r.get("close"))
+        if d and c is not None:
+            kmap[d] = c
+
+    stock = [{"d": d, "v": smap[d]} for d in sdates]
+    spy = [{"d": d, "v": kmap[d]} for d in sdates if d in kmap]
+
+    def _ret(arr):
+        if len(arr) >= 2 and arr[0]["v"]:
+            return round((arr[-1]["v"] / arr[0]["v"] - 1) * 100, 1)
+        return None
+
+    return {"ticker": tk, "days": days, "stock": stock, "spy": spy,
+            "stock_ret_pct": _ret(stock), "spy_ret_pct": _ret(spy)}

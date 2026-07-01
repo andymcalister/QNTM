@@ -63,6 +63,20 @@ class MacroDetail(BaseModel):
     event_headlines: dict[str, list[str]] = {}
 
 
+class PricePoint(BaseModel):
+    d: str
+    v: float
+
+
+class PriceSeriesResponse(BaseModel):
+    ticker: str
+    days: int
+    stock: list[PricePoint] = []
+    spy: list[PricePoint] = []
+    stock_ret_pct: Optional[float] = None
+    spy_ret_pct: Optional[float] = None
+
+
 class StockChangePillar(BaseModel):
     key: str
     label: str
