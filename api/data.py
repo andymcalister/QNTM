@@ -553,3 +553,107 @@ def load_watchlist(user_id: str) -> list:
         out.append({**base, "price_at_add": _num(pa), "added_at": it.get("added_at"),
                     "change_pct": change_pct})
     return out
+
+
+# ── Single-stock detail ───────────────────────────────────────────────────────
+def stock_changes(ticker: str):
+    """Per-pillar + macro-overlay deltas between the ticker's two most recent
+    clean scored days (structured port of _whats_changed_html). None if there's
+    no prior scored day to compare against."""
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return None
+    sb = _get_supabase()
+    if not sb:
+        return None
+    from datetime import date, timedelta, date as _date
+    since = (date.today() - timedelta(days=21)).isoformat()
+    try:
+        rows = (sb.table("signal_log")
+                .select("signal_date,adj_composite,composite,momentum,quality,volume,value,sentiment")
+                .eq("ticker", tk).gte("signal_date", since)
+                .not_.is_("composite", "null")
+                .order("signal_date", desc=True).execute()).data or []
+    except Exception as e:
+        log.warning("stock_changes read failed: %s", e)
+        return None
+
+    def _pd(s):
+        try:
+            return _date.fromisoformat(s)
+        except (TypeError, ValueError):
+            return None
+
+    distinct, seen = [], set()
+    for rr in rows:
+        d = rr.get("signal_date")
+        if d and d not in seen:
+            seen.add(d); distinct.append(rr)
+    if len(distinct) < 2:
+        return None
+    now = distinct[0]
+    nd = _pd(now.get("signal_date"))
+    prev = None
+    if nd:
+        for rr in distinct[1:]:
+            rd = _pd(rr.get("signal_date"))
+            if rd and (nd - rd).days >= 1:
+                prev = rr
+                break
+    if prev is None:
+        prev = distinct[-1]
+    if prev.get("signal_date") == now.get("signal_date"):
+        return None
+
+    def _f(x, k):
+        try:
+            return float(x.get(k))
+        except (TypeError, ValueError):
+            return None
+
+    pillars = []
+    for key, lab in (("momentum", "Momentum"), ("quality", "Quality"),
+                     ("volume", "Volume"), ("value", "Value"), ("sentiment", "Sentiment")):
+        pn, pp = _f(now, key), _f(prev, key)
+        if pn is None or pp is None:
+            continue
+        dd = round(pn - pp)
+        if abs(dd) < 1:
+            continue
+        pillars.append({"key": key, "label": lab, "delta": int(dd)})
+
+    a_now, c_now = _f(now, "adj_composite"), _f(now, "composite")
+    a_prev, c_prev = _f(prev, "adj_composite"), _f(prev, "composite")
+    macro_delta, macro_unchanged = None, False
+    if None not in (a_now, c_now, a_prev, c_prev):
+        md = round((a_now - c_now) - (a_prev - c_prev))
+        if abs(md) >= 1:
+            macro_delta = int(md)
+        else:
+            macro_unchanged = True
+
+    return {
+        "prev_date": prev.get("signal_date"),
+        "prev_score": round(a_prev) if a_prev is not None else None,
+        "now_score": round(a_now) if a_now is not None else None,
+        "pillars": pillars,
+        "macro_delta": macro_delta,
+        "macro_unchanged": macro_unchanged,
+    }
+
+
+def load_stock(ticker: str):
+    """Enriched screener row for one ticker + its universe percentile + the
+    what's-changed deltas. None if the ticker isn't in the scored universe."""
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return None
+    rows, _regime, _as_of = load_universe()
+    row = next((r for r in rows if r["ticker"] == tk), None)
+    if row is None:
+        return None
+    import bisect
+    scores = sorted(r["score"] for r in rows)
+    n = len(scores) or 1
+    pct_rank = round(bisect.bisect_right(scores, row["score"]) / n * 100)
+    return {**row, "pct_rank": pct_rank, "changes": stock_changes(tk)}

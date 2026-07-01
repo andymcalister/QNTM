@@ -63,6 +63,26 @@ class MacroDetail(BaseModel):
     event_headlines: dict[str, list[str]] = {}
 
 
+class StockChangePillar(BaseModel):
+    key: str
+    label: str
+    delta: int
+
+
+class StockChanges(BaseModel):
+    prev_date: Optional[str] = None
+    prev_score: Optional[int] = None
+    now_score: Optional[int] = None
+    pillars: list[StockChangePillar] = []
+    macro_delta: Optional[int] = None
+    macro_unchanged: bool = False
+
+
+class StockResponse(ScreenerRow):
+    pct_rank: int = 0
+    changes: Optional[StockChanges] = None
+
+
 class WatchlistItem(ScreenerRow):
     price_at_add: Optional[float] = None
     added_at: Optional[str] = None
