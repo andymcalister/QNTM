@@ -1279,10 +1279,15 @@ def run_intraday_refresh(tickers: list = None, prices_only: bool = False) -> dic
     updated = 0
     failed  = 0
 
-    # Fetch current prices in batches of 200
+    # Fetch current prices in batches of 200. SPY rides along in the bulk
+    # download so the benchmark refreshes every cycle in the same rate-limited
+    # batch as the stocks — instead of via a separate call that gets throttled
+    # after the batch storm and leaves SPY stale (reading 0% intraday).
+    spy_px = None
+    _dl_tickers = list(tickers) + ["SPY"]
     chunk_size = 200
-    for i in range(0, len(tickers), chunk_size):
-        chunk = tickers[i:i + chunk_size]
+    for i in range(0, len(_dl_tickers), chunk_size):
+        chunk = _dl_tickers[i:i + chunk_size]
         try:
             hist = yf.download(chunk, period="1d", auto_adjust=True, progress=False, threads=True)
             if hist.empty:
@@ -1317,6 +1322,9 @@ def run_intraday_refresh(tickers: list = None, prices_only: bool = False) -> dic
                     except Exception:
                         pass
 
+            for _r in rows:
+                if _r["ticker"] == "SPY" and _r.get("price"):
+                    spy_px = _r["price"]
             rows = [r for r in rows if r["ticker"] in scored_today]
             if rows:
                 sb.table("signal_log").upsert(
@@ -1335,8 +1343,22 @@ def run_intraday_refresh(tickers: list = None, prices_only: bool = False) -> dic
     log.info(f"Intraday refresh complete: {updated} prices updated in {duration}s")
 
     # Keep the SPY benchmark close fresh intraday too, so the stored equity curve
-    # tracks during market hours.
-    update_benchmark_price()
+    # tracks during market hours. Prefer the SPY price from the bulk download
+    # above (reliable — same batch as the stocks); fall back to the standalone
+    # fetch only if SPY wasn't captured in the bulk result.
+    if spy_px and spy_px > 0:
+        try:
+            sb.table(BENCHMARK_TABLE).upsert(
+                {"d": today, "close": float(spy_px),
+                 "updated_at": datetime.now(timezone.utc).isoformat()},
+                on_conflict="d"
+            ).execute()
+            log.info(f"benchmark_price: SPY {float(spy_px):.2f} @ {today} (bulk)")
+        except Exception as e:
+            log.warning(f"benchmark_price bulk upsert failed ({e}); using standalone")
+            update_benchmark_price()
+    else:
+        update_benchmark_price()
 
     # Touch fundamentals_cache.refreshed_at so the app pill shows intraday time
     if sb and updated > 0:
