@@ -32,6 +32,12 @@ class Settings:
     # a burst of screener page-loads into one DB read without serving stale data.
     CACHE_TTL_SECONDS: int = int(os.getenv("API_CACHE_TTL", "60"))
 
+    # Model portfolio ledger replay is heavier but its inputs (signal_log +
+    # benchmark_price) are refreshed intraday by the price cron, so cache it only
+    # briefly — long enough to avoid replaying on every hit, short enough that the
+    # curve never lags the cron by more than a couple minutes.
+    MODEL_CACHE_TTL_SECONDS: int = int(os.getenv("MODEL_CACHE_TTL", "150"))
+
     # ── Auth bridge ───────────────────────────────────────────────────────────
     # Shared HMAC secret for the cross-app token. MUST be set identically on the
     # Streamlit service (which mints) and this API (which verifies). Generate one

@@ -181,3 +181,54 @@ class ScreenerResponse(BaseModel):
     offset: int
     limit: int
     rows: list[ScreenerRow]
+
+
+# ── Model portfolio / track record ──────────────────────────────────────────────
+class EquityPoint(BaseModel):
+    d: str
+    model: float
+    spy: float
+
+
+class ModelStats(BaseModel):
+    inception: Optional[str] = None
+    model_value: float = 0.0
+    spy_value: float = 0.0
+    model_ret: float = 0.0
+    spy_ret: float = 0.0
+    alpha: float = 0.0
+    day_model: float = 0.0
+    day_spy: float = 0.0
+    basis: float = 100000.0
+    n_sessions: int = 0
+
+
+class ModelPosition(ScreenerRow):
+    entry_date: Optional[str] = None
+    entry_price: Optional[float] = None
+    entry_score: Optional[float] = None
+    current_price: Optional[float] = None
+    ret_since_entry: Optional[float] = None
+
+
+class ExitTrade(BaseModel):
+    ticker: str
+    sector: str = "\u2014"
+    entry_date: str
+    exit_date: str
+    ret: float = 0.0
+    reason: str = "\u2014"
+
+
+class SectorCount(BaseModel):
+    sector: str
+    count: int
+
+
+class ModelPortfolioResponse(BaseModel):
+    inception: Optional[str] = None
+    curve: list[EquityPoint] = []
+    stats: Optional[ModelStats] = None
+    positions: list[ModelPosition] = []
+    exits: list[ExitTrade] = []
+    sector_counts: list[SectorCount] = []

@@ -825,3 +825,226 @@ def load_portfolio(user_id: str) -> dict:
         "total_pnl_pct": round(total_pnl / tc * 100, 2) if tc else None,
     }
     return {"regime": regime, "summary": summary, "holdings": out}
+
+
+# ── Model portfolio / track record ─────────────────────────────────────────────
+# Faithful port of app.py `_track_record_data`: a real $100K ledger, $2K per
+# position, entries deploy cash (shares = 2000/entry_price), exits return
+# shares x exit_price to cash (so realized P&L sticks), and the whole book is
+# marked to the daily close every session. SPY benchmark = $100K invested at
+# inception, marked daily. DB-only: held-ticker closes from signal_log, SPY from
+# benchmark_price — no pandas, no yfinance. Rebuilt from data the intraday price
+# cron keeps fresh, cached briefly (MODEL_CACHE_TTL_SECONDS).
+MODEL_EPOCH = "live"
+_MP_POS_SIZE = 2000.0
+_MP_BASE = 100000.0
+_MODEL_CACHE: dict = {"ts": 0.0, "payload": None}
+_MP_EMPTY = {"inception": None, "curve": [], "stats": None,
+             "positions": [], "exits": [], "sector_counts": []}
+
+
+def _model_sec_map() -> dict:
+    """SECTORS merged with held-but-dropped overrides so out-of-universe holdings
+    (e.g. a name not yet back after a Russell reconstitution) still resolve to a
+    real sector instead of 'Unknown'."""
+    try:
+        from universe_data import SECTORS, HELD_SECTOR_OVERRIDES  # type: ignore
+        return {**SECTORS, **HELD_SECTOR_OVERRIDES}
+    except Exception:
+        return dict(_SECTORS)
+
+
+def _mp_fetch_all(sb, table, cols, filters, order_col, desc=False, cap=8):
+    """Paginated select. filters = list of (method_name, args_tuple)."""
+    out: list = []
+    PAGE = 1000
+    page = 0
+    while page < cap:
+        q = sb.table(table).select(cols)
+        for meth, args in filters:
+            q = getattr(q, meth)(*args)
+        q = q.order(order_col, desc=desc).range(page * PAGE, (page + 1) * PAGE - 1)
+        batch = q.execute().data or []
+        out.extend(batch)
+        if len(batch) < PAGE:
+            break
+        page += 1
+    return out
+
+
+def load_model_portfolio() -> dict:
+    """Equity curve vs SPY + track-record stats + open positions (enriched from
+    signal_log) + closed trades for the live model cohort. Cached briefly."""
+    now = time.time()
+    cached = _MODEL_CACHE["payload"]
+    if cached is not None and (now - _MODEL_CACHE["ts"]) < settings.MODEL_CACHE_TTL_SECONDS:
+        return cached
+
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb:
+        return _MP_EMPTY
+    try:
+        SEC = _model_sec_map()
+
+        # 1) every position in the live cohort (needed for the ledger replay)
+        allpos = _mp_fetch_all(sb, "model_portfolio_positions", "*",
+                               [("eq", ("epoch", MODEL_EPOCH))], "entry_date")
+        if not allpos:
+            _MODEL_CACHE.update(ts=now, payload=_MP_EMPTY)
+            return _MP_EMPTY
+        # dedup exact (ticker, entry_date, exit_date); newest id wins
+        seen: dict = {}
+        for p in allpos:
+            k = (p["ticker"], str(p.get("entry_date") or "")[:10], str(p.get("exit_date") or "")[:10])
+            if k not in seen or (p.get("id") or 0) > (seen[k].get("id") or 0):
+                seen[k] = p
+        positions = list(seen.values())
+
+        inception = min(str(p["entry_date"])[:10] for p in positions)
+        tickers = sorted({p["ticker"] for p in positions})
+
+        # 2) stored price frame — SPY spine (date axis) + held-ticker closes
+        brows = _mp_fetch_all(sb, "benchmark_price", "d,close",
+                              [("gte", ("d", inception))], "d")
+        spy = {str(r["d"])[:10]: float(r["close"]) for r in brows
+               if r.get("close") is not None}
+        srows = _mp_fetch_all(sb, "signal_log", "ticker,signal_date,price",
+                              [("in_", ("ticker", tickers)), ("gte", ("signal_date", inception))],
+                              "signal_date")
+        pmap: dict = {}
+        for r in srows:
+            tk = r.get("ticker"); pv = r.get("price")
+            d = str(r.get("signal_date") or "")[:10]
+            if tk and pv is not None and len(d) == 10:
+                pmap.setdefault(tk, {})[d] = float(pv)
+
+        curve: list = []
+        stats = None
+
+        if len(spy) >= 2:
+            dates = sorted(spy.keys())
+
+            def price_on(tk, d, fallback):
+                m = pmap.get(tk)
+                if not m:
+                    return fallback
+                if d in m:
+                    return m[d]
+                prior = [dt for dt in m if dt <= d]
+                return m[max(prior)] if prior else fallback
+
+            entries_by_date: dict = {}
+            exits_by_date: dict = {}
+            for p in positions:
+                entries_by_date.setdefault(str(p["entry_date"])[:10], []).append(p)
+                xd = str(p.get("exit_date") or "")[:10]
+                if len(xd) == 10:
+                    exits_by_date.setdefault(xd, []).append(p)
+
+            cash = _MP_BASE
+            open_lots: dict = {}
+            model_series: list = []
+            for d in dates:
+                for p in exits_by_date.get(d, []):
+                    lot = open_lots.pop(p.get("id"), None)
+                    if lot:
+                        xp = p.get("exit_price") or price_on(lot["ticker"], d, lot["entry_price"])
+                        cash += lot["shares"] * float(xp)
+                for p in entries_by_date.get(d, []):
+                    ep = p.get("entry_price")
+                    if not ep or float(ep) <= 0:
+                        continue
+                    open_lots[p.get("id")] = {"ticker": p["ticker"],
+                                              "shares": _MP_POS_SIZE / float(ep),
+                                              "entry_price": float(ep)}
+                    cash -= _MP_POS_SIZE
+                mtm = cash + sum(lot["shares"] * price_on(lot["ticker"], d, lot["entry_price"])
+                                 for lot in open_lots.values())
+                model_series.append((d, mtm))
+
+            spy0 = spy[dates[0]]
+            spy_series = [(d, _MP_BASE * spy[d] / spy0) for d in dates]
+            curve = [{"d": d, "model": round(m, 2), "spy": round(s, 2)}
+                     for (d, m), (_, s) in zip(model_series, spy_series)]
+
+            m_last = model_series[-1][1]; s_last = spy_series[-1][1]
+            model_ret = (m_last / _MP_BASE - 1) * 100
+            spy_ret = (s_last / _MP_BASE - 1) * 100
+            day_model = ((model_series[-1][1] / model_series[-2][1] - 1) * 100
+                         if len(model_series) > 1 and model_series[-2][1] else 0.0)
+            day_spy = ((spy_series[-1][1] / spy_series[-2][1] - 1) * 100
+                       if len(spy_series) > 1 and spy_series[-2][1] else 0.0)
+            stats = {
+                "inception": inception,
+                "model_value": round(m_last, 2), "spy_value": round(s_last, 2),
+                "model_ret": round(model_ret, 2), "spy_ret": round(spy_ret, 2),
+                "alpha": round(model_ret - spy_ret, 2),
+                "day_model": round(day_model, 2), "day_spy": round(day_spy, 2),
+                "basis": _MP_BASE, "n_sessions": len(dates),
+            }
+
+        # 3) closed trades
+        exits: list = []
+        for p in positions:
+            xd = str(p.get("exit_date") or "")[:10]
+            if len(xd) == 10 and p.get("exit_price") and p.get("entry_price"):
+                try:
+                    ret = (float(p["exit_price"]) / float(p["entry_price"]) - 1) * 100
+                except Exception:
+                    ret = 0.0
+                exits.append({"ticker": p["ticker"], "sector": SEC.get(p["ticker"], "\u2014"),
+                              "entry_date": str(p["entry_date"])[:10], "exit_date": xd,
+                              "ret": round(ret, 2), "reason": p.get("exit_reason") or "\u2014"})
+        exits.sort(key=lambda x: x["exit_date"], reverse=True)
+
+        # 4) open positions — active rows deduped newest-per-ticker, enriched
+        active = [p for p in positions if p.get("is_active")]
+        adedup: dict = {}
+        for p in active:
+            tk = p["ticker"]; ed = str(p.get("entry_date") or ""); pid = p.get("id") or 0
+            cur = adedup.get(tk)
+            if (cur is None or ed > str(cur.get("entry_date") or "")
+                    or (ed == str(cur.get("entry_date") or "") and pid > (cur.get("id") or 0))):
+                adedup[tk] = p
+        active = list(adedup.values())
+        atk = sorted({p["ticker"] for p in active})
+
+        latest_rows: dict = {}
+        if atk:
+            lresp = (sb.table("signal_log").select(_SCREENER_COLS)
+                     .in_("ticker", atk).order("signal_date", desc=True)
+                     .limit(len(atk) * 4).execute())
+            for r in (lresp.data or []):
+                latest_rows.setdefault(r["ticker"], r)
+
+        open_positions: list = []
+        sect: dict = {}
+        for p in active:
+            tk = p["ticker"]
+            raw = latest_rows.get(tk)
+            base = _enrich(raw) if raw else _row_stub(tk)
+            base["sector"] = SEC.get(tk, base.get("sector") or "Unknown")
+            entry_price = _num(p.get("entry_price"))
+            cur_price = base.get("price")
+            ret_since = (round((cur_price / entry_price - 1) * 100, 2)
+                         if (entry_price and cur_price) else None)
+            open_positions.append({**base,
+                                   "entry_date": (str(p.get("entry_date") or "")[:10] or None),
+                                   "entry_price": entry_price,
+                                   "entry_score": _num(p.get("entry_score")),
+                                   "current_price": cur_price,
+                                   "ret_since_entry": ret_since})
+            s = SEC.get(tk, "Unknown")
+            sect[s] = sect.get(s, 0) + 1
+        open_positions.sort(key=lambda r: (r.get("score") or 0.0), reverse=True)
+        sector_counts = [{"sector": s, "count": c}
+                         for s, c in sorted(sect.items(), key=lambda x: x[1], reverse=True)]
+
+        payload = {"inception": inception, "curve": curve, "stats": stats,
+                   "positions": open_positions, "exits": exits,
+                   "sector_counts": sector_counts}
+        _MODEL_CACHE.update(ts=now, payload=payload)
+        return payload
+    except Exception as e:
+        logging.warning("load_model_portfolio failed: %s", e)
+        return _MP_EMPTY
