@@ -1287,6 +1287,13 @@ if not st.session_state.logged_in:
                     _restore_ok = True
         except Exception as _e:
             pass
+        if _restore_ok and st.session_state.get("nav") in (
+            "screener", "watchlist", "gems", "portfolio", "simulator",
+            "model_portfolio", "alerts", "methodology"):
+            try:
+                _bounce_to_next(st.session_state.user or {})  # cutover: restore -> new app
+            except Exception:
+                pass
     
 
     _nav_param = st.query_params.get("nav", "")
