@@ -246,3 +246,19 @@ class ModelPortfolioResponse(BaseModel):
     positions: list[ModelPosition] = []
     exits: list[ExitTrade] = []
     sector_counts: list[SectorCount] = []
+
+
+# ── Hidden gems ─────────────────────────────────────────────────────────────────
+class GemRow(ScreenerRow):
+    gem_reasons: list[str] = []
+    gem_regime: Optional[str] = None
+
+
+class HiddenGemsResponse(BaseModel):
+    locked: bool = False
+    regime: str = "NEUTRAL"
+    threshold: int = 62
+    as_of: Optional[str] = None
+    count: int = 0
+    gems: list[GemRow] = []
+    teaser_reasons: list[str] = []

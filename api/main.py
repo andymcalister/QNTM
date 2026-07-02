@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import screener, auth, macro, movers, watchlist, stock, portfolio, model
+from .routers import screener, auth, macro, movers, watchlist, stock, portfolio, model, gems
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -43,6 +43,7 @@ app.include_router(watchlist.router)
 app.include_router(stock.router)
 app.include_router(portfolio.router)
 app.include_router(model.router)
+app.include_router(gems.router)
 
 
 @app.get("/health", tags=["meta"])

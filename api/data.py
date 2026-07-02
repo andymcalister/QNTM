@@ -1086,3 +1086,96 @@ def load_model_portfolio() -> dict:
     except Exception as e:
         logging.warning("load_model_portfolio failed: %s", e)
         return _MP_EMPTY
+
+
+# ── Hidden gems ─────────────────────────────────────────────────────────────────
+# Faithful port of model_engine.detect_hidden_gems: a curated shortlist (max 12)
+# of under-followed mid/small-caps clearing a high conviction bar, with a reason
+# string per name. Regime sets the thresholds; mega-caps and large-caps excluded.
+_GEM_MEGA = {
+    "NVDA", "MSFT", "AAPL", "META", "GOOGL", "GOOG", "AMZN", "TSLA", "NFLX",
+    "JPM", "V", "MA", "UNH", "JNJ", "ABBV", "PG", "KO", "WMT", "COST",
+    "XOM", "CVX", "BAC", "GS", "MS", "BLK", "LLY", "MRK", "TMO", "HD", "LOW",
+}
+_GEMS_CACHE: dict = {"ts": 0.0, "payload": None}
+
+
+def _gem_reasons(f: dict, mom: float, qua: float, vol: float, regime: str) -> list:
+    reasons: list = []
+    rg = f.get("rg")
+    if rg and rg > 20: reasons.append(f"Revenue growing {rg:.0f}% YoY")
+    elif rg and rg > 10: reasons.append(f"Revenue +{rg:.0f}% YoY")
+    eg = f.get("eg")
+    if eg and eg > 40: reasons.append(f"Earnings accelerating {eg:.0f}% YoY")
+    elif eg and eg > 20: reasons.append(f"Earnings +{eg:.0f}% YoY")
+    ib = f.get("ib")
+    if ib and ib > 50: reasons.append(f"Strong insider buying ({ib:.0f}% buy ratio)")
+    elif ib and ib > 35: reasons.append(f"Insider buying elevated ({ib:.0f}%)")
+    sp = f.get("sp")
+    if sp is not None and sp < 3: reasons.append(f"Low short interest ({sp:.1f}%)")
+    elif sp is not None and sp < 5: reasons.append(f"Modest short interest ({sp:.1f}%)")
+    br = f.get("br")
+    if br and br == 100: reasons.append("Beat estimates all 4 quarters")
+    elif br and br >= 75: reasons.append(f"Beat estimates {br:.0f}% of quarters")
+    fcf = f.get("fcf")
+    if fcf and fcf > 5: reasons.append(f"Strong FCF yield ({fcf:.1f}%)")
+    if len(reasons) < 2:
+        if mom >= 70: reasons.append(f"Strong price momentum (score {mom:.0f})")
+        if qua >= 70: reasons.append(f"High quality fundamentals (score {qua:.0f})")
+        if vol >= 65: reasons.append(f"Elevated institutional volume (score {vol:.0f})")
+        if regime == "RISK_OFF": reasons.append("Surfaced in RISK-OFF screen — high-conviction filter applied")
+        elif regime == "RISK_ON": reasons.append("Strong signal in risk-on environment")
+    return reasons[:4]
+
+
+def load_hidden_gems() -> dict:
+    """Return {regime, threshold, as_of, count, gems[]} — the curated gem list,
+    computed off the cached universe + macro regime (mirrors the Streamlit page's
+    detect_hidden_gems). Cached briefly."""
+    now = time.time()
+    cached = _GEMS_CACHE["payload"]
+    if cached is not None and (now - _GEMS_CACHE["ts"]) < settings.CACHE_TTL_SECONDS:
+        return cached
+
+    rows, _regime_obj, as_of = load_universe()
+    regime = (load_macro_detail() or {}).get("regime") or "NEUTRAL"
+    if regime in ("RISK_OFF", "HIGH VOLATILITY"):
+        th_c, th_q, th_m = 67, 58, 62
+    else:
+        th_c, th_q, th_m = 62, 55, 58
+    try:
+        from universe_data import FUNDAMENTALS, SMALL_MID_POOL  # type: ignore
+    except Exception:
+        FUNDAMENTALS, SMALL_MID_POOL = {}, set()
+
+    gems: list = []
+    for s in rows:
+        tk = s.get("ticker")
+        if not tk or tk in _GEM_MEGA:
+            continue
+        try:
+            adj = float(s.get("score") or 0)
+            mom = float(s.get("momentum") or 0)
+            qua = float(s.get("quality") or 0)
+            vol = float(s.get("volume") or 0)
+        except (TypeError, ValueError):
+            continue
+        if adj < th_c or qua < th_q or mom < th_m:
+            continue
+        f = FUNDAMENTALS.get(tk, {})
+        mktcap = s.get("mktcap") or f.get("mktcap")
+        if mktcap == "large":
+            continue
+        if mktcap not in ("mid", "small") and tk not in SMALL_MID_POOL:
+            continue
+        reasons = _gem_reasons(f, mom, qua, vol, regime)
+        if not reasons:
+            continue
+        gems.append({**s, "gem_reasons": reasons, "gem_regime": regime})
+
+    gems.sort(key=lambda x: float(x.get("score") or 0), reverse=True)
+    gems = gems[:12]
+    payload = {"regime": regime, "threshold": th_c, "as_of": as_of,
+               "count": len(gems), "gems": gems}
+    _GEMS_CACHE.update(ts=now, payload=payload)
+    return payload
