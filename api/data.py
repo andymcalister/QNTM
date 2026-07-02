@@ -26,6 +26,7 @@ from __future__ import annotations
 import sys
 import os
 import time
+import json
 import logging
 from typing import Optional
 
@@ -1363,3 +1364,142 @@ def mark_alerts_read(uid, ids=None) -> bool:
     except Exception as e:
         logging.warning("mark_alerts_read failed: %s", e)
         return False
+
+
+# ── Account: notification preferences + phone verification ───────────────────────
+# Delivery-channel prefs live in users.notifications (jsonb); phone verification in
+# users.phone / phone_verified. The alerts cron (alerts_engine.notify) reads these
+# to decide email/SMS fan-out, so this is the config surface that closes the loop.
+_NOTIF_DEFAULTS = {
+    "email": False,          # weekly digest
+    "signals": True,         # in-app conviction-change bell
+    "alerts": True,          # in-app macro-regime bell
+    "low_alert_email": False,  # email on drop to LOW
+    "alert_email": True,     # email when a user alert fires
+    "alert_sms": False,      # SMS when a user alert fires (opt-in)
+}
+
+
+def _norm_phone(p: str) -> str:
+    p = (p or "").strip()
+    if not p:
+        return ""
+    if p.startswith("+"):
+        return "+" + "".join(ch for ch in p[1:] if ch.isdigit())
+    d = "".join(ch for ch in p if ch.isdigit())
+    if len(d) == 10:
+        return "+1" + d
+    if len(d) == 11 and d.startswith("1"):
+        return "+" + d
+    return ("+" + d) if d else ""
+
+
+def get_notification_prefs(uid: str) -> dict:
+    """Return {prefs:{...}, phone, phone_verified}. Fail-safe to defaults."""
+    out = {"prefs": dict(_NOTIF_DEFAULTS), "phone": "", "phone_verified": False}
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb or not uid:
+        return out
+    try:
+        r = (sb.table("users").select("notifications,phone,phone_verified")
+             .eq("id", str(uid)).limit(1).execute().data or [])
+        if r:
+            row = r[0]
+            raw = row.get("notifications") or {}
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except Exception:
+                    raw = {}
+            out["prefs"] = {**_NOTIF_DEFAULTS, **(raw or {})}
+            out["phone"] = row.get("phone") or ""
+            out["phone_verified"] = bool(row.get("phone_verified"))
+    except Exception as e:
+        logging.warning("get_notification_prefs failed for %s: %s", uid, e)
+    return out
+
+
+def save_notification_prefs(uid: str, prefs: dict) -> bool:
+    """Merge the six known keys into users.notifications (preserving any others)."""
+    sb = _get_supabase_admin()
+    if not sb or not uid:
+        return False
+    cur = get_notification_prefs(uid)["prefs"]
+    merged = dict(cur)
+    for k in _NOTIF_DEFAULTS:
+        if k in (prefs or {}):
+            merged[k] = bool(prefs[k])
+    try:
+        resp = (sb.table("users").update({"notifications": merged})
+                .eq("id", str(uid)).execute())
+        if not getattr(resp, "data", None):
+            logging.warning("save_notification_prefs wrote 0 rows for %s", uid)
+            return False
+        return True
+    except Exception as e:
+        logging.warning("save_notification_prefs failed for %s: %s", uid, e)
+        return False
+
+
+def send_phone_verify_code(uid: str, phone: str) -> tuple:
+    """Store phone (unverified) + a fresh 6-digit code and text it.
+    (ok, msg). SMS fails soft until Twilio/A2P is live — the code is still saved."""
+    import random
+    from datetime import datetime, timedelta, timezone
+    sb = _get_supabase_admin()
+    if not sb or not uid:
+        return (False, "No database connection")
+    ph = _norm_phone(phone)
+    if not ph or len(ph) < 11:
+        return (False, "Enter a valid phone number")
+    code = f"{random.randint(0, 999999):06d}"
+    exp = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    try:
+        sb.table("users").update({
+            "phone": ph, "phone_verified": False,
+            "phone_verify_code": code, "phone_verify_expires": exp,
+        }).eq("id", str(uid)).execute()
+    except Exception as e:
+        logging.warning("send_phone_verify_code save failed: %s", e)
+        return (False, "Could not save phone number")
+    try:
+        from sms import send_sms
+        res = send_sms(ph, f"Your QNTM verification code is {code}. It expires in 10 minutes.")
+    except Exception:
+        res = {"success": False}
+    if not res.get("success"):
+        return (False, "Saved, but the text couldn't be sent yet — SMS goes live once "
+                       "carrier registration (A2P 10DLC) is approved.")
+    return (True, "Code sent — check your texts.")
+
+
+def verify_phone_code(uid: str, code: str) -> tuple:
+    """Check the code + expiry and mark phone_verified. (ok, msg)."""
+    from datetime import datetime, timezone
+    sb = _get_supabase_admin()
+    if not sb or not uid:
+        return (False, "No database connection")
+    try:
+        rows = (sb.table("users")
+                .select("phone,phone_verify_code,phone_verify_expires")
+                .eq("id", str(uid)).execute().data or [])
+    except Exception:
+        return (False, "Lookup failed")
+    if not rows:
+        return (False, "User not found")
+    want = (rows[0].get("phone_verify_code") or "").strip()
+    exp = rows[0].get("phone_verify_expires")
+    if not want:
+        return (False, "Request a code first")
+    try:
+        if exp and datetime.fromisoformat(str(exp).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+            return (False, "Code expired — request a new one")
+    except Exception:
+        pass
+    if (code or "").strip() != want:
+        return (False, "Incorrect code")
+    try:
+        sb.table("users").update({"phone_verified": True, "phone_verify_code": None}).eq("id", str(uid)).execute()
+    except Exception:
+        return (False, "Could not save verification")
+    return (True, "Phone verified")

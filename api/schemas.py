@@ -324,3 +324,42 @@ class ToggleAlertRequest(BaseModel):
 
 class MarkReadRequest(BaseModel):
     ids: Optional[list[str]] = None
+
+
+# ── Account: notification preferences ────────────────────────────────────────────
+class NotificationPrefs(BaseModel):
+    email: bool = False
+    signals: bool = True
+    alerts: bool = True
+    low_alert_email: bool = False
+    alert_email: bool = True
+    alert_sms: bool = False
+
+
+class NotificationPrefsResponse(BaseModel):
+    locked: bool = False
+    prefs: NotificationPrefs = NotificationPrefs()
+    phone: str = ""
+    phone_verified: bool = False
+
+
+class SavePrefsRequest(BaseModel):
+    email: Optional[bool] = None
+    signals: Optional[bool] = None
+    alerts: Optional[bool] = None
+    low_alert_email: Optional[bool] = None
+    alert_email: Optional[bool] = None
+    alert_sms: Optional[bool] = None
+
+
+class PhoneSendRequest(BaseModel):
+    phone: str
+
+
+class PhoneVerifyRequest(BaseModel):
+    code: str
+
+
+class SimpleOk(BaseModel):
+    ok: bool = True
+    message: Optional[str] = None
