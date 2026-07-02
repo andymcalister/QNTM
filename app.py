@@ -58,32 +58,51 @@ def qntm_html(html, *, height=0, scrolling=False, iframe=False):
 
 
 def _bounce_to_next(user, force_mfa_setup: bool = False) -> bool:
-    """Cutover hand-off: send a freshly-authenticated user to the new Next app
-    (qntm.live) with a signed bridge JWT, making the new platform the primary
-    post-login destination. Fail-safe: if the flag is off, minting fails, or the
-    user is a first-timer being nudged to set up MFA, we return False and the
-    caller falls through to the classic platform — a user is NEVER stranded.
-    Kill-switch: set QNTM_NEXT_PRIMARY=0 (Render env) to keep classic primary."""
+    """Cutover hand-off: send an authenticated user to the new Next app
+    (qntm.live) with a signed bridge JWT — the new platform is the primary
+    destination. Fail-safe: flag off / mint failure / first-login MFA nudge all
+    return False and the caller renders classic (never stranded).
+
+    Redirect uses window.open(url,'_top') — the ONE call the Streamlit
+    component-iframe sandbox permits to drive the parent (window.top.location is
+    blocked) — with a visible button as a gesture fallback if auto-nav is blocked.
+    Kill-switch: QNTM_NEXT_PRIMARY=0. Diagnostics: QNTM_NEXT_PRIMARY=debug shows
+    why a bounce was skipped instead of silently falling through to classic."""
     import os as _os
-    if _os.getenv("QNTM_NEXT_PRIMARY", "1").lower() not in ("1", "true", "yes", "on"):
+    mode = _os.getenv("QNTM_NEXT_PRIMARY", "1").lower()
+    if mode in ("0", "false", "no", "off"):
         return False
     if force_mfa_setup:
-        return False  # first login -> keep the classic MFA-setup nudge + welcome
+        return False
+    reason = None
+    tok = None
     try:
         from api.auth import create_token
         tok = create_token(str(user.get("id")), email=user.get("email") or None,
                            plan=user.get("plan") or "free")
-    except Exception:
-        return False
+    except Exception as _e:
+        reason = f"{type(_e).__name__}: {_e}"
     if not tok:
+        if mode == "debug":
+            st.error(f"[next-primary] bounce skipped — {reason or 'create_token returned empty'}")
         return False
-    qntm_html(
-        f'<script>window.top.location.replace("https://qntm.live/#bt={tok}");</script>',
-        height=0,
-    )
+    _url = "https://qntm.live/#bt=" + tok
+    _html = '''<div style="font-family:Syne,sans-serif;text-align:center;padding:22px;">
+      <div style="color:#9fabc0;font-size:15px;margin-bottom:14px;">Opening QNTM\u2026</div>
+      <button id="qntm-go" style="padding:14px 22px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#34d399,#059669);color:#04120c;font-family:Syne,sans-serif;font-weight:800;font-size:15px;">Continue to QNTM \u2192</button>
+    </div>
+    <script>
+      (function(){
+        var u = "__URL__";
+        function go(){ try { window.open(u,"_top"); } catch(e){} }
+        var b = document.getElementById("qntm-go");
+        if (b) b.addEventListener("click", go);
+        go();
+      })();
+    </script>'''.replace("__URL__", _url)
+    qntm_html(_html, height=150)
     st.stop()
     return True
-
 
 # ── DEV ENVIRONMENT BANNER ────────────────────────────────────────────────────
 import os
@@ -12755,6 +12774,9 @@ def page_platform():
                 analytics.capture(_view_evt, user=st.session_state.get("user"))
             except Exception:
                 pass
+    if _cur_nav in ("screener", "watchlist", "gems", "portfolio", "simulator",
+                    "model_portfolio", "alerts", "methodology"):
+        _bounce_to_next(st.session_state.user or {})  # cutover: migrated pages -> new app
     if _cur_nav == "analytics":
         try:
             if analytics.is_admin():
