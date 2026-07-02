@@ -56,19 +56,13 @@ def qntm_html(html, *, height=0, scrolling=False, iframe=False):
         import streamlit.components.v1 as _cv1_compat
         _cv1_compat.html(html, height=height, scrolling=scrolling)
 
-
 def _bounce_to_next(user, force_mfa_setup: bool = False) -> bool:
     """Cutover hand-off: send an authenticated user to the new Next app
-    (qntm.live) with a signed bridge JWT — the new platform is the primary
-    destination. Fail-safe: flag off / mint failure / first-login MFA nudge all
-    return False and the caller renders classic (never stranded).
-
-    Redirect uses window.open(url,'_top') — the ONE call the Streamlit
-    component-iframe sandbox permits to drive the parent (window.top.location is
-    blocked). It first drops a full-screen cover over the classic page so the
-    hand-off doesn't flash, and includes a Continue button if a browser blocks
-    the auto-navigation. Kill-switch: QNTM_NEXT_PRIMARY=0. Diagnostics:
-    QNTM_NEXT_PRIMARY=debug surfaces why a bounce was skipped."""
+    (qntm.live) with a signed bridge JWT. Fail-safe (returns False -> classic).
+    Renders through components.v1.html directly — a REAL iframe — because that is
+    the only place window.open(url,'_top') actually drives the parent on the
+    pinned Streamlit (st.html strips <script>). A no-JS <a target=_top> link is
+    the guaranteed fallback. Kill-switch: QNTM_NEXT_PRIMARY=0. Debug: =debug."""
     import os as _os
     mode = _os.getenv("QNTM_NEXT_PRIMARY", "1").lower()
     if mode in ("0", "false", "no", "off"):
@@ -85,29 +79,32 @@ def _bounce_to_next(user, force_mfa_setup: bool = False) -> bool:
         reason = f"{type(_e).__name__}: {_e}"
     if not tok:
         if mode == "debug":
-            st.error(f"[next-primary] bounce skipped — {reason or 'create_token returned empty'}")
+            st.error(f"[next-primary] bounce skipped -- {reason or 'create_token returned empty'}")
         return False
     _url = "https://qntm.live/#bt=" + tok
-    _js = '''<script>
-      (function(){
-        var pd = parent.document;
-        var u = "__URL__";
-        function go(){ try { window.open(u,"_top"); } catch(e){} }
-        if (!pd.getElementById("qntm-bounce-ov")) {
-          var ov = pd.createElement("div");
-          ov.id = "qntm-bounce-ov";
-          ov.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#060709;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:'DM Mono',monospace;";
-          ov.innerHTML = '<div style="color:#9fabc0;font-size:14px;letter-spacing:.1em;">Opening QNTM\u2026</div><button id="qntm-go2" style="padding:12px 22px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#34d399,#059669);color:#04120c;font-family:inherit;font-weight:800;font-size:14px;">Continue \u2192</button>';
-          pd.body.appendChild(ov);
-          var b = pd.getElementById("qntm-go2");
-          if (b) b.addEventListener("click", go);
-        }
-        go();
-      })();
-    </script>'''.replace("__URL__", _url)
-    qntm_html(_js, height=0)
+    _html = (
+        '<div style="position:fixed;inset:0;z-index:2147483647;background:#060709;'
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+        'gap:16px;font-family:DM Mono,monospace;">'
+        '<div style="color:#9fabc0;font-size:14px;letter-spacing:.1em;">Opening QNTM\u2026</div>'
+        '<a id="qntm-go" href="' + _url + '" target="_top" '
+        'style="padding:12px 22px;border-radius:8px;text-decoration:none;'
+        'background:linear-gradient(135deg,#34d399,#059669);color:#04120c;'
+        'font-weight:800;font-size:14px;">Continue \u2192</a></div>'
+        '<script>(function(){var u="' + _url + '";'
+        'function go(){try{window.open(u,"_top");}catch(e){}}'
+        'var b=document.getElementById("qntm-go");'
+        'if(b)b.addEventListener("click",function(e){e.preventDefault();go();});'
+        'go();})();</script>'
+    )
+    try:
+        import streamlit.components.v1 as _cv1
+        _cv1.html(_html, height=140)
+    except Exception:
+        st.markdown(_html, unsafe_allow_html=True)
     st.stop()
     return True
+
 
 # ── DEV ENVIRONMENT BANNER ────────────────────────────────────────────────────
 import os
