@@ -65,9 +65,10 @@ def _bounce_to_next(user, force_mfa_setup: bool = False) -> bool:
 
     Redirect uses window.open(url,'_top') — the ONE call the Streamlit
     component-iframe sandbox permits to drive the parent (window.top.location is
-    blocked) — with a visible button as a gesture fallback if auto-nav is blocked.
-    Kill-switch: QNTM_NEXT_PRIMARY=0. Diagnostics: QNTM_NEXT_PRIMARY=debug shows
-    why a bounce was skipped instead of silently falling through to classic."""
+    blocked). It first drops a full-screen cover over the classic page so the
+    hand-off doesn't flash, and includes a Continue button if a browser blocks
+    the auto-navigation. Kill-switch: QNTM_NEXT_PRIMARY=0. Diagnostics:
+    QNTM_NEXT_PRIMARY=debug surfaces why a bounce was skipped."""
     import os as _os
     mode = _os.getenv("QNTM_NEXT_PRIMARY", "1").lower()
     if mode in ("0", "false", "no", "off"):
@@ -87,20 +88,24 @@ def _bounce_to_next(user, force_mfa_setup: bool = False) -> bool:
             st.error(f"[next-primary] bounce skipped — {reason or 'create_token returned empty'}")
         return False
     _url = "https://qntm.live/#bt=" + tok
-    _html = '''<div style="font-family:Syne,sans-serif;text-align:center;padding:22px;">
-      <div style="color:#9fabc0;font-size:15px;margin-bottom:14px;">Opening QNTM\u2026</div>
-      <button id="qntm-go" style="padding:14px 22px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#34d399,#059669);color:#04120c;font-family:Syne,sans-serif;font-weight:800;font-size:15px;">Continue to QNTM \u2192</button>
-    </div>
-    <script>
+    _js = '''<script>
       (function(){
+        var pd = parent.document;
         var u = "__URL__";
         function go(){ try { window.open(u,"_top"); } catch(e){} }
-        var b = document.getElementById("qntm-go");
-        if (b) b.addEventListener("click", go);
+        if (!pd.getElementById("qntm-bounce-ov")) {
+          var ov = pd.createElement("div");
+          ov.id = "qntm-bounce-ov";
+          ov.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#060709;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:'DM Mono',monospace;";
+          ov.innerHTML = '<div style="color:#9fabc0;font-size:14px;letter-spacing:.1em;">Opening QNTM\u2026</div><button id="qntm-go2" style="padding:12px 22px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#34d399,#059669);color:#04120c;font-family:inherit;font-weight:800;font-size:14px;">Continue \u2192</button>';
+          pd.body.appendChild(ov);
+          var b = pd.getElementById("qntm-go2");
+          if (b) b.addEventListener("click", go);
+        }
         go();
       })();
     </script>'''.replace("__URL__", _url)
-    qntm_html(_html, height=150)
+    qntm_html(_js, height=0)
     st.stop()
     return True
 
