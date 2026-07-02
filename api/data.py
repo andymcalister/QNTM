@@ -400,6 +400,16 @@ def load_universe() -> tuple[list[dict], dict, Optional[str]]:
         raw, as_of = _fetch_latest_scores()
         regime = _fetch_regime()
         rows = [_enrich(r) for r in raw]
+        # The stored signal_log.is_hidden_gem is unreliable/empty, which made the
+        # screener show 0 gems while the Gems page (live detection) found 12. Mark
+        # gems here with the SAME detection so every consumer agrees.
+        try:
+            gem_list, _ = _compute_gems(rows, regime.get("label") or "NEUTRAL")
+            gem_tickers = {g["ticker"] for g in gem_list}
+            for r in rows:
+                r["is_hidden_gem"] = r["ticker"] in gem_tickers
+        except Exception as ge:
+            log.warning("gem marking failed: %s", ge)
         payload = (rows, regime, as_of)
         _CACHE.update(ts=now, payload=payload)
         return payload
@@ -1129,17 +1139,10 @@ def _gem_reasons(f: dict, mom: float, qua: float, vol: float, regime: str) -> li
     return reasons[:4]
 
 
-def load_hidden_gems() -> dict:
-    """Return {regime, threshold, as_of, count, gems[]} — the curated gem list,
-    computed off the cached universe + macro regime (mirrors the Streamlit page's
-    detect_hidden_gems). Cached briefly."""
-    now = time.time()
-    cached = _GEMS_CACHE["payload"]
-    if cached is not None and (now - _GEMS_CACHE["ts"]) < settings.CACHE_TTL_SECONDS:
-        return cached
-
-    rows, _regime_obj, as_of = load_universe()
-    regime = (load_macro_detail() or {}).get("regime") or "NEUTRAL"
+def _compute_gems(rows: list, regime: str) -> tuple:
+    """Single source of truth for hidden-gem detection — used BOTH to set the
+    screener's is_hidden_gem flag (via load_universe) and to build the Gems page
+    list, so the two never disagree. Returns (gem_dicts_with_reasons[:12], threshold)."""
     if regime in ("RISK_OFF", "HIGH VOLATILITY"):
         th_c, th_q, th_m = 67, 58, 62
     else:
@@ -1175,7 +1178,21 @@ def load_hidden_gems() -> dict:
         gems.append({**s, "gem_reasons": reasons, "gem_regime": regime})
 
     gems.sort(key=lambda x: float(x.get("score") or 0), reverse=True)
-    gems = gems[:12]
+    return gems[:12], th_c
+
+
+def load_hidden_gems() -> dict:
+    """Return {regime, threshold, as_of, count, gems[]} — the curated gem list,
+    computed off the cached universe + macro regime (mirrors the Streamlit page's
+    detect_hidden_gems). Cached briefly."""
+    now = time.time()
+    cached = _GEMS_CACHE["payload"]
+    if cached is not None and (now - _GEMS_CACHE["ts"]) < settings.CACHE_TTL_SECONDS:
+        return cached
+
+    rows, _regime_obj, as_of = load_universe()
+    regime = (load_macro_detail() or {}).get("regime") or "NEUTRAL"
+    gems, th_c = _compute_gems(rows, regime)
     payload = {"regime": regime, "threshold": th_c, "as_of": as_of,
                "count": len(gems), "gems": gems}
     _GEMS_CACHE.update(ts=now, payload=payload)
