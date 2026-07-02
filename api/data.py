@@ -1179,3 +1179,62 @@ def load_hidden_gems() -> dict:
                "count": len(gems), "gems": gems}
     _GEMS_CACHE.update(ts=now, payload=payload)
     return payload
+
+
+def get_user_plan(uid: str) -> str:
+    """Live plan lookup from users.plan so a promotion to pro takes effect on the
+    very next request — no re-login, no stale-token wait. Fail-closed to 'free'."""
+    if not uid:
+        return "free"
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb:
+        return "free"
+    try:
+        r = sb.table("users").select("plan").eq("id", str(uid)).limit(1).execute()
+        if r.data and r.data[0].get("plan"):
+            return str(r.data[0]["plan"]).lower()
+    except Exception as e:
+        logging.warning("get_user_plan failed for %s: %s", uid, e)
+    return "free"
+
+
+# ── Portfolio simulator ─────────────────────────────────────────────────────────
+# Port of page_simulator's profile_tickers: rank the scored universe by the
+# profile metric (HIGH=momentum, LOW=(quality+value)/2, MEDIUM=conviction), take
+# the top N with a per-sector cap for diversification, top off if thin. The
+# client handles amount, weighting, and add/remove over these picks.
+_SIM_PROFILES = {"HIGH", "MEDIUM", "LOW"}
+
+
+def load_simulator(profile: str, n: int = 20, sector_cap: int = 4) -> dict:
+    profile = (profile or "MEDIUM").upper()
+    if profile not in _SIM_PROFILES:
+        profile = "MEDIUM"
+    rows, _regime_obj, as_of = load_universe()
+
+    def key(r):
+        if profile == "HIGH":
+            return float(r.get("momentum") or 0)
+        if profile == "LOW":
+            return (float(r.get("quality") or 0) + float(r.get("value") or 0)) / 2.0
+        return float(r.get("score") or 0)  # MEDIUM = conviction (adj_composite)
+
+    ranked = sorted([r for r in rows if r.get("ticker")], key=key, reverse=True)
+    picked: list = []
+    sec_counts: dict = {}
+    for r in ranked:
+        sec = r.get("sector") or "Unknown"
+        if sec_counts.get(sec, 0) >= sector_cap:
+            continue
+        picked.append(r)
+        sec_counts[sec] = sec_counts.get(sec, 0) + 1
+        if len(picked) >= n:
+            break
+    if len(picked) < n:  # top off if the sector cap left us short
+        chosen = {r["ticker"] for r in picked}
+        for r in ranked:
+            if r["ticker"] not in chosen:
+                picked.append(r)
+                if len(picked) >= n:
+                    break
+    return {"profile": profile, "as_of": as_of, "count": len(picked), "picks": picked}

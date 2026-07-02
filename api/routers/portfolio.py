@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..schemas import (PortfolioResponse, HoldingItem, PortfolioSummary,
                        AddHoldingRequest, Regime)
-from ..data import (load_portfolio, upsert_holding, delete_holding,
+from ..data import (load_portfolio, upsert_holding, delete_holding, get_user_plan,
                     portfolio_holdings, load_universe)
 from .auth import current_user
 
@@ -42,7 +42,7 @@ def get_portfolio(user: dict = Depends(current_user)):
 @router.post("/portfolio")
 def post_portfolio(req: AddHoldingRequest, user: dict = Depends(current_user)):
     uid = user.get("sub")
-    plan = (user.get("plan") or "free").lower()
+    plan = get_user_plan(uid)   # live — a fresh upgrade lifts the cap immediately
     tk = req.ticker.strip().upper()
     if plan == "free":
         held = {h["ticker"] for h in portfolio_holdings(uid)}

@@ -16,7 +16,7 @@ GET /api/hidden-gems   (auth required)
 from fastapi import APIRouter, Depends
 
 from ..schemas import HiddenGemsResponse, GemRow
-from ..data import load_hidden_gems
+from ..data import load_hidden_gems, get_user_plan
 from .auth import current_user
 
 router = APIRouter(prefix="/api", tags=["gems"])
@@ -28,7 +28,7 @@ _GEMS_ENTITLED = {"pro", "institutional"}
 def hidden_gems(user: dict = Depends(current_user)):
     d = load_hidden_gems()
     gems = d.get("gems") or []
-    plan = (user.get("plan") or "free").lower()
+    plan = get_user_plan(user.get("sub"))   # live — immediate on promotion
     base = dict(regime=d.get("regime") or "NEUTRAL", threshold=d.get("threshold") or 62,
                 as_of=d.get("as_of"), count=d.get("count") or 0)
 

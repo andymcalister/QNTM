@@ -262,3 +262,18 @@ class HiddenGemsResponse(BaseModel):
     count: int = 0
     gems: list[GemRow] = []
     teaser_reasons: list[str] = []
+
+
+# ── Portfolio simulator ─────────────────────────────────────────────────────────
+class SimTeaser(BaseModel):
+    sector: str
+    tier: str
+
+
+class SimulatorResponse(BaseModel):
+    locked: bool = False
+    profile: str = "MEDIUM"
+    as_of: Optional[str] = None
+    count: int = 0
+    picks: list[ScreenerRow] = []
+    teaser: list[SimTeaser] = []
