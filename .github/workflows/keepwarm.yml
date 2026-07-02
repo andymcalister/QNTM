@@ -1,10 +1,5 @@
 name: keep-warm
 # Pings the classic app + the API every ~10 min so Render doesn't spin them down.
-# Cold starts are what make the sign-in page hang on a blank screen and the
-# screener stall while /api/session waits for the API to wake.
-# NOTE: GitHub cron can drift 5-15 min and is disabled after 60 days of repo
-# inactivity — a dedicated uptime monitor (UptimeRobot, cron-job.org) pinging the
-# same two URLs every 5 min is more reliable. This is the zero-cost fallback.
 on:
   schedule:
     - cron: "*/10 * * * *"
