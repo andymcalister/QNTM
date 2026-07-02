@@ -57,6 +57,34 @@ def qntm_html(html, *, height=0, scrolling=False, iframe=False):
         _cv1_compat.html(html, height=height, scrolling=scrolling)
 
 
+def _bounce_to_next(user, force_mfa_setup: bool = False) -> bool:
+    """Cutover hand-off: send a freshly-authenticated user to the new Next app
+    (qntm.live) with a signed bridge JWT, making the new platform the primary
+    post-login destination. Fail-safe: if the flag is off, minting fails, or the
+    user is a first-timer being nudged to set up MFA, we return False and the
+    caller falls through to the classic platform — a user is NEVER stranded.
+    Kill-switch: set QNTM_NEXT_PRIMARY=0 (Render env) to keep classic primary."""
+    import os as _os
+    if _os.getenv("QNTM_NEXT_PRIMARY", "1").lower() not in ("1", "true", "yes", "on"):
+        return False
+    if force_mfa_setup:
+        return False  # first login -> keep the classic MFA-setup nudge + welcome
+    try:
+        from api.auth import create_token
+        tok = create_token(str(user.get("id")), email=user.get("email") or None,
+                           plan=user.get("plan") or "free")
+    except Exception:
+        return False
+    if not tok:
+        return False
+    qntm_html(
+        f'<script>window.top.location.replace("https://qntm.live/#bt={tok}");</script>',
+        height=0,
+    )
+    st.stop()
+    return True
+
+
 # ── DEV ENVIRONMENT BANNER ────────────────────────────────────────────────────
 import os
 if os.getenv("ENVIRONMENT") == "dev":
@@ -5822,6 +5850,7 @@ def page_auth():
                             _write_localstorage_token(user["id"], user.get("plan","free"))
                             st.session_state.nav = "screener"
 
+                            _bounce_to_next(user, force_mfa_setup=st.session_state.get("force_mfa_setup", False))
                             go("platform")
                     else:
                         st.error(res.get("error", "Invalid email or password"))
@@ -6018,6 +6047,7 @@ def page_mfa():
                     _write_localstorage_token(user["id"], user.get("plan","free"))
                     st.session_state.nav = "screener"
 
+                    _bounce_to_next(user)
                     go("platform")
                 else:
                     st.error("Invalid code — check your app and try again")
