@@ -7,7 +7,7 @@ field change is a deliberate, visible edit to the contract.
 """
 
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 
 class Regime(BaseModel):
@@ -277,3 +277,50 @@ class SimulatorResponse(BaseModel):
     count: int = 0
     picks: list[ScreenerRow] = []
     teaser: list[SimTeaser] = []
+
+
+# ── Alerts ──────────────────────────────────────────────────────────────────────
+class Notification(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: Optional[str] = None
+    ticker: Optional[str] = None
+    notification_type: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
+    is_read: bool = False
+    created_at: Optional[str] = None
+
+
+class PriceAlert(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: Optional[str] = None
+    ticker: Optional[str] = None
+    kind: Optional[str] = None
+    kind_label: Optional[str] = None
+    threshold: Optional[float] = None
+    scope: Optional[str] = "ticker"
+    active: bool = True
+    armed: bool = True
+    created_at: Optional[str] = None
+
+
+class AlertsResponse(BaseModel):
+    locked: bool = False
+    unread: int = 0
+    notifications: list[Notification] = []
+    alerts: list[PriceAlert] = []
+
+
+class CreateAlertRequest(BaseModel):
+    ticker: Optional[str] = None
+    kind: str
+    threshold: Optional[float] = None
+    scope: str = "ticker"
+
+
+class ToggleAlertRequest(BaseModel):
+    active: bool
+
+
+class MarkReadRequest(BaseModel):
+    ids: Optional[list[str]] = None

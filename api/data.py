@@ -1238,3 +1238,128 @@ def load_simulator(profile: str, n: int = 20, sector_cap: int = 4) -> dict:
                 if len(picked) >= n:
                     break
     return {"profile": profile, "as_of": as_of, "count": len(picked), "picks": picked}
+
+
+# ── Alerts ──────────────────────────────────────────────────────────────────────
+# Port of the Streamlit alerts model: a notifications feed (system-generated
+# conviction/macro/gem alerts) + user-defined price_alerts (CRUD). All writes go
+# through the service-role client and are scoped to the caller's user_id so one
+# user can never touch another's alerts.
+ALERT_KINDS = {
+    "value_lower": "Enters lower value range",
+    "value_upper": "Enters upper value range",
+    "price_below": "Price drops to / below",
+    "price_above": "Price rises to / above",
+    "conviction_high": "Moves to HIGH conviction",
+    "conviction_low": "Drops to LOW conviction",
+    "gem": "Flagged a hidden gem",
+}
+ALERT_SCOPES = {"ticker", "watchlist", "portfolio", "model"}
+_ALERT_PRICE_KINDS = {"price_below", "price_above"}
+
+
+def load_alerts(uid: str) -> dict:
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb or not uid:
+        return {"notifications": [], "unread": 0, "alerts": []}
+    notifs: list = []
+    alerts: list = []
+    try:
+        nr = (sb.table("notifications").select("*").eq("user_id", str(uid))
+              .order("created_at", desc=True).limit(50).execute())
+        notifs = nr.data or []
+    except Exception as e:
+        logging.warning("load_alerts notifications failed: %s", e)
+    try:
+        ar = (sb.table("price_alerts").select("*").eq("user_id", str(uid))
+              .order("created_at", desc=True).execute())
+        alerts = ar.data or []
+    except Exception as e:
+        logging.warning("load_alerts price_alerts failed: %s", e)
+    for n in notifs:
+        n["id"] = str(n.get("id"))
+    for a in alerts:
+        a["id"] = str(a.get("id"))
+        a["kind_label"] = ALERT_KINDS.get(a.get("kind"), a.get("kind"))
+    unread = sum(1 for n in notifs if not n.get("is_read"))
+    return {"notifications": notifs, "unread": unread, "alerts": alerts}
+
+
+def create_alert(uid, ticker, kind, threshold=None, scope="ticker") -> tuple:
+    """(ok, error_code). Validates kind/scope/ticker before insert."""
+    if kind not in ALERT_KINDS:
+        return False, "invalid_kind"
+    if scope not in ALERT_SCOPES:
+        return False, "invalid_scope"
+    tk = (ticker or "").upper().strip() or None
+    if scope == "ticker":
+        if not tk or tk not in _SECTORS:
+            return False, "invalid_ticker"
+    else:
+        tk = None  # collections don't carry a single ticker
+        if kind in _ALERT_PRICE_KINDS:
+            return False, "price_not_for_collections"
+    th = None
+    if threshold is not None:
+        try:
+            th = float(threshold)
+        except (TypeError, ValueError):
+            th = None
+    sb = _get_supabase_admin()
+    if not sb:
+        return False, "no_db"
+    try:
+        sb.table("price_alerts").insert({
+            "user_id": str(uid), "ticker": tk, "kind": kind,
+            "threshold": th, "scope": scope, "active": True, "armed": True,
+        }).execute()
+        return True, None
+    except Exception as e:
+        logging.warning("create_alert failed: %s", e)
+        return False, "insert_failed"
+
+
+def delete_alert(uid, alert_id) -> bool:
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        # user-scoped delete — cannot remove another user's alert
+        sb.table("price_alerts").delete().eq("id", alert_id).eq("user_id", str(uid)).execute()
+        try:
+            sb.table("price_alert_state").delete().eq("alert_id", alert_id).execute()
+        except Exception:
+            pass  # best-effort; orphan state rows are harmless
+        return True
+    except Exception as e:
+        logging.warning("delete_alert failed: %s", e)
+        return False
+
+
+def toggle_alert(uid, alert_id, active: bool) -> bool:
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        # re-arm on resume so a paused-while-true alert can fire cleanly again
+        (sb.table("price_alerts").update({"active": bool(active), "armed": True})
+         .eq("id", alert_id).eq("user_id", str(uid)).execute())
+        return True
+    except Exception as e:
+        logging.warning("toggle_alert failed: %s", e)
+        return False
+
+
+def mark_alerts_read(uid, ids=None) -> bool:
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        q = sb.table("notifications").update({"is_read": True}).eq("user_id", str(uid))
+        if ids:
+            q = q.in_("id", ids)
+        q.execute()
+        return True
+    except Exception as e:
+        logging.warning("mark_alerts_read failed: %s", e)
+        return False
