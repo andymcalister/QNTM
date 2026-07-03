@@ -38,7 +38,7 @@ def _cfg(key):
 
 
 def _app_url():
-    return (_cfg("APP_URL") or "https://app.qntm.live").rstrip("/")
+    return (_cfg("APP_URL") or "https://qntm.live").rstrip("/")
 
 
 def _include_performance() -> bool:
@@ -752,7 +752,7 @@ def opportunity_of_week(sb, uid=None):
     vp = float(best.get("value_position"))
     sig = (best.get("signal") or "HIGH").upper()
     sub = "near lower range" if vp <= 25 else "lower half of range"
-    link = (f"{base}/?src=digest&du={uid}&sq={tk}" if uid else f"{base}/?sq={tk}")
+    link = f"{base}/screener?utm_source=newsletter&utm_medium=email&utm_campaign=weekly_digest"
     why = _opportunity_why(tk, conv, vp, best)
     card = (
         '<div style="border:1px solid #d7ece3;background:#f4fbf8;border-radius:10px;'
@@ -881,7 +881,7 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, 
     base = _app_url()
     # Tracked CTA: /?src=digest&du=<uid> lets the app log a 'digest_click' event
     # per recipient (see app.py). Falls back to the plain app URL if no uid.
-    cta = f"{base}/?src=digest&du={uid}" if uid else f"{base}/"
+    cta = f"{base}/screener?utm_source=newsletter&utm_medium=email&utm_campaign=weekly_digest"
 
     def _rows(tickers):
         return sorted([(t, prices[t]["pct"]) for t in tickers if t in prices],
@@ -1053,7 +1053,7 @@ def run(only_email=None):
         html = build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, uid=uid)
         res = send_email(email, "Your QNTM weekly recap", html,
                          text="Your QNTM weekly recap is ready. Open QNTM: "
-                              + _app_url() + f"/?src=digest&du={uid}")
+                              + _app_url() + "/screener?utm_source=newsletter&utm_medium=email&utm_campaign=weekly_digest")
         if res.get("success"):
             sent += 1
     log.info("done: %d recipients, %d emails sent", len(recips), sent)
