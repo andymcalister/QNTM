@@ -72,7 +72,8 @@ def last_error() -> str:
 
 
 def create_checkout_url(user_id: str, user_email: str, base_url: str,
-                        existing_customer_id: str = None) -> str | None:
+                        existing_customer_id: str = None,
+                        success_url: str = None, cancel_url: str = None) -> str | None:
     """Create a subscription Checkout Session with a 7-day trial and return the
     hosted URL to redirect the user to. Card is collected but NOT charged during
     the trial; Stripe auto-charges $29 when the trial ends.
@@ -95,8 +96,8 @@ def create_checkout_url(user_id: str, user_email: str, base_url: str,
             line_items=[{"price": price_id, "quantity": 1}],
             subscription_data={"trial_period_days": TRIAL_DAYS},
             client_reference_id=user_id,
-            success_url=f"{base_url}/?checkout=success&uid={user_id}&plan=pro&ck=1&_n=screener",
-            cancel_url=f"{base_url}/?checkout=cancel&uid={user_id}&plan=free&ck=1&_n=account",
+            success_url=success_url or f"{base_url}/?checkout=success&uid={user_id}&plan=pro&ck=1&_n=screener",
+            cancel_url=cancel_url or f"{base_url}/?checkout=cancel&uid={user_id}&plan=free&ck=1&_n=account",
             allow_promotion_codes=True,
         )
         if existing_customer_id:

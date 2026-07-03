@@ -1520,3 +1520,98 @@ def verify_phone_code(uid: str, code: str) -> tuple:
     except Exception:
         return (False, "Could not save verification")
     return (True, "Phone verified")
+
+# ── Billing state (Stripe) ────────────────────────────────────────────────────
+# Service-role read/merge/write of the users.notifications JSON blob, mirroring
+# db.set_stripe_billing / get_stripe_billing / schedule_cancellation WITHOUT
+# Streamlit. Billing keys share the blob with notification prefs, so every write
+# is read-merge-write to preserve the other keys.
+_BILLING_KEYS = ("stripe_customer_id", "stripe_subscription_id", "billing_active",
+                 "stripe_status", "cancel_at", "trial_end", "current_period_end")
+
+
+def _read_notif_blob(uid: str) -> dict:
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb or not uid:
+        return {}
+    try:
+        r = (sb.table("users").select("notifications").eq("id", str(uid)).limit(1).execute().data or [])
+        if not r:
+            return {}
+        raw = r[0].get("notifications") or {}
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except Exception:
+                raw = {}
+        return raw if isinstance(raw, dict) else {}
+    except Exception as e:
+        logging.warning("_read_notif_blob failed for %s: %s", uid, e)
+        return {}
+
+
+def _write_notif_blob(uid: str, blob: dict) -> bool:
+    sb = _get_supabase_admin()
+    if not sb or not uid:
+        return False
+    try:
+        resp = sb.table("users").update({"notifications": blob}).eq("id", str(uid)).execute()
+        return bool(getattr(resp, "data", None))
+    except Exception as e:
+        logging.warning("_write_notif_blob failed for %s: %s", uid, e)
+        return False
+
+
+def get_billing_state(uid: str) -> dict:
+    p = _read_notif_blob(uid)
+    return {
+        "stripe_customer_id":     p.get("stripe_customer_id"),
+        "stripe_subscription_id": p.get("stripe_subscription_id"),
+        "billing_active":         bool(p.get("billing_active", False)),
+        "stripe_status":          p.get("stripe_status"),
+        "cancel_at":              p.get("cancel_at"),
+        "trial_end":              p.get("trial_end"),
+        "current_period_end":     p.get("current_period_end"),
+    }
+
+
+def set_billing_state(uid: str, **fields) -> bool:
+    """Merge only the provided billing keys (None = preserve) into the blob."""
+    blob = _read_notif_blob(uid)
+    for k in _BILLING_KEYS:
+        if k in fields and fields[k] is not None:
+            blob[k] = bool(fields[k]) if k == "billing_active" else fields[k]
+    return _write_notif_blob(uid, blob)
+
+
+def schedule_cancellation(uid: str, cancel_at) -> bool:
+    blob = _read_notif_blob(uid)
+    blob["cancel_at"] = str(cancel_at)
+    return _write_notif_blob(uid, blob)
+
+
+def undo_cancellation(uid: str) -> bool:
+    blob = _read_notif_blob(uid)
+    if "cancel_at" not in blob:
+        return True
+    blob.pop("cancel_at", None)
+    return _write_notif_blob(uid, blob)
+
+
+def clear_billing_state(uid: str) -> bool:
+    blob = _read_notif_blob(uid)
+    for k in _BILLING_KEYS:
+        blob.pop(k, None)
+    return _write_notif_blob(uid, blob)
+
+
+def set_plan(uid: str, plan: str) -> bool:
+    sb = _get_supabase_admin()
+    if not sb or not uid:
+        return False
+    try:
+        resp = sb.table("users").update({"plan": plan}).eq("id", str(uid)).execute()
+        return bool(getattr(resp, "data", None))
+    except Exception as e:
+        logging.warning("set_plan failed for %s: %s", uid, e)
+        return False
