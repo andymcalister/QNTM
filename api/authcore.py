@@ -164,3 +164,172 @@ def register(email: str, password: str, full_name: str) -> dict:
         if "duplicate" in err or "unique" in err:
             return {"success": False, "error": "An account with this email already exists"}
         return {"success": False, "error": "Registration failed. Please try again."}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PASSWORD RESET + EMAIL-VERIFY TOKEN INFRA — mirrors db.py's auth_tokens scheme
+# EXACTLY ({token, user_id, kind, expires_at, used}) but service-role only (the
+# API has no Supabase auth.uid(), so RLS would block anon writes). Native reset
+# links point at the Next app, not classic.
+# ══════════════════════════════════════════════════════════════════════════════
+import logging as _logging
+import secrets as _secrets
+from datetime import timedelta as _timedelta
+
+_log = _logging.getLogger("qntm.api.authcore")
+_PUBLIC_WEB_URL = os.getenv("PUBLIC_WEB_URL", "https://qntm.live").rstrip("/")
+
+
+def _user_id_by_email(email: str):
+    email = (email or "").lower().strip()
+    if not email:
+        return None
+    sb = _get_supabase_admin()
+    if not sb:
+        return None
+    try:
+        r = sb.table("users").select("id").eq("email_hash", email_hash(email)).execute()
+        return r.data[0]["id"] if r.data else None
+    except Exception:
+        return None
+
+
+def create_auth_token(user_id: str, kind: str = "reset", ttl_minutes: int = 30) -> str:
+    sb = _get_supabase_admin()
+    if not sb:
+        return ""
+    token = _secrets.token_urlsafe(32)
+    expires = (datetime.now(timezone.utc) + _timedelta(minutes=ttl_minutes)).isoformat()
+    try:
+        sb.table("auth_tokens").insert({
+            "token": token, "user_id": user_id, "kind": kind,
+            "expires_at": expires, "used": False,
+        }).execute()
+    except Exception:
+        return ""
+    return token
+
+
+def _token_row(token: str):
+    sb = _get_supabase_admin()
+    if not sb:
+        return None
+    try:
+        r = sb.table("auth_tokens").select("*").eq("token", token).execute()
+        return r.data[0] if r.data else None
+    except Exception:
+        return None
+
+
+def _token_valid(row, kind) -> bool:
+    if not row or row.get("used") or row.get("kind") != kind:
+        return False
+    try:
+        exp = datetime.fromisoformat(str(row.get("expires_at")).replace("Z", "+00:00"))
+    except Exception:
+        return False
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    return exp >= datetime.now(timezone.utc)
+
+
+def peek_auth_token(token: str, kind: str = "reset") -> bool:
+    """Validate a token WITHOUT consuming it (used to render the reset form)."""
+    if not token:
+        return False
+    return _token_valid(_token_row(token), kind)
+
+
+def consume_auth_token(token: str, kind: str = "reset"):
+    """Validate and mark used (one-time). Returns user_id, or None if invalid."""
+    if not token:
+        return None
+    row = _token_row(token)
+    if not _token_valid(row, kind):
+        return None
+    sb = _get_supabase_admin()
+    try:
+        sb.table("auth_tokens").update({"used": True}).eq("token", token).execute()
+    except Exception:
+        return None
+    return row["user_id"]
+
+
+def set_password(user_id: str, new_password: str) -> dict:
+    if not new_password or len(new_password) < 8:
+        return {"success": False, "error": "Password must be at least 8 characters"}
+    sb = _get_supabase_admin()
+    if not sb:
+        return {"success": False, "error": "Unavailable"}
+    try:
+        sb.table("users").update({"password_hash": hash_password(new_password)}).eq("id", user_id).execute()
+        return {"success": True}
+    except Exception:
+        return {"success": False, "error": "Couldn't update password"}
+
+
+def _send_email(to_email: str, subject: str, html: str, text: str = None) -> dict:
+    """Minimal SendGrid send (os.getenv only — no Streamlit). Fails soft."""
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("SENDGRID_FROM")
+    if not api_key or not from_email:
+        _log.warning("send_email: SendGrid not configured — %r not sent", subject)
+        return {"success": False, "error": "Email not configured"}
+    if not to_email:
+        return {"success": False, "error": "No recipient"}
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        kwargs = dict(from_email=from_email, to_emails=to_email, subject=subject, html_content=html)
+        if text:
+            kwargs["plain_text_content"] = text
+        resp = SendGridAPIClient(api_key).send(Mail(**kwargs))
+        return {"success": 200 <= resp.status_code < 300, "status": resp.status_code}
+    except ImportError:
+        return {"success": False, "error": "sendgrid package not installed"}
+    except Exception as e:
+        return {"success": False, "error": f"Send failed: {str(e)[:120]}"}
+
+
+def _reset_email_html(link: str) -> str:
+    return (
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">'
+        '<div style="font-size:22px;font-weight:800;letter-spacing:.04em;color:#0a0b14;">'
+        'Q<span style="color:#15a97a;">NTM</span></div>'
+        '<p style="font-size:15px;color:#333;line-height:1.5;">We received a request to reset your '
+        'QNTM password. Click the button below to choose a new one:</p>'
+        f'<p style="margin:22px 0;"><a href="{link}" style="display:inline-block;background:#15a97a;'
+        'color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:8px;font-weight:700;'
+        'font-size:15px;">Reset password</a></p>'
+        '<p style="font-size:13px;color:#777;line-height:1.5;">This link expires in 30 minutes. '
+        "If you didn't request this, you can safely ignore this email — your password won't change.</p>"
+        '<p style="font-size:12px;color:#aaa;margin-top:24px;">QNTM · Quantitative stock conviction</p>'
+        '</div>'
+    )
+
+
+def request_password_reset(email: str) -> dict:
+    """Mint a reset token and email a native (qntm.live) reset link. ALWAYS
+    returns success — never reveals whether an account exists."""
+    uid_ = _user_id_by_email(email)
+    if uid_:
+        token = create_auth_token(uid_, kind="reset", ttl_minutes=30)
+        if token:
+            link = f"{_PUBLIC_WEB_URL}/reset-password?token={token}"
+            _send_email(
+                (email or "").lower().strip(),
+                "Reset your QNTM password",
+                _reset_email_html(link),
+                text=f"Reset your QNTM password: {link}\n\n"
+                     "This link expires in 30 minutes. If you didn't request this, ignore this email.",
+            )
+    return {"success": True}
+
+
+def reset_password(token: str, new_password: str) -> dict:
+    """Consume a reset token (one-time) and set the new password."""
+    if not new_password or len(new_password) < 8:
+        return {"success": False, "error": "Password must be at least 8 characters"}
+    uid = consume_auth_token(token, kind="reset")
+    if not uid:
+        return {"success": False, "error": "This link is invalid or has expired"}
+    return set_password(uid, new_password)

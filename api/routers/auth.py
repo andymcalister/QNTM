@@ -152,3 +152,40 @@ def register(req: RegisterRequest):
     session = create_token(uid, email=req.email.lower().strip(), plan="free", ttl=SESSION_TTL)
     return {"ok": True, "session": session,
             "user": {"id": uid, "email": req.email.lower().strip(), "plan": "free"}}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PASSWORD RESET — public, token-gated. Request emails a native reset link;
+# validate peeks (renders the form); reset consumes the one-time token and sets
+# the new password. Uniform "ok" on request so accounts can't be enumerated.
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ForgotRequest(BaseModel):
+    email: str
+
+
+class ResetValidateRequest(BaseModel):
+    token: str
+
+
+class ResetRequest(BaseModel):
+    token: str
+    password: str
+
+
+@router.post("/request-reset")
+def request_reset(req: ForgotRequest):
+    authcore.request_password_reset(req.email or "")
+    return {"ok": True}
+
+
+@router.post("/reset-validate")
+def reset_validate(req: ResetValidateRequest):
+    return {"ok": True, "valid": authcore.peek_auth_token(req.token or "", "reset")}
+
+
+@router.post("/reset")
+def reset(req: ResetRequest):
+    res = authcore.reset_password(req.token or "", req.password or "")
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Could not reset password"))
+    return {"ok": True}
