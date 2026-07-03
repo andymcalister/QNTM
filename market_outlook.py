@@ -281,7 +281,13 @@ def email_subscribers(sb, kind, data, narrative):
     body = narrative.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     import re as _re
     body = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", body)
-    body = "".join(f"<p>{para.strip().replace(chr(10), '<br>')}</p>" for para in body.split("\n\n") if para.strip())
+    import re as _re2
+    _paras = []
+    for para in body.split("\n\n"):
+        t = _re2.sub(r"\s+([.,;:!?])", r"\1", _re2.sub(r"\s+", " ", para.replace("\n", " "))).strip()
+        if t:
+            _paras.append(f'<p style="margin:0 0 12px">{t}</p>')
+    body = "".join(_paras)
     sent = 0
     for r in rows:
         unsub = f"{api}/api/outlook/unsubscribe?token={r.get('unsub_token')}"
