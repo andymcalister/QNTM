@@ -110,14 +110,35 @@ def log_consent(user_id: str, plan: str = "pro", ip_address: str = None) -> bool
 
 # ── EMAIL: stubbed sender + notice log (§17602 retainable-notice evidence) ────
 def _send_email(to_email: str, subject: str, body: str) -> bool:
-    """STUB. No provider wired yet. Logs intent and returns False (not delivered).
-    Replace the body of this function with a real SendGrid/Resend call and return
-    True on success; log_notice() records `delivered` from this return value."""
-    log.info(f"[EMAIL STUB] to={to_email} subject={subject!r} (not sent — no provider)")
-    # TODO: wire SendGrid. Example shape:
-    #   import sendgrid; sg = sendgrid.SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
-    #   ... return True on 2xx
-    return False
+    """Send a compliance notice via SendGrid. Fails SOFT: returns False (never
+    raises) if SendGrid isn't configured or the send fails, so log_notice() still
+    records delivered=False and the calling flow (checkout/cancel) never breaks.
+    Reads SENDGRID_API_KEY / SENDGRID_FROM from env (os.getenv)."""
+    if not to_email:
+        return False
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("SENDGRID_FROM")
+    if not api_key or not from_email:
+        log.warning(f"ARL email: SendGrid not configured, {subject!r} not sent")
+        return False
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        html = ('<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+                'color:#222;line-height:1.6;white-space:pre-wrap;">' + body + '</div>')
+        resp = SendGridAPIClient(api_key).send(
+            Mail(from_email=from_email, to_emails=to_email, subject=subject,
+                 plain_text_content=body, html_content=html))
+        ok = 200 <= resp.status_code < 300
+        if not ok:
+            log.warning(f"ARL email: SendGrid returned {resp.status_code} for {subject!r}")
+        return ok
+    except ImportError:
+        log.warning("ARL email: sendgrid package not installed")
+        return False
+    except Exception as e:
+        log.warning(f"ARL email: send failed: {str(e)[:120]}")
+        return False
 
 
 def log_notice(user_id: str, notice_type: str, delivered: bool) -> bool:
