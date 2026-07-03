@@ -112,13 +112,9 @@ def login(req: LoginRequest):
     if not res.get("success"):
         raise HTTPException(status_code=401, detail=res.get("error", "Invalid email or password"))
     u = res["user"]
-    if u.get("mfa_enabled") and u.get("totp_secret"):
-        # Don't mint a session yet — hand back a short challenge the client
-        # exchanges (with the TOTP code) at /mfa. email+plan ride in the
-        # challenge so /mfa needn't re-read the row.
-        challenge = create_token(u["id"], email=u.get("email"), plan=u.get("plan", "free"),
-                                 ttl=MFA_CHALLENGE_TTL)
-        return {"ok": True, "mfa_required": True, "challenge": challenge}
+    # 2FA gate intentionally dropped: mint the session on valid password alone.
+    # (/mfa + authcore.verify_totp are left in place, dormant, so 2FA can be
+    # re-enabled later without a rebuild.)
     session = create_token(u["id"], email=u.get("email"), plan=u.get("plan", "free"), ttl=SESSION_TTL)
     return {"ok": True, "mfa_required": False, "session": session, "user": _session_user(u)}
 
