@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from ..auth import verify_token, create_token, get_current_user as _resolve_user, TokenError
 from .. import authcore
 from .. import data as _data
+from .. import analytics
 
 DISCLAIMER_VERSION = "2026-07-03"
 
@@ -161,6 +162,10 @@ def register(req: RegisterRequest):
         plan, founding = "pro", True
     try:
         authcore.request_email_verification(req.email)
+    except Exception:
+        pass
+    try:
+        analytics.capture(uid, "signup", {"plan": plan, "founding": founding})
     except Exception:
         pass
     session = create_token(uid, email=req.email.lower().strip(), plan=plan, ttl=SESSION_TTL)

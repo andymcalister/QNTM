@@ -1686,3 +1686,35 @@ def get_account_status(uid: str) -> dict:
     except Exception as e:
         logging.warning("get_account_status failed for %s: %s", uid, e)
         return out
+
+
+def get_admin_stats() -> dict:
+    """Aggregate business metrics for the admin dashboard (counts off users)."""
+    sb = _get_supabase_admin()
+    out = {"founding_limit": FOUNDING_LIMIT}
+    if not sb:
+        return out
+
+    def _count(q):
+        try:
+            return int(getattr(q.execute(), "count", 0) or 0)
+        except Exception as e:
+            logging.warning("admin stat failed: %s", e)
+            return 0
+
+    out["total_users"] = _count(sb.table("users").select("id", count="exact"))
+    out["founding_members"] = _count(sb.table("users").select("id", count="exact")
+                                     .filter("notifications->>founding_member", "eq", "true"))
+    out["founding_spots_remaining"] = max(0, FOUNDING_LIMIT - out["founding_members"])
+    out["pro_users"] = _count(sb.table("users").select("id", count="exact").eq("plan", "pro"))
+    out["paying_subscribers"] = _count(sb.table("users").select("id", count="exact")
+                                       .filter("notifications->>billing_active", "eq", "true"))
+    out["email_verified"] = _count(sb.table("users").select("id", count="exact").eq("email_verified", True))
+    out["mrr_estimate"] = out["paying_subscribers"] * 29
+    try:
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        wk = (_dt.now(_tz.utc) - _td(days=7)).isoformat()
+        out["signups_7d"] = _count(sb.table("users").select("id", count="exact").gte("created_at", wk))
+    except Exception:
+        pass
+    return out

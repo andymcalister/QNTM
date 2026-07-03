@@ -22,6 +22,7 @@ from ..data import (get_notification_prefs, save_notification_prefs,
                     send_phone_verify_code, verify_phone_code, get_user_plan)
 from .auth import current_user
 from .. import authcore
+from .. import analytics
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 
@@ -215,6 +216,10 @@ def checkout(user: dict = Depends(current_user)):
     )
     if not url:
         raise HTTPException(status_code=400, detail=_billing.last_error() or "checkout_failed")
+    try:
+        analytics.capture(uid, "checkout_started", {})
+    except Exception:
+        pass
     return {"ok": True, "url": url}
 
 
@@ -236,6 +241,10 @@ def checkout_finalize(user: dict = Depends(current_user)):
     if grants:
         set_plan(uid, "pro")
         _arl.send_acknowledgment(uid, email)
+        try:
+            analytics.capture(uid, "subscription_started", {"status": res.get("status")})
+        except Exception:
+            pass
     return {"ok": True, "plan": "pro" if grants else "free", "status": res.get("status")}
 
 
