@@ -4377,6 +4377,7 @@ PRIVACY_POLICY = """
 - Optional full name
 - Payment method (processed and stored by Stripe — we never see your card number)
 - Your watchlist, portfolio, and simulator data
+- If you subscribe to the QNTM Market Outlook newsletter (no account required): the email address you provide and your choice of briefs
 
 **We collect automatically:**
 - Login times and session data
@@ -4414,6 +4415,17 @@ We use your email address to send two kinds of messages:
 - **Optional signal alerts** — for example, an email when a stock on your watchlist or in your portfolio moves to LOW conviction. These are **off by default** and entirely optional. You can turn them on or off anytime in Account → Notifications, and every alert email includes an unsubscribe reminder and our mailing address.
 
 We send email through SendGrid (Twilio). We don't use your email address for advertising, and we don't sell it.
+
+### Market Outlook Emails
+
+We offer a free email newsletter — the QNTM Market Outlook, Day Wrap, and Week Wrap — that anyone can subscribe to, including people who do not have a QNTM account.
+
+- **What we collect.** When you subscribe, we collect the email address you provide and your choice of which briefs to receive. We do not require an account, name, or any other information to subscribe.
+- **Double opt-in.** After you subscribe, we send a confirmation email; you only begin receiving briefs after you click the link to confirm. If you never confirm, we do not send you the newsletter.
+- **How you opt out.** Every newsletter email includes a one-click unsubscribe link and our mailing address. Unsubscribing removes your email from the newsletter list.
+- **How we use it.** We use your email address solely to send the briefs you requested. We do not sell newsletter email addresses, do not use them for advertising, and do not share them with third parties except our email delivery provider (SendGrid, a Twilio company) solely to deliver the emails.
+
+Newsletter emails are separate from account and alert emails described above; unsubscribing from the newsletter does not affect account or security emails while you have an active account.
 
 ### Text Message (SMS) Alerts
 
