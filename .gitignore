@@ -8,3 +8,11 @@ docs/*.docx
 docs/*.pdf
 docs/~$*
 venv/
+
+*.xcf
+Logos/
+IWB_holdings.csv
+QNTM_LOGO.png
+QNTM_A2P_campaign_registration.md
+config.toml
+docs/Business Docs/
