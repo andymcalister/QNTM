@@ -18,6 +18,9 @@ from pydantic import BaseModel
 
 from ..auth import verify_token, create_token, get_current_user as _resolve_user, TokenError
 from .. import authcore
+from .. import data as _data
+
+DISCLAIMER_VERSION = "2026-07-03"
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -37,6 +40,8 @@ class VerifyResponse(BaseModel):
     email: Optional[str] = None
     plan: Optional[str] = None
     exp: Optional[int] = None
+    founding_member: bool = False
+    billing_active: bool = False
 
 
 @router.post("/verify", response_model=VerifyResponse)
@@ -67,14 +72,16 @@ def current_user(authorization: Optional[str] = Header(default=None)) -> dict:
 
 @router.get("/me", response_model=VerifyResponse)
 def me(user: dict = Depends(current_user)):
-    """Echo the authenticated caller — handy for the Next app to confirm a
-    session cookie is still valid (it forwards the token as a Bearer header)."""
+    """Authenticated caller + live plan/founding/billing for the nav pill."""
+    stt = _data.get_account_status(user.get("sub"))
     return VerifyResponse(
         valid=True,
         user_id=user.get("sub"),
         email=user.get("email"),
-        plan=user.get("plan"),
+        plan=stt.get("plan", "free"),
         exp=user.get("exp"),
+        founding_member=bool(stt.get("founding_member")),
+        billing_active=bool(stt.get("billing_active")),
     )
 
 
@@ -99,6 +106,8 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     full_name: str = ""
+    claim_founding: bool = False
+    disclaimer_ack: bool = False
 
 
 def _session_user(u: dict) -> dict:
@@ -140,19 +149,23 @@ def register(req: RegisterRequest):
         raise HTTPException(status_code=400, detail="Email and password are required")
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not req.disclaimer_ack:
+        raise HTTPException(status_code=400, detail="You must acknowledge the research-tool disclaimer to create an account")
     res = authcore.register(req.email, req.password, req.full_name or "")
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Registration failed"))
     uid = res["user_id"]
-    # Fire a verification email (fire-and-forget; never blocks signup).
+    _data.set_disclaimer_ack(uid, DISCLAIMER_VERSION)
+    plan, founding = "free", False
+    if req.claim_founding and _data.claim_founding_member(uid):
+        plan, founding = "pro", True
     try:
         authcore.request_email_verification(req.email)
     except Exception:
         pass
-    # Auto-login the new (free) account so they land straight in the app.
-    session = create_token(uid, email=req.email.lower().strip(), plan="free", ttl=SESSION_TTL)
-    return {"ok": True, "session": session,
-            "user": {"id": uid, "email": req.email.lower().strip(), "plan": "free"}}
+    session = create_token(uid, email=req.email.lower().strip(), plan=plan, ttl=SESSION_TTL)
+    return {"ok": True, "session": session, "founding": founding,
+            "user": {"id": uid, "email": req.email.lower().strip(), "plan": plan}}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PASSWORD RESET — public, token-gated. Request emails a native reset link;
@@ -218,3 +231,9 @@ def verify_email(req: VerifyEmailRequest):
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Could not verify email"))
     return {"ok": True}
+
+
+@router.get("/founding-spots")
+def founding_spots():
+    """Public: how many free founding spots remain (drives the signup claim)."""
+    return {"remaining": _data.founding_spots_remaining(), "limit": _data.FOUNDING_LIMIT}

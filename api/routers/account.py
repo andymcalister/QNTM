@@ -130,7 +130,7 @@ from datetime import datetime as _dt, timezone as _tz
 import stripe_billing as _billing
 import arl as _arl
 from ..data import (get_billing_state, set_billing_state, schedule_cancellation,
-                    undo_cancellation, set_plan)
+                    undo_cancellation, set_plan, is_founding_member, clear_billing_state)
 
 _WEB_URL = _os.getenv("PUBLIC_WEB_URL", "https://qntm.live").rstrip("/")
 
@@ -145,6 +145,8 @@ def _iso_from_ts(ts):
 class BillingResponse(BaseModel):
     configured: bool = False
     plan: str = "free"
+    founding_member: bool = False
+    is_paying: bool = False
     billing_active: bool = False
     status: Optional[str] = None
     cancel_at: Optional[str] = None
@@ -164,23 +166,31 @@ def billing(user: dict = Depends(current_user)):
         ps = _billing.poll_subscription_status(sub_id)
         if ps.get("ok"):
             grants = _billing.status_grants_access(ps.get("status"))
-            set_billing_state(uid, billing_active=grants, stripe_status=ps.get("status"),
-                              current_period_end=_iso_from_ts(ps.get("current_period_end")))
-            new_plan = "pro" if grants else "free"
-            if new_plan != plan:
-                set_plan(uid, new_plan); plan = new_plan
-            if ps.get("cancel_at_period_end"):
-                schedule_cancellation(uid, _iso_from_ts(ps.get("current_period_end")) or "")
+            if grants:
+                set_billing_state(uid, billing_active=True, stripe_status=ps.get("status"),
+                                  current_period_end=_iso_from_ts(ps.get("current_period_end")))
+                if ps.get("cancel_at_period_end"):
+                    schedule_cancellation(uid, _iso_from_ts(ps.get("current_period_end")) or "")
+                else:
+                    undo_cancellation(uid)
+                if plan != "pro":
+                    set_plan(uid, "pro"); plan = "pro"
             else:
-                undo_cancellation(uid)
+                # Sub ended: founders revert to free founding Pro, others to free.
+                clear_billing_state(uid)
+                new_plan = "pro" if is_founding_member(uid) else "free"
+                if new_plan != plan:
+                    set_plan(uid, new_plan); plan = new_plan
             bs = get_billing_state(uid)
         elif ps.get("gone"):
-            set_billing_state(uid, billing_active=False, stripe_status="canceled")
-            if plan != "free":
-                set_plan(uid, "free"); plan = "free"
+            clear_billing_state(uid)
+            new_plan = "pro" if is_founding_member(uid) else "free"
+            if new_plan != plan:
+                set_plan(uid, new_plan); plan = new_plan
             bs = get_billing_state(uid)
     return BillingResponse(
         configured=_billing.billing_configured(), plan=plan,
+        founding_member=is_founding_member(uid), is_paying=bool(bs.get("billing_active")),
         billing_active=bool(bs.get("billing_active")), status=bs.get("stripe_status"),
         cancel_at=bs.get("cancel_at"), subscription_id=bs.get("stripe_subscription_id"),
         current_period_end=bs.get("current_period_end"), trial_end=bs.get("trial_end"),

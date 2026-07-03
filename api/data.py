@@ -1615,3 +1615,74 @@ def set_plan(uid: str, plan: str) -> bool:
     except Exception as e:
         logging.warning("set_plan failed for %s: %s", uid, e)
         return False
+
+# ── Founding membership (durable) ─────────────────────────────────────────────
+FOUNDING_LIMIT = 50
+
+
+def founding_spots_remaining() -> int:
+    """Spots left in the first-50 window. Fails OPEN (returns the full limit) so a
+    DB hiccup never blocks a legitimate free claim."""
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb:
+        return FOUNDING_LIMIT
+    try:
+        r = (sb.table("users").select("id", count="exact")
+             .filter("notifications->>founding_member", "eq", "true").execute())
+        n = r.count if getattr(r, "count", None) is not None else len(r.data or [])
+        return max(0, FOUNDING_LIMIT - int(n))
+    except Exception as e:
+        logging.warning("founding_spots_remaining failed: %s", e)
+        return FOUNDING_LIMIT
+
+
+def is_founding_member(uid: str) -> bool:
+    return bool(_read_notif_blob(uid).get("founding_member"))
+
+
+def claim_founding_member(uid: str) -> bool:
+    """Grant free founding Pro if a spot remains. Idempotent for existing founders.
+    Sets founding_member=true + plan=pro. Returns False if spots are exhausted."""
+    if not uid:
+        return False
+    if is_founding_member(uid):
+        return True
+    if founding_spots_remaining() <= 0:
+        return False
+    blob = _read_notif_blob(uid)
+    blob["founding_member"] = True
+    if not _write_notif_blob(uid, blob):
+        return False
+    set_plan(uid, "pro")
+    return True
+
+
+def set_disclaimer_ack(uid: str, version: str) -> bool:
+    from datetime import datetime as _dtm, timezone as _tzm
+    blob = _read_notif_blob(uid)
+    blob["disclaimer_ack"] = {"version": version, "at": _dtm.now(_tzm.utc).isoformat()}
+    return _write_notif_blob(uid, blob)
+
+
+def get_account_status(uid: str) -> dict:
+    """One-read {plan, founding_member, billing_active} for the nav pill + /me."""
+    out = {"plan": "free", "founding_member": False, "billing_active": False}
+    sb = _get_supabase_admin() or _get_supabase()
+    if not sb or not uid:
+        return out
+    try:
+        r = (sb.table("users").select("plan,notifications").eq("id", str(uid)).limit(1).execute().data or [])
+        if not r:
+            return out
+        blob = r[0].get("notifications") or {}
+        if isinstance(blob, str):
+            try:
+                blob = json.loads(blob)
+            except Exception:
+                blob = {}
+        return {"plan": (r[0].get("plan") or "free"),
+                "founding_member": bool(blob.get("founding_member")),
+                "billing_active": bool(blob.get("billing_active"))}
+    except Exception as e:
+        logging.warning("get_account_status failed for %s: %s", uid, e)
+        return out
