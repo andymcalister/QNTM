@@ -267,7 +267,7 @@ def email_subscribers(sb, kind, data, narrative):
         return
     try:
         rows = (sb.table("outlook_subscribers").select("email,unsub_token")
-                .eq("verified", True).contains("kinds", [kind]).execute().data or [])
+                .eq("verified", True).filter("kinds", "cs", '["' + kind + '"]').execute().data or [])
     except Exception as e:
         log.warning("subscriber query failed: %s", e)
         return
