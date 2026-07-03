@@ -4,16 +4,17 @@ build_legal.py — regenerate the static legal pages from app.py's canonical pol
 strings so the public static pages (served by the Render "legal" static site) can
 never drift from the in-app versions.
 
-This is wired into the static site's Build Command:
+Wired into the static site's Build Command:
 
     pip install markdown && python build_legal.py
 
-Writes:  legal/privacy.html, legal/terms.html
-Source:  PRIVACY_POLICY and TERMS_OF_SERVICE in app.py.
+Writes:  legal/privacy.html, legal/terms.html, legal/billing.html,
+         legal/disclaimer.html, legal/cookies.html
+Source:  PRIVACY_POLICY, TERMS_OF_SERVICE, BILLING_POLICY, DISCLAIMER_FULL,
+         COOKIE_POLICY in app.py.
 
 app.py is read as TEXT and the policy strings are extracted by regex — app.py is
-never imported, so none of the Streamlit runtime (streamlit, pandas, yfinance, ...)
-is needed at build time. The static build stays light and fast.
+never imported, so none of the Streamlit runtime is needed at build time.
 """
 import re
 import sys
@@ -69,18 +70,16 @@ def render_md(md: str) -> str:
     return markdown.markdown(md, extensions=["tables"])
 
 
-def build(src: str, var: str, fname: str, title: str, desc: str) -> None:
+def build(src: str, var: str, fname: str, title: str, desc: str, required: str = None) -> None:
     html = TEMPLATE.format(title=title, desc=desc, body=render_md(extract(src, var)))
     path = OUT / fname
     path.write_text(html)
-    # Sanity guards: refuse to publish a page missing its required A2P clause.
-    required = "never shared with, sold, or rented"
-    if fname == "terms.html":
-        required = "Reply <strong>STOP"
-    if required not in html:
-        sys.exit(f"ERROR: {fname} is missing the required A2P clause "
+    # Sanity guard: refuse to publish a page missing a required clause (privacy/terms
+    # A2P clauses). Pages without a required clause publish unguarded.
+    if required and required not in html:
+        sys.exit(f"ERROR: {fname} is missing the required clause "
                  f"('{required}') — aborting so a non-compliant page isn't published.")
-    print(f"wrote {path} ({len(html)} bytes) — A2P clause present")
+    print(f"wrote {path} ({len(html)} bytes)" + (" — required clause present" if required else ""))
 
 
 def main() -> None:
@@ -89,9 +88,17 @@ def main() -> None:
     OUT.mkdir(exist_ok=True)
     src = APP.read_text()
     build(src, "PRIVACY_POLICY", "privacy.html", "Privacy Policy",
-          "QNTM LLC Privacy Policy, including SMS/text message alert data practices.")
+          "QNTM LLC Privacy Policy, including SMS/text message alert data practices.",
+          required="never shared with, sold, or rented")
     build(src, "TERMS_OF_SERVICE", "terms.html", "Terms of Service",
-          "QNTM LLC Terms of Service, including SMS/text message program terms.")
+          "QNTM LLC Terms of Service, including SMS/text message program terms.",
+          required="Reply <strong>STOP")
+    build(src, "BILLING_POLICY", "billing.html", "Billing & Refund Policy",
+          "QNTM LLC Billing & Refund Policy for QNTM Pro subscriptions.")
+    build(src, "DISCLAIMER_FULL", "disclaimer.html", "Investment Disclaimer",
+          "QNTM LLC Investment Disclaimer — QNTM provides quantitative research, not investment advice.")
+    build(src, "COOKIE_POLICY", "cookies.html", "Cookie Policy",
+          "QNTM LLC Cookie Policy.")
     print("Static legal pages regenerated from app.py. Single source of truth: app.py.")
 
 
