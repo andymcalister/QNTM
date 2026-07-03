@@ -97,8 +97,7 @@ def _daily_startend(sb, tickers, as_of=None):
         out = {}
         for tk, m in by.items():
             if last in m and prev in m and m[prev]:
-                _st, _en = m[prev], m[last]
-                out[tk] = {"start": _st, "end": _en, "pct": (_en / _st - 1.0) * 100.0}
+                out[tk] = {"start": m[prev], "end": m[last]}
         return out
     except Exception as e:
         log.warning("daily prices failed: %s", e)
@@ -220,7 +219,7 @@ def narrate(data):
     try:
         resp = client.messages.create(
             model=model,
-            max_tokens=2000,
+            max_tokens=1400,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 6}],
             messages=[{"role": "user", "content": build_prompt(data)}],
         )
@@ -260,6 +259,48 @@ def store(sb, data, narrative):
         return False
 
 
+def email_subscribers(sb, kind, data, narrative):
+    """Email verified subscribers who opted into this brief kind. Fails soft."""
+    try:
+        from db import send_email
+    except Exception:
+        return
+    try:
+        rows = (sb.table("outlook_subscribers").select("email,unsub_token")
+                .eq("verified", True).contains("kinds", [kind]).execute().data or [])
+    except Exception as e:
+        log.warning("subscriber query failed: %s", e)
+        return
+    if not rows:
+        log.info("no verified subscribers for %s", kind)
+        return
+    api = os.getenv("PUBLIC_API_URL", "https://qntm-api.onrender.com")
+    label = {"outlook": "Market Outlook", "wrap": "Day Wrap", "week": "Week Wrap"}.get(kind, "Market Brief")
+    subj = f"QNTM {label} \u2014 {data.get('date')}"
+    # naive markdown -> html for the email body
+    body = narrative.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    import re as _re
+    body = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", body)
+    body = "".join(f"<p>{para.strip().replace(chr(10), '<br>')}</p>" for para in body.split("\n\n") if para.strip())
+    sent = 0
+    for r in rows:
+        unsub = f"{api}/api/outlook/unsubscribe?token={r.get('unsub_token')}"
+        html = (
+            '<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111;line-height:1.6;">'
+            f'<h2 style="color:#111;">QNTM {label}</h2>{body}'
+            '<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">'
+            f'<p style="font-size:12px;color:#888;">You subscribed to QNTM briefs. '
+            f'<a href="{unsub}">Unsubscribe</a>. QNTM LLC \u00b7 35 Laguna Woods Drive, Laguna Niguel, CA 92677. '
+            'Research/education, not investment advice.</p></div>'
+        )
+        try:
+            send_email(r["email"], subj, html, text=narrative + f"\n\nUnsubscribe: {unsub}")
+            sent += 1
+        except Exception:
+            pass
+    log.info("emailed %d subscribers for %s", sent, kind)
+
+
 def main():
     kind = (sys.argv[1] if len(sys.argv) > 1 else "outlook").lower()
     if kind not in ("outlook", "wrap", "week"):
@@ -279,6 +320,7 @@ def main():
         sys.exit(1)
     print("\n===== " + kind.upper() + " =====\n" + narrative + "\n")
     store(sb, data, narrative)
+    email_subscribers(sb, kind, data, narrative)
 
 
 if __name__ == "__main__":
