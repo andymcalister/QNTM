@@ -333,3 +333,78 @@ def reset_password(token: str, new_password: str) -> dict:
     if not uid:
         return {"success": False, "error": "This link is invalid or has expired"}
     return set_password(uid, new_password)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMAIL VERIFICATION — same auth_tokens infra, kind="verify" (24h). Native links
+# point at qntm.live/verify-email. Soft gate: users can use the app; this just
+# flips users.email_verified so the alert-email path will send to them.
+# ══════════════════════════════════════════════════════════════════════════════
+def is_email_verified(user_id: str) -> bool:
+    """Fails CLOSED (False) on a read error so alert-email never goes to an
+    unconfirmed address."""
+    if not user_id:
+        return False
+    sb = _get_supabase_admin()
+    if not sb:
+        return False
+    try:
+        r = sb.table("users").select("email_verified").eq("id", user_id).execute()
+        return bool(r.data[0].get("email_verified")) if r.data else False
+    except Exception:
+        return False
+
+
+def _verify_email_html(link: str) -> str:
+    return (
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">'
+        '<div style="font-size:22px;font-weight:800;letter-spacing:.04em;color:#0a0b14;">'
+        'Q<span style="color:#15a97a;">NTM</span></div>'
+        '<p style="font-size:15px;color:#333;line-height:1.5;">Welcome to QNTM. Please confirm your '
+        'email address so we can keep your account secure and deliver your alerts:</p>'
+        f'<p style="margin:22px 0;"><a href="{link}" style="display:inline-block;background:#15a97a;'
+        'color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:8px;font-weight:700;'
+        'font-size:15px;">Confirm my email</a></p>'
+        '<p style="font-size:13px;color:#777;line-height:1.5;">This link expires in 24 hours. '
+        "If you didn't create a QNTM account, you can safely ignore this email.</p>"
+        '<p style="font-size:12px;color:#aaa;margin-top:24px;">QNTM · Quantitative stock conviction</p>'
+        '</div>'
+    )
+
+
+def request_email_verification(email: str) -> dict:
+    """Mint a verify token and email a native confirmation link. Always returns
+    success (no enumeration); `delivered` carries the real SendGrid result for
+    authenticated callers (the in-app resend button) to surface honestly."""
+    uid_ = _user_id_by_email(email)
+    delivered, err = False, None
+    if uid_:
+        token = create_auth_token(uid_, kind="verify", ttl_minutes=60 * 24)  # 24h
+        if token:
+            link = f"{_PUBLIC_WEB_URL}/verify-email?token={token}"
+            _send = _send_email(
+                (email or "").lower().strip(),
+                "Confirm your QNTM email",
+                _verify_email_html(link),
+                text=f"Welcome to QNTM. Confirm your email: {link}\n\n"
+                     "This link expires in 24 hours. If you didn't create an account, ignore this email.",
+            )
+            delivered = bool(_send.get("success"))
+            err = _send.get("error")
+    return {"success": True, "delivered": delivered, "error": err}
+
+
+def consume_verify_token(token: str) -> dict:
+    """Validate a verify token (one-time), mark the user's email confirmed."""
+    if not token:
+        return {"success": False, "error": "Missing verification token"}
+    uid_ = consume_auth_token(token, kind="verify")
+    if not uid_:
+        return {"success": False, "error": "This link is invalid or has expired"}
+    sb = _get_supabase_admin()
+    if not sb:
+        return {"success": False, "error": "Couldn't confirm your email — please try again"}
+    try:
+        sb.table("users").update({"email_verified": True}).eq("id", uid_).execute()
+        return {"success": True, "user_id": uid_}
+    except Exception:
+        return {"success": False, "error": "Couldn't confirm your email — please try again"}

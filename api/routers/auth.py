@@ -148,6 +148,11 @@ def register(req: RegisterRequest):
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Registration failed"))
     uid = res["user_id"]
+    # Fire a verification email (fire-and-forget; never blocks signup).
+    try:
+        authcore.request_email_verification(req.email)
+    except Exception:
+        pass
     # Auto-login the new (free) account so they land straight in the app.
     session = create_token(uid, email=req.email.lower().strip(), plan="free", ttl=SESSION_TTL)
     return {"ok": True, "session": session,
@@ -188,4 +193,32 @@ def reset(req: ResetRequest):
     res = authcore.reset_password(req.token or "", req.password or "")
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Could not reset password"))
+    return {"ok": True}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMAIL VERIFICATION — request emails a native confirm link; verify-email
+# consumes the one-time token and flips users.email_verified. Distinct from the
+# bridge /verify endpoint (that validates cross-app tokens). Uniform "ok" on
+# request so accounts can't be enumerated.
+# ══════════════════════════════════════════════════════════════════════════════
+
+class RequestVerifyRequest(BaseModel):
+    email: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+@router.post("/request-verify")
+def request_verify(req: RequestVerifyRequest):
+    authcore.request_email_verification(req.email or "")
+    return {"ok": True}
+
+
+@router.post("/verify-email")
+def verify_email(req: VerifyEmailRequest):
+    res = authcore.consume_verify_token(req.token or "")
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Could not verify email"))
     return {"ok": True}
