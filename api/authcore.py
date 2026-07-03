@@ -408,3 +408,85 @@ def consume_verify_token(token: str) -> dict:
         return {"success": True, "user_id": uid_}
     except Exception:
         return {"success": False, "error": "Couldn't confirm your email — please try again"}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ACCOUNT PROFILE + SECURITY — authenticated self-service. Name/email edits and
+# password change against the users table. Email change re-hashes + re-encrypts,
+# enforces uniqueness, and resets email_verified (caller re-fires verification).
+# ══════════════════════════════════════════════════════════════════════════════
+def get_profile(user_id: str) -> dict:
+    sb = _get_supabase_admin()
+    if not sb:
+        return {}
+    try:
+        r = sb.table("users").select(
+            "full_name_encrypted,email_encrypted,email_verified").eq("id", user_id).execute()
+        if not r.data:
+            return {}
+        row = r.data[0]
+        return {
+            "full_name": decrypt_field(row.get("full_name_encrypted") or ""),
+            "email": decrypt_field(row.get("email_encrypted") or ""),
+            "email_verified": bool(row.get("email_verified", False)),
+        }
+    except Exception:
+        return {}
+
+
+def update_full_name(user_id: str, full_name: str) -> dict:
+    sb = _get_supabase_admin()
+    if not sb:
+        return {"success": False, "error": "Unavailable"}
+    try:
+        sb.table("users").update(
+            {"full_name_encrypted": encrypt_field((full_name or "").strip())}
+        ).eq("id", user_id).execute()
+        return {"success": True}
+    except Exception:
+        return {"success": False, "error": "Couldn't update name"}
+
+
+def update_email(user_id: str, new_email: str) -> dict:
+    """Re-hash + re-encrypt, enforce uniqueness, reset email_verified so the new
+    address must be confirmed. Caller fires request_email_verification."""
+    new_email = (new_email or "").lower().strip()
+    if not new_email or "@" not in new_email or "." not in new_email.split("@")[-1]:
+        return {"success": False, "error": "Invalid email address"}
+    sb = _get_supabase_admin()
+    if not sb:
+        return {"success": False, "error": "Unavailable"}
+    new_hash = email_hash(new_email)
+    try:
+        existing = sb.table("users").select("id").eq("email_hash", new_hash).execute()
+        if existing.data and existing.data[0]["id"] != user_id:
+            return {"success": False, "error": "That email is already in use"}
+        sb.table("users").update({
+            "email_hash": new_hash,
+            "email_encrypted": encrypt_field(new_email),
+            "email_verified": False,
+        }).eq("id", user_id).execute()
+        return {"success": True, "email": new_email}
+    except Exception as e:
+        err = str(e).lower()
+        if "duplicate" in err or "unique" in err:
+            return {"success": False, "error": "That email is already in use"}
+        return {"success": False, "error": "Update failed. Please try again."}
+
+
+def change_password(user_id: str, current_password: str, new_password: str) -> dict:
+    """Verify the current password before setting the new one."""
+    if not new_password or len(new_password) < 8:
+        return {"success": False, "error": "New password must be at least 8 characters"}
+    sb = _get_supabase_admin()
+    if not sb:
+        return {"success": False, "error": "Unavailable"}
+    try:
+        r = sb.table("users").select("password_hash").eq("id", user_id).execute()
+        if not r.data:
+            return {"success": False, "error": "User not found"}
+        current_hash = r.data[0].get("password_hash")
+    except Exception:
+        return {"success": False, "error": "Couldn't verify current password"}
+    if not verify_password(current_password or "", current_hash or ""):
+        return {"success": False, "error": "Current password is incorrect"}
+    return set_password(user_id, new_password)
