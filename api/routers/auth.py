@@ -16,9 +16,15 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from ..auth import verify_token, get_current_user as _resolve_user, TokenError
+from ..auth import verify_token, create_token, get_current_user as _resolve_user, TokenError
+from .. import authcore
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# Session tokens live much longer than the 15-min bridge token — this is the
+# actual login duration. The Next app stores it in the httpOnly cookie.
+SESSION_TTL = 7 * 24 * 3600      # 7 days
+MFA_CHALLENGE_TTL = 5 * 60       # 5 min to enter the TOTP code
 
 
 class VerifyRequest(BaseModel):
@@ -70,3 +76,79 @@ def me(user: dict = Depends(current_user)):
         plan=user.get("plan"),
         exp=user.get("exp"),
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NATIVE AUTH — login / MFA / register directly against the users table, so the
+# new app no longer depends on the Streamlit app for authentication. Reuses the
+# exact db.py crypto scheme via authcore. The Next server routes call these and
+# set the httpOnly session cookie on qntm.live.
+# ══════════════════════════════════════════════════════════════════════════════
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class MfaRequest(BaseModel):
+    challenge: str
+    code: str
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str = ""
+
+
+def _session_user(u: dict) -> dict:
+    return {"id": u.get("id") or u.get("sub"), "email": u.get("email"),
+            "plan": u.get("plan", "free"), "full_name": u.get("full_name", "")}
+
+
+@router.post("/login")
+def login(req: LoginRequest):
+    res = authcore.login(req.email, req.password)
+    if not res.get("success"):
+        raise HTTPException(status_code=401, detail=res.get("error", "Invalid email or password"))
+    u = res["user"]
+    if u.get("mfa_enabled") and u.get("totp_secret"):
+        # Don't mint a session yet — hand back a short challenge the client
+        # exchanges (with the TOTP code) at /mfa. email+plan ride in the
+        # challenge so /mfa needn't re-read the row.
+        challenge = create_token(u["id"], email=u.get("email"), plan=u.get("plan", "free"),
+                                 ttl=MFA_CHALLENGE_TTL)
+        return {"ok": True, "mfa_required": True, "challenge": challenge}
+    session = create_token(u["id"], email=u.get("email"), plan=u.get("plan", "free"), ttl=SESSION_TTL)
+    return {"ok": True, "mfa_required": False, "session": session, "user": _session_user(u)}
+
+
+@router.post("/mfa")
+def mfa(req: MfaRequest):
+    try:
+        claims = verify_token(req.challenge)
+    except TokenError:
+        raise HTTPException(status_code=401, detail="challenge_expired")
+    uid = claims.get("sub")
+    info = authcore.get_user_mfa(uid)
+    if not authcore.verify_totp(info.get("totp_secret") or "", req.code):
+        raise HTTPException(status_code=401, detail="invalid_code")
+    email, plan = claims.get("email"), claims.get("plan", "free")
+    session = create_token(uid, email=email, plan=plan, ttl=SESSION_TTL)
+    return {"ok": True, "session": session, "user": {"id": uid, "email": email, "plan": plan}}
+
+
+@router.post("/register")
+def register(req: RegisterRequest):
+    if not req.email or not req.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    res = authcore.register(req.email, req.password, req.full_name or "")
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Registration failed"))
+    uid = res["user_id"]
+    # Auto-login the new (free) account so they land straight in the app.
+    session = create_token(uid, email=req.email.lower().strip(), plan="free", ttl=SESSION_TTL)
+    return {"ok": True, "session": session,
+            "user": {"id": uid, "email": req.email.lower().strip(), "plan": "free"}}
