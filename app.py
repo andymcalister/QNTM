@@ -4374,7 +4374,6 @@ PRIVACY_POLICY = """
 
 **You give us:**
 - Email address and password (passwords are bcrypt-hashed — we cannot see them)
-- Optional 2FA secret (encrypted at rest)
 - Optional full name
 - Payment method (processed and stored by Stripe — we never see your card number)
 - Your watchlist, portfolio, and simulator data
@@ -4397,7 +4396,8 @@ PRIVACY_POLICY = """
 |----------|---------|---------------------|
 | Stripe, Inc. | Payment processing | stripe.com/privacy |
 | Supabase, Inc. | Database hosting and authentication | supabase.com/privacy |
-| Render (Render Services, Inc.) | Application hosting | render.com/privacy |
+| Vercel, Inc. | Frontend web hosting | vercel.com/legal/privacy-policy |
+| Render (Render Services, Inc.) | API and background-job hosting | render.com/privacy |
 | SendGrid (Twilio) | Account, security, and notification emails — e.g. email verification, password resets, and optional signal alerts | sendgrid.com/policies/privacy |
 | Twilio, Inc. | Optional SMS alert delivery and one-time phone-number verification | twilio.com/legal/privacy |
 | GitHub, Inc. | Scheduled background jobs (data refresh) | github.com/site/privacy |
@@ -4427,9 +4427,8 @@ If you choose to receive alerts by text message, we collect the mobile phone num
 
 ### Security
 - Passwords: bcrypt-hashed (cost factor 12)
-- Sensitive personal fields (email, name, 2FA secret): encrypted at rest with authenticated symmetric encryption (Fernet — AES-128-CBC with HMAC-SHA256)
+- Sensitive personal fields (email, name): encrypted at rest with authenticated symmetric encryption (Fernet — AES-128-CBC with HMAC-SHA256)
 - Email-hash lookup so we can find your account without decrypting your email
-- Two-factor authentication available and strongly recommended
 - Login events are logged for security review
 - HTTPS for all traffic
 
@@ -4479,7 +4478,7 @@ You must be 18 or older. By using QNTM you confirm this. You are responsible for
 
 ### 5. Your Account
 - Use accurate information when signing up
-- Keep your password and 2FA credentials secure
+- Keep your password secure
 - You are responsible for all activity on your account
 - Report unauthorized access immediately to security@qntm.live
 - By creating an account, you agree to receive account and security emails (such as email verification, password resets, and billing notices), which are necessary to operate your account. Optional signal-alert emails are off by default and can be enabled or disabled anytime in Account → Notifications.
