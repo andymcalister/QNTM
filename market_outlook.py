@@ -307,12 +307,37 @@ def email_subscribers(sb, kind, data, narrative):
     log.info("emailed %d subscribers for %s", sent, kind)
 
 
+# NYSE holidays (observed). Hardcoded for 2026 — update yearly, or swap for
+# pandas_market_calendars if a dependency is acceptable.
+_MARKET_HOLIDAYS = {
+    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+    "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+}
+
+
+def _is_trading_day(date_str):
+    """True if date_str (YYYY-MM-DD) is a weekday and not a market holiday.
+    Fails open (returns True) if the date can't be parsed."""
+    from datetime import date as _date
+    try:
+        y, m, d = (int(x) for x in date_str.split("-"))
+        if _date(y, m, d).weekday() >= 5:
+            return False
+    except Exception:
+        return True
+    return date_str not in _MARKET_HOLIDAYS
+
+
 def main():
     kind = (sys.argv[1] if len(sys.argv) > 1 else "outlook").lower()
     if kind not in ("outlook", "wrap", "week"):
         log.error("usage: python market_outlook.py [outlook|wrap|week] [YYYY-MM-DD]")
         sys.exit(2)
     as_of = sys.argv[2] if len(sys.argv) > 2 else None
+    target = as_of or date.today().isoformat()
+    if kind in ("outlook", "wrap") and not _is_trading_day(target):
+        log.info("%s: %s is not a trading day \u2014 skipping", kind, target)
+        return
     sb = _sb()
     if not sb:
         log.error("no supabase client")
