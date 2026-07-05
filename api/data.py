@@ -968,9 +968,9 @@ def load_model_portfolio() -> dict:
                     if not ep or float(ep) <= 0:
                         continue
                     open_lots[p.get("id")] = {"ticker": p["ticker"],
-                                              "shares": _MP_POS_SIZE / float(ep),
+                                              "shares": float(p.get("position_size") or _MP_POS_SIZE) / float(ep),
                                               "entry_price": float(ep)}
-                    cash -= _MP_POS_SIZE
+                    cash -= float(p.get("position_size") or _MP_POS_SIZE)
                 mtm = cash + sum(lot["shares"] * price_on(lot["ticker"], d, lot["entry_price"])
                                  for lot in open_lots.values())
                 model_series.append((d, mtm))

@@ -871,6 +871,30 @@ def update_model_portfolio(scored_list: list) -> None:
             reverse=True
         )
 
+        # ── Redeploy freed capital, don't leak it ─────────────────────────────
+        # Book NAV = base − total deployed + realized exit proceeds. Split the
+        # available cash across the open slots, so a winner's proceeds go fully
+        # back to work (compounding) instead of a flat $2K refill leaving the
+        # gain parked in idle cash. Unfilled slots keep their share as cash.
+        MP_BASE = TARGET * POS_SIZE
+        _all_pos = (sb.table("model_portfolio_positions")
+                    .select("position_size,entry_price,exit_price,is_active")
+                    .eq("epoch", _EPOCH).execute().data or [])
+        _cash = MP_BASE
+        for _p in _all_pos:
+            _ps = float(_p.get("position_size") or POS_SIZE)
+            _cash -= _ps
+            if (not _p.get("is_active")) and _p.get("exit_price") and _p.get("entry_price"):
+                try:
+                    _cash += (_ps / float(_p["entry_price"])) * float(_p["exit_price"])
+                except (TypeError, ZeroDivisionError):
+                    pass
+        deploy_each = (_cash / slots_needed) if slots_needed > 0 else POS_SIZE
+        if not (deploy_each > 0):
+            deploy_each = POS_SIZE
+        log.info(f"[MODEL PORTFOLIO] available cash ${_cash:,.0f} / {slots_needed} slot(s) "
+                 f"= ${deploy_each:,.0f} per new position")
+
         entered = []
         skipped_cap = 0
         for r in candidates:
@@ -890,7 +914,7 @@ def update_model_portfolio(scored_list: list) -> None:
                 "entry_date":    today,
                 "entry_price":   r.get("price"),
                 "entry_score":   round(adj, 1),
-                "position_size": POS_SIZE,
+                "position_size": round(deploy_each, 2),
                 "is_active":     True,
                 "epoch":         _EPOCH,
             }).execute()
