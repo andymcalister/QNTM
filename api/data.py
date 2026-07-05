@@ -562,7 +562,7 @@ def load_watchlist(user_id: str) -> list:
             except (TypeError, ValueError, ZeroDivisionError):
                 change_pct = None
         out.append({**base, "price_at_add": _num(pa), "added_at": it.get("added_at"),
-                    "change_pct": change_pct})
+                    "change_pct": change_pct, "tracked": tk in _SECTORS})
     return out
 
 
@@ -814,7 +814,8 @@ def load_portfolio(user_id: str) -> dict:
         pnl_pct = round(pnl / cb * 100, 2) if (pnl is not None and cb) else None
         out.append({**base, "shares": shares, "avg_cost": avg_cost,
                     "entry_date": it.get("entry_date"), "notes": it.get("notes"),
-                    "market_value": mv, "cost_basis": cb, "pnl": pnl, "pnl_pct": pnl_pct})
+                    "market_value": mv, "cost_basis": cb, "pnl": pnl, "pnl_pct": pnl_pct,
+                    "tracked": tk in _SECTORS})
         if mv is not None:
             tv += mv
         if cb is not None:
