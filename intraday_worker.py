@@ -6,30 +6,29 @@ WHY THIS EXISTS
 ---------------
 The app reads stored prices only (no live yfinance on the request path), so the
 Model Portfolio's displayed "today" numbers are exactly as fresh as the last
-price write to Supabase. The full-universe refresh runs on a ~15-min GitHub
-Actions cron, but scheduled GH Actions are unreliable (frequently delayed or
-skipped), which repeatedly left stored prices stale mid-session — and in
-stored-only mode that shows up directly as a frozen "today".
+price write to Supabase. This worker is a tiny ALWAYS-ON loop that refreshes just
+the HELD model-portfolio names + SPY every ~90s.
 
-This worker is a tiny ALWAYS-ON loop that, during US market hours, refreshes
-just the HELD model-portfolio names + SPY every ~90s. It's cheap (~50 tickers,
-one yfinance batch) and depends on no external scheduler. The full-universe
-cron stays as-is for the screener; this only keeps the names that actually drive
-the Model Portfolio fresh.
+SESSIONS
+--------
+It now runs across THREE windows (all ET, Mon-Fri):
+  pre      04:00-09:30  -> refresh_extended_prices(session="pre")   [pre_price/pre_close]
+  regular  09:30-16:00  -> run_intraday_refresh(prices_only=True)   [the real `price` mark]
+  post     16:00-20:00  -> refresh_extended_prices(session="post")  [post_price/post_close]
+Pre/post writes go to SEPARATE columns and NEVER overwrite the regular `price`
+that marks the equity curve — the book's value only changes during the regular
+session, extended windows are display-only directional signal.
 
 DEPLOY
 ------
-Runs as a Render Background Worker (type: worker) — see render.yaml. Needs
-SUPABASE_SERVICE_KEY (RLS-bypassing) available to the process, same as the other
-jobs: either as an env var, or via the secrets.toml Secret File that the start
-command copies to .streamlit/secrets.toml. data_refresh._get_supabase reads env
-first, then falls back to that secrets file.
+Render Background Worker. Needs SUPABASE_SERVICE_KEY (env or the secrets.toml
+Secret File copied to .streamlit/secrets.toml).
 """
 import time
 import logging
 from datetime import datetime, timezone, timedelta
 
-from data_refresh import _get_supabase, run_intraday_refresh
+from data_refresh import _get_supabase, run_intraday_refresh, refresh_extended_prices
 
 try:
     from zoneinfo import ZoneInfo
@@ -43,22 +42,28 @@ logging.basicConfig(
 )
 log = logging.getLogger("intraday_worker")
 
-REFRESH_SECONDS = 90      # cadence while the market is open
-IDLE_SECONDS    = 300     # cadence while closed (just re-check the clock)
+REFRESH_SECONDS = 90      # cadence while any session is active
+IDLE_SECONDS    = 300     # cadence while fully closed (just re-check the clock)
 
 
-def market_is_open(now=None) -> bool:
-    """Mon-Fri, 9:30 AM-4:00 PM ET (DST-aware when zoneinfo is present).
-    Mirrors intraday_alerts.market_is_open. Holiday-agnostic — a holiday run just
+def market_session(now=None):
+    """Return 'pre' | 'regular' | 'post' | None for the current ET time.
+    DST-aware when zoneinfo is present. Holiday-agnostic — a holiday run just
     re-pulls flat prices and writes the same values, which is harmless."""
     if _ET is not None:
         now = now or datetime.now(_ET)
     else:
         now = (now or datetime.now(timezone.utc)) - timedelta(hours=4)
     if now.weekday() >= 5:
-        return False
+        return None
     mins = now.hour * 60 + now.minute
-    return (9 * 60 + 30) <= mins <= (16 * 60)
+    if (4 * 60) <= mins < (9 * 60 + 30):
+        return "pre"
+    if (9 * 60 + 30) <= mins <= (16 * 60):
+        return "regular"
+    if (16 * 60) < mins <= (20 * 60):
+        return "post"
+    return None
 
 
 def held_tickers():
@@ -85,26 +90,29 @@ def held_tickers():
 
 
 def main():
-    log.info("intraday worker starting (held names + SPY, ~%ss while open)",
+    log.info("intraday worker starting (held names + SPY; pre/regular/post, ~%ss active)",
              REFRESH_SECONDS)
     while True:
         try:
-            if market_is_open():
-                held = held_tickers()
-                if held:
-                    # run_intraday_refresh(prices_only=True) writes held-name
-                    # prices to signal_log AND refreshes SPY benchmark_price (with
-                    # updated_at) — but SKIPS exits/entries. The worker's job is
-                    # freshness, not trading; portfolio decisions stay on the
-                    # nightly / macro cadence. It self-skips names not scored for
-                    # today, so an early pre-batch cycle is a harmless no-op.
-                    res = run_intraday_refresh(tickers=held, prices_only=True)
-                    log.info("refreshed %d held + SPY -> %s", len(held), res)
-                else:
-                    log.warning("no held tickers resolved; skipping cycle")
-                time.sleep(REFRESH_SECONDS)
-            else:
+            sess = market_session()
+            if sess is None:
                 time.sleep(IDLE_SECONDS)
+                continue
+            held = held_tickers()
+            if not held:
+                log.warning("no held tickers resolved; skipping cycle")
+                time.sleep(REFRESH_SECONDS)
+                continue
+            if sess == "regular":
+                # writes held-name prices to signal_log.price AND SPY benchmark;
+                # SKIPS exits/entries (freshness only — trading stays nightly/macro).
+                res = run_intraday_refresh(tickers=held, prices_only=True)
+                log.info("[regular] refreshed %d held + SPY -> %s", len(held), res)
+            else:
+                # pre/post: writes ONLY the extended columns, never the `price` mark.
+                res = refresh_extended_prices(tickers=held, session=sess)
+                log.info("[%s] extended refresh %d held + SPY -> %s", sess, len(held), res)
+            time.sleep(REFRESH_SECONDS)
         except Exception as e:
             log.error("worker cycle error: %s", e)
             time.sleep(REFRESH_SECONDS)
