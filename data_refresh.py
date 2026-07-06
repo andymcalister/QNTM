@@ -1667,3 +1667,82 @@ if __name__ == "__main__":
 
     print(json.dumps(result, indent=2))
     sys.exit(0 if result.get("success") else 1)
+
+
+def refresh_extended_prices(tickers=None, session="pre"):
+    """Capture pre/post-market prices for held names + SPY, WITHOUT touching the
+    regular `price` mark that feeds the equity curve.
+
+    Stocks  -> signal_log.pre_price / .post_price  (only for tickers already
+               scored today, to avoid creating null-composite rows).
+    SPY     -> benchmark_price.pre_close / .post_close.
+
+    session in {"pre","post"}. yfinance extended-hours data is thin for small-caps;
+    callers should surface a coverage count rather than treat it as complete.
+    """
+    import yfinance as yf
+    from universe_data import SECTORS
+    if session not in ("pre", "post"):
+        return {"success": False, "error": "session must be pre|post"}
+    scol = "pre_price" if session == "pre" else "post_price"
+    bcol = "pre_close" if session == "pre" else "post_close"
+    if tickers is None:
+        tickers = list(SECTORS.keys())
+    sb = _get_supabase()
+    if not sb:
+        return {"success": False, "error": "No Supabase connection"}
+
+    today = date.today().isoformat()
+    try:
+        _ex = _fetch_all_rows(lambda: sb.table("signal_log").select("ticker")
+              .eq("signal_date", today).not_.is_("composite", "null"))
+        scored_today = {r["ticker"] for r in _ex}
+    except Exception:
+        scored_today = set()
+    if not scored_today:
+        log.warning("Extended refresh: no scored rows today - skipping.")
+        return {"success": True, "updated": 0, "reason": "no_scored_batch_today"}
+
+    names = [t for t in list(tickers) if t in scored_today]
+    _dl = names + ["SPY"]
+    updated = 0
+    chunk_size = 200
+    for i in range(0, len(_dl), chunk_size):
+        chunk = _dl[i:i + chunk_size]
+        try:
+            hist = yf.download(chunk, period="1d", interval="1m", prepost=True,
+                               auto_adjust=True, progress=False, threads=True)
+            if hist is None or hist.empty or "Close" not in hist.columns:
+                continue
+            close = hist["Close"]
+            def _last(series):
+                v = series.dropna()
+                return round(float(v.iloc[-1]), 4) if not v.empty else None
+            stock_rows, spy_px = [], None
+            if hasattr(close, "columns"):
+                for tk in chunk:
+                    if tk in close.columns:
+                        px = _last(close[tk])
+                        if px is None:
+                            continue
+                        if tk == "SPY":
+                            spy_px = px
+                        elif tk in scored_today:
+                            stock_rows.append({"ticker": tk, "signal_date": today, scol: px})
+            elif len(chunk) == 1:
+                px = _last(close)
+                if px is not None:
+                    if chunk[0] == "SPY":
+                        spy_px = px
+                    elif chunk[0] in scored_today:
+                        stock_rows.append({"ticker": chunk[0], "signal_date": today, scol: px})
+            if stock_rows:
+                sb.table("signal_log").upsert(stock_rows, on_conflict="ticker,signal_date").execute()
+                updated += len(stock_rows)
+            if spy_px is not None:
+                sb.table("benchmark_price").upsert({"d": today, bcol: spy_px}, on_conflict="d").execute()
+        except Exception as e:
+            log.warning("Extended batch %s (%s) failed: %s", i, session, e)
+
+    log.info("Extended refresh (%s): %s stock prices + SPY -> %s/%s", session, updated, scol, bcol)
+    return {"success": True, "updated": updated, "session": session}
