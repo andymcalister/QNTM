@@ -1125,6 +1125,7 @@ def load_model_portfolio() -> dict:
                 "day_model": round(day_model, 2), "day_spy": round(day_spy, 2),
                 "basis": _MP_BASE, "n_sessions": len(dates),
                 "pre_post": pre_post_move(sb),
+                "_build_marker": "prepost-v1",
             }
 
         # 3) closed trades
