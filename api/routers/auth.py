@@ -158,8 +158,10 @@ def register(req: RegisterRequest):
     uid = res["user_id"]
     _data.set_disclaimer_ack(uid, DISCLAIMER_VERSION)
     plan, founding = "free", False
-    if req.claim_founding and _data.claim_founding_member(uid):
-        plan, founding = "pro", True
+    if req.claim_founding:
+        # record intent only - the founding Pro grant happens on email verification,
+        # so an unverified signup can't claim a founding spot.
+        _data.set_wants_founding(uid)
     try:
         authcore.request_email_verification(req.email)
     except Exception:

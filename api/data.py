@@ -1737,7 +1737,8 @@ def founding_spots_remaining() -> int:
         return FOUNDING_LIMIT
     try:
         r = (sb.table("users").select("id", count="exact")
-             .filter("notifications->>founding_member", "eq", "true").execute())
+             .filter("notifications->>founding_member", "eq", "true")
+             .eq("email_verified", True).execute())
         n = r.count if getattr(r, "count", None) is not None else len(r.data or [])
         return max(0, FOUNDING_LIMIT - int(n))
     except Exception as e:
@@ -1771,6 +1772,41 @@ def set_disclaimer_ack(uid: str, version: str) -> bool:
     blob = _read_notif_blob(uid)
     blob["disclaimer_ack"] = {"version": version, "at": _dtm.now(_tzm.utc).isoformat()}
     return _write_notif_blob(uid, blob)
+
+
+def set_wants_founding(uid: str) -> bool:
+    """Record that a user asked to claim a founding spot. The grant itself happens
+    on email verification, so an unverified signup can never consume a slot."""
+    blob = _read_notif_blob(uid)
+    blob["wants_founding"] = True
+    return _write_notif_blob(uid, blob)
+
+
+def wants_founding(uid: str) -> bool:
+    return bool(_read_notif_blob(uid).get("wants_founding"))
+
+
+def notify_new_signup(uid: str) -> None:
+    """Email the admin about a newly *verified* signup. Fire-and-forget; reuses the
+    classic db.notify_admin_signup (ADMIN_EMAIL / SIGNUP_NOTIFY_EMAIL env)."""
+    try:
+        import db as _db
+        sb = _get_supabase_admin()
+        if not sb:
+            return
+        row = (sb.table("users").select("email_encrypted,full_name_encrypted,plan")
+               .eq("id", uid).limit(1).execute().data or [])
+        if not row:
+            return
+        r = row[0]
+        email = _db.decrypt_field(r.get("email_encrypted") or "") or "(unknown)"
+        try:
+            name = _db.decrypt_field(r.get("full_name_encrypted") or "") or ""
+        except Exception:
+            name = ""
+        _db.notify_admin_signup(email, name, r.get("plan", "free"))
+    except Exception as e:
+        logging.warning("notify_new_signup failed: %s", e)
 
 
 def get_account_status(uid: str) -> dict:
