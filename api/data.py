@@ -884,6 +884,113 @@ def _mp_fetch_all(sb, table, cols, filters, order_col, desc=False, cap=8):
     return out
 
 
+def pre_post_move(sb):
+    """Coverage-flagged extended-hours move for the model book vs SPY.
+    Position-weighted over holdings that actually printed a pre/post price.
+    Returns None outside pre/post windows or when no extended data exists.
+    Never affects the marked equity curve - display-only directional signal."""
+    try:
+        from datetime import datetime, timezone, timedelta
+        try:
+            from zoneinfo import ZoneInfo
+            now = datetime.now(ZoneInfo("America/New_York"))
+        except Exception:
+            now = datetime.now(timezone.utc) - timedelta(hours=4)
+        if now.weekday() >= 5:
+            return None
+        mins = now.hour * 60 + now.minute
+        if (4 * 60) <= mins < (9 * 60 + 30):
+            session = "pre"
+        elif (16 * 60) < mins <= (20 * 60):
+            session = "post"
+        else:
+            return None
+
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        last = (sb.table("signal_log").select("signal_date").lte("signal_date", today)
+                .order("signal_date", desc=True).limit(1).execute().data or [])
+        if not last:
+            return None
+        d_today = last[0]["signal_date"]
+        prev = (sb.table("signal_log").select("signal_date").lt("signal_date", d_today)
+                .order("signal_date", desc=True).limit(1).execute().data or [])
+        d_prev = prev[0]["signal_date"] if prev else None
+
+        try:
+            from model_engine import MODEL_EPOCH as _EPOCH
+        except Exception:
+            _EPOCH = "live"
+        pos = (sb.table("model_portfolio_positions")
+               .select("ticker,entry_price,position_size")
+               .eq("is_active", True).eq("epoch", _EPOCH).execute().data or [])
+        held = [p["ticker"] for p in pos if p.get("ticker")]
+        if not held:
+            return None
+        shares = {}
+        for pz in pos:
+            tk, ep, ps = pz.get("ticker"), pz.get("entry_price"), pz.get("position_size")
+            if tk and ep:
+                try:
+                    shares[tk] = float(ps or _MP_POS_SIZE) / float(ep)
+                except (TypeError, ZeroDivisionError):
+                    pass
+
+        col = "pre_price" if session == "pre" else "post_price"
+        trows = (sb.table("signal_log").select("ticker,price," + col)
+                 .eq("signal_date", d_today).in_("ticker", held).execute().data or [])
+        today_ext = {r["ticker"]: r.get(col) for r in trows}
+        today_reg = {r["ticker"]: r.get("price") for r in trows}
+        prev_reg = {}
+        if d_prev:
+            prows = (sb.table("signal_log").select("ticker,price")
+                     .eq("signal_date", d_prev).in_("ticker", held).execute().data or [])
+            prev_reg = {r["ticker"]: r.get("price") for r in prows}
+
+        wsum = msum = 0.0
+        cov = 0
+        for tk in held:
+            ext = today_ext.get(tk)
+            base = prev_reg.get(tk) if session == "pre" else today_reg.get(tk)
+            sh = shares.get(tk)
+            if ext and base and sh:
+                try:
+                    mv = (float(ext) / float(base) - 1.0) * 100.0
+                    w = sh * float(base)
+                    wsum += w; msum += w * mv; cov += 1
+                except (TypeError, ZeroDivisionError):
+                    pass
+        if cov == 0 or wsum == 0:
+            return None
+        model_move = msum / wsum
+
+        bcol = "pre_close" if session == "pre" else "post_close"
+        bt = (sb.table("benchmark_price").select("close," + bcol).eq("d", d_today).execute().data or [])
+        spy_ext = bt[0].get(bcol) if bt else None
+        spy_base = None
+        if session == "pre" and d_prev:
+            bp = (sb.table("benchmark_price").select("close").eq("d", d_prev).execute().data or [])
+            spy_base = bp[0].get("close") if bp else None
+        elif session == "post" and bt:
+            spy_base = bt[0].get("close")
+        spy_move = None
+        if spy_ext and spy_base:
+            try:
+                spy_move = (float(spy_ext) / float(spy_base) - 1.0) * 100.0
+            except (TypeError, ZeroDivisionError):
+                spy_move = None
+
+        return {
+            "session": session,
+            "model": round(model_move, 2),
+            "spy": round(spy_move, 2) if spy_move is not None else None,
+            "coverage": cov,
+            "held": len(held),
+        }
+    except Exception:
+        return None
+
+
 def load_model_portfolio() -> dict:
     """Equity curve vs SPY + track-record stats + open positions (enriched from
     signal_log) + closed trades for the live model cohort. Cached briefly."""
@@ -1017,6 +1124,7 @@ def load_model_portfolio() -> dict:
                 "alpha": round(model_ret - spy_ret, 2),
                 "day_model": round(day_model, 2), "day_spy": round(day_spy, 2),
                 "basis": _MP_BASE, "n_sessions": len(dates),
+                "pre_post": pre_post_move(sb),
             }
 
         # 3) closed trades
