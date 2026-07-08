@@ -23,6 +23,15 @@ from .. import analytics
 
 DISCLAIMER_VERSION = "2026-07-03"
 
+import os as _os
+
+def _email_is_admin(email: str) -> bool:
+    _raw = _os.getenv("ADMIN_EMAILS") or _os.getenv("ADMIN_EMAIL") or ""
+    allow = [e.strip().lower() for e in _raw.split(",") if e.strip()]
+    e = (email or "").lower()
+    return bool(e) and e in allow
+
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Session tokens live much longer than the 15-min bridge token — this is the
@@ -43,6 +52,7 @@ class VerifyResponse(BaseModel):
     exp: Optional[int] = None
     founding_member: bool = False
     billing_active: bool = False
+    is_admin: bool = False
 
 
 @router.post("/verify", response_model=VerifyResponse)
@@ -83,6 +93,7 @@ def me(user: dict = Depends(current_user)):
         exp=user.get("exp"),
         founding_member=bool(stt.get("founding_member")),
         billing_active=bool(stt.get("billing_active")),
+        is_admin=_email_is_admin(user.get("email")),
     )
 
 
