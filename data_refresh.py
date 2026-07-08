@@ -1740,7 +1740,15 @@ def refresh_extended_prices(tickers=None, session="pre"):
                 sb.table("signal_log").upsert(stock_rows, on_conflict="ticker,signal_date").execute()
                 updated += len(stock_rows)
             if spy_px is not None:
-                sb.table("benchmark_price").upsert({"d": today, bcol: spy_px}, on_conflict="d").execute()
+                # benchmark_price.close is NOT NULL, so a partial upsert fails —
+                # UPDATE the existing row (sets only the extended col); INSERT only
+                # if today's row doesn't exist yet.
+                _upd = sb.table("benchmark_price").update({bcol: spy_px}).eq("d", today).execute()
+                if not (_upd.data or []):
+                    try:
+                        sb.table("benchmark_price").insert({"d": today, "close": spy_px, bcol: spy_px}).execute()
+                    except Exception as _e:
+                        log.warning("benchmark_price insert (extended) failed: %s", _e)
         except Exception as e:
             log.warning("Extended batch %s (%s) failed: %s", i, session, e)
 
