@@ -204,6 +204,34 @@ def build_prompt(data):
     return common + task
 
 
+def _strip_preamble(text):
+    """Drop any model preamble / inter-tool commentary before the real wrap.
+    The web_search tool causes the model to emit reasoning text between tool
+    calls; the published wrap must start at its heading. We slice from the first
+    recognized heading marker onward, and fall back to the first markdown/bold
+    heading line if the branded markers are absent."""
+    if not text:
+        return text
+    markers = [
+        "## QNTM", "**QNTM Day Wrap", "**QNTM Week", "**QNTM Market",
+        "QNTM Day Wrap", "QNTM Week Wrap", "QNTM Market Outlook",
+    ]
+    lo = len(text) + 1
+    for m in markers:
+        i = text.find(m)
+        if i != -1:
+            lo = min(lo, i)
+    if lo <= len(text):
+        return text[lo:].lstrip()
+    # fallback: first markdown heading or bold-lead line
+    for line in text.splitlines():
+        ls = line.lstrip()
+        if ls.startswith("#") or ls.startswith("**"):
+            j = text.find(line)
+            return text[j:].lstrip()
+    return text
+
+
 def narrate(data):
     key = os.getenv("ANTHROPIC_API_KEY")
     if not key:
@@ -227,6 +255,7 @@ def narrate(data):
             b.text for b in resp.content
             if getattr(b, "type", "") == "text" and getattr(b, "text", "")
         ).strip()
+        text = _strip_preamble(text)
         return text or None
     except Exception as e:
         log.error("narration failed: %s", e)
