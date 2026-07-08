@@ -190,6 +190,14 @@ class EquityPoint(BaseModel):
     spy: float
 
 
+class PrePostMove(BaseModel):
+    session: str
+    model: float
+    spy: Optional[float] = None
+    coverage: int = 0
+    held: int = 0
+
+
 class ModelStats(BaseModel):
     inception: Optional[str] = None
     model_value: float = 0.0
@@ -201,6 +209,7 @@ class ModelStats(BaseModel):
     day_spy: float = 0.0
     basis: float = 100000.0
     n_sessions: int = 0
+    pre_post: Optional[PrePostMove] = None
 
 
 class ModelPosition(ScreenerRow):
