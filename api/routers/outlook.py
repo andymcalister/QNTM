@@ -38,6 +38,28 @@ def outlook(kind: str = Query(None), limit: int = Query(20, le=90)):
         return {"items": []}
 
 
+@router.get("/by-date/{date}")
+def outlook_by_date(date: str, kind: str = Query("outlook")):
+    """One stored outlook/wrap for a specific date, with all fields — powers the
+    dated public pages and their OG cards. Returns {} if not found."""
+    sb = _sb()
+    if not sb:
+        return {}
+    if kind not in VALID_KINDS:
+        kind = "outlook"
+    try:
+        rows = (sb.table("daily_outlook")
+                .select("outlook_date,kind,regime,conviction,regime_score,themes,"
+                        "whats_changed,watching,model_return,spy_return,attribution,"
+                        "narrative,created_at")
+                .eq("outlook_date", date).eq("kind", kind)
+                .order("created_at", desc=True).limit(1).execute().data or [])
+        return rows[0] if rows else {}
+    except Exception as e:
+        logging.warning("outlook by-date read failed: %s", e)
+        return {}
+
+
 # ── Subscribe (double opt-in) ─────────────────────────────────────────────────
 @router.post("/subscribe")
 def subscribe(payload: dict = Body(...)):
