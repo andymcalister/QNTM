@@ -11,7 +11,8 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 def _is_admin(user: dict) -> bool:
-    allow = [e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()]
+    _raw = os.getenv("ADMIN_EMAILS") or os.getenv("ADMIN_EMAIL") or ""
+    allow = [e.strip().lower() for e in _raw.split(",") if e.strip()]
     email = (user.get("email") or "").lower()
     return bool(email) and email in allow
 
