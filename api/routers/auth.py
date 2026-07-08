@@ -162,6 +162,11 @@ def register(req: RegisterRequest):
         # record intent only - the founding Pro grant happens on email verification,
         # so an unverified signup can't claim a founding spot.
         _data.set_wants_founding(uid)
+    try:  # signup notify — ping admin on every registration (real-time visibility)
+        import db as _db
+        _db.notify_admin_signup(req.email.lower().strip(), req.full_name or "", plan)
+    except Exception:
+        pass
     try:
         authcore.request_email_verification(req.email)
     except Exception:
