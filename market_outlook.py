@@ -112,6 +112,8 @@ def gather(sb, kind, as_of=None):
         from data_refresh import _load_macro_state
         macro = _load_macro_state() or {}
         data["regime"] = macro.get("regime")
+        data["vix"] = macro.get("vix")
+        data["wti"] = macro.get("oil_price")
         data["macro_events"] = macro.get("events") or macro.get("active_events") or []
     except Exception as e:
         log.warning("macro state failed: %s", e)
@@ -274,6 +276,8 @@ def store(sb, data, narrative):
         "spy_return": data.get("spy_return"),
         "attribution": json.dumps(data.get("sector_attribution") or []),
         "themes": json.dumps(data.get("macro_events") or []),
+        "vix": data.get("vix"),
+        "wti": data.get("wti"),
         "narrative": narrative,
     }
     try:

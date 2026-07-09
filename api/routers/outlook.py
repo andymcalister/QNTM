@@ -51,7 +51,7 @@ def outlook_by_date(date: str, kind: str = Query("outlook")):
         rows = (sb.table("daily_outlook")
                 .select("outlook_date,kind,regime,conviction,regime_score,themes,"
                         "whats_changed,watching,model_return,spy_return,attribution,"
-                        "narrative,created_at")
+                        "vix,wti,narrative,created_at")
                 .eq("outlook_date", date).eq("kind", kind)
                 .order("created_at", desc=True).limit(1).execute().data or [])
         return rows[0] if rows else {}
