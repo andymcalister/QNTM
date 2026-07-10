@@ -18,3 +18,4 @@ posthog>=3.0.0
 twilio
 pyjwt>=2.4,<3
 anthropic
+tweepy
