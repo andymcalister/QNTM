@@ -384,6 +384,11 @@ def main():
         sys.exit(1)
     print("\n===== " + kind.upper() + " =====\n" + narrative + "\n")
     store(sb, data, narrative)
+    try:
+        from qntm_social import publish_social
+        publish_social(data)
+    except Exception as e:
+        log.warning('social publish failed: %s', e)
     email_subscribers(sb, kind, data, narrative)
 
 
