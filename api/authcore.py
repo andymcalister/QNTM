@@ -134,21 +134,104 @@ def get_user_mfa(user_id: str) -> dict:
     return {"mfa_enabled": False, "totp_secret": None}
 
 
+import re as _re
+import unicodedata as _ud
+
+def _is_latin(c: str) -> bool:
+    if not c.isalpha():
+        return False
+    try:
+        return "LATIN" in _ud.name(c)
+    except ValueError:
+        return False
+
+def _word_is_gibberish(w: str) -> bool:
+    """True if a single token looks like a random-character blob (Latin only)."""
+    if len(w) < 3:
+        return False
+    letters = [c for c in w if c.isalpha()]
+    if not letters:
+        return True
+    if not all(_is_latin(c) for c in letters):
+        return False  # non-Latin script: Latin heuristics don't apply, accept
+    low = w.lower()
+    vowels = sum(1 for c in low if c in "aeiouy")
+    if len(letters) >= 6 and vowels == 0:
+        return True
+    if len(letters) >= 10 and vowels / len(letters) < 0.12:
+        return True
+    core = "".join(c for c in w if c.isalpha())
+    trans = sum(1 for i in range(1, len(core)) if core[i].isupper() != core[i-1].isupper())
+    if len(core) >= 7 and trans >= 4:
+        return True
+    run = 0
+    for c in low:
+        if c.isalpha() and c not in "aeiouy":
+            run += 1
+            if run >= 7:
+                return True
+        else:
+            run = 0
+    return False
+
+def looks_like_real_name(name: str) -> bool:
+    """Accept plausibly-real names of any script/shape; reject gibberish blobs."""
+    n = (name or "").strip()
+    if len(n) < 2 or len(n) > 60:
+        return False
+    if not any(c.isalpha() for c in n):
+        return False
+    if any(c.isdigit() for c in n):
+        return False
+    if _re.search(r"[^\w\s\.\-'\u2019,]", n, _re.UNICODE):
+        return False
+    letters = [c.lower() for c in n if c.isalpha()]
+    if len(letters) >= 4 and max(letters.count(c) for c in set(letters)) / len(letters) > 0.6:
+        return False
+    tokens = [t for t in _re.split(r"[\s\-'\u2019]+", n) if t]
+    return not any(_word_is_gibberish(t) for t in tokens)
+
+def canonical_email(email: str) -> str:
+    """Normalize an email for duplicate detection (login still uses exact hash)."""
+    e = (email or "").lower().strip()
+    if "@" not in e:
+        return e
+    local, _, domain = e.partition("@")
+    local = local.split("+", 1)[0]
+    if domain in ("gmail.com", "googlemail.com"):
+        local = local.replace(".", "")
+        domain = "gmail.com"
+    return f"{local}@{domain}"
+
+def canonical_email_hash(email: str) -> str:
+    return hashlib.sha256(canonical_email(email).encode()).hexdigest()
+
+
 def register(email: str, password: str, full_name: str) -> dict:
     """Mirror db.register_user: {success, user_id} | {success:False, error}."""
     import secrets as _secrets
     sb = _get_supabase_admin()
     if not sb:
         return {"success": False, "error": "Registration unavailable"}
+    if not looks_like_real_name(full_name):
+        return {"success": False, "error": "Please enter your real name."}
     eh = email_hash(email)
+    ceh = canonical_email_hash(email)
     try:
         existing = sb.table("users").select("id").eq("email_hash", eh).execute()
         if existing.data:
             return {"success": False, "error": "An account with this email already exists"}
+        try:
+            dup = sb.table("users").select("id").eq("email_canonical_hash", ceh).execute()
+            if dup.data:
+                return {"success": False, "error": "An account with this email already exists"}
+        except Exception:
+            pass
         uid = _secrets.token_hex(16)
         sb.table("users").insert({
             "id": uid,
             "email_hash": eh,
+            "email_canonical_hash": ceh,
             "email_encrypted": encrypt_field(email.lower().strip()),
             "full_name_encrypted": encrypt_field(full_name.strip()),
             "password_hash": hash_password(password),
