@@ -1102,6 +1102,14 @@ def load_model_portfolio() -> dict:
             curve = [{"d": d, "model": round(m, 2), "spy": round(s, 2),
                       "rsp": rsp_norm.get(d), "qqq": qqq_norm.get(d)}
                      for (d, m), (_, s) in zip(model_series, spy_series)]
+            # _ORIGIN_PREPENDED: on inception day, pre-market, both QNTM and each
+            # benchmark are funded with $100K. Prepend that shared origin so day-1
+            # trading shows as the first real divergence.
+            if curve:
+                _o = {"d": inception, "model": _MP_BASE, "spy": _MP_BASE,
+                      "rsp": _MP_BASE if curve[0].get("rsp") is not None else None,
+                      "qqq": _MP_BASE if curve[0].get("qqq") is not None else None}
+                curve = [_o] + curve
 
             m_last = model_series[-1][1]; s_last = spy_series[-1][1]
             model_ret = (m_last / _MP_BASE - 1) * 100
