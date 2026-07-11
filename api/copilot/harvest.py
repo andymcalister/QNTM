@@ -1,11 +1,9 @@
-"""Harvest -> score -> dedup -> draft -> queue. Run: python -m api.copilot.harvest"""
+"""Harvest from the accounts you follow (auto-synced), draft, queue.
+Run: python -m api.copilot.harvest"""
 import math
 import re
 import datetime as dt
 from . import config, xclient, voice, store
-
-# @QNTMLive is verified, so it can reply to these; "" / None = X default (everyone).
-REPLY_OK = {"everyone", "verified", "", "none"}
 
 
 def _engagement(m):
@@ -13,11 +11,10 @@ def _engagement(m):
             + m.get("reply_count", 0) + m.get("quote_count", 0))
 
 
-def _age_hours(created_at):
-    if created_at is None:
+def _age_hours(when):
+    if when is None:
         return 9999.0
-    now = dt.datetime.now(dt.timezone.utc)
-    return (now - created_at).total_seconds() / 3600.0
+    return (dt.datetime.now(dt.timezone.utc) - when).total_seconds() / 3600.0
 
 
 def _relevance(text):
@@ -41,55 +38,69 @@ def _clean(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _repliable(p):
-    rs = (p.get("reply_settings") or "").strip().lower()
-    return rs in REPLY_OK
+def _sync_following_if_stale():
+    """Refresh the cached following list when empty or older than TTL."""
+    last = store.following_synced_at()
+    fresh = last is not None and _age_hours(last) < config.FOLLOW_TTL_HRS
+    if fresh and store.following_count() > 0:
+        return {"synced": False, "following": store.following_count()}
+    try:
+        rows = xclient.following(xclient.get_my_id())
+    except Exception as e:
+        print(f"[warn] following sync: {e}")
+        return {"synced": False, "following": store.following_count(), "error": str(e)}
+    if rows:
+        store.upsert_following(rows)
+    return {"synced": True, "following": store.following_count()}
 
 
 def _gather():
-    posts = []
-    id_map = xclient.resolve_user_ids(config.TARGET_HANDLES)
-    for uname, uid in id_map.items():
+    targets = store.targets_for_harvest(config.FOLLOW_SAMPLE)
+    if not targets:
+        # nothing synced yet -> fall back to curated handles so it's not dead
+        idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
+        targets = [{"user_id": str(uid), "username": uname}
+                   for uname, uid in idmap.items()]
+    posts, harvested = [], []
+    for t in targets:
         try:
-            posts.extend(xclient.timeline(uid, uname, config.TWEETS_PER_HANDLE))
+            posts.extend(xclient.timeline(t["user_id"], t.get("username"),
+                                          config.TWEETS_PER_HANDLE))
+            harvested.append(t["user_id"])
         except Exception as e:
-            print(f"[warn] timeline {uname}: {e}")
-    if config.KEYWORD_SEARCH:
-        q = "(" + " OR ".join(config.KEYWORDS) + ") lang:en -is:retweet -is:reply"
-        try:
-            posts.extend(xclient.search_recent(q, config.KEYWORD_MAX_RESULTS))
-        except Exception as e:
-            print(f"[warn] search: {e}")
+            print(f"[warn] timeline {t.get('username')}: {e}")
+    store.mark_harvested(harvested)
     return posts
 
 
 def harvest():
+    sync = _sync_following_if_stale()
     seen = store.existing_tweet_ids()
     used_topics = set(store.queued_topics_today())
     recent_replies = store.recent_posted_texts()
 
     posts = _gather()
-    reply_locked = 0
+    off_topic = 0
     scored = []
     for p in posts:
         if p["id"] in seen:
-            continue
-        if not _repliable(p):
-            reply_locked += 1
-            continue
-        eng = _engagement(p["metrics"])
-        if eng < config.MIN_ENGAGEMENT:
-            continue
-        age = _age_hours(p["created_at"])
-        if age > config.MAX_POST_AGE_HRS:
             continue
         text = _clean(p["text"])
         if len(text) < 15:
             continue
         rel = _relevance(text)
+        if config.REQUIRE_KEYWORD and rel == 0:
+            off_topic += 1
+            continue
+        eng = _engagement(p["metrics"])
+        if eng < config.MIN_ENGAGEMENT:
+            continue
+        if _age_hours(p["created_at"]) > config.MAX_POST_AGE_HRS:
+            continue
         scored.append({
             "post": p, "text": text, "eng": eng,
-            "topic": _topic(text), "score": _score(eng, age, rel),
+            "topic": _topic(text),
+            "score": _score(eng, _age_hours(p["created_at"]), rel),
         })
     scored.sort(key=lambda x: x["score"], reverse=True)
 
@@ -100,17 +111,17 @@ def harvest():
         if c["topic"] != "general" and c["topic"] in used_topics:
             continue
         try:
-            drafts = voice.draft(c["text"], c["post"]["username"],
+            drafts = voice.draft(c["text"], c["post"].get("username"),
                                  recent_replies, config.DRAFTS_PER_POST)
         except Exception as e:
             print(f"[warn] draft {c['post']['id']}: {e}")
             continue
         if not drafts:
             continue
-        uname = c["post"]["username"] or "i"
+        uname = c["post"].get("username") or "i"
         store.insert_candidate({
             "tweet_id": c["post"]["id"],
-            "author": c["post"]["username"],
+            "author": c["post"].get("username"),
             "post_text": c["text"],
             "post_url": f"https://x.com/{uname}/status/{c['post']['id']}",
             "engagement": c["eng"],
@@ -122,7 +133,8 @@ def harvest():
         used_topics.add(c["topic"])
         queued += 1
 
-    result = {"gathered": len(posts), "reply_locked": reply_locked,
+    result = {"following": sync.get("following"), "synced": sync.get("synced"),
+              "gathered": len(posts), "off_topic": off_topic,
               "eligible": len(scored), "queued": queued}
     print(result)
     return result

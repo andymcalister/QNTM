@@ -26,6 +26,25 @@ def _norm(tw, username=None):
     }
 
 
+def get_my_id():
+    return str(_client().get_me(user_auth=True).data.id)
+
+
+def following(user_id, cap_pages=6):
+    """All accounts this user follows (paginated). [{user_id, username}]"""
+    c = _client()
+    out, token = [], None
+    for _ in range(cap_pages):
+        resp = c.get_users_following(id=user_id, max_results=1000,
+                                     pagination_token=token, user_auth=True)
+        for u in (resp.data or []):
+            out.append({"user_id": str(u.id), "username": u.username})
+        token = (resp.meta or {}).get("next_token")
+        if not token:
+            break
+    return out
+
+
 def resolve_user_ids(handles):
     resp = _client().get_users(usernames=handles, user_auth=True)
     return {u.username.lower(): u.id for u in (resp.data or [])}
