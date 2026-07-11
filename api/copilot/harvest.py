@@ -4,6 +4,9 @@ import re
 import datetime as dt
 from . import config, xclient, voice, store
 
+# @QNTMLive is verified, so it can reply to these; "" / None = X default (everyone).
+REPLY_OK = {"everyone", "verified", "", "none"}
+
 
 def _engagement(m):
     return (m.get("like_count", 0) + m.get("retweet_count", 0)
@@ -38,6 +41,11 @@ def _clean(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _repliable(p):
+    rs = (p.get("reply_settings") or "").strip().lower()
+    return rs in REPLY_OK
+
+
 def _gather():
     posts = []
     id_map = xclient.resolve_user_ids(config.TARGET_HANDLES)
@@ -61,9 +69,13 @@ def harvest():
     recent_replies = store.recent_posted_texts()
 
     posts = _gather()
+    reply_locked = 0
     scored = []
     for p in posts:
         if p["id"] in seen:
+            continue
+        if not _repliable(p):
+            reply_locked += 1
             continue
         eng = _engagement(p["metrics"])
         if eng < config.MIN_ENGAGEMENT:
@@ -110,7 +122,8 @@ def harvest():
         used_topics.add(c["topic"])
         queued += 1
 
-    result = {"gathered": len(posts), "eligible": len(scored), "queued": queued}
+    result = {"gathered": len(posts), "reply_locked": reply_locked,
+              "eligible": len(scored), "queued": queued}
     print(result)
     return result
 

@@ -2,7 +2,7 @@
 import os
 import tweepy
 
-_TWEET_FIELDS = ["created_at", "public_metrics", "author_id", "lang"]
+_TWEET_FIELDS = ["created_at", "public_metrics", "author_id", "lang", "reply_settings"]
 
 
 def _client():
@@ -22,6 +22,7 @@ def _norm(tw, username=None):
         "username": username,
         "created_at": tw.created_at,
         "metrics": tw.public_metrics or {},
+        "reply_settings": getattr(tw, "reply_settings", None),
     }
 
 
