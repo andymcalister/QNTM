@@ -460,6 +460,27 @@ def write_valuation_history(live_data: dict) -> bool:
         return False
 
 
+def _capture_extra_benchmarks(sb, yf) -> None:
+    """Best-effort daily RSP + QQQ close onto today's benchmark_price row."""
+    today = date.today().isoformat()
+    for ticker, col in [("RSP", "rsp_close"), ("QQQ", "qqq_close")]:
+        try:
+            dl = yf.download(ticker, period="1d", auto_adjust=True, progress=False)
+            if dl is None or dl.empty or "Close" not in dl:
+                continue
+            c = dl["Close"]
+            if hasattr(c, "columns"):
+                c = c[ticker] if ticker in c.columns else c.iloc[:, 0]
+            c = c.ffill()
+            px = float(c.iloc[-1])
+            if px != px or px <= 0:
+                continue
+            sb.table(BENCHMARK_TABLE).update({col: round(px, 4)}).eq("d", today).execute()
+            log.info(f"benchmark_price: {ticker} {px:.2f} @ {today}")
+        except Exception as e:
+            log.warning(f"{ticker} capture failed: {e}")
+
+
 def update_benchmark_price() -> bool:
     """Append/refresh today's SPY close to benchmark_price so the Model Portfolio
     equity curve can be rebuilt entirely from stored data — no live SPY pull on
@@ -491,6 +512,10 @@ def update_benchmark_price() -> bool:
             on_conflict="d"
         ).execute()
         log.info(f"benchmark_price: SPY {px:.2f} @ {date.today().isoformat()}")
+        try:
+            _capture_extra_benchmarks(sb, yf)
+        except Exception as _e:
+            log.warning(f"extra benchmark capture failed: {_e}")
         return True
     except Exception as e:
         log.error(f"benchmark_price update failed: {e}")
