@@ -8,6 +8,7 @@ any signed-in admin (email in ADMIN_EMAILS) is authorized. No separate secret.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from tweepy.errors import Forbidden, TweepyException
 
 from .auth import current_user
 from .admin import _is_admin
@@ -46,25 +47,40 @@ def run_harvest(user: dict = Depends(current_user)):
 def approve(cid: str, body: Approve, user: dict = Depends(current_user)):
     _guard(user)
     if store.posted_today_count() >= config.DAILY_POST_CAP:
-        raise HTTPException(status_code=429, detail="daily cap reached")
+        raise HTTPException(status_code=429, detail="Daily cap reached.")
     item = store.get(cid)
     if not item or item.get("status") != "pending":
-        raise HTTPException(status_code=404, detail="not found or already handled")
+        raise HTTPException(status_code=404, detail="Not found or already handled.")
     text = (body.text or "").strip()
     if not text:
-        raise HTTPException(status_code=400, detail="empty reply")
+        raise HTTPException(status_code=400, detail="Empty reply.")
     if len(text) > 280:
-        raise HTTPException(status_code=400, detail="reply exceeds 280 chars")
+        raise HTTPException(status_code=400, detail="Reply exceeds 280 chars.")
+
+    # Reply FIRST — only like if the reply actually posts (no orphan likes).
     try:
-        xclient.like(item["tweet_id"])
-    except Exception as e:
-        print(f"[warn] like {item['tweet_id']}: {e}")
-    resp = xclient.reply(item["tweet_id"], text)
+        resp = xclient.reply(item["tweet_id"], text)
+    except Forbidden:
+        # The target author restricts who can reply. Not our account; nothing to fix.
+        store.update(cid, {"status": "blocked"})
+        raise HTTPException(
+            status_code=409,
+            detail="X blocked this reply — the author limits who can reply. Marked blocked.",
+        )
+    except TweepyException as e:
+        raise HTTPException(status_code=502, detail=f"X error: {e}")
+
     reply_id = None
     try:
         reply_id = str(resp.data["id"])
     except Exception:
         pass
+
+    try:
+        xclient.like(item["tweet_id"])
+    except Exception as e:
+        print(f"[warn] like {item['tweet_id']}: {e}")
+
     store.update(cid, {"status": "posted", "final_text": text,
                        "reply_id": reply_id, "posted_at": store.now_iso()})
     return {"ok": True, "reply_id": reply_id}
