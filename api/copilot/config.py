@@ -1,9 +1,17 @@
 import os
 
-# --- Curated high-signal accounts (the "posts that matter most" strategy) ---
+# --- Curated accounts. Reply permission on X is PER-POST, so big accounts still
+#     yield postable replies on some posts. Mix of your originals + mid-size,
+#     reply-friendly finance accounts. Unresolvable handles are silently skipped. ---
 TARGET_HANDLES = [
+    # originals
     "BrianFeroldi", "morganhousel", "SJosephBurns", "TheTradingGeek",
     "AlphaArchitect", "AswathDamodaran", "awealthofcs", "EricBalchunas",
+    # broadened set (mid-size / reply-open leaning)
+    "charliebilello", "LizAnnSonders", "bespokeinvest", "SoberLook",
+    "ReformedBroker", "michaelbatnick", "RampCapitalLLC", "hmeisler",
+    "allstarcharts", "TheStalwart", "KoyfinCharts", "OphirGottlieb",
+    "mark_dow", "TheMotleyFool", "stlouisfed", "EconguyRosie",
 ]
 
 # Keyword net (OFF by default; costs more reads). Enable: COPILOT_KEYWORD_SEARCH=1
