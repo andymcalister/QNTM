@@ -31,14 +31,18 @@ def get_my_id():
 
 
 def followers(user_id, cap_pages=6):
-    """Accounts that FOLLOW this user (they've engaged us -> API replies allowed)."""
+    """This user's followers, each with their own follower_count (for ranking)."""
     c = _client()
     out, token = [], None
     for _ in range(cap_pages):
         resp = c.get_users_followers(id=user_id, max_results=1000,
-                                     pagination_token=token, user_auth=True)
+                                     pagination_token=token,
+                                     user_fields=["username", "public_metrics"],
+                                     user_auth=True)
         for u in (resp.data or []):
-            out.append({"user_id": str(u.id), "username": u.username})
+            pm = getattr(u, "public_metrics", None) or {}
+            out.append({"user_id": str(u.id), "username": u.username,
+                        "followers_count": pm.get("followers_count", 0)})
         token = (resp.meta or {}).get("next_token")
         if not token:
             break

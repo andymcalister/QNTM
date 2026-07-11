@@ -1,5 +1,5 @@
-"""Harvest from your FOLLOWERS (auto-synced) - the accounts X lets us reply to.
-Run: python -m api.copilot.harvest"""
+"""Harvest from big-reach accounts (TARGET_HANDLES) MIXED with your top followers.
+Manual posting via intent link. Run: python -m api.copilot.harvest"""
 import math
 import re
 import datetime as dt
@@ -38,41 +38,46 @@ def _clean(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _sync_followers_if_stale():
+def _sync_top_followers_if_stale():
     last = store.following_synced_at()
     fresh = last is not None and _age_hours(last) < config.FOLLOW_TTL_HRS
     if fresh and store.following_count() > 0:
-        return {"synced": False, "followers": store.following_count()}
+        return {"synced": False, "top_followers": store.following_count()}
     try:
         rows = xclient.followers(xclient.get_my_id())
     except Exception as e:
         print(f"[warn] followers sync: {e}")
-        return {"synced": False, "followers": store.following_count(), "error": str(e)}
-    if rows:
-        store.upsert_following(rows)
-    return {"synced": True, "followers": store.following_count()}
+        return {"synced": False, "top_followers": store.following_count(), "error": str(e)}
+    rows.sort(key=lambda r: r.get("followers_count", 0), reverse=True)
+    top = rows[:config.FOLLOW_TOP]
+    store.replace_targets(top)
+    return {"synced": True, "top_followers": len(top)}
 
 
 def _gather():
-    targets = store.targets_for_harvest(config.FOLLOW_SAMPLE)
-    posts, harvested = [], []
-    for t in targets:
+    posts = []
+    idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
+    for uname, uid in idmap.items():
+        try:
+            posts.extend(xclient.timeline(str(uid), uname, config.TWEETS_PER_HANDLE))
+        except Exception as e:
+            print(f"[warn] timeline {uname}: {e}")
+    fol = store.targets_for_harvest(config.FOLLOW_TOP)
+    for t in fol:
         try:
             posts.extend(xclient.timeline(t["user_id"], t.get("username"),
                                           config.TWEETS_PER_HANDLE))
-            harvested.append(t["user_id"])
         except Exception as e:
             print(f"[warn] timeline {t.get('username')}: {e}")
-    store.mark_harvested(harvested)
-    return posts
+    return posts, len(idmap), len(fol)
 
 
 def harvest():
-    sync = _sync_followers_if_stale()
+    sync = _sync_top_followers_if_stale()
     seen = store.existing_tweet_ids()
     recent_replies = store.recent_posted_texts()
 
-    posts = _gather()
+    posts, big, fol = _gather()
     off_topic = 0
     scored = []
     for p in posts:
@@ -123,7 +128,7 @@ def harvest():
         })
         queued += 1
 
-    result = {"followers": sync.get("followers"), "synced": sync.get("synced"),
+    result = {"big_accounts": big, "top_followers": fol, "synced": sync.get("synced"),
               "gathered": len(posts), "off_topic": off_topic,
               "eligible": len(scored), "queued": queued}
     print(result)

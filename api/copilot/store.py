@@ -134,3 +134,18 @@ def mark_harvested(user_ids):
     r = requests.patch(_F, headers=h, params={"user_id": f"in.({ids})"},
                        json={"last_harvested_at": now_iso()}, timeout=30)
     r.raise_for_status()
+
+
+def replace_targets(rows):
+    """Delete all target rows, then insert the given set (for top-followers refresh)."""
+    h = {**_H, "Prefer": "return=minimal"}
+    d = requests.delete(_F, headers=h, params={"user_id": "not.is.null"}, timeout=30)
+    d.raise_for_status()
+    if not rows:
+        return
+    now = now_iso()
+    payload = [{"user_id": x["user_id"], "username": x.get("username"),
+                "synced_at": now} for x in rows]
+    for i in range(0, len(payload), 500):
+        r = requests.post(_F, headers=h, json=payload[i:i + 500], timeout=60)
+        r.raise_for_status()
