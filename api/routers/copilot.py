@@ -1,43 +1,34 @@
-"""FastAPI router for the comment copilot. Mount in your main app.
+"""FastAPI router for the comment copilot — admin-session gated.
 
     from api.routers import copilot as copilot_router
     app.include_router(copilot_router.router)
 
-All JSON endpoints require:  Authorization: Bearer <COPILOT_SECRET>
-The review page itself (GET /api/copilot/review) is an unauthenticated shell;
-it asks for the secret in-browser and uses it for the data calls.
+Auth reuses the same session dependency + admin allowlist as the admin router:
+any signed-in admin (email in ADMIN_EMAILS) is authorized. No separate secret.
 """
-import os
-import pathlib
-from fastapi import APIRouter, Header, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from .auth import current_user
+from .admin import _is_admin
 from ..copilot import config, store, xclient
 from ..copilot import harvest as harvest_mod
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
-_SECRET = os.environ.get("COPILOT_SECRET")
-_HTML = pathlib.Path(__file__).resolve().parent.parent / "copilot" / "review.html"
 
 
-def _auth(authorization):
-    if not _SECRET or authorization != f"Bearer {_SECRET}":
-        raise HTTPException(status_code=401, detail="unauthorized")
+def _guard(user: dict):
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail="Not authorized")
 
 
 class Approve(BaseModel):
     text: str
 
 
-@router.get("/review", response_class=HTMLResponse)
-def review_page():
-    return _HTML.read_text()
-
-
 @router.get("/queue")
-def queue(authorization: str = Header(None)):
-    _auth(authorization)
+def queue(user: dict = Depends(current_user)):
+    _guard(user)
     return {
         "cap": config.DAILY_POST_CAP,
         "posted_today": store.posted_today_count(),
@@ -46,14 +37,14 @@ def queue(authorization: str = Header(None)):
 
 
 @router.post("/harvest")
-def run_harvest(authorization: str = Header(None)):
-    _auth(authorization)
+def run_harvest(user: dict = Depends(current_user)):
+    _guard(user)
     return harvest_mod.harvest()
 
 
 @router.post("/{cid}/approve")
-def approve(cid: str, body: Approve, authorization: str = Header(None)):
-    _auth(authorization)
+def approve(cid: str, body: Approve, user: dict = Depends(current_user)):
+    _guard(user)
     if store.posted_today_count() >= config.DAILY_POST_CAP:
         raise HTTPException(status_code=429, detail="daily cap reached")
     item = store.get(cid)
@@ -65,7 +56,7 @@ def approve(cid: str, body: Approve, authorization: str = Header(None)):
     if len(text) > 280:
         raise HTTPException(status_code=400, detail="reply exceeds 280 chars")
     try:
-        xclient.like(item["tweet_id"])          # like failure must not block reply
+        xclient.like(item["tweet_id"])
     except Exception as e:
         print(f"[warn] like {item['tweet_id']}: {e}")
     resp = xclient.reply(item["tweet_id"], text)
@@ -80,7 +71,7 @@ def approve(cid: str, body: Approve, authorization: str = Header(None)):
 
 
 @router.post("/{cid}/skip")
-def skip(cid: str, authorization: str = Header(None)):
-    _auth(authorization)
+def skip(cid: str, user: dict = Depends(current_user)):
+    _guard(user)
     store.update(cid, {"status": "skipped"})
     return {"ok": True}
