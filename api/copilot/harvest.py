@@ -39,7 +39,6 @@ def _clean(text):
 
 
 def _sync_following_if_stale():
-    """Refresh the cached following list when empty or older than TTL."""
     last = store.following_synced_at()
     fresh = last is not None and _age_hours(last) < config.FOLLOW_TTL_HRS
     if fresh and store.following_count() > 0:
@@ -57,7 +56,6 @@ def _sync_following_if_stale():
 def _gather():
     targets = store.targets_for_harvest(config.FOLLOW_SAMPLE)
     if not targets:
-        # nothing synced yet -> fall back to curated handles so it's not dead
         idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
         targets = [{"user_id": str(uid), "username": uname}
                    for uname, uid in idmap.items()]
@@ -76,7 +74,6 @@ def _gather():
 def harvest():
     sync = _sync_following_if_stale()
     seen = store.existing_tweet_ids()
-    used_topics = set(store.queued_topics_today())
     recent_replies = store.recent_posted_texts()
 
     posts = _gather()
@@ -89,6 +86,8 @@ def harvest():
         if len(text) < 15:
             continue
         rel = _relevance(text)
+        # Keyword requirement is OFF by default now: posts from accounts you
+        # follow are presumed relevant. Flip COPILOT_REQUIRE_KEYWORD=1 to re-enable.
         if config.REQUIRE_KEYWORD and rel == 0:
             off_topic += 1
             continue
@@ -104,12 +103,11 @@ def harvest():
         })
     scored.sort(key=lambda x: x["score"], reverse=True)
 
+    # No topic-dedup: queue the top N eligible posts directly.
     queued = 0
     for c in scored:
         if queued >= config.CANDIDATES_PER_RUN:
             break
-        if c["topic"] != "general" and c["topic"] in used_topics:
-            continue
         try:
             drafts = voice.draft(c["text"], c["post"].get("username"),
                                  recent_replies, config.DRAFTS_PER_POST)
@@ -130,7 +128,6 @@ def harvest():
             "drafts": drafts,
             "status": "pending",
         })
-        used_topics.add(c["topic"])
         queued += 1
 
     result = {"following": sync.get("following"), "synced": sync.get("synced"),
