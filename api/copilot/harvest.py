@@ -1,4 +1,4 @@
-"""Harvest from the accounts you follow (auto-synced), draft, queue.
+"""Harvest from your FOLLOWERS (auto-synced) - the accounts X lets us reply to.
 Run: python -m api.copilot.harvest"""
 import math
 import re
@@ -38,27 +38,23 @@ def _clean(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _sync_following_if_stale():
+def _sync_followers_if_stale():
     last = store.following_synced_at()
     fresh = last is not None and _age_hours(last) < config.FOLLOW_TTL_HRS
     if fresh and store.following_count() > 0:
-        return {"synced": False, "following": store.following_count()}
+        return {"synced": False, "followers": store.following_count()}
     try:
-        rows = xclient.following(xclient.get_my_id())
+        rows = xclient.followers(xclient.get_my_id())
     except Exception as e:
-        print(f"[warn] following sync: {e}")
-        return {"synced": False, "following": store.following_count(), "error": str(e)}
+        print(f"[warn] followers sync: {e}")
+        return {"synced": False, "followers": store.following_count(), "error": str(e)}
     if rows:
         store.upsert_following(rows)
-    return {"synced": True, "following": store.following_count()}
+    return {"synced": True, "followers": store.following_count()}
 
 
 def _gather():
     targets = store.targets_for_harvest(config.FOLLOW_SAMPLE)
-    if not targets:
-        idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
-        targets = [{"user_id": str(uid), "username": uname}
-                   for uname, uid in idmap.items()]
     posts, harvested = [], []
     for t in targets:
         try:
@@ -72,7 +68,7 @@ def _gather():
 
 
 def harvest():
-    sync = _sync_following_if_stale()
+    sync = _sync_followers_if_stale()
     seen = store.existing_tweet_ids()
     recent_replies = store.recent_posted_texts()
 
@@ -86,8 +82,6 @@ def harvest():
         if len(text) < 15:
             continue
         rel = _relevance(text)
-        # Keyword requirement is OFF by default now: posts from accounts you
-        # follow are presumed relevant. Flip COPILOT_REQUIRE_KEYWORD=1 to re-enable.
         if config.REQUIRE_KEYWORD and rel == 0:
             off_topic += 1
             continue
@@ -103,7 +97,6 @@ def harvest():
         })
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    # No topic-dedup: queue the top N eligible posts directly.
     queued = 0
     for c in scored:
         if queued >= config.CANDIDATES_PER_RUN:
@@ -130,7 +123,7 @@ def harvest():
         })
         queued += 1
 
-    result = {"following": sync.get("following"), "synced": sync.get("synced"),
+    result = {"followers": sync.get("followers"), "synced": sync.get("synced"),
               "gathered": len(posts), "off_topic": off_topic,
               "eligible": len(scored), "queued": queued}
     print(result)

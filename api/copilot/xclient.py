@@ -30,12 +30,12 @@ def get_my_id():
     return str(_client().get_me(user_auth=True).data.id)
 
 
-def following(user_id, cap_pages=6):
-    """All accounts this user follows (paginated). [{user_id, username}]"""
+def followers(user_id, cap_pages=6):
+    """Accounts that FOLLOW this user (they've engaged us -> API replies allowed)."""
     c = _client()
     out, token = [], None
     for _ in range(cap_pages):
-        resp = c.get_users_following(id=user_id, max_results=1000,
+        resp = c.get_users_followers(id=user_id, max_results=1000,
                                      pagination_token=token, user_auth=True)
         for u in (resp.data or []):
             out.append({"user_id": str(u.id), "username": u.username})
