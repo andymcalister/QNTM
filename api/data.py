@@ -1023,10 +1023,14 @@ def load_model_portfolio() -> dict:
         tickers = sorted({p["ticker"] for p in positions})
 
         # 2) stored price frame — SPY spine (date axis) + held-ticker closes
-        brows = _mp_fetch_all(sb, "benchmark_price", "d,close",
+        brows = _mp_fetch_all(sb, "benchmark_price", "d,close,rsp_close,qqq_close",
                               [("gte", ("d", inception))], "d")
         spy = {str(r["d"])[:10]: float(r["close"]) for r in brows
                if r.get("close") is not None}
+        rsp = {str(r["d"])[:10]: float(r["rsp_close"]) for r in brows
+               if r.get("rsp_close") is not None}
+        qqq = {str(r["d"])[:10]: float(r["qqq_close"]) for r in brows
+               if r.get("qqq_close") is not None}
         srows = _mp_fetch_all(sb, "signal_log", "ticker,signal_date,price",
                               [("in_", ("ticker", tickers)), ("gte", ("signal_date", inception))],
                               "signal_date")
@@ -1084,7 +1088,19 @@ def load_model_portfolio() -> dict:
 
             spy0 = spy[dates[0]]
             spy_series = [(d, _MP_BASE * spy[d] / spy0) for d in dates]
-            curve = [{"d": d, "model": round(m, 2), "spy": round(s, 2)}
+            # RSP/QQQ normalized to their first available value at/after inception.
+            def _bench_norm(bench):
+                keyed = [d for d in dates if d in bench]
+                if len(keyed) < 2:
+                    return None, {}
+                b0 = bench[keyed[0]]
+                if not b0:
+                    return None, {}
+                return b0, {d: round(_MP_BASE * bench[d] / b0, 2) for d in keyed}
+            rsp0, rsp_norm = _bench_norm(rsp)
+            qqq0, qqq_norm = _bench_norm(qqq)
+            curve = [{"d": d, "model": round(m, 2), "spy": round(s, 2),
+                      "rsp": rsp_norm.get(d), "qqq": qqq_norm.get(d)}
                      for (d, m), (_, s) in zip(model_series, spy_series)]
 
             m_last = model_series[-1][1]; s_last = spy_series[-1][1]
@@ -1117,11 +1133,24 @@ def load_model_portfolio() -> dict:
                     "spy_pct": round(ds_pct, 2), "spy_dollar": round(spy_now_v - spy_prev_v, 2),
                     "vs_spy_pct": round(dm_pct - ds_pct, 2),
                 }
+            # RSP/QQQ cumulative returns over their available series.
+            def _bench_ret(norm):
+                if not norm:
+                    return None, None
+                vals = [norm[d] for d in sorted(norm)]
+                last = vals[-1]
+                return round(last, 2), round((last / _MP_BASE - 1) * 100, 2)
+            rsp_value, rsp_ret = _bench_ret(rsp_norm)
+            qqq_value, qqq_ret = _bench_ret(qqq_norm)
             stats = {
                 "inception": inception,
                 "model_value": round(m_last, 2), "spy_value": round(s_last, 2),
+                "rsp_value": rsp_value, "qqq_value": qqq_value,
                 "model_ret": round(model_ret, 2), "spy_ret": round(spy_ret, 2),
+                "rsp_ret": rsp_ret, "qqq_ret": qqq_ret,
                 "alpha": round(model_ret - spy_ret, 2),
+                "vs_rsp": round(model_ret - rsp_ret, 2) if rsp_ret is not None else None,
+                "vs_qqq": round(model_ret - qqq_ret, 2) if qqq_ret is not None else None,
                 "day_model": round(day_model, 2), "day_spy": round(day_spy, 2),
                 "basis": _MP_BASE, "n_sessions": len(dates),
                 "pre_post": pre_post_move(sb),

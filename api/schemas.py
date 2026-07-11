@@ -188,6 +188,8 @@ class EquityPoint(BaseModel):
     d: str
     model: float
     spy: float
+    rsp: Optional[float] = None
+    qqq: Optional[float] = None
 
 
 class PrePostMove(BaseModel):
@@ -202,9 +204,15 @@ class ModelStats(BaseModel):
     inception: Optional[str] = None
     model_value: float = 0.0
     spy_value: float = 0.0
+    rsp_value: Optional[float] = None
+    qqq_value: Optional[float] = None
     model_ret: float = 0.0
     spy_ret: float = 0.0
+    rsp_ret: Optional[float] = None
+    qqq_ret: Optional[float] = None
     alpha: float = 0.0
+    vs_rsp: Optional[float] = None
+    vs_qqq: Optional[float] = None
     day_model: float = 0.0
     day_spy: float = 0.0
     basis: float = 100000.0
