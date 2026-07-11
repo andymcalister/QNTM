@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>QNTM Comment Copilot</title>
+<style>
+  :root{
+    --bg:#0b0d10; --card:#14181d; --line:#232a31; --ink:#e8edf2;
+    --mut:#8a95a1; --acc:#4ea1ff; --ok:#2fbf71; --warn:#e0a63b; --skip:#7a828c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;background:rgba(11,13,16,.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);padding:12px 16px;display:flex;
+    align-items:center;gap:12px;flex-wrap:wrap}
+  h1{font-size:15px;margin:0;letter-spacing:.06em;font-weight:600}
+  .tag{color:var(--mut);font-size:13px}
+  .spacer{flex:1}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);
+    background:#1b2129;color:var(--ink);border-radius:8px;padding:8px 12px}
+  button:hover{border-color:var(--acc)}
+  button:disabled{opacity:.5;cursor:default}
+  .btn-ok{background:#123322;border-color:#1e5a3a;color:#c9f5dd}
+  .btn-skip{background:#20242a;color:var(--skip)}
+  main{max-width:720px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-bottom:14px}
+  .meta{display:flex;gap:10px;align-items:center;color:var(--mut);font-size:13px;
+    margin-bottom:10px;flex-wrap:wrap}
+  .meta a{color:var(--acc);text-decoration:none}
+  .post{white-space:pre-wrap;background:#0f1216;border:1px solid var(--line);
+    border-radius:8px;padding:12px;margin-bottom:12px;color:#d6dde4}
+  .drafts{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .draft{text-align:left;background:#171d24;border:1px solid var(--line);
+    padding:10px 12px;border-radius:8px;color:#dfe6ec}
+  .draft:hover{border-color:var(--acc);background:#1a222b}
+  textarea{width:100%;min-height:70px;background:#0f1216;color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;resize:vertical}
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .count{color:var(--mut);font-size:12px}
+  .count.over{color:var(--warn)}
+  .empty{color:var(--mut);text-align:center;padding:60px 0}
+  .gate{max-width:360px;margin:80px auto;text-align:center}
+  input[type=password]{width:100%;padding:10px;border-radius:8px;
+    border:1px solid var(--line);background:#0f1216;color:var(--ink);font:inherit;margin:10px 0}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:#1b2129;border:1px solid var(--line);padding:10px 16px;border-radius:8px;
+    opacity:0;transition:.2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="gate" class="gate">
+  <h1>QNTM Comment Copilot</h1>
+  <p class="tag">Enter your copilot secret</p>
+  <input id="secret" type="password" placeholder="COPILOT_SECRET" autocomplete="off"/>
+  <button onclick="unlock()">Unlock</button>
+</div>
+
+<header id="bar" style="display:none">
+  <h1>QNTM COPILOT</h1>
+  <span class="tag" id="cap"></span>
+  <span class="spacer"></span>
+  <button id="harvestBtn" onclick="harvest()">Harvest now</button>
+  <button onclick="load()">Refresh</button>
+</header>
+<main id="app" style="display:none"></main>
+<div id="toast" class="toast"></div>
+
+<script>
+const API = window.location.origin + "/api/copilot";
+let TOKEN = null;
+
+function unlock(){
+  const s = document.getElementById("secret").value.trim();
+  if(!s) return;
+  TOKEN = s; sessionStorage.setItem("qntm_copilot", s);
+  document.getElementById("gate").style.display="none";
+  document.getElementById("bar").style.display="flex";
+  document.getElementById("app").style.display="block";
+  load();
+}
+(function(){ const s=sessionStorage.getItem("qntm_copilot");
+  if(s){ document.getElementById("secret").value=s; } })();
+
+function h(){ return {"Authorization":"Bearer "+TOKEN,"Content-Type":"application/json"}; }
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m;
+  t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1800); }
+
+async function load(){
+  const app=document.getElementById("app"); app.innerHTML="Loading…";
+  let r;
+  try{ r=await fetch(API+"/queue",{headers:h()}); }catch(e){ app.innerHTML="Network error."; return; }
+  if(r.status===401){ toast("Bad secret"); sessionStorage.removeItem("qntm_copilot");
+    location.reload(); return; }
+  const d=await r.json();
+  document.getElementById("cap").textContent=`${d.posted_today}/${d.cap} posted today`;
+  if(!d.items.length){ app.innerHTML='<div class="empty">Queue empty. Hit “Harvest now”.</div>'; return; }
+  app.innerHTML="";
+  d.items.forEach(it=>app.appendChild(card(it)));
+}
+
+function card(it){
+  const el=document.createElement("div"); el.className="card";
+  const drafts=(it.drafts||[]).map((t,i)=>
+    `<button class="draft" onclick="pick('${it.id}',${i})">${esc(t)}</button>`).join("");
+  el.innerHTML=`
+    <div class="meta">
+      <strong>@${esc(it.author||"?")}</strong>
+      <span>· ${it.engagement} eng</span>
+      <span>· ${esc(it.topic||"")}</span>
+      <a href="${it.post_url}" target="_blank" rel="noopener">open post ↗</a>
+    </div>
+    <div class="post">${esc(it.post_text||"")}</div>
+    <div class="drafts" id="drafts-${it.id}">${drafts}</div>
+    <textarea id="ta-${it.id}" placeholder="Pick a draft above, or write your own…"></textarea>
+    <div class="row">
+      <button class="btn-ok" onclick="approve('${it.id}')">Approve · Like + Reply</button>
+      <button class="btn-skip" onclick="skip('${it.id}')">Skip</button>
+      <span class="spacer"></span>
+      <span class="count" id="ct-${it.id}">0/280</span>
+    </div>`;
+  el.querySelector(`#ta-${it.id}`).addEventListener("input",()=>count(it.id));
+  window["__drafts_"+it.id]=it.drafts||[];
+  return el;
+}
+
+function pick(id,i){ const ta=document.getElementById("ta-"+id);
+  ta.value=window["__drafts_"+id][i]||""; count(id); ta.focus(); }
+function count(id){ const ta=document.getElementById("ta-"+id);
+  const c=document.getElementById("ct-"+id); const n=ta.value.length;
+  c.textContent=n+"/280"; c.classList.toggle("over",n>280); }
+
+async function approve(id){
+  const text=document.getElementById("ta-"+id).value.trim();
+  if(!text){ toast("Write or pick a reply first"); return; }
+  if(text.length>280){ toast("Too long"); return; }
+  const btns=event.target; btns.disabled=true;
+  const r=await fetch(API+"/"+id+"/approve",{method:"POST",headers:h(),
+    body:JSON.stringify({text})});
+  if(r.ok){ toast("Posted ✓"); event.target.closest(".card").remove(); load(); }
+  else{ const e=await r.json().catch(()=>({})); toast(e.detail||"Failed"); btns.disabled=false; }
+}
+async function skip(id){
+  await fetch(API+"/"+id+"/skip",{method:"POST",headers:h()});
+  toast("Skipped"); event.target.closest(".card").remove();
+}
+async function harvest(){
+  const b=document.getElementById("harvestBtn"); b.disabled=true; b.textContent="Harvesting…";
+  const r=await fetch(API+"/harvest",{method:"POST",headers:h()});
+  const d=await r.json().catch(()=>({}));
+  b.disabled=false; b.textContent="Harvest now";
+  toast(d.queued!=null?`Queued ${d.queued} (${d.gathered} scanned)`:"Harvest error");
+  load();
+}
+function esc(s){ return (s||"").replace(/[&<>"]/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+</script>
+</body>
+</html>
