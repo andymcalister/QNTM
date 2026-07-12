@@ -32,6 +32,7 @@ REQUIRE_KEYWORD     = os.getenv("COPILOT_REQUIRE_KEYWORD", "0") == "1"
 
 FOLLOW_SAMPLE       = int(os.getenv("COPILOT_FOLLOW_SAMPLE", "25"))
 FOLLOW_TOP          = int(os.getenv("COPILOT_FOLLOW_TOP", "25"))
+FOLLOWING_TOP       = int(os.getenv("COPILOT_FOLLOWING_TOP", "25"))
 FOLLOW_TTL_HRS      = int(os.getenv("COPILOT_FOLLOW_TTL_HRS", "24"))
 KEYWORD_SEARCH      = os.getenv("COPILOT_KEYWORD_SEARCH", "0") == "1"
 KEYWORD_MAX_RESULTS = int(os.getenv("COPILOT_KEYWORD_MAX", "30"))

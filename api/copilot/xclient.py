@@ -49,6 +49,25 @@ def followers(user_id, cap_pages=6):
     return out
 
 
+def following(user_id, cap_pages=6):
+    """Accounts this user FOLLOWS, each with their own follower_count (for ranking)."""
+    c = _client()
+    out, token = [], None
+    for _ in range(cap_pages):
+        resp = c.get_users_following(id=user_id, max_results=1000,
+                                     pagination_token=token,
+                                     user_fields=["username", "public_metrics"],
+                                     user_auth=True)
+        for u in (resp.data or []):
+            pm = getattr(u, "public_metrics", None) or {}
+            out.append({"user_id": str(u.id), "username": u.username,
+                        "followers_count": pm.get("followers_count", 0)})
+        token = (resp.meta or {}).get("next_token")
+        if not token:
+            break
+    return out
+
+
 def resolve_user_ids(handles):
     resp = _client().get_users(usernames=handles, user_auth=True)
     return {u.username.lower(): u.id for u in (resp.data or [])}

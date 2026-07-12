@@ -11,6 +11,7 @@ _H = {"apikey": _KEY, "Authorization": f"Bearer {_KEY}",
       "Content-Type": "application/json"}
 _T = f"{_URL}/rest/v1/comment_queue"
 _F = f"{_URL}/rest/v1/copilot_following"
+_G = f"{_URL}/rest/v1/copilot_follows"
 
 
 def _utc_midnight():
@@ -149,3 +150,39 @@ def replace_targets(rows):
     for i in range(0, len(payload), 500):
         r = requests.post(_F, headers=h, json=payload[i:i + 500], timeout=60)
         r.raise_for_status()
+
+
+def follows_synced_at():
+    r = requests.get(_G, headers=_H, params={
+        "select": "synced_at", "order": "synced_at.desc", "limit": "1"}, timeout=30)
+    r.raise_for_status()
+    rows = r.json()
+    return _parse(rows[0]["synced_at"]) if rows else None
+
+
+def follows_count():
+    h = {**_H, "Prefer": "count=exact"}
+    r = requests.get(_G, headers=h, params={"select": "user_id", "limit": "1"}, timeout=30)
+    r.raise_for_status()
+    return int(r.headers.get("content-range", "*/0").split("/")[-1])
+
+
+def replace_follows(rows):
+    h = {**_H, "Prefer": "return=minimal"}
+    d = requests.delete(_G, headers=h, params={"user_id": "not.is.null"}, timeout=30)
+    d.raise_for_status()
+    if not rows:
+        return
+    now = now_iso()
+    payload = [{"user_id": x["user_id"], "username": x.get("username"),
+                "synced_at": now} for x in rows]
+    for i in range(0, len(payload), 500):
+        r = requests.post(_G, headers=h, json=payload[i:i + 500], timeout=60)
+        r.raise_for_status()
+
+
+def follows_for_harvest(limit):
+    r = requests.get(_G, headers=_H, params={
+        "select": "user_id,username", "limit": str(limit)}, timeout=30)
+    r.raise_for_status()
+    return r.json()
