@@ -2,14 +2,14 @@
 
 Reply posting happens MANUALLY via an X web-intent link on the client (X's API
 blocks programmatic replies). /approve likes the post server-side, then records
-the choice so the item clears the queue. A failed like never blocks the reply.
+the choice so the item clears the queue. No daily cap.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from .auth import current_user
 from .admin import _is_admin
-from ..copilot import config, store, xclient
+from ..copilot import store, xclient
 from ..copilot import harvest as harvest_mod
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
@@ -28,7 +28,6 @@ class Approve(BaseModel):
 def queue(user: dict = Depends(current_user)):
     _guard(user)
     return {
-        "cap": config.DAILY_POST_CAP,
         "posted_today": store.posted_today_count(),
         "items": store.list_pending(),
     }
