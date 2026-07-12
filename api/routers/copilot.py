@@ -1,14 +1,11 @@
 """FastAPI router for the comment copilot — admin-session gated.
 
-    from api.routers import copilot as copilot_router
-    app.include_router(copilot_router.router)
-
-Auth reuses the same session dependency + admin allowlist as the admin router:
-any signed-in admin (email in ADMIN_EMAILS) is authorized. No separate secret.
+Reply posting happens MANUALLY via an X web-intent link on the client (X's API
+blocks programmatic replies). /approve likes the post server-side, then records
+the choice so the item clears the queue. A failed like never blocks the reply.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from tweepy.errors import Forbidden, TweepyException
 
 from .auth import current_user
 from .admin import _is_admin
@@ -45,9 +42,8 @@ def run_harvest(user: dict = Depends(current_user)):
 
 @router.post("/{cid}/approve")
 def approve(cid: str, body: Approve, user: dict = Depends(current_user)):
+    """Like the post, then record the reply (posting happens on X via intent link)."""
     _guard(user)
-    if store.posted_today_count() >= config.DAILY_POST_CAP:
-        raise HTTPException(status_code=429, detail="Daily cap reached.")
     item = store.get(cid)
     if not item or item.get("status") != "pending":
         raise HTTPException(status_code=404, detail="Not found or already handled.")
@@ -57,33 +53,16 @@ def approve(cid: str, body: Approve, user: dict = Depends(current_user)):
     if len(text) > 280:
         raise HTTPException(status_code=400, detail="Reply exceeds 280 chars.")
 
-    # Reply FIRST — only like if the reply actually posts (no orphan likes).
-    try:
-        resp = xclient.reply(item["tweet_id"], text)
-    except Forbidden:
-        # The target author restricts who can reply. Not our account; nothing to fix.
-        store.update(cid, {"status": "blocked"})
-        raise HTTPException(
-            status_code=409,
-            detail="X blocked this reply — the author limits who can reply. Marked blocked.",
-        )
-    except TweepyException as e:
-        raise HTTPException(status_code=502, detail=f"X error: {e}")
-
-    reply_id = None
-    try:
-        reply_id = str(resp.data["id"])
-    except Exception:
-        pass
-
+    liked = False
     try:
         xclient.like(item["tweet_id"])
+        liked = True
     except Exception as e:
         print(f"[warn] like {item['tweet_id']}: {e}")
 
     store.update(cid, {"status": "posted", "final_text": text,
-                       "reply_id": reply_id, "posted_at": store.now_iso()})
-    return {"ok": True, "reply_id": reply_id}
+                       "posted_at": store.now_iso()})
+    return {"ok": True, "liked": liked}
 
 
 @router.post("/{cid}/skip")
