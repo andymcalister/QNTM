@@ -246,19 +246,41 @@ def narrate(data):
         return None
     client = anthropic.Anthropic(api_key=key)
     model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+    # _NARRATE_LOOP: web_search is a SERVER-side tool - a turn can end on search
+    # blocks with no prose. One-shot reads returned "" and killed the run.
+    MAX_TURNS = 6
+    messages = [{"role": "user", "content": build_prompt(data)}]
+    chunks = []
     try:
-        resp = client.messages.create(
-            model=model,
-            max_tokens=1400,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 6}],
-            messages=[{"role": "user", "content": build_prompt(data)}],
-        )
-        text = "\n".join(
-            b.text for b in resp.content
-            if getattr(b, "type", "") == "text" and getattr(b, "text", "")
-        ).strip()
-        text = _strip_preamble(text)
-        return text or None
+        for turn in range(MAX_TURNS):
+            resp = client.messages.create(
+                model=model,
+                max_tokens=1400,
+                tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 6}],
+                messages=messages,
+            )
+            turn_text = "\n".join(
+                b.text for b in resp.content
+                if getattr(b, "type", "") == "text" and getattr(b, "text", "")
+            ).strip()
+            if turn_text:
+                chunks.append(turn_text)
+            stop = getattr(resp, "stop_reason", None)
+            if stop != "tool_use":
+                if not chunks:
+                    log.warning("narrate: turn %d ended (%s) with no text", turn + 1, stop)
+                break
+            messages.append({"role": "assistant", "content": resp.content})
+            messages.append({"role": "user", "content":
+                             "Now write the piece using what you found. Prose only - "
+                             "no preamble, no tool commentary."})
+        else:
+            log.warning("narrate: hit MAX_TURNS (%d) without finishing", MAX_TURNS)
+        text = _strip_preamble("\n\n".join(chunks).strip())
+        if not text:
+            log.error("narrate: no text produced")
+            return None
+        return text
     except Exception as e:
         log.error("narration failed: %s", e)
         return None
