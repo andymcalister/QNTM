@@ -66,6 +66,58 @@ def _market_conviction(sb, as_of=None):
         return None, 0, None
 
 
+def _session_dates(sb, as_of=None, n=6):
+    """The n most recent distinct signal_log dates on/before as_of, newest first."""
+    q = (sb.table("signal_log").select("signal_date")
+         .order("signal_date", desc=True).limit(1))
+    if as_of:
+        q = q.lte("signal_date", as_of)
+    r = q.execute().data or []
+    if not r:
+        return []
+    dates = [r[0]["signal_date"]]
+    for _ in range(n - 1):
+        nxt = (sb.table("signal_log").select("signal_date")
+               .lt("signal_date", dates[-1])
+               .order("signal_date", desc=True).limit(1).execute().data or [])
+        if not nxt:
+            break
+        dates.append(nxt[0]["signal_date"])
+    return dates
+
+
+def _week_startend(sb, tickers, as_of=None):
+    """{ticker: {start, end}} spanning the WEEK: end = last session on/before
+    as_of, start = ~5 trading days earlier. Same shape as _daily_startend."""
+    if not tickers:
+        return {}
+    try:
+        dates = _session_dates(sb, as_of, n=6)
+        if len(dates) < 2:
+            log.warning("week span: only %d session(s) found", len(dates))
+            return {}
+        last = dates[0]
+        first = dates[-1]
+        rows = (sb.table("signal_log").select("ticker,price,signal_date")
+                .in_("ticker", tickers).in_("signal_date", [last, first])
+                .execute().data or [])
+        by = {}
+        for r in rows:
+            tk = (r.get("ticker") or "").upper()
+            pr = r.get("price")
+            if tk and pr is not None:
+                by.setdefault(tk, {})[r["signal_date"]] = float(pr)
+        out = {}
+        for tk, m in by.items():
+            if last in m and first in m and m[first]:
+                out[tk] = {"start": m[first], "end": m[last]}
+        log.info("week span: %s -> %s (%d tickers priced)", first, last, len(out))
+        return out
+    except Exception as e:
+        log.warning("week prices failed: %s", e)
+        return {}
+
+
 def _daily_startend(sb, tickers, as_of=None):
     """{ticker: {start: prev_close, end: close}} from the two most recent
     signal_log dates on or before as_of (defaults to latest)."""
@@ -129,13 +181,23 @@ def gather(sb, kind, as_of=None):
                                        spy_daily, _sector_perf)
             positions = model_positions(sb)
             tickers = [p["ticker"] for p in positions]
-            prices = _daily_startend(sb, tickers, data['date']) if tickers else {}
+            _span = _week_startend if kind == "week" else _daily_startend
+            prices = _span(sb, tickers, data['date']) if tickers else {}
             mret, used = model_dollar_weighted_return(positions, prices)
             data["model_return"] = round(mret, 2) if mret is not None else None
             data["model_holdings"] = len(positions)
 
             spy = [x for x in spy_daily(sb) if x[0] <= data['date']]
-            if len(spy) >= 2 and spy[-2][1]:
+            if kind == "week":
+                _sd = _session_dates(sb, data['date'], n=6)
+                if len(_sd) >= 2:
+                    _smap = {d: c for d, c in spy}
+                    _a, _b = _smap.get(_sd[-1]), _smap.get(_sd[0])
+                    if _a and _b:
+                        data["spy_return"] = round((_b / _a - 1.0) * 100.0, 2)
+                    else:
+                        log.warning("week spy: missing close for %s or %s", _sd[-1], _sd[0])
+            elif len(spy) >= 2 and spy[-2][1]:
                 data["spy_return"] = round((spy[-1][1] / spy[-2][1] - 1.0) * 100.0, 2)
 
             perf = _sector_perf(tickers, prices, min_names=1)
