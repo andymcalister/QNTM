@@ -68,6 +68,25 @@ def following(user_id, cap_pages=6):
     return out
 
 
+def author_follower_counts(author_ids):
+    """{author_id: followers_count} - batched 100 at a time."""
+    c = _client()
+    out = {}
+    ids = [str(a) for a in author_ids if a]
+    for i in range(0, len(ids), 100):
+        chunk = ids[i:i + 100]
+        try:
+            resp = c.get_users(ids=chunk, user_fields=["public_metrics", "username"],
+                               user_auth=True)
+        except Exception as e:
+            print(f"[warn] author lookup: {e}")
+            continue
+        for u in (resp.data or []):
+            pm = getattr(u, "public_metrics", None) or {}
+            out[str(u.id)] = pm.get("followers_count", 0)
+    return out
+
+
 def resolve_user_ids(handles):
     resp = _client().get_users(usernames=handles, user_auth=True)
     return {u.username.lower(): u.id for u in (resp.data or [])}

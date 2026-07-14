@@ -1,9 +1,14 @@
-"""Harvest: curated big accounts + your top follows + your top followers.
-Caps at ONE post per account per run. Manual posting via intent link."""
+"""QNTM Distribution Copilot harvest.
+Scores candidates on DISTRIBUTION value (real metrics, no LLM scoring call) and
+fills the queue against follower-tier quotas:
+  40% 5k-50k | 30% 50k-250k | 20% small-but-overperforming | 10% very large
+"""
 import math
 import re
 import datetime as dt
 from . import config, xclient, voice, store
+
+TIERS = [("mid", 0.40), ("large", 0.30), ("small", 0.20), ("mega", 0.10)]
 
 
 def _engagement(m):
@@ -28,14 +33,59 @@ def _topic(text):
     return hits[0] if hits else "general"
 
 
-def _score(eng, age_hrs, rel):
-    recency = math.exp(-age_hrs / 12.0)
-    return round(eng * (0.5 + 0.5 * recency) + rel * 5, 2)
-
-
 def _clean(text):
     text = re.sub(r"https?://\S+", "", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _tier(followers, eng):
+    if followers is None:
+        return "mid"
+    if followers >= 250000:
+        return "mega"
+    if followers >= 50000:
+        return "large"
+    if followers >= 5000:
+        return "mid"
+    return "small" if eng >= config.SMALL_OVERPERFORM else "skip"
+
+
+def _audience(followers):
+    if followers is None:
+        return 5.0
+    if 5000 <= followers < 50000:
+        return 10.0
+    if 50000 <= followers < 250000:
+        return 8.0
+    if 1000 <= followers < 5000:
+        return 6.0
+    if followers >= 250000:
+        return 4.0
+    return 3.0
+
+
+def _visibility(age_hrs, metrics):
+    freshness = 10.0 * math.exp(-age_hrs / 4.0)
+    replies = metrics.get("reply_count", 0)
+    saturation = 10.0 / (1.0 + replies / 25.0)
+    return max(1.0, min(10.0, 0.5 * freshness + 0.5 * saturation))
+
+
+def _followback(followers, metrics):
+    if followers is None:
+        return 5.0
+    base = 10.0 if followers < 50000 else 7.0 if followers < 250000 else 3.0
+    replies = metrics.get("reply_count", 0)
+    likes = max(1, metrics.get("like_count", 0))
+    convo = min(2.0, (replies / likes) * 10.0)
+    return max(1.0, min(10.0, base + convo - 1.0))
+
+
+def _dist_score(followers, age_hrs, metrics):
+    a = _audience(followers)
+    v = _visibility(age_hrs, metrics)
+    f = _followback(followers, metrics)
+    return round(a * 0.5 + v * 0.4 + f * 0.1, 2)
 
 
 def _sync_followers():
@@ -76,13 +126,11 @@ def _gather():
     idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
     for uname, uid in idmap.items():
         _pull(uid, uname, posts)
-    fol = store.targets_for_harvest(config.FOLLOW_TOP)
-    for t in fol:
+    for t in store.targets_for_harvest(config.FOLLOW_TOP):
         _pull(t["user_id"], t.get("username"), posts)
-    fws = store.follows_for_harvest(config.FOLLOWING_TOP)
-    for t in fws:
+    for t in store.follows_for_harvest(config.FOLLOWING_TOP):
         _pull(t["user_id"], t.get("username"), posts)
-    return posts, len(idmap), len(fol), len(fws)
+    return posts
 
 
 def harvest():
@@ -91,36 +139,66 @@ def harvest():
     seen = store.existing_tweet_ids()
     recent_replies = store.recent_posted_texts()
 
-    posts, big, fol, fws = _gather()
-    scored = []
+    posts = _gather()
+    fc = xclient.author_follower_counts({p.get("author_id") for p in posts})
+
+    cands = []
     for p in posts:
         if p["id"] in seen:
             continue
         text = _clean(p["text"])
         if len(text) < 15:
             continue
-        rel = _relevance(text)
-        if config.REQUIRE_KEYWORD and rel == 0:
+        if config.REQUIRE_KEYWORD and _relevance(text) == 0:
             continue
-        eng = _engagement(p["metrics"])
+        age = _age_hours(p["created_at"])
+        if age > config.MAX_POST_AGE_HRS:
+            continue
+        m = p["metrics"]
+        eng = _engagement(m)
         if eng < config.MIN_ENGAGEMENT:
             continue
-        if _age_hours(p["created_at"]) > config.MAX_POST_AGE_HRS:
+        if m.get("reply_count", 0) > config.MAX_REPLIES:
             continue
-        scored.append({
-            "post": p, "text": text, "eng": eng, "topic": _topic(text),
-            "score": _score(eng, _age_hours(p["created_at"]), rel),
-        })
-    scored.sort(key=lambda x: x["score"], reverse=True)
+        followers = fc.get(p.get("author_id"))
+        tier = _tier(followers, eng)
+        if tier == "skip":
+            continue
+        score = _dist_score(followers, age, m)
+        if score < config.MIN_DIST_SCORE:
+            continue
+        cands.append({"post": p, "text": text, "eng": eng, "tier": tier,
+                      "followers": followers, "age": age,
+                      "topic": _topic(text), "score": score})
 
-    used_authors = set()
-    queued = 0
-    for c in scored:
-        if queued >= config.CANDIDATES_PER_RUN:
+    cands.sort(key=lambda c: c["score"], reverse=True)
+
+    total = config.CANDIDATES_PER_RUN
+    quota = {t: max(1, round(total * share)) for t, share in TIERS}
+    picked, used_authors, filled = [], set(), {t: 0 for t, _ in TIERS}
+
+    def take(c):
+        a = (c["post"].get("username") or c["post"].get("author_id") or "").lower()
+        if a in used_authors:
+            return False
+        picked.append(c)
+        used_authors.add(a)
+        filled[c["tier"]] += 1
+        return True
+
+    for c in cands:
+        if len(picked) >= total:
             break
-        author = (c["post"].get("username") or c["post"].get("author_id") or "").lower()
-        if author in used_authors:
-            continue
+        if filled[c["tier"]] < quota[c["tier"]]:
+            take(c)
+    for c in cands:
+        if len(picked) >= total:
+            break
+        if c not in picked:
+            take(c)
+
+    queued = 0
+    for c in picked:
         try:
             drafts = voice.draft(c["text"], c["post"].get("username"),
                                  recent_replies, config.DRAFTS_PER_POST)
@@ -139,14 +217,16 @@ def harvest():
             "topic": c["topic"],
             "score": c["score"],
             "drafts": drafts,
+            "author_followers": c["followers"],
+            "tier": c["tier"],
+            "reply_count": c["post"]["metrics"].get("reply_count", 0),
+            "posted_at_x": c["post"]["created_at"].isoformat() if c["post"]["created_at"] else None,
             "status": "pending",
         })
-        used_authors.add(author)
         queued += 1
 
-    result = {"big_accounts": big, "top_followers": fol, "top_follows": fws,
-              "gathered": len(posts), "eligible": len(scored),
-              "queued": queued, "unique_authors": len(used_authors)}
+    result = {"gathered": len(posts), "candidates": len(cands),
+              "queued": queued, "by_tier": filled}
     print(result)
     return result
 

@@ -38,3 +38,8 @@ KEYWORD_SEARCH      = os.getenv("COPILOT_KEYWORD_SEARCH", "0") == "1"
 KEYWORD_MAX_RESULTS = int(os.getenv("COPILOT_KEYWORD_MAX", "30"))
 
 MODEL = os.getenv("COPILOT_MODEL", "claude-sonnet-5")
+
+# --- Distribution scoring ---
+MAX_REPLIES        = int(os.getenv("COPILOT_MAX_REPLIES", "80"))
+SMALL_OVERPERFORM  = int(os.getenv("COPILOT_SMALL_OVERPERFORM", "40"))
+MIN_DIST_SCORE     = float(os.getenv("COPILOT_MIN_DIST_SCORE", "6.0"))
