@@ -4,6 +4,7 @@ Futuristic dark design · Financial green · Full platform
 """
 
 import streamlit as st
+from conviction import conviction_label, conviction_action, conviction_short, conviction_color, is_entry, is_exit
 import pandas as pd
 import numpy as np
 from datetime import datetime, date
@@ -4114,7 +4115,7 @@ def _render_stock_preview(ticker: str) -> bool:
 
     def _pv_bar(v):
         v = float(v or 0)
-        _c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
+        _c = conviction_color(v, "#34d399", "#f59e0b", "#f87171")
         return ('<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);">'
                 f'<div style="width:{max(4,int(v))}%;height:100%;background:{_c};'
                 'border-radius:2px;"></div></div>')
@@ -7180,9 +7181,9 @@ def page_screener():
                 _conv = float(r.get("adj_composite", r.get("composite", 50)) or 50)
                 _vp = _val_pos(r)
                 if _vp is not None:
-                    if color == "#34d399" and _conv >= 60 and _vp <= 25:
+                    if color == "#34d399" and is_entry(_conv) and _vp <= 25:
                         r["_value_callout"] = "cheap"
-                    elif color == "#f87171" and _conv < 45 and _vp >= 75:
+                    elif color == "#f87171" and is_exit(_conv) and _vp >= 75:
                         r["_value_callout"] = "rich"
                 r["_mini_chart_html"] = _build_mini_chart_html(
                     r["ticker"], _scr_trail, _scr_pm, _scr_sm, since_label="vs SPY · 20d")
@@ -7588,7 +7589,7 @@ def page_watchlist():
         delta = cur - entry_score
         # Conviction level change
         def _level(s):
-            return "High" if s >= 60 else ("Low" if s < 45 else "Moderate")
+            return conviction_label(s).title()
         cur_level   = _level(cur)
         entry_level = _level(entry_score)
         if cur_level != entry_level:
@@ -7772,7 +7773,7 @@ def page_watchlist():
         adj = float(sc.get("adj_composite", sc.get("composite", 0)) or 0)
         if sc:
             quant = float(sc.get("composite", adj) or adj)
-            sc["adj_action"]    = "BUY" if adj >= 60 else ("SELL" if adj < 45 else "HOLD")
+            sc["adj_action"]    = conviction_action(adj)
             sc["adj_composite"] = adj
             sc["composite"]     = quant
             # Always recompute macro impact so the MACRO box matches the screener.
@@ -7889,7 +7890,7 @@ def page_watchlist():
         _impr_n = sum(1 for x in _wl if (wl_trend.get(x["ticker"]) or ("",))[0] == "\u2191")
         _weak_n = sum(1 for x in _wl if (wl_trend.get(x["ticker"]) or ("",))[0] == "\u2193")
         _hi_sec = [_WL_SECTORS.get(x["ticker"], "") for x in _wl
-                   if float((score_map.get(x["ticker"]) or {}).get("adj_composite", 0) or 0) >= 60]
+                   if is_entry((score_map.get(x["ticker"]) or {}).get("adj_composite", 0))]
         _top_sec = Counter(_hi_sec).most_common(1)[0][0] if _hi_sec else ""
         _top_html = f'<span style="color:#8896ac;">· {_top_sec} leading</span>' if _top_sec else ""
         _impr_html = f'<span style="color:#34d399;">↑ {_impr_n} improving</span>' if _impr_n else ""
@@ -8064,7 +8065,7 @@ def _simulator_teaser():
             # top name in each sector) — conveys the cross-sector diversification.
             if len(peek) < 5 and sec not in seen_sec:
                 _a = float(r.get("adj_composite") or r.get("composite") or 50)
-                _tier = "High" if _a >= 60 else ("Low" if _a < 45 else "Moderate")
+                _tier = conviction_label(_a).title()
                 peek.append({"sector": sec, "tier": _tier})
                 seen_sec.add(sec)
         return len(rows), len(secs), peek
@@ -8886,7 +8887,7 @@ def page_portfolio():
         if not _r or _r.get("adj_action") == "N/A":
             return None  # outside universe / unscored
         _x = float(_r.get("adj_composite", _r.get("composite", 50)) or 50)
-        return "HIGH" if _x >= 60 else ("LOW" if _x < 45 else "MOD")
+        return conviction_short(_x)
 
     # ── Portfolio conviction summary — single primary card ──────────────
     if holdings and score_map:
@@ -8898,8 +8899,8 @@ def page_portfolio():
                      score_map.get(h["ticker"],{}).get("composite",50)) or 50)
                for h in holdings if _conv_tier(h["ticker"]) is not None]
         _avg = (sum(_sc)/len(_sc)) if _sc else 50.0
-        _conv_label = "High" if _avg>=60 else ("Low" if _avg<45 else "Moderate")
-        _conv_color = "#34d399" if _avg>=60 else ("#f87171" if _avg<45 else "#fbbf24")
+        _conv_label = conviction_label(_avg).title()
+        _conv_color = conviction_color(_avg, "#34d399", "#fbbf24", "#f87171")
         # Trend — compare to previous snapshot avg if available
         _trend_html = ""
         _prev_snap = get_signal_snapshot(uid()) or {}
@@ -9436,7 +9437,7 @@ def page_portfolio():
         if sc:
             comp = float(sc.get("adj_composite", sc.get("composite", 50)) or 50)
             quant = float(sc.get("composite", comp) or comp)
-            sc["adj_action"]    = "BUY" if comp >= 60 else ("SELL" if comp < 45 else "HOLD")
+            sc["adj_action"]    = conviction_action(comp)
             sc["adj_composite"] = comp
             sc["composite"]     = quant
             # Always recompute macro from the underlying values, since
@@ -9600,7 +9601,7 @@ def page_simulator():
                     for _r in (_resp.data or []):
                         if _r["ticker"] not in _seen:
                             _a = float(_r.get("adj_composite") or _r.get("composite") or 50)
-                            _r["adj_action"] = "BUY" if _a >= 60 else ("SELL" if _a < 45 else "HOLD")
+                            _r["adj_action"] = conviction_action(_a)
                             _seen[_r["ticker"]] = _r
                     # Enrich with sector from universe_data
                     try:
@@ -9787,7 +9788,7 @@ def page_simulator():
     if _sim_sel_tk and _sim_sel_tk in ticker_map:
         _sel_r = dict(ticker_map[_sim_sel_tk])
         _sel_adj = float(_sel_r.get("adj_composite", _sel_r.get("composite", 50)) or 50)
-        _sel_r["adj_action"] = "BUY" if _sel_adj >= 60 else ("SELL" if _sel_adj < 45 else "HOLD")
+        _sel_r["adj_action"] = conviction_action(_sel_adj)
         _sel_r["adj_composite"] = _sel_adj
         _sel_ci = get_company_info(_sim_sel_tk)
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
@@ -9967,7 +9968,7 @@ def page_simulator():
 
     # ── Aggregate pillar profile (weighted, recomputes with the toggle) ────────
     def _agg_bar(label, v):
-        c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
+        c = conviction_color(v, "#34d399", "#f59e0b", "#f87171")
         return (f'<div style="margin-bottom:10px;">'
                 f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
                 f'<span style="font-family:DM Mono,monospace;font-size:13px;color:#b3bed0;letter-spacing:.06em;">{label}</span>'
@@ -9992,7 +9993,7 @@ def page_simulator():
     st.markdown('<div style="font-family:DM Mono,monospace;font-size:13px;color:#9fabc0;letter-spacing:.08em;margin-bottom:8px;">POSITIONS</div>', unsafe_allow_html=True)
 
     def pill_bar(v):
-        c = "#34d399" if v >= 60 else ("#f59e0b" if v >= 45 else "#f87171")
+        c = conviction_color(v, "#34d399", "#f59e0b", "#f87171")
         return (f'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:1px 0;">'
                 f'<div style="width:{max(4,int(v))}%;height:100%;background:{c};border-radius:2px;"></div></div>')
 
@@ -10345,7 +10346,7 @@ def page_alerts():
             "(cheap) or upper (expensive) end of its peer valuation band. Good for *\u201ctell me when "
             "something I follow gets cheap.\u201d*\n"
             "- **Conviction HIGH / LOW** \u2014 fires when the model's conviction crosses into HIGH "
-            "(\u226560) or LOW (<45). Good for *\u201ctell me when the signal on a name I hold turns.\u201d*\n"
+            "(\u226565) or LOW (\u226455). Good for *\u201ctell me when the signal on a name I hold turns.\u201d*\n"
             "- **Price above / below** \u2014 fires when a single stock crosses a price you set. The "
             "most literal trigger, but also the noisiest if you set it close to today's price.\n"
             "- **Hidden gem** \u2014 fires when a name becomes a flagged gem. Rare by design.\n\n"
@@ -12147,7 +12148,7 @@ def page_model_portfolio():
             sc["ticker"]        = tk
             sc["adj_composite"] = score
             sc["composite"]     = _quant
-            sc["adj_action"]    = "BUY" if score >= 60 else ("SELL" if score < 45 else "HOLD")
+            sc["adj_action"]    = conviction_action(score)
             sc["momentum"]      = h["momentum"]
             sc["quality"]       = h["quality"]
             sc["volume"]        = h["volume"]
@@ -12163,9 +12164,9 @@ def page_model_portfolio():
             ci = get_company_info(tk)
             _mp_vp = _val_pos(sc)
             if _mp_vp is not None:
-                if score >= 60 and _mp_vp <= 25:
+                if is_entry(score) and _mp_vp <= 25:
                     sc["_value_callout"] = "cheap"
-                elif score < 45 and _mp_vp >= 75:
+                elif is_exit(score) and _mp_vp >= 75:
                     sc["_value_callout"] = "rich"
             _ep, _cp = h.get('entry_price'), h.get('current_price')
             _pct, _pnl = h.get('pnl_pct', 0), h.get('pnl', 0)
@@ -12280,7 +12281,7 @@ def page_model_portfolio():
     st.markdown(
         '<div style="font-size:13px;color:#8896ac;padding:6px 8px;background:#050a0f;'
         'border:1px solid rgba(255,255,255,.07);border-radius:0 0 6px 6px;margin-bottom:8px;">'
-        '$2,000/position · Equal weighted · Auto-exit score < 45</div>',
+        '$2,000/position · Equal weighted · Auto-exit score <= 55</div>',
         unsafe_allow_html=True)
 
     # ── Export to Excel ───────────────────────────────────────────────────────
@@ -12411,7 +12412,7 @@ def page_methodology():
         ("Conviction Signals", "#34d399",
          "• High Conviction (score ≥ 60) — model sees strong multi-factor alignment. Top 40% of universe.\n"
          "• Moderate Conviction (45–59) — mixed factor signals, neither strong nor deteriorating.\n"
-         "• Low Conviction (score < 45) — weakest factor profile in the universe. Elevated model risk.\n\n"
+         "• Low Conviction (score <= 55) — weakest factor profile in the universe. Elevated model risk.\n\n"
          "Signals are quantitative rankings, not buy/sell/hold recommendations. "
          "Signals update nightly. In HIGH VOLATILITY regimes, conviction thresholds tighten — "
          "only scores ≥ 67 surface as High Conviction."),
@@ -12421,7 +12422,7 @@ def page_methodology():
          "from its sector-relative multiples. Value position runs 0–100%: near 0% is the cheap end of its "
          "range, near 100% the rich end.\n\n"
          "• ◆ CHEAP — high conviction (≥ 60) AND trading in the bottom quarter of its range\n"
-         "• ◆ RICH — low conviction (< 45) AND trading in the top quarter of its range\n\n"
+         "• ◆ RICH — low conviction (<= 55) AND trading in the top quarter of its range\n\n"
          "The Top 10 Signals view blends conviction and value position (65/35) so a strong, well-priced "
          "name outranks an equally strong but expensive one. Value position is descriptive context, not a "
          "price target."),

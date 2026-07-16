@@ -40,3 +40,25 @@ def is_exit(adj) -> bool:
         return _r(adj) <= LOW_MAX
     except (TypeError, ValueError):
         return False
+#
+def conviction_action(adj) -> str:
+    """BUY (entry) / SELL (exit) / HOLD, from the same rounded bands."""
+    if is_entry(adj):
+        return "BUY"
+    if is_exit(adj):
+        return "SELL"
+    return "HOLD"
+#
+def conviction_short(adj) -> str:
+    """HIGH / MOD / LOW short form."""
+    lab = conviction_label(adj)
+    return "MOD" if lab == "MODERATE" else lab
+#
+def conviction_color(adj, hi, mid, lo) -> str:
+    """Pick hi/mid/lo by conviction bucket (HIGH/MODERATE/LOW)."""
+    lab = conviction_label(adj)
+    if lab == "HIGH":
+        return hi
+    if lab == "LOW":
+        return lo
+    return mid
