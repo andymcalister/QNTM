@@ -1,17 +1,21 @@
-"""QNTM signal validation - "what the model flagged before the move".
-Reads dated signal_log history and surfaces grounded, verifiable signals:
-tickers whose conviction crossed into HIGH (or weakened out of it), with the
-price move since the SUSTAINED transition. Observational only.
-Label source: the canonical signal_log `signal` column (HIGH/MODERATE/LOW),
-falling back to adj_composite >= _HIGH_MIN. Single-day label whipsaws are
-coalesced (smooth_gap) so a one-day noise dip does not read as a new entry.
+"""QNTM signal validation - how the model's calls have played out.
+Reads dated signal_log history (canonical `signal` column) and surfaces
+grounded, verifiable calls on both sides, plus population hit-rates vs SPY.
+Observational only. Four kinds per ticker:
+    entered_high   - recent HIGH entry, rose since        (spotted early)
+    sustained_high - long HIGH run, rose over it          (winner)
+    weakened       - dropped from HIGH, fell since         (downgrade before drop)
+    sustained_low  - long LOW run, fell over it            (stayed bearish)
+1-day label whipsaws are coalesced. Balanced slate = biggest winners + biggest
+losers. For the full /signals archive: max_winners=None, max_losers=None,
+require_confirmed=False.
 Public:
     get_validated_signals(...) -> list[dict]
-    format_wrap_block(signals) -> str
-Balanced by default (max_up bullish + max_down bearish, bullish first). For the
-full /signals archive: max_up=None, max_down=None, max_days=None,
-require_confirmed=False.
-Env: QNTM_CONVICTION_FIELD, QNTM_CONVICTION_HIGH_MIN, QNTM_SIGNALS_ARCHIVE_URL.
+    format_wrap_block(sigs) -> str
+    compute_hit_rates(as_of, window=10, history_days=90) -> dict
+    format_hit_line(stats) -> str
+Env: QNTM_CONVICTION_FIELD, QNTM_CONVICTION_HIGH_MIN, QNTM_SIGNALS_ARCHIVE_URL,
+    QNTM_SIGNALS_HEADER.
 """
 from __future__ import annotations
 import os
@@ -21,9 +25,10 @@ from datetime import date, timedelta
 _SCORE_FIELD = os.getenv("QNTM_CONVICTION_FIELD", "adj_composite")
 _HIGH_MIN = float(os.getenv("QNTM_CONVICTION_HIGH_MIN", "60"))
 _ARCHIVE_URL = os.getenv("QNTM_SIGNALS_ARCHIVE_URL", "https://qntm.live/signals")
-_BULLET = "\u2022"
+_HEADER = os.getenv("QNTM_SIGNALS_HEADER", "How the model's calls have played out:")
+_UP = "\u2191"
+_DOWN = "\u2193"
 _ARROW = "\u2192"
-_DASH = "\u2014"
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 #
 def _resolve_sb(sb=None):
@@ -42,11 +47,11 @@ def _label(row) -> str:
         return sig.strip().upper()
     sc = row.get(_SCORE_FIELD)
     if sc is None:
-        return None
+        return "?"
     try:
         return "HIGH" if float(sc) >= _HIGH_MIN else "MODERATE"
     except (TypeError, ValueError):
-        return None
+        return "?"
 #
 def _short_date(iso: str) -> str:
     try:
@@ -73,11 +78,8 @@ def _fetch_window(sb, start_date: str) -> list:
         page += 1
     return rows
 #
-def _coalesce(flags: list, max_gap: int) -> list:
-    """Merge interior runs of length <= max_gap that are flanked by the same
-    value on both sides (kills one-day label whipsaws). The current/edge run is
-    never merged, so genuine recent transitions survive."""
-    out = flags[:]
+def _coalesce(vals: list, max_gap: int) -> list:
+    out = vals[:]
     n = len(out)
     changed = True
     while changed:
@@ -96,37 +98,55 @@ def _coalesce(flags: list, max_gap: int) -> list:
                 for t in range(a, b + 1):
                     out[t] = runs[k - 1][0]
                 changed = True
-        if changed:
-            continue
     return out
 #
-def _detect(seq: list, smooth_gap: int):
-    """seq = [(date, label, price), ...] asc. Returns (kind, event_idx) for the
-    current sustained regime, or None (never HIGH in window, or HIGH from the
-    very first row = entry predates our history)."""
-    if len(seq) < 2:
+def _classify(labels, dates, latest_i, date_index, min_days, recent_days, sustained_min_days):
+    n = len(labels)
+    if n < 2:
         return None
-    flags = [1 if s[1] == "HIGH" else 0 for s in seq]
-    flags = _coalesce(flags, smooth_gap)
-    if flags[-1] == 1:
-        i = len(flags) - 1
-        while i > 0 and flags[i - 1] == 1:
-            i -= 1
-        if i == 0:
+    cur = labels[-1]
+    if cur not in ("HIGH", "MODERATE", "LOW"):
+        return None
+    i = n - 1
+    while i > 0 and labels[i - 1] == cur:
+        i -= 1
+    if i == 0:
+        return None
+    start_date = dates[i]
+    days_ago = latest_i - date_index.get(start_date, latest_i)
+    prev = labels[i - 1]
+    if cur == "HIGH":
+        if days_ago < min_days:
             return None
-        return ("entered_high", i)
-    j = None
-    for k in range(len(flags) - 1, -1, -1):
-        if flags[k] == 1:
-            j = k
-            break
-    if j is None or j == len(flags) - 1:
+        if days_ago <= recent_days:
+            return ("entered_high", i)
+        if days_ago >= sustained_min_days:
+            return ("sustained_high", i)
         return None
-    return ("weakened", j + 1)
+    if prev == "HIGH":
+        if days_ago < min_days:
+            return None
+        return ("weakened", i)
+    if cur == "LOW" and days_ago >= sustained_min_days:
+        return ("sustained_low", i)
+    return None
 #
-def get_validated_signals(as_of=None, history_days=45, min_days=2, max_days=21,
-                          min_move_pct=4.0, smooth_gap=1, max_up=2, max_down=1,
-                          require_confirmed=True, top_n=None, sb=None):
+def _confirmed(kind, move, min_move, min_sustained_move):
+    if kind == "entered_high":
+        return move >= min_move
+    if kind == "sustained_high":
+        return move >= min_sustained_move
+    if kind == "weakened":
+        return move <= -min_move
+    if kind == "sustained_low":
+        return move <= -min_sustained_move
+    return False
+#
+def get_validated_signals(as_of=None, history_days=60, min_days=2, recent_days=10,
+                          sustained_min_days=10, min_move_pct=4.0,
+                          min_sustained_move_pct=10.0, smooth_gap=1,
+                          max_winners=2, max_losers=2, require_confirmed=True,
+                          top_n=None, sb=None):
     sb = _resolve_sb(sb)
     if sb is None:
         return []
@@ -153,63 +173,65 @@ def get_validated_signals(as_of=None, history_days=45, min_days=2, max_days=21,
     out = []
     for tk, trows in by_ticker.items():
         trows.sort(key=lambda r: r["signal_date"])
-        seq = [(r["signal_date"], _label(r), r.get("price")) for r in trows]
-        ev = _detect(seq, smooth_gap)
+        dates = [r["signal_date"] for r in trows]
+        prices = [r.get("price") for r in trows]
+        labels = _coalesce([_label(r) for r in trows], smooth_gap)
+        ev = _classify(labels, dates, latest_i, date_index, min_days, recent_days, sustained_min_days)
         if not ev:
             continue
         kind, idx = ev
-        event_date = seq[idx][0]
-        days_ago = latest_i - date_index.get(event_date, latest_i)
-        if days_ago < min_days:
-            continue
-        if max_days is not None and days_ago > max_days:
-            continue
-        price_then = seq[idx][2]
-        price_now = seq[-1][2]
+        price_then, price_now = prices[idx], prices[-1]
         if not price_then or not price_now:
             continue
         try:
             move = (float(price_now) - float(price_then)) / float(price_then) * 100.0
         except (TypeError, ValueError, ZeroDivisionError):
             continue
-        if require_confirmed:
-            if kind == "entered_high" and move < min_move_pct:
-                continue
-            if kind == "weakened" and move > -min_move_pct:
-                continue
+        if require_confirmed and not _confirmed(kind, move, min_move_pct, min_sustained_move_pct):
+            continue
         out.append({
-            "ticker": tk, "kind": kind, "event_date": event_date,
-            "days_ago": days_ago, "price_then": round(float(price_then), 2),
+            "ticker": tk, "kind": kind, "event_date": dates[idx],
+            "days_ago": latest_i - date_index.get(dates[idx], latest_i),
+            "price_then": round(float(price_then), 2),
             "price_now": round(float(price_now), 2), "move_pct": round(move, 1),
         })
-    ups = sorted([s for s in out if s["kind"] == "entered_high"], key=lambda s: abs(s["move_pct"]), reverse=True)
-    downs = sorted([s for s in out if s["kind"] == "weakened"], key=lambda s: abs(s["move_pct"]), reverse=True)
-    if max_up is None and max_down is None:
-        allsigs = sorted(out, key=lambda s: s["event_date"], reverse=True)
+    winners = sorted([s for s in out if s["kind"] in ("entered_high", "sustained_high")],
+                     key=lambda s: s["move_pct"], reverse=True)
+    losers = sorted([s for s in out if s["kind"] in ("weakened", "sustained_low")],
+                    key=lambda s: s["move_pct"])
+    if max_winners is None and max_losers is None:
+        allsigs = sorted(out, key=lambda s: abs(s["move_pct"]), reverse=True)
         return allsigs[:top_n] if top_n else allsigs
-    picked = ups[:max_up if max_up is not None else len(ups)] + downs[:max_down if max_down is not None else len(downs)]
+    picked = winners[:max_winners if max_winners is not None else len(winners)]
+    picked += losers[:max_losers if max_losers is not None else len(losers)]
     return picked
 #
 def _line(s: dict) -> str:
     d = _short_date(s["event_date"])
-    ago = str(s["days_ago"]) + " days"
-    mv = ("%+.1f%%" % s["move_pct"]) + " since"
-    if s["kind"] == "entered_high":
-        return _BULLET + " " + s["ticker"] + " " + _DASH + " HIGH conviction since " + d + " (" + ago + "), " + mv
-    return _BULLET + " " + s["ticker"] + " " + _DASH + " conviction slipped " + d + " (" + ago + "), " + mv
+    m = "%+.1f%%" % s["move_pct"]
+    tk = s["ticker"]
+    k = s["kind"]
+    if k in ("entered_high", "sustained_high"):
+        return _UP + " " + tk + " " + m + " (HIGH since " + d + ")"
+    if k == "weakened":
+        return _DOWN + " " + tk + " " + m + " (downgraded " + d + ")"
+    return _DOWN + " " + tk + " " + m + " (LOW since " + d + ")"
 #
-def format_wrap_block(signals: list, archive_url: str = None) -> str:
+def format_wrap_block(signals: list, archive_url: str = None, header: str = None) -> str:
     if not signals:
         return ""
     url = archive_url or _ARCHIVE_URL
-    lines = ["Flagged before today's moves"]
-    for s in signals:
-        lines.append(_line(s))
-    lines.append("full record " + _ARROW + " " + url)
-    return "\n".join(lines)
+    head = header or _HEADER
+    tail = "full record " + _ARROW + " " + url
+    lines = [_line(s) for s in signals]
+    while lines:
+        body = "\n".join([head] + lines + [tail])
+        if len(body) <= 280:
+            return body
+        lines.pop()
+    return ""
 #
 def _load_benchmark(sb, start_date: str) -> dict:
-    """{date: close} for SPY from benchmark_price. Empty on failure."""
     out = {}
     try:
         r = (sb.table("benchmark_price").select("d,close")
@@ -221,14 +243,12 @@ def _load_benchmark(sb, start_date: str) -> dict:
     except Exception as e:
         print("[warn] benchmark load failed: " + repr(e))
     return out
-
-
+#
 def compute_hit_rates(as_of=None, window=10, history_days=90, smooth_gap=1, sb=None):
-    """Population hit-rates, benchmark-relative, fixed forward window.
-    For every HIGH entry and LOW entry (one per coalesced run), compare the
-    stock's `window`-session forward return to SPY over the SAME dates. HIGH
-    hit = beat SPY; LOW hit = lagged SPY. Episodes without a full forward
-    window are excluded. Returns dict with rates, N, window, since, benchmark."""
+    """Population hit-rates vs SPY, fixed forward window. Every HIGH entry and
+    LOW entry (one per coalesced run, NO confirmed filter). HIGH hit = beat SPY
+    over the next `window` sessions; LOW hit = lagged SPY. Incomplete-window
+    episodes excluded. Returns rates + N + window + since + benchmark."""
     sb = _resolve_sb(sb)
     empty = {"high_beat_rate": None, "high_n": 0, "low_lag_rate": None,
              "low_n": 0, "window": window, "since": None, "benchmark": "SPY"}
@@ -255,9 +275,7 @@ def compute_hit_rates(as_of=None, window=10, history_days=90, smooth_gap=1, sb=N
         if r.get("signal_date"):
             by_ticker[r["ticker"]].append(r)
     high_hits = high_n = low_hits = low_n = 0
-
     def _fwd(price_map, i0):
-        """(ret over window) or None if incomplete / bad prices."""
         if i0 + window >= n_dates:
             return None
         d0, d1 = all_dates[i0], all_dates[i0 + window]
@@ -268,13 +286,11 @@ def compute_hit_rates(as_of=None, window=10, history_days=90, smooth_gap=1, sb=N
             return (float(p1) - float(p0)) / float(p0)
         except (TypeError, ValueError, ZeroDivisionError):
             return None
-
     for tk, trows in by_ticker.items():
         trows.sort(key=lambda r: r["signal_date"])
         dates = [r["signal_date"] for r in trows]
         pmap = {r["signal_date"]: r.get("price") for r in trows}
         labels = _coalesce([_label(r) for r in trows], smooth_gap)
-        # find each run start (one episode per run)
         idx = 0
         m = len(labels)
         while idx < m:
@@ -302,14 +318,10 @@ def compute_hit_rates(as_of=None, window=10, history_days=90, smooth_gap=1, sb=N
         "high_n": high_n,
         "low_lag_rate": round(100.0 * low_hits / low_n, 1) if low_n else None,
         "low_n": low_n,
-        "window": window,
-        "since": start,
-        "benchmark": "SPY",
+        "window": window, "since": start, "benchmark": "SPY",
     }
-
-
+#
 def format_hit_line(stats: dict) -> str:
-    """One-line summary for the wrap, or '' if not enough data."""
     if not stats or not stats.get("high_n"):
         return ""
     w = stats["window"]
@@ -321,9 +333,14 @@ def format_hit_line(stats: dict) -> str:
     if not parts:
         return ""
     return "Over the next " + str(w) + " sessions: " + "; ".join(parts) + "."
-
-
+#
 if __name__ == "__main__":
-    sigs = get_validated_signals()
-    print("[" + str(len(sigs)) + " selected]")
-    print(format_wrap_block(sigs) or "(none today)")
+    import collections
+    every = get_validated_signals(max_winners=None, max_losers=None)
+    print(collections.Counter(s["kind"] for s in every))
+    print("--- wrap slate ---")
+    print(format_wrap_block(get_validated_signals()) or "(none)")
+    print("--- hit rates ---")
+    hr = compute_hit_rates()
+    print(hr)
+    print(format_hit_line(hr) or "(insufficient)")
