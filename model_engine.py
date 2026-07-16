@@ -166,7 +166,8 @@ def score_stock(ticker: str, price_history: list = None,
     # Public conviction label — HIGH / MODERATE / LOW only.
     # (Was STRONG ALIGN / HIGH ALIGN / LOW ALIGN / WEAK/NEG — non-compliant
     #  vocabulary that leaked into the DB. Normalized to the published bands.)
-    sig = ("HIGH" if composite >= 60 else "MODERATE" if composite >= 45 else "LOW")
+    from conviction import conviction_label
+    sig = conviction_label(composite)
 
     return {
         "ticker":ticker, "sector":SECTORS.get(ticker,"Unknown"),
@@ -1518,7 +1519,8 @@ def apply_macro_overlay(scores: list, macro_data: dict,
 
         # Public conviction label reflects the macro-adjusted score (source of
         # truth), kept in HIGH/MODERATE/LOW vocabulary for the DB and UI.
-        s["signal"] = "HIGH" if adj >= 60 else "MODERATE" if adj >= 45 else "LOW"
+        from conviction import conviction_label
+        s["signal"] = conviction_label(adj)
 
     # Re-sort by adjusted composite
     scores.sort(key=lambda x: x["adj_composite"], reverse=True)
