@@ -208,6 +208,121 @@ def format_wrap_block(signals: list, archive_url: str = None) -> str:
     lines.append("full record " + _ARROW + " " + url)
     return "\n".join(lines)
 #
+def _load_benchmark(sb, start_date: str) -> dict:
+    """{date: close} for SPY from benchmark_price. Empty on failure."""
+    out = {}
+    try:
+        r = (sb.table("benchmark_price").select("d,close")
+             .gte("d", start_date).order("d").execute())
+        for x in (r.data or []):
+            d, c = x.get("d"), x.get("close")
+            if d is not None and c is not None:
+                out[str(d)] = float(c)
+    except Exception as e:
+        print("[warn] benchmark load failed: " + repr(e))
+    return out
+
+
+def compute_hit_rates(as_of=None, window=10, history_days=90, smooth_gap=1, sb=None):
+    """Population hit-rates, benchmark-relative, fixed forward window.
+    For every HIGH entry and LOW entry (one per coalesced run), compare the
+    stock's `window`-session forward return to SPY over the SAME dates. HIGH
+    hit = beat SPY; LOW hit = lagged SPY. Episodes without a full forward
+    window are excluded. Returns dict with rates, N, window, since, benchmark."""
+    sb = _resolve_sb(sb)
+    empty = {"high_beat_rate": None, "high_n": 0, "low_lag_rate": None,
+             "low_n": 0, "window": window, "since": None, "benchmark": "SPY"}
+    if sb is None:
+        return empty
+    ref = as_of or date.today()
+    if isinstance(ref, str):
+        try:
+            y, m, d = ref.split("-"); ref = date(int(y), int(m), int(d))
+        except Exception:
+            ref = date.today()
+    start = (ref - timedelta(days=history_days)).isoformat()
+    rows = _fetch_window(sb, start)
+    bench = _load_benchmark(sb, start)
+    if not rows or not bench:
+        return empty
+    all_dates = sorted({r["signal_date"] for r in rows if r.get("signal_date")})
+    if not all_dates:
+        return empty
+    di = {d: i for i, d in enumerate(all_dates)}
+    n_dates = len(all_dates)
+    by_ticker = defaultdict(list)
+    for r in rows:
+        if r.get("signal_date"):
+            by_ticker[r["ticker"]].append(r)
+    high_hits = high_n = low_hits = low_n = 0
+
+    def _fwd(price_map, i0):
+        """(ret over window) or None if incomplete / bad prices."""
+        if i0 + window >= n_dates:
+            return None
+        d0, d1 = all_dates[i0], all_dates[i0 + window]
+        p0, p1 = price_map.get(d0), price_map.get(d1)
+        if not p0 or not p1:
+            return None
+        try:
+            return (float(p1) - float(p0)) / float(p0)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+
+    for tk, trows in by_ticker.items():
+        trows.sort(key=lambda r: r["signal_date"])
+        dates = [r["signal_date"] for r in trows]
+        pmap = {r["signal_date"]: r.get("price") for r in trows}
+        labels = _coalesce([_label(r) for r in trows], smooth_gap)
+        # find each run start (one episode per run)
+        idx = 0
+        m = len(labels)
+        while idx < m:
+            j = idx
+            while j + 1 < m and labels[j + 1] == labels[idx]:
+                j += 1
+            lab = labels[idx]
+            gi = di.get(dates[idx])
+            if lab in ("HIGH", "LOW") and gi is not None:
+                sr = _fwd(pmap, gi)
+                br = _fwd(bench, gi)
+                if sr is not None and br is not None:
+                    rel = sr - br
+                    if lab == "HIGH":
+                        high_n += 1
+                        if rel > 0:
+                            high_hits += 1
+                    else:
+                        low_n += 1
+                        if rel < 0:
+                            low_hits += 1
+            idx = j + 1
+    return {
+        "high_beat_rate": round(100.0 * high_hits / high_n, 1) if high_n else None,
+        "high_n": high_n,
+        "low_lag_rate": round(100.0 * low_hits / low_n, 1) if low_n else None,
+        "low_n": low_n,
+        "window": window,
+        "since": start,
+        "benchmark": "SPY",
+    }
+
+
+def format_hit_line(stats: dict) -> str:
+    """One-line summary for the wrap, or '' if not enough data."""
+    if not stats or not stats.get("high_n"):
+        return ""
+    w = stats["window"]
+    parts = []
+    if stats.get("high_beat_rate") is not None:
+        parts.append("HIGH beat SPY " + str(stats["high_beat_rate"]) + "% (" + str(stats["high_n"]) + " calls)")
+    if stats.get("low_lag_rate") is not None and stats.get("low_n"):
+        parts.append("LOW lagged " + str(stats["low_lag_rate"]) + "% (" + str(stats["low_n"]) + ")")
+    if not parts:
+        return ""
+    return "Over the next " + str(w) + " sessions: " + "; ".join(parts) + "."
+
+
 if __name__ == "__main__":
     sigs = get_validated_signals()
     print("[" + str(len(sigs)) + " selected]")
