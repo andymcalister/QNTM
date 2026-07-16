@@ -13,8 +13,8 @@ Alert kinds (price_alerts.kind):
   value_upper      live value_position >= threshold (default 80)
   price_below      price <= threshold
   price_above      price >= threshold
-  conviction_high  adj_composite >= 60
-  conviction_low   adj_composite <  45
+  conviction_high  conviction_label(adj) == HIGH (rounded >= 65)
+  conviction_low   conviction_label(adj) == LOW (rounded <= 55)
   gem              is_hidden_gem becomes true
 
 value_position is recomputed live from the current signal_log price against the
@@ -131,11 +131,11 @@ def evaluate(kind, threshold, snap):
     if kind == "conviction_high":
         if adj is None:
             return False, adj, ""
-        return (adj >= 60, adj, f"moved to HIGH conviction ({adj:.0f})")
+        return (__import__("conviction").conviction_label(adj) == "HIGH", adj, f"moved to HIGH conviction ({adj:.0f})")
     if kind == "conviction_low":
         if adj is None:
             return False, adj, ""
-        return (adj < 45, adj, f"dropped to LOW conviction ({adj:.0f})")
+        return (__import__("conviction").conviction_label(adj) == "LOW", adj, f"dropped to LOW conviction ({adj:.0f})")
     if kind == "gem":
         return (gem, 1.0 if gem else 0.0, "was flagged a hidden gem \U0001F48E")
     return False, None, ""
