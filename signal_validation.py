@@ -1,22 +1,17 @@
 """QNTM signal validation - "what the model flagged before the move".
-Reads the dated signal_log history and surfaces grounded, verifiable signals:
-tickers whose conviction crossed into HIGH (or weakened out of it) N sessions
-ago, with the price move since. Observational only - no prediction claims.
-Feeds the Day Wrap tail and the /signals archive.
+Reads dated signal_log history and surfaces grounded, verifiable signals:
+tickers whose conviction crossed into HIGH (or weakened out of it), with the
+price move since the SUSTAINED transition. Observational only.
+Label source: the canonical signal_log `signal` column (HIGH/MODERATE/LOW),
+falling back to adj_composite >= _HIGH_MIN. Single-day label whipsaws are
+coalesced (smooth_gap) so a one-day noise dip does not read as a new entry.
 Public:
     get_validated_signals(...) -> list[dict]
     format_wrap_block(signals) -> str
-Selection: balanced by default - max_up bullish + max_down bearish, bullish
-    first. Pass max_up=None, max_down=None (and require_confirmed=False) for
-    the full, non-cherry-picked /signals archive.
-Signal dict keys: ticker, kind (entered_high|weakened), event_date,
-    sessions_ago, price_then, price_now, move_pct, conviction_then,
-    conviction_now.
-NOTE (confirm with Andy): label is derived from `adj_composite` at ≥60 / ≥45.
-    If your site's bands differ, or signal_log `signal` already holds the text
-    label, tell me and I swap _label()/_SCORE_FIELD.
-Env overrides: QNTM_CONVICTION_FIELD, QNTM_CONVICTION_HIGH_MIN,
-    QNTM_CONVICTION_MOD_MIN, QNTM_SIGNALS_ARCHIVE_URL.
+Balanced by default (max_up bullish + max_down bearish, bullish first). For the
+full /signals archive: max_up=None, max_down=None, max_days=None,
+require_confirmed=False.
+Env: QNTM_CONVICTION_FIELD, QNTM_CONVICTION_HIGH_MIN, QNTM_SIGNALS_ARCHIVE_URL.
 """
 from __future__ import annotations
 import os
@@ -25,7 +20,6 @@ from datetime import date, timedelta
 #
 _SCORE_FIELD = os.getenv("QNTM_CONVICTION_FIELD", "adj_composite")
 _HIGH_MIN = float(os.getenv("QNTM_CONVICTION_HIGH_MIN", "60"))
-_MOD_MIN = float(os.getenv("QNTM_CONVICTION_MOD_MIN", "45"))
 _ARCHIVE_URL = os.getenv("QNTM_SIGNALS_ARCHIVE_URL", "https://qntm.live/signals")
 _BULLET = "\u2022"
 _ARROW = "\u2192"
@@ -42,18 +36,17 @@ def _resolve_sb(sb=None):
         print("[warn] signal_validation: no supabase client: " + repr(e))
         return None
 #
-def _label(score):
-    if score is None:
+def _label(row) -> str:
+    sig = row.get("signal")
+    if isinstance(sig, str) and sig.strip().upper() in ("HIGH", "MODERATE", "LOW"):
+        return sig.strip().upper()
+    sc = row.get(_SCORE_FIELD)
+    if sc is None:
         return None
     try:
-        score = float(score)
+        return "HIGH" if float(sc) >= _HIGH_MIN else "MODERATE"
     except (TypeError, ValueError):
         return None
-    if score >= _HIGH_MIN:
-        return "HIGH"
-    if score >= _MOD_MIN:
-        return "MODERATE"
-    return "LOW"
 #
 def _short_date(iso: str) -> str:
     try:
@@ -63,11 +56,11 @@ def _short_date(iso: str) -> str:
         return str(iso)
 #
 def _fetch_window(sb, start_date: str) -> list:
-    cols = "ticker,signal_date," + _SCORE_FIELD + ",price"
+    cols = "ticker,signal_date,signal," + _SCORE_FIELD + ",price"
     rows = []
     page = 0
     size = 1000
-    while page < 50:
+    while page < 120:
         res = (sb.table("signal_log").select(cols)
                .gte("signal_date", start_date)
                .order("signal_date")
@@ -80,34 +73,60 @@ def _fetch_window(sb, start_date: str) -> list:
         page += 1
     return rows
 #
-def _detect(seq: list):
+def _coalesce(flags: list, max_gap: int) -> list:
+    """Merge interior runs of length <= max_gap that are flanked by the same
+    value on both sides (kills one-day label whipsaws). The current/edge run is
+    never merged, so genuine recent transitions survive."""
+    out = flags[:]
+    n = len(out)
+    changed = True
+    while changed:
+        changed = False
+        runs = []
+        i = 0
+        while i < n:
+            j = i
+            while j + 1 < n and out[j + 1] == out[i]:
+                j += 1
+            runs.append((out[i], i, j))
+            i = j + 1
+        for k in range(1, len(runs) - 1):
+            val, a, b = runs[k]
+            if (b - a + 1) <= max_gap and runs[k - 1][0] == runs[k + 1][0] and runs[k - 1][0] != val:
+                for t in range(a, b + 1):
+                    out[t] = runs[k - 1][0]
+                changed = True
+        if changed:
+            continue
+    return out
+#
+def _detect(seq: list, smooth_gap: int):
+    """seq = [(date, label, price), ...] asc. Returns (kind, event_idx) for the
+    current sustained regime, or None (never HIGH in window, or HIGH from the
+    very first row = entry predates our history)."""
     if len(seq) < 2:
         return None
-    cur = seq[-1][1]
-    if cur == "HIGH":
-        i = len(seq) - 1
-        while i > 0 and seq[i - 1][1] == "HIGH":
+    flags = [1 if s[1] == "HIGH" else 0 for s in seq]
+    flags = _coalesce(flags, smooth_gap)
+    if flags[-1] == 1:
+        i = len(flags) - 1
+        while i > 0 and flags[i - 1] == 1:
             i -= 1
         if i == 0:
             return None
-        e = seq[i]
-        return {"kind": "entered_high", "event_date": e[0], "event_price": e[2], "conviction_then": e[3]}
+        return ("entered_high", i)
     j = None
-    for k in range(len(seq) - 1, -1, -1):
-        if seq[k][1] == "HIGH":
+    for k in range(len(flags) - 1, -1, -1):
+        if flags[k] == 1:
             j = k
             break
-    if j is None or j == len(seq) - 1:
+    if j is None or j == len(flags) - 1:
         return None
-    e = seq[j + 1]
-    return {"kind": "weakened", "event_date": e[0], "event_price": e[2], "conviction_then": e[3]}
+    return ("weakened", j + 1)
 #
-def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
-                          min_move_pct=4.0, max_up=2, max_down=1,
+def get_validated_signals(as_of=None, history_days=45, min_days=2, max_days=21,
+                          min_move_pct=4.0, smooth_gap=1, max_up=2, max_down=1,
                           require_confirmed=True, top_n=None, sb=None):
-    """Balanced by default: up to max_up bullish + max_down bearish, bullish
-    first. For the full /signals archive call max_up=None, max_down=None,
-    require_confirmed=False."""
     sb = _resolve_sb(sb)
     if sb is None:
         return []
@@ -118,7 +137,7 @@ def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
             ref = date(int(y), int(m), int(d))
         except Exception:
             ref = date.today()
-    start = (ref - timedelta(days=lookback_days)).isoformat()
+    start = (ref - timedelta(days=history_days)).isoformat()
     rows = _fetch_window(sb, start)
     if not rows:
         return []
@@ -134,14 +153,18 @@ def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
     out = []
     for tk, trows in by_ticker.items():
         trows.sort(key=lambda r: r["signal_date"])
-        seq = [(r["signal_date"], _label(r.get(_SCORE_FIELD)), r.get("price"), r.get(_SCORE_FIELD)) for r in trows]
-        ev = _detect(seq)
+        seq = [(r["signal_date"], _label(r), r.get("price")) for r in trows]
+        ev = _detect(seq, smooth_gap)
         if not ev:
             continue
-        sess = latest_i - date_index.get(ev["event_date"], latest_i)
-        if sess < min_sessions:
+        kind, idx = ev
+        event_date = seq[idx][0]
+        days_ago = latest_i - date_index.get(event_date, latest_i)
+        if days_ago < min_days:
             continue
-        price_then = ev["event_price"]
+        if max_days is not None and days_ago > max_days:
+            continue
+        price_then = seq[idx][2]
         price_now = seq[-1][2]
         if not price_then or not price_now:
             continue
@@ -150,20 +173,14 @@ def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
         except (TypeError, ValueError, ZeroDivisionError):
             continue
         if require_confirmed:
-            if ev["kind"] == "entered_high" and move < min_move_pct:
+            if kind == "entered_high" and move < min_move_pct:
                 continue
-            if ev["kind"] == "weakened" and move > -min_move_pct:
+            if kind == "weakened" and move > -min_move_pct:
                 continue
         out.append({
-            "ticker": tk,
-            "kind": ev["kind"],
-            "event_date": ev["event_date"],
-            "sessions_ago": sess,
-            "price_then": round(float(price_then), 2),
-            "price_now": round(float(price_now), 2),
-            "move_pct": round(move, 1),
-            "conviction_then": ev["conviction_then"],
-            "conviction_now": seq[-1][3],
+            "ticker": tk, "kind": kind, "event_date": event_date,
+            "days_ago": days_ago, "price_then": round(float(price_then), 2),
+            "price_now": round(float(price_now), 2), "move_pct": round(move, 1),
         })
     ups = sorted([s for s in out if s["kind"] == "entered_high"], key=lambda s: abs(s["move_pct"]), reverse=True)
     downs = sorted([s for s in out if s["kind"] == "weakened"], key=lambda s: abs(s["move_pct"]), reverse=True)
@@ -175,11 +192,11 @@ def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
 #
 def _line(s: dict) -> str:
     d = _short_date(s["event_date"])
-    sess = str(s["sessions_ago"]) + " sessions"
+    ago = str(s["days_ago"]) + " days"
     mv = ("%+.1f%%" % s["move_pct"]) + " since"
     if s["kind"] == "entered_high":
-        return _BULLET + " " + s["ticker"] + " " + _DASH + " HIGH conviction since " + d + " (" + sess + "), " + mv
-    return _BULLET + " " + s["ticker"] + " " + _DASH + " conviction slipped " + d + " (" + sess + "), " + mv
+        return _BULLET + " " + s["ticker"] + " " + _DASH + " HIGH conviction since " + d + " (" + ago + "), " + mv
+    return _BULLET + " " + s["ticker"] + " " + _DASH + " conviction slipped " + d + " (" + ago + "), " + mv
 #
 def format_wrap_block(signals: list, archive_url: str = None) -> str:
     if not signals:
