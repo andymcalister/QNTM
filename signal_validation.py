@@ -325,7 +325,7 @@ def format_hit_line(stats: dict) -> str:
         return ""
     return "Over the next " + str(w) + " sessions: " + "; ".join(parts) + "."
 #
-def _trade_excess(prices, dates, bench, di, ei, xi):
+def _trade_excess(prices, dates, bench, di, ei, xi, cost_bps=0.0):
     p0, p1 = prices[ei], prices[xi]
     d0, d1 = dates[ei], dates[xi]
     b0, b1 = bench.get(d0), bench.get(d1)
@@ -337,7 +337,7 @@ def _trade_excess(prices, dates, bench, di, ei, xi):
     except (TypeError, ValueError, ZeroDivisionError):
         return None
     hold = di.get(d1, 0) - di.get(d0, 0)
-    return ((sr - br) * 100.0, hold)
+    return ((sr - br) * 100.0 - (cost_bps / 100.0), hold)
 #
 def _num_state(adj, enter_at, exit_below):
     if adj is None:
@@ -352,7 +352,7 @@ def _num_state(adj, enter_at, exit_below):
         return "OUT"
     return "MID"
 #
-def _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap):
+def _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap, cost_bps=0.0):
     """Model's rule as a state machine on adj_composite: enter when >=enter_at,
     hold through MID, exit when <exit_below. One trade per entry (open trades
     marked to latest price). Left-censored positions (IN from first row) skipped."""
@@ -376,12 +376,12 @@ def _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap):
             else:
                 if s == "OUT":
                     if not censored:
-                        rr = _trade_excess(prices, dates, bench, di, entry_i, i)
+                        rr = _trade_excess(prices, dates, bench, di, entry_i, i, cost_bps)
                         if rr is not None:
                             trades.append((rr[0], True, rr[1]))
                     in_pos = False; entry_i = None; censored = False
         if in_pos and not censored:
-            rr = _trade_excess(prices, dates, bench, di, entry_i, n - 1)
+            rr = _trade_excess(prices, dates, bench, di, entry_i, n - 1, cost_bps)
             if rr is not None:
                 trades.append((rr[0], False, rr[1]))
     return trades
@@ -423,7 +423,7 @@ def _load_for_trades(sb, start):
             by_ticker[r["ticker"]].append(r)
     return by_ticker, bench, di
 #
-def compute_trade_stats(as_of=None, history_days=90, enter_at=60, exit_below=45, smooth_gap=1, sb=None):
+def compute_trade_stats(as_of=None, history_days=90, enter_at=60, exit_below=45, smooth_gap=1, cost_bps=0.0, sb=None):
     """Per-trade return vs SPY under the model's enter/exit rule. See module doc."""
     sb = _resolve_sb(sb)
     start = (_parse_ref(as_of) - timedelta(days=history_days)).isoformat()
@@ -432,11 +432,11 @@ def compute_trade_stats(as_of=None, history_days=90, enter_at=60, exit_below=45,
     by_ticker, bench, di = _load_for_trades(sb, start)
     if by_ticker is None:
         return _summarize_trades([], enter_at, exit_below, start)
-    trades = _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap)
+    trades = _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap, cost_bps)
     return _summarize_trades(trades, enter_at, exit_below, start)
 #
 def sweep_exit_thresholds(as_of=None, history_days=120, enter_at=60,
-                          exits=(45, 50, 55, 60), smooth_gap=1, sb=None):
+                          exits=(45, 50, 55, 60), smooth_gap=1, cost_bps=0.0, sb=None):
     """Same trade test, swept over exit_below values (single fetch). Use to
     UNDERSTAND exit sensitivity; choose on principle, not the max backtest."""
     sb = _resolve_sb(sb)
@@ -448,7 +448,7 @@ def sweep_exit_thresholds(as_of=None, history_days=120, enter_at=60,
         return []
     out = []
     for xb in exits:
-        trades = _trades_from_data(by_ticker, bench, di, enter_at, xb, smooth_gap)
+        trades = _trades_from_data(by_ticker, bench, di, enter_at, xb, smooth_gap, cost_bps)
         out.append(_summarize_trades(trades, enter_at, xb, start))
     return out
 #
@@ -467,16 +467,48 @@ def format_trade_line(stats: dict) -> str:
         s += ")"
     return s + "."
 #
+def sweep_grid(as_of=None, history_days=120, enters=tuple(range(70, 59, -1)),
+               exits=tuple(range(45, 61)), smooth_gap=1, cost_bps=0.0, sb=None):
+    """2D sweep over (enter_at, exit_below). Single fetch. Use to compare
+    specific entry/exit combos (e.g. 60/45 current vs 65/55 vs 70/60) with
+    turnover; choose on principle, not the max cell."""
+    sb = _resolve_sb(sb)
+    start = (_parse_ref(as_of) - timedelta(days=history_days)).isoformat()
+    if sb is None:
+        return []
+    by_ticker, bench, di = _load_for_trades(sb, start)
+    if by_ticker is None:
+        return []
+    out = []
+    for en in enters:
+        for xb in exits:
+            if xb > en:
+                continue
+            trades = _trades_from_data(by_ticker, bench, di, en, xb, smooth_gap, cost_bps)
+            out.append(_summarize_trades(trades, en, xb, start))
+    return out
+
+def format_grid_matrix(results, key="avg_excess_all") -> str:
+    ens = sorted({r["enter_at"] for r in results}, reverse=True)
+    xbs = sorted({r["exit_below"] for r in results})
+    cell = {(r["enter_at"], r["exit_below"]): r for r in results}
+    lines = ["en\\ex" + "".join("%7d" % x for x in xbs)]
+    for en in ens:
+        row = "%5d" % en
+        for xb in xbs:
+            r = cell.get((en, xb))
+            row += "      ." if (r is None or r.get(key) is None) else "%7.1f" % r[key]
+        lines.append(row)
+    return "\n".join(lines)
+
 if __name__ == "__main__":
-    import collections
-    every = get_validated_signals(max_winners=None, max_losers=None)
-    print(collections.Counter(s["kind"] for s in every))
-    print("--- wrap slate ---")
-    print(format_wrap_block(get_validated_signals()) or "(none)")
-    print("--- naive 10-session hit rates ---")
-    print(compute_hit_rates())
-    print("--- exit-threshold sweep (enter>=60, full history) ---")
-    for r in sweep_exit_thresholds(history_days=120):
-        print("exit<" + str(r["exit_below"]) + ": win " + str(r["win_rate_all"])
-              + "% | avg excess " + str(r["avg_excess_all"]) + " pts | "
-              + str(r["n_trades"]) + " trades | ~" + str(r["median_hold_sessions"]) + "-session hold")
+    COST = float(os.getenv("QNTM_COST_BPS", "10"))
+    g = sweep_grid(history_days=120, cost_bps=COST)
+    print("=== NET avg excess vs SPY (pts) | %g bps round-trip cost | rows=enter>=  cols=exit< ===" % COST)
+    print(format_grid_matrix(g, "avg_excess_all"))
+    print()
+    print("=== win-rate vs SPY (%) ===")
+    print(format_grid_matrix(g, "win_rate_all"))
+    print()
+    print("=== trade count (turnover) ===")
+    print(format_grid_matrix(g, "n_trades"))
