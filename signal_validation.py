@@ -1,11 +1,12 @@
 """QNTM signal validation - how the model's calls have played out.
 Reads dated signal_log history (canonical `signal` column) + SPY from
-benchmark_price. Observational only. Four kinds for the wrap slate, plus two
-hit-rate views:
-  compute_hit_rates  - fixed forward window (naive, horizon-agnostic)
-  compute_trade_stats - the model's ACTUAL rule: enter HIGH(>=60), hold through
-                        MODERATE, exit at LOW(<45); per-trade return vs SPY over
-                        the trade's own holding window. This is the fair test.
+benchmark_price. Observational only. Four kinds for the wrap slate, plus:
+  compute_hit_rates    - naive fixed forward window (horizon-agnostic; reference)
+  compute_trade_stats  - the model's rule: enter at enter_at, hold, exit when
+                         adj_composite < exit_below; per-trade return vs SPY over
+                         each trade's own holding window.
+  sweep_exit_thresholds- same, swept over several exit_below values (one fetch)
+                         so the exit choice is evidence-based, not reactive.
 For the full /signals archive: max_winners=None, max_losers=None,
 require_confirmed=False.
 Env: QNTM_CONVICTION_FIELD, QNTM_CONVICTION_HIGH_MIN, QNTM_SIGNALS_ARCHIVE_URL,
@@ -35,6 +36,16 @@ def _resolve_sb(sb=None):
         print("[warn] signal_validation: no supabase client: " + repr(e))
         return None
 #
+def _parse_ref(as_of):
+    ref = as_of or date.today()
+    if isinstance(ref, str):
+        try:
+            y, m, d = ref.split("-")
+            return date(int(y), int(m), int(d))
+        except Exception:
+            return date.today()
+    return ref
+#
 def _label(row) -> str:
     sig = row.get("signal")
     if isinstance(sig, str) and sig.strip().upper() in ("HIGH", "MODERATE", "LOW"):
@@ -59,7 +70,7 @@ def _fetch_window(sb, start_date: str) -> list:
     rows = []
     page = 0
     size = 1000
-    while page < 120:
+    while page < 200:
         res = (sb.table("signal_log").select(cols)
                .gte("signal_date", start_date)
                .order("signal_date")
@@ -144,13 +155,7 @@ def get_validated_signals(as_of=None, history_days=60, min_days=2, recent_days=1
     sb = _resolve_sb(sb)
     if sb is None:
         return []
-    ref = as_of or date.today()
-    if isinstance(ref, str):
-        try:
-            y, m, d = ref.split("-")
-            ref = date(int(y), int(m), int(d))
-        except Exception:
-            ref = date.today()
+    ref = _parse_ref(as_of)
     start = (ref - timedelta(days=history_days)).isoformat()
     rows = _fetch_window(sb, start)
     if not rows:
@@ -240,19 +245,13 @@ def _load_benchmark(sb, start_date: str) -> dict:
 #
 def compute_hit_rates(as_of=None, window=10, history_days=90, smooth_gap=1, sb=None):
     """Naive fixed-forward-window hit-rate vs SPY (horizon-agnostic). Kept for
-    reference; compute_trade_stats is the fair test for this model."""
+    reference; compute_trade_stats / sweep are the fair test for this model."""
     sb = _resolve_sb(sb)
     empty = {"high_beat_rate": None, "high_n": 0, "low_lag_rate": None,
              "low_n": 0, "window": window, "since": None, "benchmark": "SPY"}
     if sb is None:
         return empty
-    ref = as_of or date.today()
-    if isinstance(ref, str):
-        try:
-            y, m, d = ref.split("-"); ref = date(int(y), int(m), int(d))
-        except Exception:
-            ref = date.today()
-    start = (ref - timedelta(days=history_days)).isoformat()
+    start = (_parse_ref(as_of) - timedelta(days=history_days)).isoformat()
     rows = _fetch_window(sb, start)
     bench = _load_benchmark(sb, start)
     if not rows or not bench:
@@ -340,84 +339,118 @@ def _trade_excess(prices, dates, bench, di, ei, xi):
     hold = di.get(d1, 0) - di.get(d0, 0)
     return ((sr - br) * 100.0, hold)
 #
-def compute_trade_stats(as_of=None, history_days=90, smooth_gap=1, sb=None):
-    """The model's ACTUAL rule: enter at HIGH (>=60), hold through MODERATE,
-    exit at LOW (<45). Each HIGH entry = one trade, held to its exit (or marked
-    to the latest price if still open), compared to SPY over the trade's own
-    holding window. Signal-level (every HIGH entry, not the sized portfolio).
-    Left-censored positions (HIGH from the first row = unknown entry) skipped.
-    Returns win rates + N + avg excess (pts vs SPY) + median hold, closed/all."""
-    sb = _resolve_sb(sb)
-    empty = {"n_trades": 0, "n_closed": 0, "n_open": 0, "win_rate_all": None,
-             "win_rate_closed": None, "avg_excess_all": None,
-             "avg_excess_closed": None, "median_hold_sessions": None,
-             "since": None, "benchmark": "SPY"}
-    if sb is None:
-        return empty
-    ref = as_of or date.today()
-    if isinstance(ref, str):
-        try:
-            y, m, d = ref.split("-"); ref = date(int(y), int(m), int(d))
-        except Exception:
-            ref = date.today()
-    start = (ref - timedelta(days=history_days)).isoformat()
-    rows = _fetch_window(sb, start)
-    bench = _load_benchmark(sb, start)
-    if not rows or not bench:
-        return empty
-    all_dates = sorted({r["signal_date"] for r in rows if r.get("signal_date")})
-    di = {d: i for i, d in enumerate(all_dates)}
-    by_ticker = defaultdict(list)
-    for r in rows:
-        if r.get("signal_date"):
-            by_ticker[r["ticker"]].append(r)
+def _num_state(adj, enter_at, exit_below):
+    if adj is None:
+        return "?"
+    try:
+        a = float(adj)
+    except (TypeError, ValueError):
+        return "?"
+    if a >= enter_at:
+        return "IN"
+    if a < exit_below:
+        return "OUT"
+    return "MID"
+#
+def _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap):
+    """Model's rule as a state machine on adj_composite: enter when >=enter_at,
+    hold through MID, exit when <exit_below. One trade per entry (open trades
+    marked to latest price). Left-censored positions (IN from first row) skipped."""
     trades = []
     for tk, trows in by_ticker.items():
         trows.sort(key=lambda r: r["signal_date"])
         dates = [r["signal_date"] for r in trows]
         prices = [r.get("price") for r in trows]
-        labels = _coalesce([_label(r) for r in trows], smooth_gap)
-        n = len(labels)
+        states = _coalesce([_num_state(r.get(_SCORE_FIELD), enter_at, exit_below) for r in trows], smooth_gap)
+        n = len(states)
         if n < 2:
             continue
-        in_pos = labels[0] == "HIGH"
+        in_pos = states[0] == "IN"
         censored = in_pos
         entry_i = 0 if in_pos else None
         for i in range(1, n):
-            lab = labels[i]
+            s = states[i]
             if not in_pos:
-                if lab == "HIGH":
+                if s == "IN":
                     in_pos = True; entry_i = i; censored = False
             else:
-                if lab == "LOW":
+                if s == "OUT":
                     if not censored:
-                        r = _trade_excess(prices, dates, bench, di, entry_i, i)
-                        if r is not None:
-                            trades.append((r[0], True, r[1]))
+                        rr = _trade_excess(prices, dates, bench, di, entry_i, i)
+                        if rr is not None:
+                            trades.append((rr[0], True, rr[1]))
                     in_pos = False; entry_i = None; censored = False
         if in_pos and not censored:
-            r = _trade_excess(prices, dates, bench, di, entry_i, n - 1)
-            if r is not None:
-                trades.append((r[0], False, r[1]))
+            rr = _trade_excess(prices, dates, bench, di, entry_i, n - 1)
+            if rr is not None:
+                trades.append((rr[0], False, rr[1]))
+    return trades
+#
+def _summarize_trades(trades, enter_at, exit_below, since):
+    base = {"enter_at": enter_at, "exit_below": exit_below, "n_trades": 0,
+            "n_closed": 0, "n_open": 0, "win_rate_all": None,
+            "win_rate_closed": None, "avg_excess_all": None,
+            "avg_excess_closed": None, "median_hold_sessions": None,
+            "since": since, "benchmark": "SPY"}
     if not trades:
-        return empty
+        return base
     import statistics
     all_ex = [t[0] for t in trades]
     closed_ex = [t[0] for t in trades if t[1]]
     holds = [t[2] for t in trades]
     def _wr(xs):
         return round(100.0 * sum(1 for x in xs if x > 0) / len(xs), 1) if xs else None
-    return {
-        "n_trades": len(trades),
-        "n_closed": len(closed_ex),
+    base.update({
+        "n_trades": len(trades), "n_closed": len(closed_ex),
         "n_open": len(trades) - len(closed_ex),
-        "win_rate_all": _wr(all_ex),
-        "win_rate_closed": _wr(closed_ex),
+        "win_rate_all": _wr(all_ex), "win_rate_closed": _wr(closed_ex),
         "avg_excess_all": round(sum(all_ex) / len(all_ex), 2),
         "avg_excess_closed": round(sum(closed_ex) / len(closed_ex), 2) if closed_ex else None,
         "median_hold_sessions": int(statistics.median(holds)) if holds else None,
-        "since": start, "benchmark": "SPY",
-    }
+    })
+    return base
+#
+def _load_for_trades(sb, start):
+    rows = _fetch_window(sb, start)
+    bench = _load_benchmark(sb, start)
+    if not rows or not bench:
+        return None, None, None
+    all_dates = sorted({r["signal_date"] for r in rows if r.get("signal_date")})
+    di = {d: i for i, d in enumerate(all_dates)}
+    by_ticker = defaultdict(list)
+    for r in rows:
+        if r.get("signal_date"):
+            by_ticker[r["ticker"]].append(r)
+    return by_ticker, bench, di
+#
+def compute_trade_stats(as_of=None, history_days=90, enter_at=60, exit_below=45, smooth_gap=1, sb=None):
+    """Per-trade return vs SPY under the model's enter/exit rule. See module doc."""
+    sb = _resolve_sb(sb)
+    start = (_parse_ref(as_of) - timedelta(days=history_days)).isoformat()
+    if sb is None:
+        return _summarize_trades([], enter_at, exit_below, start)
+    by_ticker, bench, di = _load_for_trades(sb, start)
+    if by_ticker is None:
+        return _summarize_trades([], enter_at, exit_below, start)
+    trades = _trades_from_data(by_ticker, bench, di, enter_at, exit_below, smooth_gap)
+    return _summarize_trades(trades, enter_at, exit_below, start)
+#
+def sweep_exit_thresholds(as_of=None, history_days=120, enter_at=60,
+                          exits=(45, 50, 55, 60), smooth_gap=1, sb=None):
+    """Same trade test, swept over exit_below values (single fetch). Use to
+    UNDERSTAND exit sensitivity; choose on principle, not the max backtest."""
+    sb = _resolve_sb(sb)
+    start = (_parse_ref(as_of) - timedelta(days=history_days)).isoformat()
+    if sb is None:
+        return []
+    by_ticker, bench, di = _load_for_trades(sb, start)
+    if by_ticker is None:
+        return []
+    out = []
+    for xb in exits:
+        trades = _trades_from_data(by_ticker, bench, di, enter_at, xb, smooth_gap)
+        out.append(_summarize_trades(trades, enter_at, xb, start))
+    return out
 #
 def format_trade_line(stats: dict) -> str:
     if not stats or not stats.get("n_trades"):
@@ -442,7 +475,8 @@ if __name__ == "__main__":
     print(format_wrap_block(get_validated_signals()) or "(none)")
     print("--- naive 10-session hit rates ---")
     print(compute_hit_rates())
-    print("--- trade stats (entry->exit rule) ---")
-    ts = compute_trade_stats()
-    print(ts)
-    print(format_trade_line(ts) or "(insufficient)")
+    print("--- exit-threshold sweep (enter>=60, full history) ---")
+    for r in sweep_exit_thresholds(history_days=120):
+        print("exit<" + str(r["exit_below"]) + ": win " + str(r["win_rate_all"])
+              + "% | avg excess " + str(r["avg_excess_all"]) + " pts | "
+              + str(r["n_trades"]) + " trades | ~" + str(r["median_hold_sessions"]) + "-session hold")
