@@ -18,7 +18,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 #
 _SCORE_FIELD = os.getenv("QNTM_CONVICTION_FIELD", "adj_composite")
-_HIGH_MIN = float(os.getenv("QNTM_CONVICTION_HIGH_MIN", "60"))
+_HIGH_MIN = float(os.getenv("QNTM_CONVICTION_HIGH_MIN", "65"))
 _ARCHIVE_URL = os.getenv("QNTM_SIGNALS_ARCHIVE_URL", "https://qntm.live/signals")
 _HEADER = os.getenv("QNTM_SIGNALS_HEADER", "How the model's calls have played out:")
 _UP = "\u2191"
