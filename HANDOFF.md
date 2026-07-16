@@ -41,7 +41,7 @@ Note: local commits are made on `main`; `main:dev` pushes that branch to the `de
 ## Model
 - **Universe:** 834 tickers (S&P 500 + Russell 1000)
 - **5 Pillars:** Momentum 30%, Quality 25%, Volume 20%, Value 15%, Sentiment 10%
-- **Signals:** HIGH ≥60, MODERATE 45–59, LOW <45. **The `signal` column in signal_log now stores HIGH/MODERATE/LOW** (normalized this session from 8 legacy vocabularies — BUY/HOLD/SELL/STRONG ALIGN/HIGH ALIGN/LOW ALIGN/WEAK/NEG). `signal_legacy` column holds the originals for rollback. `model_engine` writes HIGH/MODERATE/LOW going forward. The internal `adj_action` enum (BUY/SELL/HOLD) is STILL used in code for portfolio/promotion logic but is NEVER displayed — always converted to conviction labels. No buy/hold/sell instructional language anywhere user-facing.
+- **Signals:** HIGH ≥65, MODERATE 56–64, LOW ≤55 (rounded); portfolio ENTRY ≥65 (≥70 in HIGH VOLATILITY), EXIT ≤55 — bands centralized in conviction.py. **The `signal` column in signal_log now stores HIGH/MODERATE/LOW** (normalized this session from 8 legacy vocabularies — BUY/HOLD/SELL/STRONG ALIGN/HIGH ALIGN/LOW ALIGN/WEAK/NEG). `signal_legacy` column holds the originals for rollback. `model_engine` writes HIGH/MODERATE/LOW going forward. The internal `adj_action` enum (BUY/SELL/HOLD) is STILL used in code for portfolio/promotion logic but is NEVER displayed — always converted to conviction labels. No buy/hold/sell instructional language anywhere user-facing.
 - **Macro overlay:** regime-scaled quant/macro blend. Macro weight by regime: RISK_OFF/HIGH VOLATILITY 25–35%, RISK_ON/MILDLY BULLISH 15%, NEUTRAL 10% (in `apply_macro_overlay`). `adj_composite` = quant composite reweighted by sector overlay.
 - **Backtest:** +347% adj vs SPY +131% · Sharpe 1.72 · Max DD 6.5% · 85% win rate
 
@@ -138,7 +138,7 @@ Every `def page_X()` starts with `_pin_nav("X")` — prevents text input reruns 
 
 **Derive in Python:**
 - `sector` → `SECTORS.get(ticker, "Unknown")` from `model_engine`. NOTE: `run_macro_refresh` attaches sector from `load_cached_fundamentals(max_age_hours=48)` (the fundamentals JSONB carries `sector`) so the overlay maps correctly on the read side. The macro pass writes ONLY `adj_composite`/`signal`/`macro_overlay` (disjoint from the price pass — see Refresh Architecture).
-- `adj_action` → `"BUY" if adj>=60 else "SELL" if adj<45 else "HOLD"` (internal enum, never displayed)
+- `adj_action` → `conviction_action(adj)` (BUY=entry >=65 / SELL=exit <=55 / HOLD) (internal enum, never displayed)
 - `pct_rank` → computed in `factor_panel_html` on the fly from the session `scan_results` distribution when missing (watchlist/portfolio rows from signal_log lack it; otherwise they'd all show "50th"). Falls back to 50 only if no scan in session.
 
 ---
@@ -220,7 +220,7 @@ Named lists per user with FK items. `watchlist_items` carries `price_at_add` for
 
 ### model_portfolio_positions
 - 41 active positions (9 slots open — Energy/Materials capped at 30%)
-- $2K/position, 50-stock target, auto-exit score<45, auto-fill nightly+intraday
+- $2K/position, 50-stock target, auto-exit score<=55 (entry >=65, >=70 in high-vol), auto-fill nightly+intraday
 
 ---
 
