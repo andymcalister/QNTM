@@ -1141,6 +1141,20 @@ def load_model_portfolio() -> dict:
                     "spy_pct": round(ds_pct, 2), "spy_dollar": round(spy_now_v - spy_prev_v, 2),
                     "vs_spy_pct": round(dm_pct - ds_pct, 2),
                 }
+                for _bk, _raw, _norm in (("rsp", rsp, rsp_norm), ("qqq", qqq, qqq_norm)):
+                    if _raw.get(dates[-1]) is None or _raw.get(d_prev) is None:
+                        continue
+                    _b0 = next((v for v in _norm.values() if v is not None), None)
+                    if not _b0:
+                        continue
+                    _prev_v = _norm.get(d_prev)
+                    _now_v = _norm.get(dates[-1])
+                    if _prev_v is None or _now_v is None:
+                        continue
+                    _pct = ((_raw[dates[-1]] / _raw[d_prev] - 1) * 100) if _raw[d_prev] else 0.0
+                    day[_bk + "_now"] = round(_now_v, 2)
+                    day[_bk + "_prev"] = round(_prev_v, 2)
+                    day[_bk + "_pct"] = round(_pct, 2)
             # RSP/QQQ cumulative returns over their available series.
             def _bench_ret(norm):
                 if not norm:
