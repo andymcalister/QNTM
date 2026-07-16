@@ -27,7 +27,7 @@ def _client():
     )
 
 
-def post_to_x(text: str) -> dict:
+def post_to_x(text: str, in_reply_to: str = None) -> dict:
     """Post a single tweet. Returns {ok, id|error}. Never raises."""
     text = (text or "").strip()
     if not text:
@@ -38,7 +38,10 @@ def post_to_x(text: str) -> dict:
     if c is None:
         return {"ok": False, "error": "client unavailable (creds/lib)"}
     try:
-        resp = c.create_tweet(text=text)
+        kwargs = {"text": text}
+        if in_reply_to:
+            kwargs["in_reply_to_tweet_id"] = in_reply_to
+        resp = c.create_tweet(**kwargs)
         tid = (resp.data or {}).get("id")
         log.info("posted to X: %s", tid)
         return {"ok": True, "id": tid}

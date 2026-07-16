@@ -78,6 +78,23 @@ def generate_post(data: dict) -> str:
     return "\n".join(l for l in lines if l is not None).strip()
 
 
+def generate_signals_reply(data: dict) -> str:
+    """Build the 'flagged before today's moves' self-reply for wraps. Returns
+    '' (skip the reply) for outlooks, on no signals, or on any error."""
+    if data.get("kind") not in ("wrap", "week"):
+        return ""
+    try:
+        import signal_validation as sv
+        sigs = sv.get_validated_signals(as_of=data.get("date"))
+        block = sv.format_wrap_block(sigs)
+        if block and len(block) <= 280:
+            return block
+        return ""
+    except Exception as e:
+        log.warning("signals reply skipped: %s", e)
+        return ""
+
+
 # ── Guardrails ────────────────────────────────────────────────────────────────
 _BAD_STRINGS = ("i'm sorry", "as an ai", "i cannot", "i don't have enough",
                 "i have enough now", "none", "nan", "undefined", "null")
@@ -140,6 +157,15 @@ def publish_social(data: dict, dedup_check=None, mark_posted=None) -> dict:
             if mark_posted:
                 try: mark_posted(date, kind, res.get("id"))
                 except Exception: pass
+            try:
+                reply_text = generate_signals_reply(data)
+                if reply_text and res.get("id"):
+                    from x_publisher import post_to_x as _reply
+                    r2 = _reply(reply_text, in_reply_to=res.get("id"))
+                    log.info("social: signals reply %s/%s ok=%s id=%s",
+                             kind, date, r2.get("ok"), r2.get("id"))
+            except Exception as e:
+                log.warning("signals reply post skipped: %s", e)
         else:
             _alert(f"QNTM social post FAILED for {kind} {date}: {res.get('error')}")
         return res
