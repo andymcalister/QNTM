@@ -6,13 +6,15 @@ Feeds the Day Wrap tail and the /signals archive.
 Public:
     get_validated_signals(...) -> list[dict]
     format_wrap_block(signals) -> str
+Selection: balanced by default - max_up bullish + max_down bearish, bullish
+    first. Pass max_up=None, max_down=None (and require_confirmed=False) for
+    the full, non-cherry-picked /signals archive.
 Signal dict keys: ticker, kind (entered_high|weakened), event_date,
     sessions_ago, price_then, price_now, move_pct, conviction_then,
     conviction_now.
-NOTE (confirm with Andy): label is derived from `adj_composite` using the
-    bands below. If your site's "High/Moderate" bands differ, or if the
-    signal_log `signal` column already stores the text label, tell me and I
-    swap _label()/_SCORE_FIELD so the archive matches the site exactly.
+NOTE (confirm with Andy): label is derived from `adj_composite` at ≥60 / ≥45.
+    If your site's bands differ, or signal_log `signal` already holds the text
+    label, tell me and I swap _label()/_SCORE_FIELD.
 Env overrides: QNTM_CONVICTION_FIELD, QNTM_CONVICTION_HIGH_MIN,
     QNTM_CONVICTION_MOD_MIN, QNTM_SIGNALS_ARCHIVE_URL.
 """
@@ -79,8 +81,6 @@ def _fetch_window(sb, start_date: str) -> list:
     return rows
 #
 def _detect(seq: list):
-    """seq = list of (date, label, price, score) sorted ascending. Returns the
-    most recent observable transition or None."""
     if len(seq) < 2:
         return None
     cur = seq[-1][1]
@@ -103,10 +103,11 @@ def _detect(seq: list):
     return {"kind": "weakened", "event_date": e[0], "event_price": e[2], "conviction_then": e[3]}
 #
 def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
-                          min_move_pct=4.0, top_n=3, require_confirmed=True, sb=None):
-    """Return validated signals from signal_log. require_confirmed=True (wrap)
-    keeps only moves that actually confirmed in-direction; pass False for the
-    full, non-cherry-picked /signals archive."""
+                          min_move_pct=4.0, max_up=2, max_down=1,
+                          require_confirmed=True, top_n=None, sb=None):
+    """Balanced by default: up to max_up bullish + max_down bearish, bullish
+    first. For the full /signals archive call max_up=None, max_down=None,
+    require_confirmed=False."""
     sb = _resolve_sb(sb)
     if sb is None:
         return []
@@ -164,8 +165,13 @@ def get_validated_signals(as_of=None, lookback_days=21, min_sessions=2,
             "conviction_then": ev["conviction_then"],
             "conviction_now": seq[-1][3],
         })
-    out.sort(key=lambda s: abs(s["move_pct"]), reverse=True)
-    return out[:top_n] if top_n else out
+    ups = sorted([s for s in out if s["kind"] == "entered_high"], key=lambda s: abs(s["move_pct"]), reverse=True)
+    downs = sorted([s for s in out if s["kind"] == "weakened"], key=lambda s: abs(s["move_pct"]), reverse=True)
+    if max_up is None and max_down is None:
+        allsigs = sorted(out, key=lambda s: s["event_date"], reverse=True)
+        return allsigs[:top_n] if top_n else allsigs
+    picked = ups[:max_up if max_up is not None else len(ups)] + downs[:max_down if max_down is not None else len(downs)]
+    return picked
 #
 def _line(s: dict) -> str:
     d = _short_date(s["event_date"])
@@ -187,5 +193,5 @@ def format_wrap_block(signals: list, archive_url: str = None) -> str:
 #
 if __name__ == "__main__":
     sigs = get_validated_signals()
-    print("[" + str(len(sigs)) + " validated]")
+    print("[" + str(len(sigs)) + " selected]")
     print(format_wrap_block(sigs) or "(none today)")
