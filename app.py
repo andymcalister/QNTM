@@ -11615,13 +11615,13 @@ def _prices_as_of():
 
 def page_model_portfolio():
     _pin_nav("model_portfolio")
-    # Model portfolio: HIGH conviction positions, exits at score < 45
+    # Model portfolio: enters High Conviction (>=65 rounded), exits at Low Conviction (<=55). Bands: conviction.py
     from data_refresh import _get_supabase
     import datetime
 
     page_summary(
         "🏆", "Portfolio & Track Record",
-        "Live model portfolio vs SPY · equal-weighted $2K · marked-to-market · exits at Low Conviction"
+        "Live model portfolio vs SPY · equal-weighted $2K · marked-to-market · enters High Conviction (65+), exits at Low Conviction (55 or under)"
     )
 
     # ── Manual refresh — re-pull the live equity curve without leaving the page ─
@@ -11734,7 +11734,7 @@ def page_model_portfolio():
 
         # Preview what would be entered
         buys = sorted(
-            [r for r in scan if r.get("adj_composite", r.get("composite", 0)) >= 60],
+            [r for r in scan if __import__("conviction").is_entry(r.get("adj_composite", r.get("composite", 0)))],
             key=lambda x: x.get("adj_composite", x.get("composite", 0)),
             reverse=True
         )[:20]
