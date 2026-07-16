@@ -27,10 +27,24 @@ def conviction_label(adj) -> str:
         return "LOW"
     return "MODERATE"
 #
-def is_entry(adj) -> bool:
-    """Portfolio entry gate: rounded conviction >= HIGH_MIN."""
+HIGH_VOL_MIN = 70   # entry gate tightens to this in HIGH VOLATILITY regime
+#
+def _is_high_vol(regime) -> bool:
+    if not regime:
+        return False
+    r = str(regime).upper().replace("_", " ").replace("-", " ")
+    r = " ".join(r.split())
+    return r in ("HIGH VOLATILITY", "HIGH VOL", "HIGHVOL")
+#
+def entry_min(regime=None) -> int:
+    """Entry threshold for the current regime: HIGH_VOL_MIN in high-vol, else HIGH_MIN."""
+    return HIGH_VOL_MIN if _is_high_vol(regime) else HIGH_MIN
+#
+def is_entry(adj, regime=None) -> bool:
+    """Portfolio entry gate: rounded conviction >= entry_min(regime).
+    Regime tightens ONLY the buy gate; the label and exit stay flat."""
     try:
-        return _r(adj) >= HIGH_MIN
+        return _r(adj) >= entry_min(regime)
     except (TypeError, ValueError):
         return False
 #

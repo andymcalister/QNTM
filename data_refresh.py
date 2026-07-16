@@ -831,6 +831,7 @@ def update_model_portfolio(scored_list: list) -> None:
         #    fully-degraded (neutral-50) case; this covers the empty/partial case,
         #    and the circuit breaker below still caps any one-run exit cluster.
         _n = len(scored_list) or 1
+        _regime = (_load_macro_state() or {}).get("regime")
         _macro_live = (sum(1 for r in scored_list
                            if abs(float(r.get("macro_overlay", 0) or 0)) > 0.01) / _n) > 0.5
         _exit_field = "adj_composite" if _macro_live else "composite"
@@ -890,7 +891,7 @@ def update_model_portfolio(scored_list: list) -> None:
         # in its range, not just the top raw score.
         candidates = sorted(
             [r for r in scored_list
-             if _is_entry(r.get("adj_composite", r.get("composite", 0)))
+             if _is_entry(r.get("adj_composite", r.get("composite", 0)), _regime)
              and r["ticker"] not in active_tickers
              and r.get("price")],
             key=_entry_blend_score,
