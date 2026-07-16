@@ -741,9 +741,9 @@ def update_model_portfolio(scored_list: list) -> None:
 
     Strategy:
     - Target: 50 positions, $2,000 equal weight ($100K total)
-    - Entry:  adj_composite >= 60 (High Conviction)
-    - Hold:   by default — no action while score stays >= 45
-    - Exit:   adj_composite < 45 (conviction collapsed) → sell, log exit
+    - Entry:  rounded adj_composite >= 65 (High Conviction; was 60)
+    - Hold:   by default — no action while rounded score stays >= 56
+    - Exit:   rounded adj_composite <= 55 (conviction collapsed; was <45) → sell, log exit
     - Reinvest: immediately look for next High Conviction stock not held,
                 respecting 30% sector cap (max 15 per sector).
                 If none available, slot stays open — filled on next refresh
@@ -762,6 +762,7 @@ def update_model_portfolio(scored_list: list) -> None:
     except Exception:
         _SECTORS = {}
         def _sector_of(t): return "Unknown"
+    from conviction import is_entry as _is_entry, is_exit as _is_exit
 
     try:
         today     = date.today().isoformat()
@@ -845,7 +846,7 @@ def update_model_portfolio(scored_list: list) -> None:
             if not sc:
                 continue
             gate = float(sc.get(_exit_field, sc.get("composite", 50)) or 50)
-            if gate < EXIT_SCORE:
+            if _is_exit(gate):
                 exit_candidates.append((pos, gate, sc))
 
         # ── Circuit breaker — a one-run cluster of exits is a data/model artifact,
@@ -889,7 +890,7 @@ def update_model_portfolio(scored_list: list) -> None:
         # in its range, not just the top raw score.
         candidates = sorted(
             [r for r in scored_list
-             if float(r.get("adj_composite", r.get("composite", 0)) or 0) >= 60
+             if _is_entry(r.get("adj_composite", r.get("composite", 0)))
              and r["ticker"] not in active_tickers
              and r.get("price")],
             key=_entry_blend_score,

@@ -1,39 +1,42 @@
 """QNTM conviction - single source of truth for thresholds & labels.
-Import this everywhere instead of hardcoding cutoffs, so a change lands in ONE
-place and labels / entry / exit / alerts / validation can never disagree.
+Scores are ROUNDED to the nearest integer before bucketing, so label / entry /
+exit always agree with the rounded score shown in the UI.
 
-Threshold change 2026-07-16 (forward-only):
-    HIGH     >= 65     (was 60)   -- portfolio entry gate
-    MODERATE 55..64    (was 45-59) -- held
-    LOW      <  55     (was 45)   -- portfolio EXIT trigger
+Change 2026-07-16 (forward-only):
+    HIGH     rounded >= 65   -- entry gate           (was 60)
+    MODERATE rounded 56..64  -- held                 (was 45-59)
+    LOW      rounded <= 55   -- exit trigger          (was < 45)
 """
 from __future__ import annotations
 #
-HIGH_MIN = 65
-MODERATE_MIN = 55  # below MODERATE_MIN == LOW == exit trigger
+HIGH_MIN = 65   # rounded adj_composite >= HIGH_MIN -> HIGH / entry
+LOW_MAX  = 55   # rounded adj_composite <= LOW_MAX   -> LOW / exit
+#
+def _r(adj):
+    return round(float(adj))
 #
 def conviction_label(adj) -> str:
-    """Canonical HIGH / MODERATE / LOW label from adj_composite."""
+    """Canonical HIGH / MODERATE / LOW from the ROUNDED adj_composite."""
     try:
-        a = float(adj)
+        r = _r(adj)
     except (TypeError, ValueError):
         return "MODERATE"
-    if a >= HIGH_MIN:
+    if r >= HIGH_MIN:
         return "HIGH"
-    if a >= MODERATE_MIN:
-        return "MODERATE"
-    return "LOW"
+    if r <= LOW_MAX:
+        return "LOW"
+    return "MODERATE"
 #
 def is_entry(adj) -> bool:
-    """Portfolio entry gate: HIGH conviction (>= HIGH_MIN)."""
+    """Portfolio entry gate: rounded conviction >= HIGH_MIN."""
     try:
-        return float(adj) >= HIGH_MIN
+        return _r(adj) >= HIGH_MIN
     except (TypeError, ValueError):
         return False
 #
 def is_exit(adj) -> bool:
-    """Portfolio exit trigger: conviction dropped to LOW (< MODERATE_MIN)."""
+    """Portfolio exit trigger: rounded conviction <= LOW_MAX."""
     try:
-        return float(adj) < MODERATE_MIN
+        return _r(adj) <= LOW_MAX
     except (TypeError, ValueError):
         return False
