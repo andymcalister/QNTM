@@ -6329,6 +6329,7 @@ def platform_nav():
     try:
         if analytics.is_admin():
             nav_items.append(("analytics", "📊", "Analytics"))
+            nav_items.append(("factor_ic", "🔬", "Factor IC"))
     except Exception:
         pass
     cur_em    = next((e for k,e,l in nav_items if k==cur_nav), "📊")
