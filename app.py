@@ -12662,6 +12662,44 @@ def _render_whats_new():
     _wn_banner()
 
 
+def page_factor_ic():
+    import pandas as pd
+    import factor_analysis as fa
+    st.markdown("## Factor IC \u2014 diagnostic")
+    st.caption("Daily cross-sectional Spearman rank correlation between each factor's "
+               "sub-score and forward excess return vs SPY. Recomputed live from signal_log. "
+               "Vol regime = SPY trailing 10-day realized-vol median split (a proxy, not the macro regime).")
+    st.info("DIRECTIONAL ONLY. Short sample; per-regime buckets have very few days (see n). "
+            "This page ACCUMULATES signal across regimes over time \u2014 it does NOT justify "
+            "re-weighting the model. Durable factor ICs run ~0.02-0.05; larger values are regime artifacts.")
+    rep = fa.ic_report(history_days=120)
+    if rep.get("error"):
+        st.warning("Not enough data yet: %s" % rep)
+        return
+    st.caption("Since %s \u00b7 weight column = current live PILLAR_W" % rep["start"])
+    for fwd, blk in rep["fwds"].items():
+        rd = blk["regime_days"]
+        st.markdown("### fwd = %d sessions \u00b7 Elevated Vol %d days / Normal Vol %d days"
+                    % (fwd, rd.get("Elevated Vol", 0), rd.get("Normal Vol", 0)))
+        rows = []
+        for c, row in blk["table"].items():
+            o = row["overall"]; e = row["by_regime"]["Elevated Vol"]; nv = row["by_regime"]["Normal Vol"]
+            rows.append({
+                "factor": c,
+                "weight": row["weight"] if row["weight"] is not None else "",
+                "IC": o["mean"], "%days+": o["pct_pos"], "t-stat": o["tstat"],
+                "Elev IC (n)": ("%.3f (%d)" % (e["mean"], e["ndays"])) if e["mean"] is not None else "-",
+                "Normal IC (n)": ("%.3f (%d)" % (nv["mean"], nv["ndays"])) if nv["mean"] is not None else "-",
+            })
+        try:
+            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        except TypeError:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+        ser = blk["composite_series"]
+        if ser:
+            st.line_chart(pd.DataFrame(ser, columns=["date", "composite_IC"]).set_index("date"))
+
+
 def page_platform():
     # One-time post-signup toast (C1 auto-login lands here straight from create).
     _su_toast = st.session_state.pop("_signup_toast", None)
@@ -12760,6 +12798,7 @@ def page_platform():
         "methodology":     page_methodology,
         "alerts":         page_alerts,
         "account":        page_account,
+        "factor_ic":       page_factor_ic,
     }
     # Persist nav in URL so WebSocket reconnects (mobile blur) can restore it
     _cur_nav = st.session_state.get("nav", "screener")
@@ -12802,6 +12841,15 @@ def page_platform():
         try:
             if analytics.is_admin():
                 analytics.render_analytics_dashboard()
+            else:
+                st.session_state.nav = "screener"
+                st.rerun()
+        except Exception:
+            page_screener()
+    elif _cur_nav == "factor_ic":
+        try:
+            if analytics.is_admin():
+                page_factor_ic()
             else:
                 st.session_state.nav = "screener"
                 st.rerun()
