@@ -757,11 +757,13 @@ def update_model_portfolio(scored_list: list) -> None:
         log.warning("[MODEL PORTFOLIO] No Supabase — skipping")
         return
 
-    # Market-session gate — never enter/exit on a non-trading day. Scores can
-    # drift on a weekend (macro overlay recomputes) while prices stay frozen at
-    # the prior close, which fired a phantom Saturday exit on 2026-07-18.
-    if date.today().weekday() > 4:
-        log.warning("[MODEL PORTFOLIO] Non-trading day (weekend) — no exits or entries.")
+    # Market-session gate — never enter/exit when the market was closed. The cron
+    # runs daily; on a closed day prices are re-stamped from the prior session
+    # while scores still drift (macro recomputes), which fired phantom trades
+    # (HST Sat 2026-07-18, BORR Sat 2026-05-30).
+    from market_calendar import is_trading_day as _is_trading_day, why_closed as _why_closed
+    if not _is_trading_day():
+        log.warning("[MODEL PORTFOLIO] Market closed (%s) — no exits or entries." % _why_closed())
         return
 
     try:
