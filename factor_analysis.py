@@ -14,6 +14,15 @@ FACTORS = ["momentum", "quality", "value", "volume", "sentiment"]
 PILLAR_W = {"momentum": 0.30, "quality": 0.30, "value": 0.20, "volume": 0.10, "sentiment": 0.10}
 
 
+def _is_trading_day(d) -> bool:
+    """Mon-Fri only. The scorer also runs weekends, writing phantom sessions that
+    re-stamp Friday's prices; those duplicates inflate day counts and t-stats."""
+    try:
+        return date.fromisoformat(str(d)[:10]).weekday() < 5
+    except Exception:
+        return True
+
+
 def _sb():
     from data_refresh import _get_supabase
     return _get_supabase()
@@ -64,6 +73,8 @@ def _load(sb, start):
     for x in (r.data or []):
         if x.get("d") is not None and x.get("close") is not None:
             bench[str(x["d"])[:10]] = float(x["close"])
+    rows = [r for r in rows if _is_trading_day(r.get("signal_date"))]
+    bench = {d: v for d, v in bench.items() if _is_trading_day(d)}
     return rows, bench
 
 

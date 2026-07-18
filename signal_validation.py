@@ -26,6 +26,15 @@ _DOWN = "\u2193"
 _ARROW = "\u2192"
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 #
+def _is_trading_day(d) -> bool:
+    """Mon-Fri only. The scorer also runs weekends, writing phantom sessions that
+    re-stamp Friday's prices; those duplicates inflate day counts and t-stats."""
+    try:
+        return date.fromisoformat(str(d)[:10]).weekday() < 5
+    except Exception:
+        return True
+
+
 def _resolve_sb(sb=None):
     if sb is not None:
         return sb
@@ -81,7 +90,7 @@ def _fetch_window(sb, start_date: str) -> list:
         if len(batch) < size:
             break
         page += 1
-    return rows
+    return [r for r in rows if _is_trading_day(r.get("signal_date"))]
 #
 def _coalesce(vals: list, max_gap: int) -> list:
     out = vals[:]
