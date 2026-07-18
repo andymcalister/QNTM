@@ -14,6 +14,7 @@ Alert kinds (price_alerts.kind):
   price_below      price <= threshold
   price_above      price >= threshold
   conviction_high  conviction_label(adj) == HIGH (rounded >= 65)
+  model_portfolio_exit  ticker left the model portfolio (any exit_reason)
   conviction_low   conviction_label(adj) == LOW (rounded <= 55)
   gem              is_hidden_gem becomes true
 
@@ -42,6 +43,7 @@ KIND_LABEL = {
     "price_below":     "price below",
     "price_above":     "price above",
     "conviction_high": "HIGH conviction",
+    "model_portfolio_exit": "removed from the model portfolio",
     "conviction_low":  "LOW conviction",
     "gem":             "hidden gem",
 }

@@ -1431,6 +1431,7 @@ ALERT_KINDS = {
     "conviction_high": "Moves to HIGH conviction",
     "conviction_low": "Drops to LOW conviction",
     "gem": "Flagged a hidden gem",
+    "model_portfolio_exit": "Removed from the model portfolio",
 }
 ALERT_SCOPES = {"ticker", "watchlist", "portfolio", "model"}
 _ALERT_PRICE_KINDS = {"price_below", "price_above"}
