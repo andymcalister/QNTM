@@ -103,7 +103,7 @@ def load_snapshots(sb, tickers):
 _MP_EXIT_CACHE = None
 
 
-def _mp_exits(lookback_days: int = 3) -> dict:
+def _mp_exits(lookback_days: int = 1) -> dict:
     """{TICKER: {exit_date, exit_score, exit_reason}} for recent exits."""
     global _MP_EXIT_CACHE
     if _MP_EXIT_CACHE is not None:
