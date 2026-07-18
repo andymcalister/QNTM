@@ -757,6 +757,13 @@ def update_model_portfolio(scored_list: list) -> None:
         log.warning("[MODEL PORTFOLIO] No Supabase — skipping")
         return
 
+    # Market-session gate — never enter/exit on a non-trading day. Scores can
+    # drift on a weekend (macro overlay recomputes) while prices stay frozen at
+    # the prior close, which fired a phantom Saturday exit on 2026-07-18.
+    if date.today().weekday() > 4:
+        log.warning("[MODEL PORTFOLIO] Non-trading day (weekend) — no exits or entries.")
+        return
+
     try:
         from universe_data import SECTORS as _SECTORS, sector_of as _sector_of
     except Exception:
