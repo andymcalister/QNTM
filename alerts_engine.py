@@ -95,6 +95,40 @@ def load_snapshots(sb, tickers):
     return out
 
 
+# ── Model-portfolio exits (for the model_portfolio_exit alert) ───────────────
+# Loaded once per process and cached: the alert engine evaluates many tickers
+# per run and the exit set is small. Read-only; never touches portfolio logic.
+_MP_EXIT_CACHE = None
+
+
+def _mp_exits(lookback_days: int = 3) -> dict:
+    """{TICKER: {exit_date, exit_score, exit_reason}} for recent exits."""
+    global _MP_EXIT_CACHE
+    if _MP_EXIT_CACHE is not None:
+        return _MP_EXIT_CACHE
+    out = {}
+    try:
+        from datetime import date, timedelta
+        from data_refresh import _get_supabase
+        sb = _get_supabase()
+        if sb:
+            since = (date.today() - timedelta(days=lookback_days)).isoformat()
+            rows = (sb.table("model_portfolio_positions")
+                    .select("ticker,exit_date,exit_score,exit_reason")
+                    .gte("exit_date", since).execute().data or [])
+            for r in rows:
+                t = str(r.get("ticker") or "").upper()
+                if not t:
+                    continue
+                prev = out.get(t)
+                if not prev or str(r.get("exit_date")) > str(prev.get("exit_date")):
+                    out[t] = r
+    except Exception as e:
+        print("[alerts] model-portfolio exit load failed: " + repr(e))
+    _MP_EXIT_CACHE = out
+    return out
+
+
 def evaluate(kind, threshold, snap):
     """Return (condition_met: bool, value: float|None, headline: str)."""
     try:
@@ -136,6 +170,23 @@ def evaluate(kind, threshold, snap):
         if adj is None:
             return False, adj, ""
         return (__import__("conviction").conviction_label(adj) == "LOW", adj, f"dropped to LOW conviction ({adj:.0f})")
+    if kind == "model_portfolio_exit":
+        tk = snap.get("ticker")
+        ex = _mp_exits().get(str(tk).upper()) if tk else None
+        if not ex:
+            return False, None, ""
+        reason = str(ex.get("exit_reason") or "").upper()
+        sc = ex.get("exit_score")
+        if reason == "THRESHOLD_CHANGE":
+            tail = "conviction thresholds were updated"
+        elif reason == "RECONSTITUTION":
+            tail = "the universe was reconstituted"
+        elif sc is not None:
+            tail = "conviction fell to %.0f" % float(sc)
+        else:
+            tail = "conviction fell below the hold range"
+        val = float(sc) if sc is not None else None
+        return (True, val, "was removed from the model portfolio \u2014 " + tail)
     if kind == "gem":
         return (gem, 1.0 if gem else 0.0, "was flagged a hidden gem \U0001F48E")
     return False, None, ""
