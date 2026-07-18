@@ -25,6 +25,27 @@ Format (newest first):
 
 WHATS_NEW = [
     {
+        "id":    "2026-07-18.1",
+        "date":  "Jul 18, 2026",
+        "tag":   "new",
+        "title": "Model portfolio exit alerts",
+        "body":  "Get notified the moment a stock on your watchlist leaves the "
+                 "model portfolio \u2014 with the reason it left and the conviction "
+                 "score at exit. Add it on the Alerts page for a single name or a "
+                 "whole watchlist.",
+    },
+    {
+        "id":    "2026-07-17.1",
+        "date":  "Jul 17, 2026",
+        "tag":   "improved",
+        "title": "Conviction bands raised \u2014 High Conviction now means 65+",
+        "body":  "High Conviction moved from 60 to 65, and the model portfolio now "
+                 "exits a position when conviction drops to 55 or under (previously "
+                 "45). A stricter bar so the label carries more weight, and holdings "
+                 "that fade get cut sooner. Applies going forward \u2014 results "
+                 "before this date reflect the earlier rule.",
+    },
+    {
         "id":    "2026-06-27.3",
         "date":  "Jun 27, 2026",
         "tag":   "new",
@@ -88,3 +109,26 @@ def unseen_entries(last_seen_id, limit: int = 6) -> list:
     """
     last = last_seen_id or ""
     return [e for e in WHATS_NEW if str(e.get("id", "")) > last][:limit]
+
+
+# ── Recency ──────────────────────────────────────────────────────────────────
+# Surfaces expire on their own. The weekly digest renders only what shipped in
+# its window, so a "new" item can't sit in the email for months (the June 27
+# entries were still running as "new" on Jul 18). Date comes from the id prefix.
+from datetime import date as _date, timedelta as _timedelta
+
+
+def _entry_date(e):
+    try:
+        return _date.fromisoformat(str(e.get("id", ""))[:10])
+    except Exception:
+        return None
+
+
+def recent(days: int = 7, as_of=None) -> list:
+    """Entries shipped within the last `days`. Unparseable ids are excluded
+    (fail closed — better to omit than to publish something stale)."""
+    ref = as_of or _date.today()
+    cutoff = ref - _timedelta(days=days)
+    out = [e for e in WHATS_NEW if (_entry_date(e) or _date.min) > cutoff]
+    return sorted(out, key=lambda e: _entry_date(e) or _date.min, reverse=True)
