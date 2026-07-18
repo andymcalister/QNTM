@@ -19,7 +19,7 @@ from datetime import date, timedelta
 #
 _SCORE_FIELD = os.getenv("QNTM_CONVICTION_FIELD", "adj_composite")
 _HIGH_MIN = float(os.getenv("QNTM_CONVICTION_HIGH_MIN", "65"))
-_ARCHIVE_URL = os.getenv("QNTM_SIGNALS_ARCHIVE_URL", "https://qntm.live/signals")
+_ARCHIVE_URL = os.getenv("QNTM_SIGNALS_ARCHIVE_URL", "https://qntm.live")
 _HEADER = os.getenv("QNTM_SIGNALS_HEADER", "How the model's calls have played out:")
 _UP = "\u2191"
 _DOWN = "\u2193"
@@ -221,7 +221,7 @@ def format_wrap_block(signals: list, archive_url: str = None, header: str = None
         return ""
     url = archive_url or _ARCHIVE_URL
     head = header or _HEADER
-    tail = "full record " + _ARROW + " " + url
+    tail = "more at " + _ARROW + " " + url
     lines = [_line(s) for s in signals]
     while lines:
         body = "\n".join([head] + lines + [tail])
