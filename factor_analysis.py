@@ -178,6 +178,7 @@ def ic_report(as_of=None, history_days=120, fwds=(5, 10)):
             "regime_days": {r: sum(1 for v in reg.values() if v == r)
                             for r in ("Elevated Vol", "Normal Vol")},
         }
+    report["narrative"] = narrate(report)
     return report
 
 
@@ -197,3 +198,113 @@ if __name__ == "__main__":
                     c, w, o["mean"] or 0, o["pct_pos"] or 0,
                     ("%.3f(%d)" % (e["mean"], e["ndays"])) if e["mean"] is not None else "-",
                     ("%.3f(%d)" % (nv["mean"], nv["ndays"])) if nv["mean"] is not None else "-"))
+
+
+# ── Auto-commentary ──────────────────────────────────────────────────────────
+# Reads an ic_report and says, in plain English, what the numbers mean and
+# whether to tune or wait. Thresholds are deliberately conservative: the failure
+# mode this guards against is acting on one regime's weather.
+MEANINGFUL_IC = 0.02      # below this, treat as noise
+DURABLE_IC    = 0.06      # above this, too big to be a standing premium
+HEAVY_W       = 0.25
+LIGHT_W       = 0.15
+MIN_DAYS      = 60        # floor before acting even within one regime
+MIN_REGIME_N  = 20        # per-bucket floor before comparing regimes
+
+
+def narrate(report, fwd=None):
+    fwds = report.get("fwds") or {}
+    if not fwds:
+        return {"verdict": "No data yet.", "bullets": [], "guidance": "", "confidence": "none"}
+    key = fwd if fwd in fwds else sorted(fwds)[-1]
+    blk = fwds[key]
+    tbl = blk["table"]
+    bullets, tensions = [], []
+    ndays = max((r["overall"]["ndays"] for r in tbl.values()), default=0)
+    biggest = 0.0
+
+    for name, row in tbl.items():
+        ic, w = row["overall"]["mean"], row.get("weight")
+        if ic is None:
+            continue
+        biggest = max(biggest, abs(ic))
+        if name == "adj_composite":
+            if ic < -MEANINGFUL_IC:
+                bullets.append(("bad", "The blended score ranked backwards over this window "
+                                       "(IC %+.3f) \u2014 the model's ordering worked against it." % ic))
+            elif ic > MEANINGFUL_IC:
+                bullets.append(("good", "The blended score ranked correctly (IC %+.3f)." % ic))
+            else:
+                bullets.append(("flat", "The blended score had no measurable ranking power (IC %+.3f)." % ic))
+            continue
+        if w is None:
+            continue
+        pct = int(round(w * 100))
+        if ic < -MEANINGFUL_IC and w >= HEAVY_W:
+            tensions.append(name)
+            bullets.append(("bad", "%s carries %d%% of the score but ranked backwards (IC %+.3f) \u2014 "
+                                   "the single biggest drag." % (name, pct, ic)))
+        elif ic < -MEANINGFUL_IC:
+            bullets.append(("bad", "%s (%d%% weight) ranked backwards (IC %+.3f)." % (name, pct, ic)))
+        elif ic > MEANINGFUL_IC and w <= LIGHT_W:
+            bullets.append(("good", "%s ranked well (IC %+.3f) on only %d%% weight \u2014 carrying more "
+                                    "than it's paid for." % (name, ic, pct)))
+        elif ic > MEANINGFUL_IC:
+            bullets.append(("good", "%s (%d%% weight) ranked correctly (IC %+.3f) \u2014 working as "
+                                    "intended." % (name, pct, ic)))
+        else:
+            bullets.append(("flat", "%s (%d%% weight) showed no ranking power (IC %+.3f) \u2014 neither "
+                                    "helping nor hurting." % (name, pct, ic)))
+
+    rd = blk.get("regime_days") or {}
+    thin = [r for r, n in rd.items() if n < MIN_REGIME_N]
+    regime_usable = bool(rd) and not thin
+    flips = []
+    for name, row in tbl.items():
+        br = row.get("by_regime") or {}
+        vals = {k: v["mean"] for k, v in br.items() if v and v.get("mean") is not None
+                and v.get("ndays", 0) >= MIN_REGIME_N}
+        if len(vals) >= 2 and max(vals.values()) > MEANINGFUL_IC and min(vals.values()) < -MEANINGFUL_IC:
+            flips.append(name)
+
+    if biggest > DURABLE_IC:
+        bullets.append(("warn", "Several readings are far larger than a durable factor edge "
+                                "(real ones sit near 0.02-0.05). Numbers this size are the "
+                                "signature of one market environment, not a standing property."))
+    if ndays < MIN_DAYS:
+        bullets.append(("warn", "Only %d sessions measured. That is too short to separate a real "
+                                "effect from this period's weather." % ndays))
+    if not regime_usable:
+        bullets.append(("warn", "The regime split isn't usable yet \u2014 at least one bucket is under "
+                                "%d sessions, so any high-vol vs normal comparison is noise." % MIN_REGIME_N))
+
+    if ndays < MIN_DAYS:
+        verdict = "Too early to act \u2014 keep accumulating."
+        guidance = ("WAIT. Nothing here justifies changing PILLAR_W. What would change that: another "
+                    "%d+ sessions, and critically a TRENDING stretch. Momentum is expected to rank "
+                    "backwards in a reversal market and correctly in a trending one \u2014 if it stays "
+                    "negative through a trend, that's a real finding worth re-weighting on." % (MIN_DAYS - ndays))
+        conf = "low"
+    elif not regime_usable:
+        verdict = "Signal is forming, but only one environment observed."
+        guidance = ("WAIT on re-weighting; the sample covers a single regime. Collect a contrasting "
+                    "regime before touching weights.")
+        conf = "low"
+    elif flips:
+        verdict = "Regime-dependent behaviour detected in: %s." % ", ".join(flips)
+        guidance = ("CONSIDER regime-conditional weighting \u2014 these factors change sign between "
+                    "environments, which is what a conditional weight is for. Build it in shadow "
+                    "first and compare before switching the live model.")
+        conf = "medium"
+    elif tensions:
+        verdict = "Persistent drag from heavily-weighted %s." % ", ".join(tensions)
+        guidance = ("CONSIDER trimming the flagged weight \u2014 the effect has held across both "
+                    "regimes measured. Make one change, forward-only, and measure.")
+        conf = "medium"
+    else:
+        verdict = "Weights look broadly consistent with what each factor delivered."
+        guidance = "HOLD. Nothing indicates a change is needed."
+        conf = "medium"
+
+    return {"verdict": verdict, "bullets": bullets, "guidance": guidance,
+            "confidence": conf, "ndays": ndays, "fwd": key}
