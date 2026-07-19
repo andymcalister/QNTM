@@ -850,13 +850,21 @@ def update_model_portfolio(scored_list: list) -> None:
                 "across the universe) — exiting on raw composite, not the blend, so a "
                 "degraded macro can't force-sell holdings. Fix the overlay and re-run."
             )
+        # EOD-only exits: never sell on an unsettled intraday print. The hourly
+        # --rescore run rebalances mid-session, which sold CF on 2026-07-17 at a
+        # transient 55.0 that settled at 59.6 the same day. Entries still fill
+        # intraday; only the sell side waits for settled prices.
+        from market_calendar import market_is_open_now as _mkt_open
+        _eod_ok = not _mkt_open()
+        if not _eod_ok:
+            log.info("[MODEL PORTFOLIO] Session open — exits deferred to the settled EOD run.")
         exit_candidates = []
         for pos in active:
             sc = score_map.get(pos["ticker"])
             if not sc:
                 continue
             gate = float(sc.get(_exit_field, sc.get("composite", 50)) or 50)
-            if _is_exit(gate):
+            if _eod_ok and _is_exit(gate):
                 exit_candidates.append((pos, gate, sc))
 
         # ── Circuit breaker — a one-run cluster of exits is a data/model artifact,

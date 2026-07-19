@@ -100,3 +100,24 @@ def why_closed(d=None) -> str:
     if d in market_holidays(d.year):
         return "market holiday"
     return ""
+
+
+def market_is_open_now(now=None) -> bool:
+    """True while the US regular session (09:30-16:00 ET) is running.
+
+    Used to defer EXITS to the settled end-of-day run: the hourly --rescore
+    rebalance sold CF on 2026-07-17 at a transient 55.0 that settled at 59.6.
+    Fails to False (treated as closed) if the tz database is unavailable, so a
+    broken zoneinfo can't silently freeze the nightly rebalance.
+    """
+    from datetime import datetime, time as _time
+    try:
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo("America/New_York")
+    except Exception:
+        return False
+    n = now or datetime.now(et)
+    n = n.replace(tzinfo=et) if n.tzinfo is None else n.astimezone(et)
+    if not is_trading_day(n.date()):
+        return False
+    return _time(9, 30) <= n.time() < _time(16, 0)
