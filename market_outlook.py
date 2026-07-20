@@ -313,11 +313,13 @@ def narrate(data):
     MAX_TURNS = 6
     messages = [{"role": "user", "content": build_prompt(data)}]
     chunks = []
+    _carry = False      # previous turn was cut mid-sentence
+    _last_stop = None
     try:
         for turn in range(MAX_TURNS):
             resp = client.messages.create(
                 model=model,
-                max_tokens=1400,
+                max_tokens=4000,
                 tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 6}],
                 messages=messages,
             )
@@ -326,8 +328,24 @@ def narrate(data):
                 if getattr(b, "type", "") == "text" and getattr(b, "text", "")
             ).strip()
             if turn_text:
-                chunks.append(turn_text)
+                if _carry and chunks:
+                    chunks[-1] = chunks[-1].rstrip() + " " + turn_text.lstrip()
+                else:
+                    chunks.append(turn_text)
+            _carry = False
             stop = getattr(resp, "stop_reason", None)
+            _last_stop = stop
+            if stop == "max_tokens":
+                # Cut mid-sentence. NOT a finished piece - treating it as one
+                # is what emailed a half-written brief on 2026-07-20.
+                log.error("narrate: turn %d hit max_tokens - continuing", turn + 1)
+                _carry = True
+                messages.append({"role": "assistant", "content": resp.content})
+                messages.append({"role": "user", "content":
+                                 "You were cut off mid-sentence. Continue from exactly "
+                                 "where you stopped. Do not repeat anything you already "
+                                 "wrote, no preamble."})
+                continue
             if stop != "tool_use":
                 if not chunks:
                     log.warning("narrate: turn %d ended (%s) with no text", turn + 1, stop)
@@ -341,6 +359,10 @@ def narrate(data):
         text = _strip_preamble("\n\n".join(chunks).strip())
         if not text:
             log.error("narrate: no text produced")
+            return None
+        if _last_stop == "max_tokens":
+            log.error("narrate: still truncated after %d turns - refusing to "
+                      "return a partial brief", MAX_TURNS)
             return None
         return text
     except Exception as e:
