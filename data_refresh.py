@@ -766,6 +766,30 @@ def update_model_portfolio(scored_list: list) -> None:
         log.warning("[MODEL PORTFOLIO] Market closed (%s) — no exits or entries." % _why_closed())
         return
 
+    # Macro-applied gate - never trade on scores the overlay never touched.
+    # A silent all-zero overlay (degraded-feed guard tripping before the
+    # signal_log rescore) leaves adj_composite == composite universe-wide.
+    try:
+        _n_adj = 0
+        _n_chk = 0
+        for _r in (scored_list or []):
+            _c = _r.get("composite")
+            _a = _r.get("adj_composite")
+            if _c is None or _a is None:
+                continue
+            _n_chk += 1
+            if abs(float(_a) - float(_c)) > 1e-9:
+                _n_adj += 1
+        if _n_chk >= 100 and _n_adj == 0:
+            log.error(
+                "[MODEL PORTFOLIO] Macro overlay NOT APPLIED - adj_composite == "
+                "composite for all %d scored names. Entries would clear the bar "
+                "without the macro haircut and exits would run unadjusted. "
+                "No exits or entries this run." % _n_chk
+            )
+            return
+    except Exception as _e:
+        log.warning("[MODEL PORTFOLIO] macro-applied gate check failed: %r" % (_e,))
     try:
         from universe_data import SECTORS as _SECTORS, sector_of as _sector_of
     except Exception:
