@@ -64,11 +64,14 @@ def nw_stats(series, fwd=1, lag=None):
     m = _mean(xs)
     se_iid = math.sqrt(g0 / n)
     se_nw = math.sqrt(var_nw / n)
-    n_eff = max(1.0, min(float(n), n * g0 / var_nw))
-    out.update(mean=m, se_iid=se_iid, se_nw=se_nw,
+    n_indep = float(n) / float(max(1, L + 1))
+    n_eff = max(1.0, min(float(n), n_indep, n * g0 / var_nw))
+    se_eff = math.sqrt(g0 / n_eff)
+    t_eff = m / se_eff if se_eff > 0 else float("nan")
+    out.update(mean=m, se_iid=se_iid, se_nw=se_eff,
                t_iid=(m / se_iid if se_iid > 0 else float("nan")),
-               t_nw=(m / se_nw if se_nw > 0 else float("nan")),
-               n_eff=n_eff, lag=L, overlapping=(L > 0))
+               t_nw=t_eff, t_raw_nw=(m / se_nw if se_nw > 0 else float("nan")),
+               n_indep=n_indep, n_eff=n_eff, lag=L, overlapping=(L > 0))
     return out
 #
 def days_positive(series):
