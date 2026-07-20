@@ -1,9 +1,12 @@
-"""macro_regime.py - per-date macro regime derived from stored signal_log rows.
-macro_state holds only the CURRENT overlay, so historical regime is reconstructed
-from the universe-mean macro_overlay on each signal_date.
-Definition is deliberately parameter-free: mean overlay < 0 means the macro
-overlay was a net drag that day = risk-off. No tunable cutoff, so this cannot be
-fitted to make any downstream comparison look better."""
+"""macro_regime.py - per-date macro drag reconstructed from signal_log.
+macro_state holds only the CURRENT overlay (no history table exists), so the
+historical regime is rebuilt from stored scores.
+DRAG = mean(adj_composite) - mean(composite) across the universe on each
+signal_date: the points the macro overlay added or removed. This is the exact
+measure the 2026-07-17 mass-exit post-mortem used (composite flat, adj -4.46).
+Sector tilts are already applied per name, so nothing cancels the way a mean of
+raw macro_overlay does.
+Trading days only - phantom weekend rows re-stamp Friday prices."""
 from __future__ import annotations
 import datetime as _dt
 #
@@ -13,63 +16,87 @@ def _sb():
     import factor_analysis as fa
     return fa._sb()
 #
-def mean_overlay_by_date(history_days=120, page=1000):
-    """{date: mean macro_overlay} across the whole scored universe."""
-    key = ("mean", int(history_days))
+def _trading(d):
+    import factor_analysis as fa
+    try:
+        return fa._is_trading_day(d)
+    except Exception:
+        return True
+#
+def drag_by_date(history_days=120, page=1000):
+    """{date: (mean_adj - mean_composite)} in score points, trading days only."""
+    key = ("drag", int(history_days))
     if key in _CACHE:
         return _CACHE[key]
     start = (_dt.date.today() - _dt.timedelta(days=int(history_days))).isoformat()
     sb = _sb()
     acc, lo = {}, 0
     while True:
-        r = (sb.table("signal_log").select("signal_date,macro_overlay")
+        r = (sb.table("signal_log").select("signal_date,composite,adj_composite")
              .gte("signal_date", start).order("signal_date", desc=False)
              .range(lo, lo + page - 1).execute())
         batch = r.data or []
         for row in batch:
             d = str(row.get("signal_date"))[:10]
-            v = row.get("macro_overlay")
-            if v is None:
+            c, a = row.get("composite"), row.get("adj_composite")
+            if c is None or a is None:
                 continue
             try:
-                v = float(v)
+                c, a = float(c), float(a)
             except (TypeError, ValueError):
                 continue
-            s, n = acc.get(d, (0.0, 0))
-            acc[d] = (s + v, n + 1)
+            sc, sa, n = acc.get(d, (0.0, 0.0, 0))
+            acc[d] = (sc + c, sa + a, n + 1)
         if len(batch) < page:
             break
         lo += page
-    out = {d: (s / n) for d, (s, n) in acc.items() if n > 0}
+    out = {d: (sa / n) - (sc / n)
+           for d, (sc, sa, n) in acc.items() if n > 0 and _trading(d)}
     _CACHE[key] = out
     return out
 #
-def risk_off_by_date(history_days=120):
-    """{date: True/False} - True when the macro overlay was a net drag."""
-    key = ("risk", int(history_days))
+def counts_by_date(history_days=120):
+    return {d: 1 for d in drag_by_date(history_days)}
+#
+def risk_off_by_date(history_days=120, cutoff=0.0):
+    """{date: True/False}. cutoff=0.0 means any net macro drag counts."""
+    key = ("risk", int(history_days), float(cutoff))
     if key in _CACHE:
         return _CACHE[key]
-    out = {d: (m < 0.0) for d, m in mean_overlay_by_date(history_days).items()}
+    out = {d: (v < cutoff) for d, v in drag_by_date(history_days).items()}
     _CACHE[key] = out
     return out
 #
-def summary(history_days=120):
-    m = mean_overlay_by_date(history_days)
-    r = risk_off_by_date(history_days)
-    n_on = sum(1 for v in r.values() if v)
-    return {"days": len(m), "risk_off_days": n_on,
-            "pct": (100.0 * n_on / len(m)) if m else 0.0,
-            "first": min(m) if m else None, "last": max(m) if m else None}
+def distribution(history_days=120):
+    """Percentiles of the drag, so a cutoff is chosen against evidence."""
+    v = sorted(drag_by_date(history_days).values())
+    if not v:
+        return {}
+    def q(p):
+        return v[min(len(v) - 1, max(0, int(round(p * (len(v) - 1)))))]
+    return {"n": len(v), "min": v[0], "p10": q(.10), "p25": q(.25),
+            "median": q(.50), "p75": q(.75), "p90": q(.90), "max": v[-1],
+            "pct_negative": 100.0 * sum(1 for x in v if x < 0) / len(v)}
 #
 def clear_cache():
     _CACHE.clear()
 #
 if __name__ == "__main__":
-    s = summary()
-    print("macro regime: %d days, risk-off on %d (%.0f%%), %s .. %s"
-          % (s["days"], s["risk_off_days"], s["pct"], s["first"], s["last"]))
-    m = mean_overlay_by_date()
-    for d in sorted(m)[-14:]:
-        print("  %s  mean_overlay %+7.3f   risk_off=%s" % (d, m[d], m[d] < 0))
-    assert s["days"] > 0, "no macro_overlay data returned"
+    d = drag_by_date()
+    dist = distribution()
+    print("macro drag (mean adj - mean composite), trading days only")
+    print("n=%(n)d  min %(min)+.2f  p10 %(p10)+.2f  p25 %(p25)+.2f  "
+          "median %(median)+.2f  p75 %(p75)+.2f  p90 %(p90)+.2f  max %(max)+.2f"
+          % dist)
+    print("negative on %.0f%% of days" % dist["pct_negative"])
+    print()
+    for c in (0.0, -0.5, -1.0, -2.0, -3.0):
+        n = sum(1 for v in d.values() if v < c)
+        print("  cutoff %+5.1f -> risk-off on %3d / %d days (%3.0f%%)"
+              % (c, n, len(d), 100.0 * n / len(d)))
+    print()
+    for k in sorted(d)[-14:]:
+        print("  %s  drag %+7.3f" % (k, d[k]))
+    assert d, "no rows returned"
+    assert all(_trading(k) for k in d), "non-trading day leaked through"
     print("OK")
