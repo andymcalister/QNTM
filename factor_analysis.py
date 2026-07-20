@@ -58,7 +58,7 @@ def _spearman(xs, ys):
 
 
 def _load(sb, start):
-    cols = "ticker,signal_date,price,adj_composite," + ",".join(FACTORS)
+    cols = "ticker,signal_date,price,composite,adj_composite," + ",".join(FACTORS)
     rows, page, size = [], 0, 1000
     while page < 300:
         res = (sb.table("signal_log").select(cols).gte("signal_date", start)
@@ -136,7 +136,8 @@ def _daily_ics(rows, bench, fwd, cols):
     return out, dates
 
 
-def _agg(ics):
+def _agg(ics, fwd=1):
+    import ic_stats as _ics
     if not ics:
         return {"mean": None, "tstat": None, "pct_pos": None, "ndays": 0}
     v = [x[1] for x in ics]
@@ -144,7 +145,10 @@ def _agg(ics):
     mean = sum(v) / n
     sd = (sum((x - mean) ** 2 for x in v) / (n - 1)) ** 0.5 if n > 1 else 0.0
     return {"mean": round(mean, 3),
-            "tstat": round(mean / (sd / math.sqrt(n)), 2) if sd > 0 else 0.0,
+            "tstat": (lambda s: None if s["t_nw"] != s["t_nw"] else round(s["t_nw"], 2))(_ics.nw_stats(v, fwd=fwd)),
+            "tstat_iid": (lambda s: None if s["t_iid"] != s["t_iid"] else round(s["t_iid"], 2))(_ics.nw_stats(v, fwd=fwd)),
+            "n_eff": round(_ics.nw_stats(v, fwd=fwd)["n_eff"], 1),
+            "overlapping": fwd > 1,
             "pct_pos": round(100.0 * sum(1 for x in v if x > 0) / n, 0),
             "ndays": n}
 
@@ -156,21 +160,33 @@ def ic_report(as_of=None, history_days=120, fwds=(5, 10)):
     ref = date.today() if not as_of else date.fromisoformat(as_of)
     start = (ref - timedelta(days=history_days)).isoformat()
     rows, bench = _load(sb, start)
-    cols = FACTORS + ["adj_composite"]
+    cols = FACTORS + ["composite", "adj_composite", "shadow_composite"]
     if not rows or not bench:
         return {"error": "no data", "rows": len(rows), "bench": len(bench)}
-    report = {"start": start, "weights": PILLAR_W, "fwds": {}}
+    # Shadow composite: regime-conditional weights, computed from the stored
+    # pillars. Measured only — never written back, never traded.
+    _crash_days = 0
+    try:
+        from shadow import _market_states as _ms, shadow_composite as _shadow
+        _dts = sorted({str(r["signal_date"])[:10] for r in rows})
+        _states = _ms(bench, _dts)
+        _crash_days = sum(1 for v in _states.values() if v.get("crash_risk"))
+        for r in rows:
+            r["shadow_composite"] = _shadow(r, _states.get(str(r["signal_date"])[:10]))
+    except Exception as e:
+        print("[warn] shadow composite unavailable: " + repr(e))
+    report = {"start": start, "weights": PILLAR_W, "crash_days": _crash_days, "fwds": {}}
     for fwd in fwds:
         daily, dates = _daily_ics(rows, bench, fwd, cols)
         reg = _vol_regime(bench, dates)
         table = {}
         for c in cols:
             ics = daily[c]
-            overall = _agg(ics)
+            overall = _agg(ics, fwd)
             by_reg = {}
             for rlabel in ("Elevated Vol", "Normal Vol"):
                 sub = [x for x in ics if reg.get(x[0]) == rlabel]
-                by_reg[rlabel] = _agg(sub)
+                by_reg[rlabel] = _agg(sub, fwd)
             table[c] = {"weight": PILLAR_W.get(c), "overall": overall, "by_regime": by_reg}
         report["fwds"][fwd] = {
             "table": table,
@@ -256,6 +272,20 @@ def narrate(report, fwd=None):
             bullets.append(("flat", "%s (%d%% weight) showed no ranking power (IC %+.3f) \u2014 neither "
                                     "helping nor hurting." % (name, pct, ic)))
 
+    base_ic = ((tbl.get("composite") or {}).get("overall") or {}).get("mean")
+    shad_ic = ((tbl.get("shadow_composite") or {}).get("overall") or {}).get("mean")
+    if base_ic is not None and shad_ic is not None:
+        delta = shad_ic - base_ic
+        if delta > MEANINGFUL_IC:
+            bullets.append(("good", "SHADOW: regime-conditional weights ranked BETTER than the live "
+                                    "blend (%+.3f vs %+.3f). Promising \u2014 but confirm it holds in a "
+                                    "second, different regime before switching." % (shad_ic, base_ic)))
+        elif delta < -MEANINGFUL_IC:
+            bullets.append(("bad", "SHADOW: regime-conditional weights ranked WORSE than the live "
+                                   "blend (%+.3f vs %+.3f). The tilt is not helping." % (shad_ic, base_ic)))
+        else:
+            bullets.append(("flat", "SHADOW: regime-conditional weights made no material difference "
+                                    "(%+.3f vs %+.3f)." % (shad_ic, base_ic)))
     rd = blk.get("regime_days") or {}
     thin = [r for r, n in rd.items() if n < MIN_REGIME_N]
     regime_usable = bool(rd) and not thin
