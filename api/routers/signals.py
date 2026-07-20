@@ -23,6 +23,10 @@ CALL_KINDS = ("entered_high", "sustained_high", "weakened")
 # Public scope withholds recent rows by TIME ONLY - never by outcome - so the
 # published claim "complete record, delayed N days" stays verifiable.
 PUBLIC_DELAY_DAYS = 14
+# The archive changes once a day (plus intraday price marks), but each request
+# costs two full Supabase scans. Cache the assembled payload briefly.
+_CACHE = {}
+_TTL_SECONDS = 900
 #
 def _bench():
     from data_refresh import _get_supabase
@@ -81,7 +85,7 @@ def _hit_rates():
 
 
 @router.get("/signals")
-def signals(history_days: int = Query(120, ge=1, le=720),
+def signals(history_days: int = Query(60, ge=1, le=720),
             scope: str = Query("public", pattern="^(full|public)$"),
             authorization: Optional[str] = Header(default=None)):
     import signal_validation as sv
@@ -91,6 +95,11 @@ def signals(history_days: int = Query(120, ge=1, le=720),
     # public page never breaks on a stale or missing session.
     if scope == "full" and not _viewer(authorization):
         scope = "public"
+    import time as _time
+    _key = (scope, history_days)
+    _hit = _CACHE.get(_key)
+    if _hit and (_time.time() - _hit[0]) < _TTL_SECONDS:
+        return _hit[1]
     rows = sv.get_validated_signals(history_days=history_days, **ARCHIVE_PARAMS)
     bench = _bench()
     bd = sorted(bench)
@@ -130,7 +139,7 @@ def signals(history_days: int = Query(120, ge=1, le=720),
     kinds = {}
     for x in rows:
         kinds[x.get("kind")] = kinds.get(x.get("kind"), 0) + 1
-    return {
+    payload = {
         "scope": scope, "delay_days": PUBLIC_DELAY_DAYS,
         "withheld_count": withheld,
         "count": len(out), "n_calls": len(calls),
@@ -153,3 +162,5 @@ def signals(history_days: int = Query(120, ge=1, le=720),
         },
         "signals": out,
     }
+    _CACHE[_key] = (_time.time(), payload)
+    return payload
