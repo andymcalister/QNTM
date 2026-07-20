@@ -9,7 +9,9 @@ GET /api/signals
     "% up". Hit direction depends on the call: a HIGH-side episode hits when it
     BEATS SPY; a weakened episode hits when it LAGS SPY.
 """
-from fastapi import APIRouter, Query
+from typing import Optional
+
+from fastapi import APIRouter, Header, Query
 #
 router = APIRouter(prefix="/api", tags=["signals"])
 #
@@ -55,6 +57,17 @@ def _rate(rows):
     return {"n": len(ok), "n_hit": n_hit,
             "rate": round(100.0 * n_hit / len(ok), 1) if ok else None}
 #
+def _viewer(authorization):
+    """Return the signed-in user, or None. Never raises."""
+    if not authorization:
+        return None
+    try:
+        from .auth import current_user
+        return current_user(authorization) or None
+    except Exception:
+        return None
+
+
 def _hit_rates():
     """Headline stat. Full population of HIGH/LOW entry runs, fixed forward
     window, benchmark-relative. This - not the episode rates below - is the
@@ -69,10 +82,15 @@ def _hit_rates():
 
 @router.get("/signals")
 def signals(history_days: int = Query(120, ge=1, le=720),
-            scope: str = Query("full", pattern="^(full|public)$")):
+            scope: str = Query("public", pattern="^(full|public)$"),
+            authorization: Optional[str] = Header(default=None)):
     import signal_validation as sv
     if not isinstance(history_days, int):
         history_days = 120
+    # scope=full is members-only. Downgrade silently rather than 401 so the
+    # public page never breaks on a stale or missing session.
+    if scope == "full" and not _viewer(authorization):
+        scope = "public"
     rows = sv.get_validated_signals(history_days=history_days, **ARCHIVE_PARAMS)
     bench = _bench()
     bd = sorted(bench)
