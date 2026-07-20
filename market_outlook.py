@@ -42,24 +42,63 @@ def _sb():
     return _get_supabase()
 
 
+def _fetch_all(sb, table, select, eq_col=None, eq_val=None, page=1000):
+    """Paginated read. A bare .execute() caps at 1000 rows - on 2026-07-20 that
+    made the brief report "1,000 scored names" against a 1,423-name universe."""
+    out, lo = [], 0
+    while True:
+        q = sb.table(table).select(select)
+        if eq_col is not None:
+            q = q.eq(eq_col, eq_val)
+        batch = q.range(lo, lo + page - 1).execute().data or []
+        out.extend(batch)
+        if len(batch) < page:
+            return out
+        lo += page
+
+
+def _high_cutoff(default=65.0):
+    """HIGH threshold from conviction.py - never a local literal. market_outlook
+    was missed in the 60->65 rollout and shipped a stale cutoff for days."""
+    try:
+        import conviction as _cv
+    except Exception:
+        return default
+    for name in ("HIGH_MIN", "HIGH", "HIGH_THRESHOLD", "LABEL_HIGH_MIN"):
+        v = getattr(_cv, name, None)
+        if isinstance(v, (int, float)):
+            return float(v)
+    fn = getattr(_cv, "conviction_label", None) or getattr(_cv, "label", None)
+    if callable(fn):
+        try:
+            for c in range(50, 101):
+                if str(fn(c)).upper().startswith("HIGH"):
+                    return float(c)
+        except Exception:
+            pass
+    return default
+
+
 def _market_conviction(sb, as_of=None):
     """Mean composite (0-100) across the latest scored universe. Also returns the
-    count and the % of names at HIGH (>=60). Fails soft -> (None, 0, None)."""
+    count and the % of names at HIGH (threshold from conviction.py).
+    Fails soft -> (None, 0, None)."""
     try:
-        rows = (sb.table("signal_log").select("composite,signal_date")
-                .eq("signal_date", (as_of or date.today().isoformat())).execute().data or [])
+        rows = _fetch_all(sb, "signal_log", "composite,signal_date",
+                          "signal_date", (as_of or date.today().isoformat()))
         if not rows:
             latest = (sb.table("signal_log").select("signal_date")
                       .order("signal_date", desc=True).limit(1).execute().data or [])
             if latest:
                 d = latest[0]["signal_date"]
-                rows = (sb.table("signal_log").select("composite,signal_date")
-                        .eq("signal_date", d).execute().data or [])
+                rows = _fetch_all(sb, "signal_log", "composite,signal_date",
+                                  "signal_date", d)
         vals = [float(r["composite"]) for r in rows if r.get("composite") is not None]
         if not vals:
             return None, 0, None
         avg = sum(vals) / len(vals)
-        pct_high = sum(1 for v in vals if v >= 60) / len(vals) * 100.0
+        _hi = _high_cutoff()
+        pct_high = sum(1 for v in vals if v >= _hi) / len(vals) * 100.0
         return round(avg, 1), len(vals), round(pct_high, 1)
     except Exception as e:
         log.warning("conviction aggregate failed: %s", e)
