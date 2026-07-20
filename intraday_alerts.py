@@ -41,8 +41,15 @@ log = logging.getLogger("qntm.alerts")
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 LOW_CONFIRM_RUNS = 2                  # consecutive LOW runs required before email
 STATE_TABLE      = "intraday_alert_state"
-HIGH_CUTOFF      = 60                 # adj_composite >= 60 → HIGH   (matches app)
-MOD_CUTOFF       = 45                 # adj_composite >= 45 → MODERATE, else LOW
+# Thresholds come from conviction.py - the single source of truth. These were
+# hardcoded 60/45 and were MISSED in the 2026-07-16 rollout to 65/55, so alerts
+# told subscribers a name had hit HIGH while it was scoring 61.
+try:
+    from conviction import HIGH_MIN as _HIGH_MIN, LOW_MAX as _LOW_MAX
+except Exception:
+    _HIGH_MIN, _LOW_MAX = 65, 55
+HIGH_CUTOFF      = _HIGH_MIN          # adj_composite >= HIGH_MIN → HIGH
+MOD_CUTOFF       = _LOW_MAX + 1       # > LOW_MAX → MODERATE, else LOW
 
 try:
     from zoneinfo import ZoneInfo
