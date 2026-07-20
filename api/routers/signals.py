@@ -18,6 +18,9 @@ ARCHIVE_PARAMS = dict(require_confirmed=False, min_move_pct=0.0,
                       max_winners=100000, max_losers=100000)
 HIGH_KINDS = ("entered_high", "sustained_high")
 CALL_KINDS = ("entered_high", "sustained_high", "weakened")
+# Public scope withholds recent rows by TIME ONLY - never by outcome - so the
+# published claim "complete record, delayed N days" stays verifiable.
+PUBLIC_DELAY_DAYS = 14
 #
 def _bench():
     from data_refresh import _get_supabase
@@ -65,7 +68,8 @@ def _hit_rates():
 
 
 @router.get("/signals")
-def signals(history_days: int = Query(120, ge=1, le=720)):
+def signals(history_days: int = Query(120, ge=1, le=720),
+            scope: str = Query("full", pattern="^(full|public)$")):
     import signal_validation as sv
     if not isinstance(history_days, int):
         history_days = 120
@@ -95,12 +99,22 @@ def signals(history_days: int = Query(120, ge=1, le=720)):
                  group="call" if kind in CALL_KINDS else "unrated")
         out.append(r)
     out.sort(key=lambda z: (str(z.get("event_date")), z.get("ticker") or ""), reverse=True)
+    withheld = 0
+    if scope == "public":
+        import datetime as _dt
+        cutoff = (_dt.date.today()
+                  - _dt.timedelta(days=PUBLIC_DELAY_DAYS)).isoformat()
+        keep = [r for r in out if str(r.get("event_date"))[:10] <= cutoff]
+        withheld = len(out) - len(keep)
+        out = keep
     calls = [r for r in out if r["is_call"]]
     dates = [str(x.get("event_date"))[:10] for x in rows if x.get("event_date")]
     kinds = {}
     for x in rows:
         kinds[x.get("kind")] = kinds.get(x.get("kind"), 0) + 1
     return {
+        "scope": scope, "delay_days": PUBLIC_DELAY_DAYS,
+        "withheld_count": withheld,
         "count": len(out), "n_calls": len(calls),
         "n_unrated": len(out) - len(calls),
         "since": min(dates) if dates else None,
