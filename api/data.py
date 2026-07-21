@@ -1141,6 +1141,26 @@ def load_model_portfolio() -> dict:
                     "spy_pct": round(ds_pct, 2), "spy_dollar": round(spy_now_v - spy_prev_v, 2),
                     "vs_spy_pct": round(dm_pct - ds_pct, 2),
                 }
+                # Freeze the day figures to the settled wrap once it's written.
+                # The wrap job uses real 4:00 ET close prices (same as the email),
+                # so this stops the after-close drift from live/pre-market marks.
+                try:
+                    from zoneinfo import ZoneInfo as _ZIw
+                    import datetime as _dtw
+                    _tet = _dtw.datetime.now(_ZIw("America/New_York")).strftime("%Y-%m-%d")
+                    _wr = (sb.table("daily_outlook").select("model_return,spy_return")
+                           .eq("outlook_date", _tet).eq("kind", "wrap").limit(1).execute().data)
+                    if _wr and _wr[0].get("model_return") is not None:
+                        _mp = float(_wr[0]["model_return"])
+                        day["model_pct"] = _mp
+                        day["model_dollar"] = round(day["model_prev"] * (_mp / 100.0), 2)
+                        if _wr[0].get("spy_return") is not None:
+                            _sp = float(_wr[0]["spy_return"])
+                            day["spy_pct"] = _sp
+                            day["spy_dollar"] = round(day["spy_prev"] * (_sp / 100.0), 2)
+                        day["vs_spy_pct"] = round(day["model_pct"] - day["spy_pct"], 2)
+                except Exception:
+                    pass
                 for _bk, _raw, _norm in (("rsp", rsp, rsp_norm), ("qqq", qqq, qqq_norm)):
                     if _raw.get(dates[-1]) is None or _raw.get(d_prev) is None:
                         continue
