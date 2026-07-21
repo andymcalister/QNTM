@@ -1506,7 +1506,14 @@ def run_intraday_refresh(tickers: list = None, prices_only: bool = False) -> dic
                     scored_today = apply_macro_overlay(scored_rows, macro)
                 except Exception:
                     scored_today = sig_rows  # use raw if overlay fails
-                update_model_portfolio(scored_today)
+                # NOTE: intraday pass refreshes scores only - it does NOT exit.
+                # It previously called update_model_portfolio(scored_today) here,
+                # but scored_today is never written to signal_log, so exits fired
+                # on transient scores that never persist (the phantom force-sell
+                # bug: MU shown 58.5 in-app but exited at a never-saved 54.5).
+                # Exit discipline lives solely in the nightly run_refresh path,
+                # where write_signal_snapshot precedes update_model_portfolio so
+                # the exit and the stored record are always the same number.
             else:
                 log.info("[MODEL PORTFOLIO] No signal_log data for today — skipping intraday portfolio update")
         except Exception as e:
