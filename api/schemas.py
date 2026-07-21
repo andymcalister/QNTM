@@ -214,6 +214,7 @@ class ModelStats(BaseModel):
     vs_rsp: Optional[float] = None
     vs_qqq: Optional[float] = None
     day_model: float = 0.0
+    day_settled: bool = False
     day_spy: float = 0.0
     basis: float = 100000.0
     n_sessions: int = 0

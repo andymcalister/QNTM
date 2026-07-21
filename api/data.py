@@ -1164,6 +1164,27 @@ def load_model_portfolio() -> dict:
                 return round(last, 2), round((last / _MP_BASE - 1) * 100, 2)
             rsp_value, rsp_ret = _bench_ret(rsp_norm)
             qqq_value, qqq_ret = _bench_ret(qqq_norm)
+            # Authoritative settled day figures: once today's wrap row is written,
+            # trust it. The wrap job computes model/SPY returns from real 4:00 ET
+            # close prices (same source as the day-wrap email). Overrides the live
+            # intraday estimate, which reads the price cron and drifts after close.
+            _day_settled = False
+            try:
+                from zoneinfo import ZoneInfo as _ZIw
+                import datetime as _dtw
+                _today_et = _dtw.datetime.now(_ZIw("America/New_York")).strftime("%Y-%m-%d")
+                _settled_wrap = (sb.table("daily_outlook")
+                                 .select("model_return,spy_return")
+                                 .eq("outlook_date", _today_et).eq("kind", "wrap")
+                                 .limit(1).execute().data)
+                if _settled_wrap and _settled_wrap[0].get("model_return") is not None:
+                    day_model = float(_settled_wrap[0]["model_return"])
+                    if _settled_wrap[0].get("spy_return") is not None:
+                        day_spy = float(_settled_wrap[0]["spy_return"])
+                    _day_settled = True
+            except Exception:
+                pass
+
             stats = {
                 "inception": inception,
                 "model_value": round(m_last, 2), "spy_value": round(s_last, 2),
@@ -1174,6 +1195,7 @@ def load_model_portfolio() -> dict:
                 "vs_rsp": round(model_ret - rsp_ret, 2) if rsp_ret is not None else None,
                 "vs_qqq": round(model_ret - qqq_ret, 2) if qqq_ret is not None else None,
                 "day_model": round(day_model, 2), "day_spy": round(day_spy, 2),
+                "day_settled": _day_settled,
                 "basis": _MP_BASE, "n_sessions": len(dates),
                 "pre_post": pre_post_move(sb),
             }
