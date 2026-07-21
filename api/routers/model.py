@@ -13,7 +13,7 @@ GET /api/model-portfolio
 from fastapi import APIRouter
 
 from ..schemas import (
-    ModelPortfolioResponse, ModelStats, EquityPoint, ModelPosition, ExitTrade, SectorCount, DayMove,
+    ModelPortfolioResponse, ModelStats, EquityPoint, ModelPosition, ExitTrade, SectorCount, DayMove, TodayMoves,
 )
 from ..data import load_model_portfolio
 
@@ -31,5 +31,6 @@ def model_portfolio():
         prices_as_of=d.get("prices_as_of"),
         positions=[ModelPosition(**p) for p in (d.get("positions") or [])],
         exits=[ExitTrade(**x) for x in (d.get("exits") or [])],
+        today_moves=TodayMoves(**d["today_moves"]) if d.get("today_moves") else None,
         sector_counts=[SectorCount(**s) for s in (d.get("sector_counts") or [])],
     )

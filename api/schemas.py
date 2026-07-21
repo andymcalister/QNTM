@@ -236,6 +236,19 @@ class ExitTrade(BaseModel):
     exit_date: str
     ret: float = 0.0
     reason: str = "\u2014"
+    exit_score: Optional[float] = None
+
+
+class ExitedTicker(BaseModel):
+    ticker: str
+    score: Optional[float] = None
+    reason: str = "\u2014"
+
+
+class TodayMoves(BaseModel):
+    date: Optional[str] = None
+    entered: list[str] = []
+    exited: list[ExitedTicker] = []
 
 
 class SectorCount(BaseModel):
@@ -260,6 +273,7 @@ class ModelPortfolioResponse(BaseModel):
     curve: list[EquityPoint] = []
     stats: Optional[ModelStats] = None
     day: Optional[DayMove] = None
+    today_moves: Optional[TodayMoves] = None
     prices_as_of: Optional[str] = None
     positions: list[ModelPosition] = []
     exits: list[ExitTrade] = []

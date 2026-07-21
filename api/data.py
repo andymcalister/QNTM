@@ -1290,7 +1290,31 @@ def load_model_portfolio() -> dict:
         except Exception:
             prices_as_of = None
 
-        payload = {"inception": inception, "curve": curve, "stats": stats, "day": day,
+                # Today's moves — entered / exited this ET session, for the summary strip.
+        try:
+            _tm_date = _today_et
+        except NameError:
+            from zoneinfo import ZoneInfo as _ZItm
+            import datetime as _dttm
+            _tm_date = _dttm.datetime.now(_ZItm("America/New_York")).strftime("%Y-%m-%d")
+        _entered_today, _exited_today = [], []
+        for _p in positions:
+            if str(_p.get("entry_date") or "")[:10] == _tm_date and _p.get("ticker"):
+                _entered_today.append(_p.get("ticker"))
+            if str(_p.get("exit_date") or "")[:10] == _tm_date and _p.get("ticker"):
+                _sc = _p.get("exit_score")
+                _exited_today.append({
+                    "ticker": _p.get("ticker"),
+                    "score": (round(float(_sc), 1) if _sc is not None else None),
+                    "reason": _p.get("exit_reason") or "\u2014",
+                })
+        today_moves = {
+            "date": _tm_date,
+            "entered": sorted(set(_entered_today)),
+            "exited": sorted(_exited_today, key=lambda x: x["ticker"]),
+        }
+
+        payload = {"inception": inception, "curve": curve, "stats": stats, "day": day, "today_moves": today_moves,
                    "prices_as_of": prices_as_of,
                    "positions": open_positions, "exits": exits,
                    "sector_counts": sector_counts}
