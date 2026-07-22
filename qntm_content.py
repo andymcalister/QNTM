@@ -1,0 +1,294 @@
+"""QNTM content engine — two grounded posts a day, separate from outlook/wrap.
+
+Every post is anchored to a real number pulled live from QNTM's own data at post
+time. No generic quant aphorisms: if the query returns nothing, we skip rather
+than invent. Rotates post types and avoids repeating a type or ticker recently.
+
+Usage:
+    python qntm_content.py --dry-run     # print, post nothing
+    python qntm_content.py               # generate + post one item
+    python qntm_content.py --slot am     # force a slot label (am|pm)
+
+Kill switch: set CONTENT_ENGINE_ENABLED=0 to disable posting entirely.
+Every generated post is logged to Supabase `content_posts` whether or not it is
+published, so the record is auditable.
+"""
+import os
+import sys
+import json
+import random
+import logging
+import datetime as dt
+from zoneinfo import ZoneInfo
+
+log = logging.getLogger("qntm_content")
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s [content] %(levelname)s %(message)s")
+
+ET = ZoneInfo("America/New_York")
+MODEL = os.getenv("CONTENT_MODEL", "claude-sonnet-5")
+ENABLED = os.getenv("CONTENT_ENGINE_ENABLED", "1") != "0"
+MAX_LEN = 280
+
+# Types rotate; each MUST be backed by a live query or it is skipped.
+TYPES = ["regime", "breadth", "anatomy", "method", "build"]
+
+BANNED = [
+    "in reality", "the key takeaway", "it's important to remember",
+    "what this means is", "this highlights", "this demonstrates", "as always",
+    "game changer", "deep dive", "unlock", "leverage the power",
+    "buy", "sell now", "price target", "guaranteed", "will outperform",
+]
+
+VOICE = """You write for QNTM, a quantitative market research platform.
+
+QNTM does not predict. It does not recommend. It interprets, probabilistically,
+and looks for underlying drivers rather than reacting to headlines. Calm,
+curious, analytical, humble, first-principles. Never promotional, never CNBC,
+never a hype account.
+
+You are given REAL numbers from QNTM's own system. Build the post around them.
+Never invent a number, never round away precision, never imply a recommendation.
+
+Write as someone thinking out loud about market structure, not lecturing.
+Prefer "what I find interesting is", "worth separating", "the second-order
+effect", "I'd want to know whether". Probabilistic language: likely, probably,
+appears, suggests, worth watching. Never: proves, confirms, will, guaranteed.
+
+NEVER use: "In reality", "The key takeaway", "It's important to remember",
+"What this means is", "This highlights", "This demonstrates", "As always".
+No hashtags. No links. No emojis. No ticker recommendations, price targets,
+or performance claims.
+
+Length: 2-4 short lines, under 260 characters total. Line breaks are good.
+Leave a little room for the reader to think — don't close the topic.
+
+Return ONLY the post text. No preamble, no quotes, no markdown."""
+
+PROMPTS = {
+    "regime": "Write about the current macro regime and how the overlay is "
+              "shifting adjusted conviction across the universe.",
+    "breadth": "Write about market breadth — how much of the universe is "
+               "screening high-conviction right now, and what that suggests.",
+    "anatomy": "Write about what the model sees in one name's factor profile. "
+               "Describe the factors, not a recommendation. No buy/sell language.",
+    "method": "Write about how one piece of the QNTM method works, grounded in "
+              "the live example given. Teach the thinking, not a conclusion.",
+    "build": "Write a short builder's note about making a quantitative research "
+             "platform, grounded in the real detail given. Honest, specific.",
+}
+
+
+# ── data ────────────────────────────────────────────────────────────────────
+def _sb():
+    from data_refresh import _get_supabase
+    return _get_supabase()
+
+
+def _today_et():
+    return dt.datetime.now(ET).strftime("%Y-%m-%d")
+
+
+def _latest_signal_date(sb):
+    r = (sb.table("signal_log").select("signal_date")
+         .order("signal_date", desc=True).limit(1).execute().data)
+    return r[0]["signal_date"] if r else None
+
+
+def _universe(sb, d):
+    rows, page = [], 0
+    while page < 4:
+        b = (sb.table("signal_log")
+             .select("ticker,composite,adj_composite,macro_overlay,signal,"
+                     "momentum,quality,value,sentiment,value_position")
+             .eq("signal_date", d).range(page * 1000, (page + 1) * 1000 - 1)
+             .execute().data or [])
+        rows.extend(b)
+        if len(b) < 1000:
+            break
+        page += 1
+    return rows
+
+
+def _facts_regime(sb, d, rows):
+    o = (sb.table("daily_outlook").select("regime,regime_score")
+         .eq("outlook_date", d).eq("kind", "outlook").limit(1).execute().data)
+    ov = [float(r["macro_overlay"]) for r in rows
+          if r.get("macro_overlay") is not None]
+    if not ov or not o:
+        return None
+    avg = sum(ov) / len(ov)
+    drag = [r for r in rows
+            if r.get("composite") and r.get("adj_composite")
+            and float(r["adj_composite"]) < float(r["composite"]) - 5]
+    return {"regime": o[0].get("regime"), "conviction": o[0].get("regime_score"),
+            "avg_overlay": round(avg, 3), "universe": len(rows),
+            "knocked_down_5plus": len(drag)}
+
+
+def _facts_breadth(sb, d, rows):
+    scored = [r for r in rows if r.get("adj_composite") is not None]
+    if len(scored) < 100:
+        return None
+    hi = [r for r in scored if float(r["adj_composite"]) >= 65]
+    lo = [r for r in scored if float(r["adj_composite"]) <= 55]
+    return {"universe": len(scored),
+            "high_conviction": len(hi),
+            "high_pct": round(100 * len(hi) / len(scored), 1),
+            "at_or_below_exit": len(lo),
+            "low_pct": round(100 * len(lo) / len(scored), 1)}
+
+
+def _facts_anatomy(sb, d, rows, avoid):
+    held = [r["ticker"] for r in
+            (sb.table("model_portfolio_positions").select("ticker")
+             .is_("exit_date", "null").execute().data or [])]
+    pool = [r for r in rows if r["ticker"] in held
+            and r["ticker"] not in avoid
+            and r.get("adj_composite") is not None]
+    if not pool:
+        return None
+    r = max(pool, key=lambda x: float(x["adj_composite"]))
+    return {"ticker": r["ticker"], "adj_composite": r.get("adj_composite"),
+            "composite": r.get("composite"), "momentum": r.get("momentum"),
+            "quality": r.get("quality"), "value": r.get("value"),
+            "sentiment": r.get("sentiment"),
+            "value_position": r.get("value_position")}
+
+
+def _facts_method(sb, d, rows):
+    scored = [r for r in rows if r.get("adj_composite") is not None]
+    if not scored:
+        return None
+    near = [r for r in scored if 55 < float(r["adj_composite"]) <= 58]
+    return {"topic": random.choice(
+                ["exit discipline at 55", "the macro overlay",
+                 "equal weighting", "the valuation band"]),
+            "universe": len(scored),
+            "within_3pts_of_exit": len(near)}
+
+
+def _facts_build(sb, d, rows):
+    seeds = json.loads(os.getenv("CONTENT_BUILD_SEEDS", "[]") or "[]")
+    if not seeds:
+        return None
+    return {"note": random.choice(seeds)}
+
+
+# ── history / storage ───────────────────────────────────────────────────────
+def _recent(sb, n=8):
+    return (sb.table("content_posts")
+            .select("post_type,ticker,text,created_at")
+            .order("created_at", desc=True).limit(n).execute().data or [])
+
+
+def _record(sb, row):
+    try:
+        sb.table("content_posts").insert(row).execute()
+    except Exception as e:
+        log.warning("content_posts insert failed: %s", e)
+
+
+# ── generation ──────────────────────────────────────────────────────────────
+def _draft(post_type, facts, recent_texts):
+    import anthropic
+    client = anthropic.Anthropic()
+    avoid = "\n".join(f"- {t}" for t in recent_texts) or "(none)"
+    user = (f"{PROMPTS[post_type]}\n\nREAL DATA (use these exact numbers):\n"
+            f"{json.dumps(facts, indent=2)}\n\n"
+            f"Recent posts to avoid echoing:\n{avoid}")
+    m = client.messages.create(model=MODEL, max_tokens=400, system=VOICE,
+                               messages=[{"role": "user", "content": user}])
+    return "".join(b.text for b in m.content
+                   if getattr(b, "type", "") == "text").strip().strip('"')
+
+
+def _validate(text):
+    if not text:
+        return False, "empty"
+    if len(text) > MAX_LEN:
+        return False, f"too long ({len(text)})"
+    low = text.lower()
+    for b in BANNED:
+        if b in low:
+            return False, f"banned phrase: {b}"
+    if "http" in low or "#" in text:
+        return False, "contains link or hashtag"
+    return True, "ok"
+
+
+def run(dry_run=False, slot=None):
+    sb = _sb()
+    if not sb:
+        log.error("no supabase client"); return {"ok": False}
+
+    d = _latest_signal_date(sb)
+    if not d:
+        log.error("no signal_log data"); return {"ok": False}
+    rows = _universe(sb, d)
+    log.info("universe %d rows @ %s", len(rows), d)
+
+    hist = _recent(sb)
+    used_types = [h.get("post_type") for h in hist[:3]]
+    used_tk = {h.get("ticker") for h in hist[:6] if h.get("ticker")}
+    recent_texts = [h.get("text", "") for h in hist[:6]]
+
+    order = [t for t in TYPES if t not in used_types] or TYPES[:]
+    random.shuffle(order)
+
+    for post_type in order:
+        if post_type == "regime":
+            facts = _facts_regime(sb, d, rows)
+        elif post_type == "breadth":
+            facts = _facts_breadth(sb, d, rows)
+        elif post_type == "anatomy":
+            facts = _facts_anatomy(sb, d, rows, used_tk)
+        elif post_type == "method":
+            facts = _facts_method(sb, d, rows)
+        else:
+            facts = _facts_build(sb, d, rows)
+        if not facts:
+            log.info("no facts for %s — skipping", post_type)
+            continue
+
+        try:
+            text = _draft(post_type, facts, recent_texts)
+        except Exception as e:
+            log.warning("draft failed for %s: %s", post_type, e)
+            continue
+
+        ok, why = _validate(text)
+        row = {"post_type": post_type, "slot": slot,
+               "ticker": facts.get("ticker"), "facts": json.dumps(facts),
+               "text": text, "valid": ok, "reason": why,
+               "posted": False, "signal_date": d}
+
+        if not ok:
+            log.warning("validation failed (%s): %s", why, text[:80])
+            _record(sb, row)
+            continue
+
+        if dry_run or not ENABLED:
+            log.info("[dry-run] %s\n%s", post_type, text)
+            _record(sb, row)
+            return {"ok": True, "posted": False, "type": post_type, "text": text}
+
+        try:
+            from x_publisher import post_to_x
+            post_to_x(text)
+            row["posted"] = True
+            log.info("posted %s: %s", post_type, text[:80])
+        except Exception as e:
+            row["reason"] = f"post failed: {e}"
+            log.error("post failed: %s", e)
+        _record(sb, row)
+        return {"ok": row["posted"], "type": post_type, "text": text}
+
+    log.warning("no post produced this run")
+    return {"ok": False, "reason": "no viable post type"}
+
+
+if __name__ == "__main__":
+    run(dry_run="--dry-run" in sys.argv,
+        slot=(sys.argv[sys.argv.index("--slot") + 1]
+              if "--slot" in sys.argv else None))
