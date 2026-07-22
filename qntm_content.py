@@ -285,13 +285,15 @@ def _record(sb, row):
 
 
 # ── generation ──────────────────────────────────────────────────────────────
-def _draft(post_type, facts, recent_texts):
+def _draft(post_type, facts, recent_texts, extra=""):
     import anthropic
     client = anthropic.Anthropic()
     avoid = "\n".join(f"- {t}" for t in recent_texts) or "(none)"
     user = (f"{PROMPTS[post_type]}\n\nREAL DATA (use these exact numbers):\n"
             f"{json.dumps(facts, indent=2)}\n\n"
             f"Recent posts to avoid echoing:\n{avoid}")
+    if extra:
+        user += f"\n\n{extra}"
     m = client.messages.create(model=MODEL, max_tokens=400, system=VOICE,
                                messages=[{"role": "user", "content": user}])
     return "".join(b.text for b in m.content
@@ -353,6 +355,20 @@ def run(dry_run=False, slot=None):
             continue
 
         ok, why = _validate(text)
+        if not ok and why.startswith("too long"):
+            # shorten_retry: one tightened attempt before abandoning this type,
+            # otherwise a long draft can leave a scheduled slot with no post.
+            log.info("retrying %s shorter (%s)", post_type, why)
+            try:
+                text = _draft(post_type, facts, recent_texts,
+                              extra="Your previous attempt was too long. Rewrite it "
+                                    "in UNDER 220 characters total. Drop the least "
+                                    "essential line entirely rather than trimming "
+                                    "words from every line.")
+                ok, why = _validate(text)
+            except Exception as e:
+                log.warning("shorten retry failed: %s", e)
+
         row = {"post_type": post_type, "slot": slot,
                "ticker": facts.get("ticker"), "facts": json.dumps(facts),
                "text": text, "valid": ok, "reason": why,
