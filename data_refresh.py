@@ -374,13 +374,6 @@ def write_signal_snapshot(scored_list: list) -> bool:
         return False
 
     today = date.today().isoformat()
-    # Only write a fresh `price` during the regular session. Pre-market/overnight
-    # a rescore must not overwrite the stored close with a live quote.
-    try:
-        from market_calendar import market_is_open_now as _mkt_open_now
-        _write_price_now = bool(_mkt_open_now())
-    except Exception:
-        _write_price_now = False
     rows  = []
     for s in scored_list:
         rows.append({
@@ -395,9 +388,7 @@ def write_signal_snapshot(scored_list: list) -> bool:
             "signal":        s.get("signal"),
             "macro_overlay": s.get("macro_overlay"),
             "adj_composite": s.get("adj_composite"),
-            # price set conditionally below - only during the regular session, so
-            # a pre-market/overnight rescore never overwrites the stored close
-            # (the MU 970.82 bug: a 1:35am rescore stamped an overnight tick).
+            "price":         s.get("price"),
             "mktcap":        s.get("mktcap"),   # size bucket for the gem gate
             "is_hidden_gem": s.get("is_hidden_gem", False),
             "hidden_gem_reason": (
@@ -409,8 +400,6 @@ def write_signal_snapshot(scored_list: list) -> bool:
             "value_position": s.get("value_position"),
             "val_basis":      s.get("val_basis"),
         })
-        if _write_price_now and s.get("price") is not None:
-            rows[-1]["price"] = s.get("price")
 
     try:
         for i in range(0, len(rows), BATCH_SIZE):
