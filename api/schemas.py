@@ -227,6 +227,10 @@ class ModelPosition(ScreenerRow):
     entry_score: Optional[float] = None
     current_price: Optional[float] = None
     ret_since_entry: Optional[float] = None
+    day_pct: Optional[float] = None
+    day_dollar: Optional[float] = None
+    ext_pct: Optional[float] = None
+    ext_session: Optional[str] = None
 
 
 class ExitTrade(BaseModel):

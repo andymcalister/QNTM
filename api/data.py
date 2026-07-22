@@ -991,6 +991,23 @@ def pre_post_move(sb):
         return None
 
 
+def _day_fields(entry, entry_price, position_size):
+    """Per-position day movement fields from a _day_map entry (or blanks)."""
+    if not entry:
+        return {"day_pct": None, "day_dollar": None,
+                "ext_pct": None, "ext_session": None}
+    dollar = None
+    try:
+        size = float(position_size or 2000.0)
+        if entry_price and float(entry_price) > 0:
+            shares = size / float(entry_price)
+            dollar = round(shares * (entry["_cur"] - entry["_prev"]), 2)
+    except Exception:
+        dollar = None
+    return {"day_pct": entry.get("day_pct"), "day_dollar": dollar,
+            "ext_pct": entry.get("ext_pct"), "ext_session": entry.get("ext_session")}
+
+
 def load_model_portfolio() -> dict:
     """Equity curve vs SPY + track-record stats + open positions (enriched from
     signal_log) + closed trades for the live model cohort. Cached briefly."""
@@ -1236,6 +1253,68 @@ def load_model_portfolio() -> dict:
 
         # 4) open positions — active rows deduped newest-per-ticker, enriched
         active = [p for p in positions if p.get("is_active")]
+
+        # Per-stock day movement. Regular: today's mark vs prior session's mark.
+        # Pre-market: pre_price vs PRIOR close. After-hours: post_price vs TODAY's
+        # close. Self-contained + fails soft (no day figures rather than a 500).
+        _day_map = {}
+        try:
+            import datetime as _dtd
+            from zoneinfo import ZoneInfo as _ZId
+            _et_now = _dtd.datetime.now(_ZId("America/New_York"))
+            _mins = _et_now.hour * 60 + _et_now.minute
+            if _et_now.weekday() >= 5:
+                _sess = None
+            elif 240 <= _mins < 570:
+                _sess = "pre"
+            elif 570 <= _mins <= 960:
+                _sess = "regular"
+            elif 960 < _mins <= 1200:
+                _sess = "post"
+            else:
+                _sess = None
+
+            _held = sorted({p["ticker"] for p in active if p.get("ticker")})
+            if _held:
+                _since = (_et_now.date() - _dtd.timedelta(days=12)).isoformat()
+                _rows = _mp_fetch_all(
+                    sb, "signal_log",
+                    "ticker,signal_date,price,pre_price,post_price",
+                    [("in_", ("ticker", _held)), ("gte", ("signal_date", _since))],
+                    "signal_date", False)
+                _by = {}
+                for _r in (_rows or []):
+                    _tk = _r.get("ticker")
+                    _d = str(_r.get("signal_date") or "")[:10]
+                    if _tk and len(_d) == 10:
+                        _by.setdefault(_tk, {})[_d] = _r
+                for _tk, _m in _by.items():
+                    _ds = sorted(_m)
+                    if len(_ds) < 2:
+                        continue
+                    _cur_row, _prev_row = _m[_ds[-1]], _m[_ds[-2]]
+                    _cur = _cur_row.get("price")
+                    _prev = _prev_row.get("price")
+                    if not _cur or not _prev:
+                        continue
+                    _cur, _prev = float(_cur), float(_prev)
+                    _entry = {"day_pct": round((_cur / _prev - 1) * 100, 2),
+                              "_cur": _cur, "_prev": _prev,
+                              "ext_pct": None, "ext_session": None}
+                    if _sess == "pre":
+                        _px = _cur_row.get("pre_price")
+                        if _px:
+                            _entry["ext_pct"] = round((float(_px) / _prev - 1) * 100, 2)
+                            _entry["ext_session"] = "pre"
+                    elif _sess == "post":
+                        _px = _cur_row.get("post_price")
+                        if _px:
+                            _entry["ext_pct"] = round((float(_px) / _cur - 1) * 100, 2)
+                            _entry["ext_session"] = "post"
+                    _day_map[_tk] = _entry
+        except Exception as _e:
+            logging.warning("per-stock day movement failed: %s", _e)
+            _day_map = {}
         adedup: dict = {}
         for p in active:
             tk = p["ticker"]; ed = str(p.get("entry_date") or ""); pid = p.get("id") or 0
@@ -1270,7 +1349,9 @@ def load_model_portfolio() -> dict:
                                    "entry_price": entry_price,
                                    "entry_score": _num(p.get("entry_score")),
                                    "current_price": cur_price,
-                                   "ret_since_entry": ret_since})
+                                   "ret_since_entry": ret_since,
+                                   **_day_fields(_day_map.get(tk), entry_price,
+                                                 p.get("position_size"))})
             s = SEC.get(tk, "Unknown")
             sect[s] = sect.get(s, 0) + 1
         open_positions.sort(key=lambda r: (r.get("score") or 0.0), reverse=True)
