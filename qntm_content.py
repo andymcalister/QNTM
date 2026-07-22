@@ -209,16 +209,58 @@ def _facts_anatomy(sb, d, rows, avoid):
             "value_position": r.get("value_position")}
 
 
+def _held_rows(sb, rows):
+    held = {r["ticker"] for r in
+            (sb.table("model_portfolio_positions").select("ticker")
+             .is_("exit_date", "null").execute().data or [])}
+    return [r for r in rows if r["ticker"] in held
+            and r.get("adj_composite") is not None]
+
+
 def _facts_method(sb, d, rows):
-    scored = [r for r in rows if r.get("adj_composite") is not None]
-    if not scored:
+    """Each topic carries its OWN matching numbers. A random topic paired with an
+    unrelated stat forces a bogus connection in the copy."""
+    hrows = _held_rows(sb, rows)
+    if len(hrows) < 5:
         return None
-    near = [r for r in scored if 55 < float(r["adj_composite"]) <= 58]
-    return {"topic": random.choice(
-                ["exit discipline at 55", "the macro overlay",
-                 "equal weighting", "the valuation band"]),
-            "universe": len(scored),
-            "within_3pts_of_exit": len(near)}
+    topic = random.choice(["exit_discipline", "equal_weighting", "valuation_band"])
+
+    if topic == "exit_discipline":
+        near = [r for r in hrows if 55 < float(r["adj_composite"]) <= 58]
+        return {"topic": "exit discipline - a holding is sold when its adjusted "
+                         "score drops to 55 or under",
+                "holdings": len(hrows),
+                "holdings_within_3pts_of_exit": len(near),
+                "lowest_held_score": round(
+                    min(float(r["adj_composite"]) for r in hrows), 1),
+                "note": "The exit line applies ONLY to current holdings, never to "
+                        "the wider universe - most names sit below it as a matter "
+                        "of course. Never describe the universe against it."}
+
+    if topic == "equal_weighting":
+        return {"topic": "equal weighting - every position enters at the same size",
+                "holdings": len(hrows),
+                "target_book": 50,
+                "highest_held_score": round(
+                    max(float(r["adj_composite"]) for r in hrows), 1),
+                "lowest_held_score": round(
+                    min(float(r["adj_composite"]) for r in hrows), 1),
+                "note": "Conviction shows up as presence in the book, not as a "
+                        "bigger position. Do not imply position sizing by score."}
+
+    vp = [float(r["value_position"]) for r in hrows
+          if r.get("value_position") is not None]
+    if not vp:
+        return None
+    return {"topic": "the QNTM valuation band - where price sits inside a stock's "
+                     "own valuation range",
+            "holdings": len(hrows),
+            "held_with_band": len(vp),
+            "at_or_below_floor": sum(1 for x in vp if x <= 0),
+            "avg_value_position": round(sum(vp) / len(vp), 1),
+            "note": "value_position runs 0-100; 0 means at or below the band "
+                    "floor. This is descriptive context, never a price target or "
+                    "a recommendation."}
 
 
 def _facts_build(sb, d, rows):
