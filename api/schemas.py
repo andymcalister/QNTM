@@ -271,6 +271,8 @@ class DayMove(BaseModel):
     spy_pct: float = 0.0
     spy_dollar: float = 0.0
     vs_spy_pct: float = 0.0
+    as_of_date: Optional[str] = None
+    is_current_session: bool = True
 
 
 class ModelPortfolioResponse(BaseModel):

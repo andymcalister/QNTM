@@ -1168,18 +1168,44 @@ def load_model_portfolio() -> dict:
                     # _wrap_fallback: most recent wrap at/before today's ET date.
                     # The ET date rolls at 9pm Pacific, so a strict eq() left the
                     # card recomputing (and drifting) all evening.
-                    _wr = (sb.table("daily_outlook").select("model_return,spy_return")
-                           .lte("outlook_date", _tet).eq("kind", "wrap")
-                           .order("outlook_date", desc=True).limit(1).execute().data)
-                    if _wr and _wr[0].get("model_return") is not None:
-                        _mp = float(_wr[0]["model_return"])
+                    _now_et = _dtw.datetime.now(_ZIw("America/New_York"))
+                    try:
+                        from market_calendar import is_trading_day as _itd
+                        _open_today = bool(_itd(_now_et.date()))
+                    except Exception:
+                        _open_today = _now_et.weekday() < 5
+                    _started = _open_today and (_now_et.hour * 60 + _now_et.minute) >= 570
+
+                    def _apply(_row):
+                        _mp = float(_row["model_return"])
                         day["model_pct"] = _mp
                         day["model_dollar"] = round(day["model_prev"] * (_mp / 100.0), 2)
-                        if _wr[0].get("spy_return") is not None:
-                            _sp = float(_wr[0]["spy_return"])
+                        if _row.get("spy_return") is not None:
+                            _sp = float(_row["spy_return"])
                             day["spy_pct"] = _sp
                             day["spy_dollar"] = round(day["spy_prev"] * (_sp / 100.0), 2)
                         day["vs_spy_pct"] = round(day["model_pct"] - day["spy_pct"], 2)
+
+                    _wt = (sb.table("daily_outlook")
+                           .select("outlook_date,model_return,spy_return")
+                           .eq("outlook_date", _tet).eq("kind", "wrap")
+                           .limit(1).execute().data)
+                    if _wt and _wt[0].get("model_return") is not None:
+                        _apply(_wt[0])
+                        day["as_of_date"] = _tet
+                        day["is_current_session"] = True
+                    elif _started:
+                        day["as_of_date"] = _tet
+                        day["is_current_session"] = True
+                    else:
+                        _wl = (sb.table("daily_outlook")
+                               .select("outlook_date,model_return,spy_return")
+                               .lt("outlook_date", _tet).eq("kind", "wrap")
+                               .order("outlook_date", desc=True).limit(1).execute().data)
+                        if _wl and _wl[0].get("model_return") is not None:
+                            _apply(_wl[0])
+                            day["as_of_date"] = _wl[0].get("outlook_date")
+                        day["is_current_session"] = False
                 except Exception:
                     pass
                 for _bk, _raw, _norm in (("rsp", rsp, rsp_norm), ("qqq", qqq, qqq_norm)):
