@@ -154,16 +154,32 @@ def _facts_regime(sb, d, rows):
     }
 
 
-def _count(sb, d, gte=None, lte=None):
-    q = sb.table("signal_log").select("ticker", count="exact").eq("signal_date", d)
-    if gte is not None:
-        q = q.gte("adj_composite", gte)
-    if lte is not None:
-        q = q.lte("adj_composite", lte)
+def _is_high(adj):
+    """Canonical HIGH test - defers to conviction.py so the engine can never
+    disagree with the screener. The bands key off the ROUNDED adjusted score,
+    so a raw >= 65 test undercounts everything sitting at 64.5-64.99."""
+    if adj is None:
+        return False
     try:
-        return q.limit(1).execute().count or 0
+        from conviction import conviction_label
+        return conviction_label(float(adj)) == "HIGH"
     except Exception:
-        return 0
+        return round(float(adj)) >= 65
+
+
+def _day_bands(sb, d):
+    """(high, total) for one session, using the canonical bands."""
+    rows, page = [], 0
+    while page < 4:
+        b = (sb.table("signal_log").select("adj_composite")
+             .eq("signal_date", d).range(page * 1000, (page + 1) * 1000 - 1)
+             .execute().data or [])
+        rows.extend(b)
+        if len(b) < 1000:
+            break
+        page += 1
+    scored = [r["adj_composite"] for r in rows if r.get("adj_composite") is not None]
+    return sum(1 for a in scored if _is_high(a)), len(scored)
 
 
 def _baseline(sb, d, days=10, lookback=18):
@@ -172,10 +188,10 @@ def _baseline(sb, d, days=10, lookback=18):
     vals = []
     for i in range(1, lookback + 1):
         dd = (base - dt.timedelta(days=i)).isoformat()
-        total = _count(sb, dd)
+        hi, total = _day_bands(sb, dd)
         if total < 100:
             continue
-        vals.append(100.0 * _count(sb, dd, gte=65) / total)
+        vals.append(100.0 * hi / total)
         if len(vals) >= days:
             break
     if not vals:
@@ -187,7 +203,7 @@ def _facts_breadth(sb, d, rows):
     scored = [r for r in rows if r.get("adj_composite") is not None]
     if len(scored) < 100:
         return None
-    hi = [r for r in scored if float(r["adj_composite"]) >= 65]
+    hi = [r for r in scored if _is_high(r.get("adj_composite"))]
     high_pct = round(100 * len(hi) / len(scored), 1)
     avg = _baseline(sb, d)
     if avg is None:
@@ -236,7 +252,7 @@ def _facts_method(sb, d, rows):
     topic = random.choice(["exit_discipline", "equal_weighting", "valuation_band"])
 
     if topic == "exit_discipline":
-        near = [r for r in hrows if 55 < float(r["adj_composite"]) <= 58]
+        near = [r for r in hrows if 55 < round(float(r["adj_composite"])) <= 58]
         return {"topic": "exit discipline - a holding is sold when its adjusted "
                          "score drops to 55 or under",
                 "holdings": len(hrows),
