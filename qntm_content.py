@@ -85,8 +85,11 @@ PROMPTS = {
                "Describe the factors, not a recommendation. No buy/sell language.",
     "method": "Write about how one piece of the QNTM method works, grounded in "
               "the live example given. Teach the thinking, not a conclusion.",
-    "build": "Write a short builder's note about making a quantitative research "
-             "platform, grounded in the real detail given. Honest, specific.",
+    "build": "Write a builder's note about making a quantitative research "
+             "platform. You are given rough raw material from the founder and an "
+             "angle to take on it. Do not restate the raw material - start from "
+             "it and go somewhere it did not already go. First person, honest, "
+             "specific, no motivational-poster register.",
 }
 
 
@@ -273,11 +276,43 @@ def _facts_method(sb, d, rows):
                     "a recommendation."}
 
 
+BUILD_ANGLES = [
+    "the tradeoff you accepted, and what it actually cost",
+    "what you believed at the start that turned out to be wrong",
+    "the specific decision point, and why you went the way you did",
+    "what you would tell someone about to make the same call",
+    "the second-order consequence nobody warns you about",
+    "why the obvious answer was the wrong one here",
+    "the part that was boring but mattered more than the interesting part",
+]
+
+
 def _facts_build(sb, d, rows):
+    """Seeds are raw material, not copy. Pair two and rotate the angle so the
+    same handful of notes produce genuinely different posts over time."""
     seeds = json.loads(os.getenv("CONTENT_BUILD_SEEDS", "[]") or "[]")
     if not seeds:
         return None
-    return {"note": random.choice(seeds)}
+    pool = list(seeds)
+    random.shuffle(pool)
+    prev = (sb.table("content_posts").select("text")
+            .eq("post_type", "build").order("created_at", desc=True)
+            .limit(6).execute().data or [])
+    hrows = _held_rows(sb, rows)
+    return {
+        "raw_material": pool[0],
+        "second_thread": pool[1] if len(pool) > 1 else None,
+        "angle": random.choice(BUILD_ANGLES),
+        "live_context": {"universe_size": len(rows), "holdings": len(hrows)},
+        "avoid_echoing_these_recent_build_posts": [x.get("text") for x in prev],
+        "note": "raw_material and second_thread are rough private notes from the "
+                "founder. They are NOT copy to restate or paraphrase back. Find "
+                "one specific idea inside them and write something new from the "
+                "given angle - a thought the notes imply but do not say. If the "
+                "two threads connect, use the connection; if not, ignore the "
+                "second. live_context numbers are optional - include one only if "
+                "it genuinely earns its place, never force it in.",
+    }
 
 
 # ── history / storage ───────────────────────────────────────────────────────
