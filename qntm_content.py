@@ -60,7 +60,14 @@ NEVER use: "In reality", "The key takeaway", "It's important to remember",
 No hashtags. No links. No emojis. No ticker recommendations, price targets,
 or performance claims.
 
-Length: 2-4 short lines, under 260 characters total. Line breaks are good.
+HARD LIMIT: under 240 characters total, including spaces and line breaks. That
+is 2-3 short lines, not 4. A longer post is discarded outright, so brevity is not
+a style preference here.
+
+You will usually be given more numbers than belong in one post. Pick the SINGLE
+most interesting one and build around it. Using every number you were handed is
+the most common way these come out too long and too flat.
+
 Leave a little room for the reader to think — don't close the topic.
 
 Do not speculate beyond the numbers you are given. Do not invent causes,
