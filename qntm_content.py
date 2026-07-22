@@ -121,13 +121,27 @@ def _facts_regime(sb, d, rows):
           if r.get("macro_overlay") is not None]
     if not ov or not o:
         return None
-    avg = sum(ov) / len(ov)
-    drag = [r for r in rows
-            if r.get("composite") and r.get("adj_composite")
-            and float(r["adj_composite"]) < float(r["composite"]) - 5]
-    return {"regime": o[0].get("regime"), "conviction": o[0].get("regime_score"),
-            "avg_overlay": round(avg, 3), "universe": len(rows),
-            "knocked_down_5plus": len(drag)}
+    gaps = [float(r["composite"]) - float(r["adj_composite"]) for r in rows
+            if r.get("composite") is not None and r.get("adj_composite") is not None]
+    distinct = {round(x, 3) for x in ov}
+    return {
+        "regime": o[0].get("regime"),
+        "conviction": o[0].get("regime_score"),
+        "universe": len(rows),
+        "avg_overlay": round(sum(ov) / len(ov), 3),
+        "overlay_min": round(min(ov), 3),
+        "overlay_max": round(max(ov), 3),
+        "overlay_distinct_values": len(distinct),
+        "avg_points_removed": round(sum(gaps) / len(gaps), 2) if gaps else None,
+        "max_points_removed": round(max(gaps), 2) if gaps else None,
+        "note": "The overlay is applied per sector, so the count of distinct "
+                "values shows how differentiated the macro tilt is. Points "
+                "removed = composite minus adjusted score. A small overlay "
+                "mechanically produces small point moves - never present that "
+                "as surprising or as a finding; it is arithmetic, not signal. "
+                "Only comment on dispersion using the min/max/distinct values "
+                "given.",
+    }
 
 
 def _count(sb, d, gte=None, lte=None):
