@@ -251,6 +251,7 @@ class ExitedTicker(BaseModel):
 
 class TodayMoves(BaseModel):
     date: Optional[str] = None
+    is_today: bool = True
     entered: list[str] = []
     exited: list[ExitedTicker] = []
 

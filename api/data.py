@@ -1165,8 +1165,12 @@ def load_model_portfolio() -> dict:
                     from zoneinfo import ZoneInfo as _ZIw
                     import datetime as _dtw
                     _tet = _dtw.datetime.now(_ZIw("America/New_York")).strftime("%Y-%m-%d")
+                    # _wrap_fallback: most recent wrap at/before today's ET date.
+                    # The ET date rolls at 9pm Pacific, so a strict eq() left the
+                    # card recomputing (and drifting) all evening.
                     _wr = (sb.table("daily_outlook").select("model_return,spy_return")
-                           .eq("outlook_date", _tet).eq("kind", "wrap").limit(1).execute().data)
+                           .lte("outlook_date", _tet).eq("kind", "wrap")
+                           .order("outlook_date", desc=True).limit(1).execute().data)
                     if _wr and _wr[0].get("model_return") is not None:
                         _mp = float(_wr[0]["model_return"])
                         day["model_pct"] = _mp
@@ -1212,7 +1216,8 @@ def load_model_portfolio() -> dict:
                 _today_et = _dtw.datetime.now(_ZIw("America/New_York")).strftime("%Y-%m-%d")
                 _settled_wrap = (sb.table("daily_outlook")
                                  .select("model_return,spy_return")
-                                 .eq("outlook_date", _today_et).eq("kind", "wrap")
+                                 .lte("outlook_date", _today_et).eq("kind", "wrap")
+                                 .order("outlook_date", desc=True)
                                  .limit(1).execute().data)
                 if _settled_wrap and _settled_wrap[0].get("model_return") is not None:
                     day_model = float(_settled_wrap[0]["model_return"])
@@ -1378,6 +1383,15 @@ def load_model_portfolio() -> dict:
             from zoneinfo import ZoneInfo as _ZItm
             import datetime as _dttm
             _tm_date = _dttm.datetime.now(_ZItm("America/New_York")).strftime("%Y-%m-%d")
+        # If nothing moved on the current ET date (e.g. past 9pm Pacific, ET has
+        # rolled over), show the most recent session that DID have moves.
+        _move_dates = {str(_p.get("entry_date") or "")[:10] for _p in positions}
+        _move_dates |= {str(_p.get("exit_date") or "")[:10] for _p in positions}
+        _move_dates = {d for d in _move_dates if len(d) == 10 and d <= _tm_date}
+        _is_today = _tm_date in _move_dates
+        if not _is_today and _move_dates:
+            _tm_date = max(_move_dates)
+
         _entered_today, _exited_today = [], []
         for _p in positions:
             if str(_p.get("entry_date") or "")[:10] == _tm_date and _p.get("ticker"):
@@ -1391,6 +1405,7 @@ def load_model_portfolio() -> dict:
                 })
         today_moves = {
             "date": _tm_date,
+            "is_today": _is_today,
             "entered": sorted(set(_entered_today)),
             "exited": sorted(_exited_today, key=lambda x: x["ticker"]),
         }
