@@ -63,6 +63,10 @@ or performance claims.
 Length: 2-4 short lines, under 260 characters total. Line breaks are good.
 Leave a little room for the reader to think — don't close the topic.
 
+Do not speculate beyond the numbers you are given. Do not invent causes,
+explanations, or context that is not in the data. If a number needs context to be
+meaningful and you were not given that context, say less rather than reaching.
+
 Return ONLY the post text. No preamble, no quotes, no markdown."""
 
 PROMPTS = {
@@ -126,17 +130,52 @@ def _facts_regime(sb, d, rows):
             "knocked_down_5plus": len(drag)}
 
 
+def _count(sb, d, gte=None, lte=None):
+    q = sb.table("signal_log").select("ticker", count="exact").eq("signal_date", d)
+    if gte is not None:
+        q = q.gte("adj_composite", gte)
+    if lte is not None:
+        q = q.lte("adj_composite", lte)
+    try:
+        return q.limit(1).execute().count or 0
+    except Exception:
+        return 0
+
+
+def _baseline(sb, d, days=10, lookback=18):
+    """Trailing high-conviction share, so today's reading has context."""
+    base = dt.date.fromisoformat(d)
+    vals = []
+    for i in range(1, lookback + 1):
+        dd = (base - dt.timedelta(days=i)).isoformat()
+        total = _count(sb, dd)
+        if total < 100:
+            continue
+        vals.append(100.0 * _count(sb, dd, gte=65) / total)
+        if len(vals) >= days:
+            break
+    if not vals:
+        return None
+    return round(sum(vals) / len(vals), 1)
+
+
 def _facts_breadth(sb, d, rows):
     scored = [r for r in rows if r.get("adj_composite") is not None]
     if len(scored) < 100:
         return None
     hi = [r for r in scored if float(r["adj_composite"]) >= 65]
-    lo = [r for r in scored if float(r["adj_composite"]) <= 55]
+    high_pct = round(100 * len(hi) / len(scored), 1)
+    avg = _baseline(sb, d)
+    if avg is None:
+        return None
     return {"universe": len(scored),
             "high_conviction": len(hi),
-            "high_pct": round(100 * len(hi) / len(scored), 1),
-            "at_or_below_exit": len(lo),
-            "low_pct": round(100 * len(lo) / len(scored), 1)}
+            "high_pct": high_pct,
+            "trailing_10session_avg_high_pct": avg,
+            "vs_trailing": round(high_pct - avg, 1),
+            "note": "high-conviction means adjusted score >= 65. Compare today "
+                    "to the trailing average; do NOT describe the universe "
+                    "against the exit threshold, which applies only to holdings."}
 
 
 def _facts_anatomy(sb, d, rows, avoid):
