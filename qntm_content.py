@@ -242,7 +242,10 @@ def _facts_method(sb, d, rows):
                     min(float(r["adj_composite"]) for r in hrows), 1),
                 "note": "The exit line applies ONLY to current holdings, never to "
                         "the wider universe - most names sit below it as a matter "
-                        "of course. Never describe the universe against it."}
+                        "of course. Never describe the universe against it. "
+                        "lowest_held_score is the minimum across ALL holdings, "
+                        "not the minimum of that cluster - never present the two "
+                        "as one figure."}
 
     if topic == "equal_weighting":
         return {"topic": "equal weighting - every position enters at the same size",
