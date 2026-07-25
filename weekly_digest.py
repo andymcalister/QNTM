@@ -29,6 +29,17 @@ log = logging.getLogger("qntm.digest")
 LOOKBACK_DAYS = 9  # ~one trading week of calendar days
 
 
+def _week_start_iso(as_of=None):
+    """Monday of the ISO week containing as_of (UTC today if None). All weekly
+    windows anchor to this so the recap covers Mon-Fri of the current week and
+    ties out to the market_outlook week wrap, instead of a rolling 9-day span
+    that bled into the prior week."""
+    import datetime as _dt
+    ref = (_dt.date.fromisoformat(str(as_of)[:10]) if as_of
+           else _dt.datetime.now(_dt.timezone.utc).date())
+    return (ref - _dt.timedelta(days=ref.weekday())).isoformat()
+
+
 def _cfg(key):
     try:
         import streamlit as st
@@ -90,7 +101,7 @@ def weekly_prices(sb, tickers):
     tickers = list({t for t in tickers if t})
     if not tickers:
         return out
-    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    since = _week_start_iso()
     rows = []
     for i in range(0, len(tickers), 300):
         chunk = tickers[i:i + 300]
@@ -364,7 +375,7 @@ def _weekday(dstr):
 
 def spy_daily(sb):
     """[(date, close)] daily SPY over the window, oldest→newest."""
-    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    since = _week_start_iso()
     try:
         rows = (sb.table("benchmark_price").select("d,close")
                 .gte("d", since).order("d", desc=False).execute().data or [])
@@ -390,7 +401,7 @@ def _model_daily_prices(sb, tickers):
     tickers = list({t for t in tickers if t})
     if not tickers:
         return px
-    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    since = _week_start_iso()
     rows = []
     for i in range(0, len(tickers), 300):
         chunk = tickers[i:i + 300]
@@ -936,7 +947,7 @@ def build_email_html(sb, wl, ho, prices, positions, model_ret, model_used, spy, 
                      'Past performance does not guarantee future results.</p>')
         parts.append(_section("Model portfolio vs SPY", "".join(block)))
 
-        since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+        since = _week_start_iso()
         ent, ex = model_turnover(sb, since)
         tn = turnover_html(ent, ex)
         if tn:
@@ -1061,7 +1072,7 @@ def run(only_email=None):
 
 
 def spy_week(sb):
-    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    since = _week_start_iso()
     try:
         rows = (sb.table("benchmark_price").select("d,close")
                 .gte("d", since).order("d", desc=False).execute().data or [])
