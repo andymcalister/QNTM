@@ -20,6 +20,7 @@ DIGEST_PERFORMANCE=0 to suppress it.
 import os
 import sys
 import json
+from qntm_windows import week_start_iso as _shared_week_start
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -30,14 +31,8 @@ LOOKBACK_DAYS = 9  # ~one trading week of calendar days
 
 
 def _week_start_iso(as_of=None):
-    """Monday of the ISO week containing as_of (UTC today if None). All weekly
-    windows anchor to this so the recap covers Mon-Fri of the current week and
-    ties out to the market_outlook week wrap, instead of a rolling 9-day span
-    that bled into the prior week."""
-    import datetime as _dt
-    ref = (_dt.date.fromisoformat(str(as_of)[:10]) if as_of
-           else _dt.datetime.now(_dt.timezone.utc).date())
-    return (ref - _dt.timedelta(days=ref.weekday())).isoformat()
+    """Delegates to the shared window helper (see qntm_windows)."""
+    return _shared_week_start(as_of)
 
 
 def _cfg(key):

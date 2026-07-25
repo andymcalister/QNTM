@@ -28,6 +28,7 @@ Data notes / knobs:
   * Model return/attribution reuse the digest's battle-tested helpers.
 """
 import json
+from qntm_windows import week_session_dates as _shared_week_dates
 import logging
 import os
 import sys
@@ -126,41 +127,9 @@ def _session_dates(sb, as_of=None, n=6):
 
 
 def _week_session_dates(sb, as_of=None):
-    """Distinct signal_log dates for the ISO week containing as_of (Mon-Fri),
-    newest first. Anchored to Monday so a Saturday run reports THIS week's
-    Mon-Fri, not a trailing 6 sessions that bleed into the prior week."""
-    import datetime as _dt
-    if as_of:
-        y, m, d = (int(x) for x in str(as_of)[:10].split("-"))
-        ref = _dt.date(y, m, d)
-    else:
-        r = (sb.table("signal_log").select("signal_date")
-             .order("signal_date", desc=True).limit(1).execute().data or [])
-        if not r:
-            return []
-        y, m, d = (int(x) for x in str(r[0]["signal_date"])[:10].split("-"))
-        ref = _dt.date(y, m, d)
-    monday = ref - _dt.timedelta(days=ref.weekday())
-    friday = monday + _dt.timedelta(days=4)
-    # signal_log holds ~1000 rows PER date, so an unbounded range select truncates
-    # at PostgREST's 1000-row cap and returns only the newest date. Page through.
-    seen, out, page = set(), [], 0
-    while page < 12:
-        batch = (sb.table("signal_log").select("signal_date")
-                 .gte("signal_date", monday.isoformat())
-                 .lte("signal_date", friday.isoformat())
-                 .order("signal_date", desc=True)
-                 .range(page * 1000, (page + 1) * 1000 - 1).execute().data or [])
-        if not batch:
-            break
-        for r in batch:
-            dd = str(r["signal_date"])[:10]
-            if dd not in seen:
-                seen.add(dd); out.append(dd)
-        if len(batch) < 1000:
-            break
-        page += 1
-    return sorted(out, reverse=True)
+    """Delegates to the shared window helper (see qntm_windows)."""
+    return _shared_week_dates(sb, as_of)
+
 
 
 def _week_startend(sb, tickers, as_of=None):
