@@ -519,9 +519,20 @@ def main():
         log.error("usage: python market_outlook.py [outlook|wrap|week] [YYYY-MM-DD]")
         sys.exit(2)
     as_of = sys.argv[2] if len(sys.argv) > 2 else None
-    target = as_of or date.today().isoformat()
+    # Gate on the EASTERN date, not date.today() (UTC): a late-ET or weekend run
+    # could see a UTC date still reading Friday, or post a Saturday-labelled wrap
+    # of Friday's data. ET is the market's clock.
+    if as_of:
+        target = as_of
+    else:
+        try:
+            from zoneinfo import ZoneInfo as _ZI
+            from datetime import datetime as _now
+            target = _now(_ZI("America/New_York")).date().isoformat()
+        except Exception:
+            target = date.today().isoformat()
     if kind in ("outlook", "wrap") and not _is_trading_day(target):
-        log.info("%s: %s is not a trading day \u2014 skipping", kind, target)
+        log.info("%s: %s is not a trading day (ET) \u2014 skipping", kind, target)
         return
     sb = _sb()
     if not sb:
