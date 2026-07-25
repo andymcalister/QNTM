@@ -125,13 +125,42 @@ def _session_dates(sb, as_of=None, n=6):
     return dates
 
 
+def _week_session_dates(sb, as_of=None):
+    """Distinct signal_log dates for the ISO week containing as_of (Mon-Fri),
+    newest first. Anchored to Monday so a Saturday run reports THIS week's
+    Mon-Fri, not a trailing 6 sessions that bleed into the prior week."""
+    import datetime as _dt
+    if as_of:
+        y, m, d = (int(x) for x in str(as_of)[:10].split("-"))
+        ref = _dt.date(y, m, d)
+    else:
+        r = (sb.table("signal_log").select("signal_date")
+             .order("signal_date", desc=True).limit(1).execute().data or [])
+        if not r:
+            return []
+        y, m, d = (int(x) for x in str(r[0]["signal_date"])[:10].split("-"))
+        ref = _dt.date(y, m, d)
+    monday = ref - _dt.timedelta(days=ref.weekday())
+    friday = monday + _dt.timedelta(days=4)
+    rows = (sb.table("signal_log").select("signal_date")
+            .gte("signal_date", monday.isoformat())
+            .lte("signal_date", friday.isoformat())
+            .order("signal_date", desc=True).execute().data or [])
+    seen, out = set(), []
+    for r in rows:
+        dd = str(r["signal_date"])[:10]
+        if dd not in seen:
+            seen.add(dd); out.append(dd)
+    return out
+
+
 def _week_startend(sb, tickers, as_of=None):
     """{ticker: {start, end}} spanning the WEEK: end = last session on/before
     as_of, start = ~5 trading days earlier. Same shape as _daily_startend."""
     if not tickers:
         return {}
     try:
-        dates = _session_dates(sb, as_of, n=6)
+        dates = _week_session_dates(sb, as_of)
         if len(dates) < 2:
             log.warning("week span: only %d session(s) found", len(dates))
             return {}
@@ -228,7 +257,7 @@ def gather(sb, kind, as_of=None):
 
             spy = [x for x in spy_daily(sb) if x[0] <= data['date']]
             if kind == "week":
-                _sd = _session_dates(sb, data['date'], n=6)
+                _sd = _week_session_dates(sb, data['date'])
                 if len(_sd) >= 2:
                     _smap = {d: c for d, c in spy}
                     _a, _b = _smap.get(_sd[-1]), _smap.get(_sd[0])
