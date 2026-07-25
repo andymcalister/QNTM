@@ -735,6 +735,26 @@ def _entry_blend_score(r):
     return _ENTRY_CONV_W * conv + _ENTRY_VALUE_W * cheap
 
 
+def _prev_exit_score(sb, ticker, today):
+    """adj_composite from the most recent SCORED session before `today`.
+    Two-day exit confirmation; a weekend/skipped run is stepped over because we
+    take the latest date < today, not literally yesterday."""
+    try:
+        rows = (sb.table(SIGNAL_TABLE)
+                .select("signal_date,adj_composite,composite")
+                .eq("ticker", ticker).lt("signal_date", today)
+                .order("signal_date", desc=True).limit(1).execute().data)
+        if not rows:
+            return None
+        r = rows[0]
+        v = r.get("adj_composite")
+        if v is None:
+            v = r.get("composite")
+        return float(v) if v is not None else None
+    except Exception:
+        return None
+
+
 def update_model_portfolio(scored_list: list) -> None:
     """
     Model portfolio maintenance — runs nightly AND intraday.
@@ -887,9 +907,17 @@ def update_model_portfolio(scored_list: list) -> None:
             sc = score_map.get(pos["ticker"])
             if not sc:
                 continue
+            if str(pos.get("entry_date") or "")[:10] == today:
+                continue
             gate = float(sc.get(_exit_field, sc.get("composite", 50)) or 50)
-            if _eod_ok and _is_exit(gate):
-                exit_candidates.append((pos, gate, sc))
+            if not (_eod_ok and _is_exit(gate)):
+                continue
+            prev = _prev_exit_score(sb, pos["ticker"], today)
+            if prev is None or not _is_exit(prev):
+                log.info(f"[MODEL PORTFOLIO] HOLD {pos['ticker']} — {gate:.1f} today "
+                         f"but prior session {prev} not confirming; needs two <=55 in a row")
+                continue
+            exit_candidates.append((pos, gate, sc))
 
         # ── Circuit breaker — a one-run cluster of exits is a data/model artifact,
         #    not real conviction collapse. Refuse to act and alert instead.
@@ -930,10 +958,15 @@ def update_model_portfolio(scored_list: list) -> None:
         # conviction primary, valuation position as the tie-breaking tilt — so an
         # opening slot is filled by the highest-conviction name trading cheapest
         # in its range, not just the top raw score.
+        _exited_today = set(exited) | {
+            r["ticker"] for r in (sb.table("model_portfolio_positions")
+                .select("ticker").eq("epoch", _EPOCH).eq("exit_date", today)
+                .execute().data or [])}
         candidates = sorted(
             [r for r in scored_list
              if _is_entry(r.get("adj_composite", r.get("composite", 0)), _regime)
              and r["ticker"] not in active_tickers
+             and r["ticker"] not in _exited_today
              and r.get("price")],
             key=_entry_blend_score,
             reverse=True
