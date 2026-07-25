@@ -54,6 +54,37 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.9"
 
+  # ── QNTM content engine — grounded X posts, twice daily ─────────────────────
+  - type: cron
+    name: qntm-content-am
+    runtime: python
+    plan: starter
+    region: virginia
+    branch: main
+    schedule: "30 15 * * 1-5"
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python qntm_content.py --slot am
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: CONTENT_ENGINE_ENABLED
+        value: "1"
+
+  - type: cron
+    name: qntm-content-pm
+    runtime: python
+    plan: starter
+    region: virginia
+    branch: main
+    schedule: "30 23 * * 1-5"
+    buildCommand: pip install -r requirements.txt
+    startCommand: mkdir -p .streamlit && cp /etc/secrets/secrets.toml .streamlit/secrets.toml && python qntm_content.py --slot pm
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: CONTENT_ENGINE_ENABLED
+        value: "1"
+
   # ── User-defined price / value-position / conviction alerts ─────────────────
   # Evaluates the price_alerts table and fans out hits to in-app + email + SMS.
   # Reads the live signal_log snapshot (price updated by the intraday cron) and
