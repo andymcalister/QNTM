@@ -84,8 +84,12 @@ PROMPTS = {
                "screening high-conviction right now, and what that suggests.",
     "anatomy": "Write about what the model sees in one name's factor profile. "
                "Describe the factors, not a recommendation. No buy/sell language.",
-    "method": "Write about how one piece of the QNTM method works, grounded in "
-              "the live example given. Teach the thinking, not a conclusion.",
+    "method": "Write about how one piece of the QNTM method works. LEAD WITH "
+              "THE IDEA in the first line - the insight, not the statistics. Use "
+              "at most ONE number, and only if it sharpens the point. A post that "
+              "opens with a string of figures reads as a data dump; open with the "
+              "thought and let one number land it. Teach the thinking, not a "
+              "conclusion.",
     "build": "Write a builder's note about making a quantitative research "
              "platform. You are given rough raw material from the founder and an "
              "angle to take on it. Do not restate the raw material - start from "
