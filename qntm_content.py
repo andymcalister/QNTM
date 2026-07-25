@@ -318,7 +318,8 @@ def _facts_build(sb, d, rows):
     hrows = _held_rows(sb, rows)
     return {
         "raw_material": pool[0],
-        "second_thread": pool[1] if len(pool) > 1 else None,
+        "second_thread": (pool[1] if (len(pool) > 1 and random.random() < 0.25)
+                          else None),
         "angle": random.choice(BUILD_ANGLES),
         "live_context": {"universe_size": len(rows), "holdings": len(hrows)},
         "avoid_echoing_these_recent_build_posts": [x.get("text") for x in prev],
