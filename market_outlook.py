@@ -142,16 +142,25 @@ def _week_session_dates(sb, as_of=None):
         ref = _dt.date(y, m, d)
     monday = ref - _dt.timedelta(days=ref.weekday())
     friday = monday + _dt.timedelta(days=4)
-    rows = (sb.table("signal_log").select("signal_date")
-            .gte("signal_date", monday.isoformat())
-            .lte("signal_date", friday.isoformat())
-            .order("signal_date", desc=True).execute().data or [])
-    seen, out = set(), []
-    for r in rows:
-        dd = str(r["signal_date"])[:10]
-        if dd not in seen:
-            seen.add(dd); out.append(dd)
-    return out
+    # signal_log holds ~1000 rows PER date, so an unbounded range select truncates
+    # at PostgREST's 1000-row cap and returns only the newest date. Page through.
+    seen, out, page = set(), [], 0
+    while page < 12:
+        batch = (sb.table("signal_log").select("signal_date")
+                 .gte("signal_date", monday.isoformat())
+                 .lte("signal_date", friday.isoformat())
+                 .order("signal_date", desc=True)
+                 .range(page * 1000, (page + 1) * 1000 - 1).execute().data or [])
+        if not batch:
+            break
+        for r in batch:
+            dd = str(r["signal_date"])[:10]
+            if dd not in seen:
+                seen.add(dd); out.append(dd)
+        if len(batch) < 1000:
+            break
+        page += 1
+    return sorted(out, reverse=True)
 
 
 def _week_startend(sb, tickers, as_of=None):
