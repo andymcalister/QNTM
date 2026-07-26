@@ -1151,6 +1151,24 @@ def load_model_portfolio() -> dict:
                 spy_prev_v = _MP_BASE * spy[d_prev] / spy0
                 spy_now_v = s_last
                 ds_pct = ((spy[dates[-1]] / spy[d_prev] - 1) * 100) if spy[d_prev] else 0.0
+
+                def _bench_day(bmap, b0):
+                    if not bmap or not b0:
+                        return None
+                    pv = bmap.get(d_prev); nv = bmap.get(dates[-1])
+                    if pv is None or nv is None or not pv:
+                        return None
+                    prev_v = _MP_BASE * pv / b0
+                    now_v = _MP_BASE * nv / b0
+                    return {"prev": round(prev_v, 2), "now": round(now_v, 2),
+                            "pct": round((nv / pv - 1) * 100, 2),
+                            "dollar": round(now_v - prev_v, 2)}
+
+                _rsp0 = rsp.get(dates[0]) if rsp else None
+                _qqq0 = qqq.get(dates[0]) if qqq else None
+                _rd = _bench_day(rsp, _rsp0)
+                _qd = _bench_day(qqq, _qqq0)
+
                 day = {
                     "model_now": round(model_now, 2), "model_prev": round(model_prev, 2),
                     "model_pct": round(dm_pct, 2), "model_dollar": round(dm_dollar, 2),
@@ -1158,6 +1176,14 @@ def load_model_portfolio() -> dict:
                     "spy_pct": round(ds_pct, 2), "spy_dollar": round(spy_now_v - spy_prev_v, 2),
                     "vs_spy_pct": round(dm_pct - ds_pct, 2),
                 }
+                if _rd:
+                    day.update({"rsp_now": _rd["now"], "rsp_prev": _rd["prev"],
+                                "rsp_pct": _rd["pct"], "rsp_dollar": _rd["dollar"],
+                                "vs_rsp_pct": round(dm_pct - _rd["pct"], 2)})
+                if _qd:
+                    day.update({"qqq_now": _qd["now"], "qqq_prev": _qd["prev"],
+                                "qqq_pct": _qd["pct"], "qqq_dollar": _qd["dollar"],
+                                "vs_qqq_pct": round(dm_pct - _qd["pct"], 2)})
                 # Freeze the day figures to the settled wrap once it's written.
                 # The wrap job uses real 4:00 ET close prices (same as the email),
                 # so this stops the after-close drift from live/pre-market marks.
