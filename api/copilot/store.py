@@ -11,6 +11,7 @@ _H = {"apikey": _KEY, "Authorization": f"Bearer {_KEY}",
       "Content-Type": "application/json"}
 _T = f"{_URL}/rest/v1/comment_queue"
 _F = f"{_URL}/rest/v1/copilot_following"
+_TI = f"{_URL}/rest/v1/copilot_target_ids"
 _G = f"{_URL}/rest/v1/copilot_follows"
 
 
@@ -186,3 +187,28 @@ def follows_for_harvest(limit):
         "select": "user_id,username", "limit": str(limit)}, timeout=30)
     r.raise_for_status()
     return r.json()
+
+
+def target_ids_synced_at():
+    r = requests.get(_TI, headers=_H, params={
+        "select": "synced_at", "order": "synced_at.desc", "limit": "1"}, timeout=30)
+    r.raise_for_status()
+    rows = r.json()
+    return _parse(rows[0]["synced_at"]) if rows else None
+
+
+def target_ids_cached():
+    r = requests.get(_TI, headers=_H, params={"select": "username,user_id"}, timeout=30)
+    r.raise_for_status()
+    return {row["username"].lower(): row["user_id"] for row in r.json()}
+
+
+def upsert_target_ids(idmap):
+    now = now_iso()
+    h = {**_H, "Prefer": "resolution=merge-duplicates,return=minimal"}
+    payload = [{"username": u, "user_id": str(i), "synced_at": now}
+               for u, i in idmap.items()]
+    for k in range(0, len(payload), 500):
+        r = requests.post(_TI + "?on_conflict=username", headers=h,
+                          json=payload[k:k + 500], timeout=60)
+        r.raise_for_status()

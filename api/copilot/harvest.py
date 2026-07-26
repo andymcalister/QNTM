@@ -11,6 +11,48 @@ from . import config, xclient, voice, store
 TIERS = [("mid", 0.40), ("large", 0.30), ("small", 0.20), ("mega", 0.10)]
 
 
+class CreditsDepleted(Exception):
+    pass
+
+
+def _is_credit_error(exc):
+    txt = f"{type(exc).__name__} {exc}".lower()
+    return any(k in txt for k in ("402", "credit", "429", "toomany",
+                                  "rate limit", "forbidden", "403"))
+
+
+def resolve_target_ids_cached():
+    """Handle->id map for TARGET_HANDLES, Supabase-cached with a TTL so the
+    get_users read (the 402 cost sink) fires at most once per TARGET_TTL_HRS."""
+    want = [h.lower() for h in config.TARGET_HANDLES]
+    try:
+        synced = store.target_ids_synced_at()
+    except Exception:
+        synced = None
+    if synced is not None and _age_hours(synced) < config.TARGET_TTL_HRS:
+        cached = store.target_ids_cached()
+        if all(h in cached for h in want):
+            return {h: cached[h] for h in want}
+    try:
+        idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
+    except Exception as e:
+        if _is_credit_error(e):
+            try:
+                cached = store.target_ids_cached()
+            except Exception:
+                cached = {}
+            if cached:
+                print("[warn] target resolve hit depleted credits; using cached ids")
+                return {h: cached[h] for h in want if h in cached}
+            raise CreditsDepleted(str(e))
+        raise
+    try:
+        store.upsert_target_ids(idmap)
+    except Exception as e:
+        print(f"[warn] target id cache write failed: {e}")
+    return idmap
+
+
 def _engagement(m):
     return (m.get("like_count", 0) + m.get("retweet_count", 0)
             + m.get("reply_count", 0) + m.get("quote_count", 0))
@@ -123,7 +165,7 @@ def _pull(user_id, username, posts):
 
 def _gather():
     posts = []
-    idmap = xclient.resolve_user_ids(config.TARGET_HANDLES)
+    idmap = resolve_target_ids_cached()
     for uname, uid in idmap.items():
         _pull(uid, uname, posts)
     for t in store.targets_for_harvest(config.FOLLOW_TOP):
