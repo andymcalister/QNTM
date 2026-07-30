@@ -245,6 +245,22 @@ def gather(sb, kind, as_of=None):
                         log.warning("week spy: missing close for %s or %s", _sd[-1], _sd[0])
             elif len(spy) >= 2 and spy[-2][1]:
                 data["spy_return"] = round((spy[-1][1] / spy[-2][1] - 1.0) * 100.0, 2)
+            else:
+                # Day-wrap needs the last TWO sessions (prev close -> today), which
+                # the week-anchored spy_daily() can't supply on a Monday (only 1
+                # row in-week). Read the last two benchmark_price closes directly.
+                try:
+                    _two = (sb.table("benchmark_price").select("d,close")
+                            .lte("d", data['date']).order("d", desc=True)
+                            .limit(2).execute().data or [])
+                    _tw = [(str(r["d"])[:10], float(r["close"]))
+                           for r in _two if r.get("close") is not None]
+                    if len(_tw) >= 2 and _tw[1][1]:
+                        data["spy_return"] = round((_tw[0][1] / _tw[1][1] - 1.0) * 100.0, 2)
+                    else:
+                        log.warning("wrap spy: <2 benchmark rows at/before %s", data['date'])
+                except Exception as _e:
+                    log.warning("wrap spy fallback failed: %s", _e)
 
             perf = _sector_perf(tickers, prices, min_names=1)
             data["sector_attribution"] = [{"sector": s, "avg_pct": round(p, 2), "n": c} for s, p, c in perf][:8]
