@@ -1158,10 +1158,11 @@ def load_model_portfolio() -> dict:
                     pv = bmap.get(d_prev); nv = bmap.get(dates[-1])
                     if pv is None or nv is None or not pv:
                         return None
+                    pct = (nv / pv - 1) * 100.0
                     prev_v = _MP_BASE * pv / b0
-                    now_v = _MP_BASE * nv / b0
+                    now_v = prev_v * (1.0 + pct / 100.0)
                     return {"prev": round(prev_v, 2), "now": round(now_v, 2),
-                            "pct": round((nv / pv - 1) * 100, 2),
+                            "pct": round(pct, 2),
                             "dollar": round(now_v - prev_v, 2)}
 
                 _rsp0 = rsp.get(dates[0]) if rsp else None
