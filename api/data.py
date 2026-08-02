@@ -667,7 +667,22 @@ def load_stock(ticker: str):
     scores = sorted(r["score"] for r in rows)
     n = len(scores) or 1
     pct_rank = round(bisect.bisect_right(scores, row["score"]) / n * 100)
-    return {**row, "pct_rank": pct_rank, "changes": stock_changes(tk)}
+
+    # Same-sector peers for internal linking (crawl discovery + link equity).
+    # rows already in memory from load_universe() — no extra query.
+    _sec = row.get("sector")
+    _peers = []
+    if _sec:
+        _cands = [pr for pr in rows
+                  if pr.get("sector") == _sec and pr["ticker"] != tk]
+        _cands.sort(key=lambda pr: pr.get("score") or 0, reverse=True)
+        _peers = [{"ticker": pr["ticker"],
+                   "score": round(pr.get("score") or 0, 1),
+                   "conviction": pr.get("conviction")}
+                  for pr in _cands[:8]]
+
+    return {**row, "pct_rank": pct_rank, "changes": stock_changes(tk),
+            "peers": _peers}
 
 
 # ── vs-SPY price series (stored-first, no live pull) ──────────────────────────

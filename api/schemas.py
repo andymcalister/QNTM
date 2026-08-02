@@ -92,9 +92,16 @@ class StockChanges(BaseModel):
     macro_unchanged: bool = False
 
 
+class PeerStock(BaseModel):
+    ticker: str
+    score: float = 0.0
+    conviction: Optional[str] = None
+
+
 class StockResponse(ScreenerRow):
     pct_rank: int = 0
     changes: Optional[StockChanges] = None
+    peers: list[PeerStock] = []
 
 
 class WatchlistItem(ScreenerRow):
