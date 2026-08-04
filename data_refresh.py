@@ -815,7 +815,7 @@ def update_model_portfolio(scored_list: list) -> None:
     except Exception:
         _SECTORS = {}
         def _sector_of(t): return "Unknown"
-    from conviction import is_entry as _is_entry, is_exit as _is_exit
+    from conviction import is_entry as _is_entry, is_exit as _is_exit, is_value_trap as _is_value_trap
 
     try:
         today     = date.today().isoformat()
@@ -1007,6 +1007,16 @@ def update_model_portfolio(scored_list: list) -> None:
             # Enforce 30% sector cap on new entries only
             if sector_counts.get(sec, 0) >= SECT_CAP:
                 skipped_cap += 1
+                continue
+
+            # Value-trap guard: decline a deeply-cheap name the market is actively
+            # rejecting (value >= 85 AND sentiment <= 30). Freed slot rolls to the
+            # next-best non-trap candidate.
+            if _is_value_trap(r.get("value"), r.get("sentiment")):
+                log.info("[MODEL PORTFOLIO] value-trap skip %s: value=%.0f "
+                         "sentiment=%.0f adj=%.1f", tk,
+                         float(r.get("value") or 0), float(r.get("sentiment") or 0),
+                         float(r.get("adj_composite", r.get("composite", 0)) or 0))
                 continue
 
             adj = float(r.get("adj_composite", r.get("composite", 60)) or 60)

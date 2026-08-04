@@ -55,6 +55,22 @@ def is_exit(adj) -> bool:
     except (TypeError, ValueError):
         return False
 #
+# Value-trap guard: decline ENTRY when value >= 85 AND sentiment <= 30 — the
+# classic value-trap signature (cheap, but the market is actively rejecting it).
+# Portfolio construction only; the conviction label/screener still show the true
+# score. Thresholds tunable.
+VALUE_TRAP_VALUE_MIN = 85
+VALUE_TRAP_SENT_MAX  = 30
+
+
+def is_value_trap(value, sentiment) -> bool:
+    """True if this name looks like a value trap and should be declined for entry."""
+    try:
+        return float(value) >= VALUE_TRAP_VALUE_MIN and float(sentiment) <= VALUE_TRAP_SENT_MAX
+    except (TypeError, ValueError):
+        return False
+
+
 def conviction_action(adj) -> str:
     """BUY (entry) / SELL (exit) / HOLD, from the same rounded bands."""
     if is_entry(adj):
