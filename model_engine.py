@@ -38,6 +38,7 @@ MOM_REV_MIN     = 70
 MOM_REV_TRIGGER = -0.08
 MOM_REV_SCALE   = 0.8
 MOM_REV_CAP     = 20
+MOM_REV_WINDOW  = 10      # sessions for the recent high
 
 ENTRY_THRESHOLD      = 60
 EXIT_THRESHOLD       = 45
@@ -139,9 +140,10 @@ def score_stock(ticker: str, price_history: list = None,
         # doesn't keep scoring near-max. Only bites on high momentum + clear recent
         # decline; steady moves and mild dips untouched.
         if len(hist) >= 11:
-            ret_10d = cur / hist[-11] - 1.0
-            if mom >= MOM_REV_MIN and ret_10d <= MOM_REV_TRIGGER:
-                penalty = min(MOM_REV_CAP, abs(ret_10d) * 100.0 * MOM_REV_SCALE)
+            recent_high = max(hist[-MOM_REV_WINDOW:])
+            dd_from_high = (cur / recent_high - 1.0) if recent_high > 0 else 0.0
+            if mom >= MOM_REV_MIN and dd_from_high <= MOM_REV_TRIGGER:
+                penalty = min(MOM_REV_CAP, abs(dd_from_high) * 100.0 * MOM_REV_SCALE)
                 mom = max(0.0, mom - penalty)
     else:
         # Estimate from fundamentals if no price history
