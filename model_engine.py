@@ -32,6 +32,13 @@ PILLAR_W = {"momentum":0.30,"quality":0.30,"volume":0.10,"value":0.20,"sentiment
 # Favor 3M and 6M (trend confirmation) over 1M (noise)
 MOM_W = {"m1m":0.10,"m3m":0.30,"m6m":0.35,"trend":0.15,"pfh":0.10}
 
+# Short-term reversal penalty knobs (Option B). Conservative — only names that
+# are BOTH high-momentum and sharply rolling over.
+MOM_REV_MIN     = 70
+MOM_REV_TRIGGER = -0.08
+MOM_REV_SCALE   = 0.8
+MOM_REV_CAP     = 20
+
 ENTRY_THRESHOLD      = 60
 EXIT_THRESHOLD       = 45
 MOM_EXIT             = 30
@@ -126,6 +133,16 @@ def score_stock(ticker: str, price_history: list = None,
         mom = (pf(m1m,-20,30)*MOM_W["m1m"] + pf(m3m,-30,60)*MOM_W["m3m"] +
                pf(m6m,-40,80)*MOM_W["m6m"] + trend*MOM_W["trend"] +
                pf(pfh,-30,0)*MOM_W["pfh"])
+
+        # Short-term reversal penalty — dock a name with strong medium-term
+        # momentum that is sharply rolling over recently, so "great run, now fading"
+        # doesn't keep scoring near-max. Only bites on high momentum + clear recent
+        # decline; steady moves and mild dips untouched.
+        if len(hist) >= 11:
+            ret_10d = cur / hist[-11] - 1.0
+            if mom >= MOM_REV_MIN and ret_10d <= MOM_REV_TRIGGER:
+                penalty = min(MOM_REV_CAP, abs(ret_10d) * 100.0 * MOM_REV_SCALE)
+                mom = max(0.0, mom - penalty)
     else:
         # Estimate from fundamentals if no price history
         eg  = f.get("eg",0) or 0
