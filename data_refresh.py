@@ -870,6 +870,28 @@ def update_model_portfolio(scored_list: list) -> None:
             )
             return
 
+        # ── Thin-universe abort — never redeploy on a partial fetch ───────────
+        #    A healthy run prices ~1,000 names; a yfinance flake can drop that
+        #    sharply (2026-08-06: 29+ majors failed). Redeploy on a thin universe
+        #    fills slots with whoever fetched, not the real top names, and can
+        #    miss exits — so if scored count is well below the recent norm, abort.
+        try:
+            _recent = sb.table("signal_log").select("signal_date") \
+                .order("signal_date", desc=True).limit(6000).execute().data or []
+            from collections import Counter as _C
+            _counts = _C(str(r["signal_date"])[:10] for r in _recent)
+            _prior = [c for d, c in sorted(_counts.items(), reverse=True)[1:6]]
+            _norm = (sum(_prior) / len(_prior)) if _prior else _n_scored
+            if _norm and _n_scored < 0.85 * _norm:
+                log.error(
+                    "[MODEL PORTFOLIO] ABORT — thin universe this run "
+                    "(scored=%d vs recent norm %.0f, <85%%). Likely a partial "
+                    "yfinance fetch; entries/exits skipped." % (_n_scored, _norm)
+                )
+                return
+        except Exception as _e:
+            log.warning("[MODEL PORTFOLIO] thin-universe gate check failed (continuing): %r" % (_e,))
+
         # ── Step 1: Exit positions whose conviction has collapsed ─────────────
         #    Exit on the macro-adjusted blend (adj_composite) — the published
         #    conviction score — so a sustained macro/sector headwind that drags a
