@@ -1182,10 +1182,20 @@ def run_refresh(tickers: list = None, force: bool = False,
 
         # Score with live fundamentals injected
         scores = []
+        _no_price = []
         for ticker in tickers:
             hist   = price_histories.get(ticker, [])
             f      = live_data.get(ticker, {})
             vol_ratio = f.get("vol_ratio")
+
+            # SKIP tickers with no live price this run. Scoring them makes
+            # score_stock fabricate a fundamentals-only momentum estimate (a
+            # phantom score with no price basis) that has entered bad positions
+            # (FANG 2026-08-06). Absent from signal_log is correct; fabricated
+            # is not. A yfinance flake must never mint a score.
+            if not hist:
+                _no_price.append(ticker)
+                continue
 
             s = score_stock(ticker, hist, live_fundamentals=f, vol_ratio=vol_ratio)
             s["has_live_price"] = len(hist) > 0
@@ -1195,6 +1205,11 @@ def run_refresh(tickers: list = None, force: bool = False,
             s["_w52h"] = f.get("w52h")
             s["_w52l"] = f.get("w52l")
             scores.append(s)
+
+        if _no_price:
+            log.warning("[REFRESH] skipping no-price scoring for %d tickers "
+                        "(yfinance returned no data): %s", len(_no_price),
+                        ", ".join(_no_price[:30]) + ("..." if len(_no_price) > 30 else ""))
 
         # Cross-sectional percentile ranking
         composites = [s["composite"] for s in scores]
